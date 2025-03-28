@@ -23,9 +23,9 @@ class Date(IdlStruct, typename='edgefirst_msgs/Date'):
     """
     The local time interface publishes the current time on the device.  It is
     mainly intended to allow synchronization of multiple MCAP files by the
-    Maivin Publisher.  The idea is to calculate the offset from the timestamp
-    in the header with the actual local time, then when multiple MCAP files
-    have the local time topic recorded the relative offsets can then be
+    EdgeFirst Publisher.  The idea is to calculate the offset from the 
+    timestamp in the header with the actual local time, then when multiple MCAP 
+    files have the local time topic recorded the relative offsets can then be
     calculated.
     """
 

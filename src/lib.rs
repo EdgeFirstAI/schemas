@@ -1,14 +1,14 @@
-/// # Maivin EdgeFirst Schemas
+/// # EdgeFirst Middleware Schemas
 ///
-/// This library provides the Rust structs for Maivin EdgeFirst messages.
+/// This library provides the Rust structs for EdgeFirst Middleware messages.
 ///
-/// Common Rust struct for ROS 2 messages used by Maivin EdgeFirst Services with Zenoh.
+/// Common Rust struct for ROS 2 messages used by EdgeFirst Middleware Services with Zenoh.
 ///
 /// Here are some ROS message source:
 /// * [common_interface](https://github.com/ros2/common_interfaces): Common-used ROS message
 /// * [rcl_interface](https://github.com/ros2/rcl_interfaces): Common interface in RCL
 /// * [foxglove_api_msgs](https://github.com/foxglove/schemas/tree/main/ros_foxglove_msgs)
-/// * [edgefirst_api_msgs](https://github.com/MaivinAI/schemas): EdgeFirst ROS messages
+/// * [edgefirst_api_msgs](https://github.com/EdgeFirstAI/schemas): EdgeFirst ROS messages
 ///
 
 /// EdgeFirst Messages

@@ -1,15 +1,15 @@
 [package]
 name = "edgefirst-schemas"
-description = "Maivin EdgeFirst Services Schemas"
-authors = ["Au-Zone Technologies <info@au-zone.com>"]
+description = "EdgeFirst Middleware Schemas"
+authors = ["Au-Zone Technologies <support@au-zone.com>"]
 edition = "2021"
 license = "AGPL-3.0"
 readme = "README.md"
 version = "0.0.0"
-homepage = "https://maivin.edgefirst.ai"
-repository = "https://github.com/MaivinAI/schemas"
+homepage = "https://studio.edgefirst.ai"
+repository = "https://github.com/EdgeFirstAI/schemas"
 documentation = "https://docs.rs/edgefirst-schemas/"
 
 [dependencies]
-serde = "1.0.210"
-serde_derive = "1.0.210"
+serde = "1.0.219"
+serde_derive = "1.0.219"
