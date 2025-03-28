@@ -1,6 +1,8 @@
 from dataclasses import dataclass
+
 from pycdr2 import IdlStruct
 from pycdr2.types import int32, uint32
+
 
 @dataclass
 class Duration(IdlStruct, typename='builtin_interfaces/Duration'):
@@ -17,7 +19,8 @@ class Duration(IdlStruct, typename='builtin_interfaces/Duration'):
     """
     The nanoseconds component, valid in the range [0, 10e9).
     """
-    
+
+
 @dataclass
 class Time(IdlStruct, typename='builtin_interfaces/Time'):
     sec: int32 = 0

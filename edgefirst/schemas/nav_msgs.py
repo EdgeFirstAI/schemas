@@ -1,10 +1,13 @@
 from dataclasses import dataclass
+
 from pycdr2 import IdlStruct
-from pycdr2.types import float32, int8, uint32, sequence
+from pycdr2.types import float32, int8, sequence, uint32
+
 from . import default_field
 from .builtin_interfaces import Time
+from .geometry_msgs import (Point, Pose, PoseStamped, PoseWithCovariance,
+                            TwistWithCovariance)
 from .std_msgs import Header
-from .geometry_msgs import Point, Pose, PoseStamped, PoseWithCovariance, TwistWithCovariance
 
 
 @dataclass
@@ -28,6 +31,7 @@ class GridCells(IdlStruct, typename='nav_msgs/GridCells'):
     """
     Each cell is represented by the Point at the center of the cell
     """
+
 
 @dataclass
 class MapMetaData(IdlStruct, typename='nav_msgs/MapMetaData'):
@@ -60,6 +64,7 @@ class MapMetaData(IdlStruct, typename='nav_msgs/MapMetaData'):
     bottom left corner of cell (0,0) in the map.
     """
 
+
 @dataclass
 class OccupancyGrid(IdlStruct, typename='nav_msgs/OccupancyGrid'):
     """
@@ -81,6 +86,7 @@ class OccupancyGrid(IdlStruct, typename='nav_msgs/OccupancyGrid'):
     0 represents unoccupied, 1 represents definitely occupied, and
     -1 represents unknown. 
     """
+
 
 @dataclass
 class Odometry(IdlStruct, typename='nav_msgs/Odometry'):
@@ -108,6 +114,7 @@ class Odometry(IdlStruct, typename='nav_msgs/Odometry'):
     """
     Estimated linear and angular velocity relative to child_frame_id.
     """
+
 
 @dataclass
 class Path(IdlStruct, typename='nav_msgs/Path'):

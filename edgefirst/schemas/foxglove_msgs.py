@@ -1,21 +1,25 @@
 from dataclasses import dataclass
-from pycdr2 import IdlStruct
-from pycdr2.types import float64, uint8, uint32, array, sequence
-from . import default_field
-from .builtin_interfaces import Time, Duration
-from .geometry_msgs import Point, Pose, Quaternion, Vector3
 from enum import Enum
 
+from pycdr2 import IdlStruct
+from pycdr2.types import array, float64, sequence, uint8, uint32
+
+from . import default_field
+from .builtin_interfaces import Duration, Time
+from .geometry_msgs import Point, Pose, Quaternion, Vector3
+
+
 class FieldDatatype(Enum):
-    UNKNOWN=0
-    UINT8=1
-    INT8=2
-    UINT16=3
-    INT16=4
-    UINT32=5
-    INT32=6
-    FLOAT32=7
-    FLOAT64=8
+    UNKNOWN = 0
+    UINT8 = 1
+    INT8 = 2
+    UINT16 = 3
+    INT16 = 4
+    UINT32 = 5
+    INT32 = 6
+    FLOAT32 = 7
+    FLOAT64 = 8
+
 
 @dataclass
 class PackedElementField(IdlStruct, typename='foxglove_msgs/PackedElementField'):
@@ -40,6 +44,7 @@ class PackedElementField(IdlStruct, typename='foxglove_msgs/PackedElementField')
     Type of data in the field. Integers are stored using little-endian byte order.
     """
 
+
 @dataclass
 class Vector2(IdlStruct, typename='foxglove_msgs/Vector2'):
     """
@@ -57,6 +62,7 @@ class Vector2(IdlStruct, typename='foxglove_msgs/Vector2'):
     """
     y coordinate length
     """
+
 
 @dataclass
 class Color(IdlStruct, typename='foxglove_msgs/Color'):
@@ -83,6 +89,7 @@ class Color(IdlStruct, typename='foxglove_msgs/Color'):
     Alpha value between 0 and 1
     """
 
+
 @dataclass
 class Point2(IdlStruct, typename='foxglove_msgs/Point2'):
     """
@@ -100,6 +107,7 @@ class Point2(IdlStruct, typename='foxglove_msgs/Point2'):
     y coordinate position
     """
 
+
 @dataclass
 class KeyValuePair(IdlStruct, typename='foxglove_msgs/KeyValuePair'):
     """
@@ -115,6 +123,7 @@ class KeyValuePair(IdlStruct, typename='foxglove_msgs/KeyValuePair'):
     """
     Value
     """
+
 
 @dataclass
 class ArrowMarker(IdlStruct, typename='foxglove_msgs/ArrowMarker'):
@@ -150,6 +159,7 @@ class ArrowMarker(IdlStruct, typename='foxglove_msgs/ArrowMarker'):
     Color of the arrow
     """
 
+
 @dataclass
 class ArrowPrimitive(IdlStruct, typename='foxglove_msgs/ArrowPrimitive'):
     """
@@ -182,6 +192,7 @@ class ArrowPrimitive(IdlStruct, typename='foxglove_msgs/ArrowPrimitive'):
     """
     Color of the arrow
     """
+
 
 @dataclass
 class CameraCalibration(IdlStruct, typename='foxglove_msgs/CameraCalibration'):
@@ -274,6 +285,7 @@ class CameraCalibration(IdlStruct, typename='foxglove_msgs/CameraCalibration'):
     This holds for both images of a stereo pair.
     """
 
+
 @dataclass
 class CircleAnnotation(IdlStruct, typename='foxglove_msgs/CircleAnnotation'):
     """
@@ -308,6 +320,7 @@ class CircleAnnotation(IdlStruct, typename='foxglove_msgs/CircleAnnotation'):
     Outline color
     """
 
+
 @dataclass
 class CompressedImage(IdlStruct, typename='foxglove_msgs/CompressedImage'):
     """
@@ -336,6 +349,7 @@ class CompressedImage(IdlStruct, typename='foxglove_msgs/CompressedImage'):
     
     Supported values: image media types supported by Chrome, such as `webp`, `jpeg`, `png`
     """
+
 
 @dataclass
 class CompressedVideo(IdlStruct, typename='foxglove_msgs/CompressedVideo'):
@@ -371,6 +385,7 @@ class CompressedVideo(IdlStruct, typename='foxglove_msgs/CompressedVideo'):
     Supported values: `h264` (Annex B formatted data only)
     """
 
+
 @dataclass
 class ConeAttributes(IdlStruct, typename='foxglove_msgs/ConeAttribute'):
     """
@@ -399,6 +414,7 @@ class ConeAttributes(IdlStruct, typename='foxglove_msgs/ConeAttribute'):
     """
     Color of the cone
     """
+
 
 @dataclass
 class ConeListMarker(IdlStruct, typename='foxglove_msgs/ConeListMarker'):
@@ -437,6 +453,7 @@ class ConeListMarker(IdlStruct, typename='foxglove_msgs/ConeListMarker'):
     Attributes of each cone
     """
 
+
 @dataclass
 class ConeMarker(IdlStruct, typename='foxglove_msgs/ConeMarker'):
     """
@@ -465,6 +482,7 @@ class ConeMarker(IdlStruct, typename='foxglove_msgs/ConeMarker'):
     """
     Color of the cone
     """
+
 
 @dataclass
 class ConePrimitive(IdlStruct, typename='foxglove_msgs/ConePrimitive'):
@@ -495,6 +513,7 @@ class ConePrimitive(IdlStruct, typename='foxglove_msgs/ConePrimitive'):
     Color of the cone
     """
 
+
 @dataclass
 class CubeAttributes(IdlStruct, typename='foxglove_msgs/CubeAttributes'):
     """
@@ -515,6 +534,7 @@ class CubeAttributes(IdlStruct, typename='foxglove_msgs/CubeAttributes'):
     """
     Color of the arrow
     """
+
 
 @dataclass
 class CubeListMarker(IdlStruct, typename='foxglove_msgs/CubeListMarker'):
@@ -553,6 +573,7 @@ class CubeListMarker(IdlStruct, typename='foxglove_msgs/CubeListMarker'):
     Attributes of each cube
     """
 
+
 @dataclass
 class CubeMarker(IdlStruct, typename='foxglove_msgs/CubeMarker'):
     """
@@ -574,6 +595,7 @@ class CubeMarker(IdlStruct, typename='foxglove_msgs/CubeMarker'):
     Color of the arrow
     """
 
+
 @dataclass
 class CubePrimitive(IdlStruct, typename='foxglove_msgs/CubePrimitive'):
     """
@@ -594,6 +616,7 @@ class CubePrimitive(IdlStruct, typename='foxglove_msgs/CubePrimitive'):
     """
     Color of the cube
     """
+
 
 @dataclass
 class CylinderMarker(IdlStruct, typename='foxglove_msgs/CylinderMarker'):
@@ -658,6 +681,7 @@ class CylinderMarker(IdlStruct, typename='foxglove_msgs/CylinderMarker'):
     Color of the sphere
     """
 
+
 @dataclass
 class CylinderPrimitive(IdlStruct, typename='foxglove_msgs/CylinderPrimitive'):
     """
@@ -690,6 +714,7 @@ class CylinderPrimitive(IdlStruct, typename='foxglove_msgs/CylinderPrimitive'):
     """
     Color of the cylinder
     """
+
 
 @dataclass
 class FrameTransform(IdlStruct, typename='foxglove_msgs/FrameTransform'):
@@ -724,6 +749,7 @@ class FrameTransform(IdlStruct, typename='foxglove_msgs/FrameTransform'):
     Rotation component of the transform
     """
 
+
 @dataclass
 class FrameTransformList(IdlStruct, typename='foxglove_msgs/FrameTransformList'):
     """
@@ -736,6 +762,7 @@ class FrameTransformList(IdlStruct, typename='foxglove_msgs/FrameTransformList')
     """
     List of transforms
     """
+
 
 @dataclass
 class FrameTransforms(IdlStruct, typename='foxglove_msgs/FrameTransforms'):
@@ -750,6 +777,7 @@ class FrameTransforms(IdlStruct, typename='foxglove_msgs/FrameTransforms'):
     Array of transforms
     """
 
+
 @dataclass
 class GeoJSON(IdlStruct, typename='foxglove_msgs/GeoJSON'):
     """
@@ -762,6 +790,7 @@ class GeoJSON(IdlStruct, typename='foxglove_msgs/GeoJSON'):
     """
     GeoJSON data encoded as a UTF-8 string
     """
+
 
 @dataclass
 class Grid(IdlStruct, typename='foxglove_msgs/Grid'):
@@ -816,24 +845,26 @@ class Grid(IdlStruct, typename='foxglove_msgs/Grid'):
     Grid cell data, interpreted using `fields`, in row-major (y-major) order
     """
 
+
 class PointType(Enum):
-    UNKNOWN=0
-    POINTS=1
+    UNKNOWN = 0
+    POINTS = 1
     """
     Individual points: 0, 1, 2, ...
     """
-    LINE_LOOP=2
+    LINE_LOOP = 2
     """
     Closed polygon: 0-1, 1-2, ..., (n-1)-n, n-0
     """
-    LINE_STRIP=3
+    LINE_STRIP = 3
     """
     Connected line segments: 0-1, 1-2, ..., (n-1)-n
     """
-    LINE_LIST=4
+    LINE_LIST = 4
     """
     Individual line segments: 0-1, 2-3, 4-5, ...
     """
+
 
 @dataclass
 class PointsAnnotation(IdlStruct, typename='foxglove_msgs/PointsAnnotation'):
@@ -878,6 +909,7 @@ class PointsAnnotation(IdlStruct, typename='foxglove_msgs/PointsAnnotation'):
     Stroke thickness in pixels
     """
 
+
 @dataclass
 class TextAnnotation(IdlStruct, typename='foxglove_msgs/TextAnnotation'):
     """
@@ -916,6 +948,7 @@ class TextAnnotation(IdlStruct, typename='foxglove_msgs/TextAnnotation'):
     Background fill color
     """
 
+
 @dataclass
 class ImageAnnotations(IdlStruct, typename='foxglove_msgs/ImageAnnotations'):
     """
@@ -938,6 +971,7 @@ class ImageAnnotations(IdlStruct, typename='foxglove_msgs/ImageAnnotations'):
     """
     Text annotations
     """
+
 
 @dataclass
 class LaserScan(IdlStruct, typename='foxglove_msgs/LaserScan'):
@@ -982,13 +1016,15 @@ class LaserScan(IdlStruct, typename='foxglove_msgs/LaserScan'):
     Intensity of detections
     """
 
+
 class LinePrimitive(Enum):
     # 0-1, 1-2, ..., (n-1)-n
-    LINE_STRIP=0
+    LINE_STRIP = 0
     # 0-1, 1-2, ..., (n-1)-n, n-0
-    LINE_LOOP=1
+    LINE_LOOP = 1
     # 0-1, 2-3, 4-5, ...
-    LINE_LIST=2
+    LINE_LIST = 2
+
 
 @dataclass
 class LineMarker(IdlStruct, typename='foxglove_msgs/LineMarker'):
@@ -1040,19 +1076,21 @@ class LineMarker(IdlStruct, typename='foxglove_msgs/LineMarker'):
     If omitted or empty, indexing will not be used. This default behavior is equivalent to specifying [0, 1, ..., N-1] for the indices (where N is the number of `points` provided).
     """
 
+
 class LinePrimitiveType(Enum):
-    LINE_STRIP=0
+    LINE_STRIP = 0
     """
     Connected line segments: 0-1, 1-2, ..., (n-1)-n
     """
-    LINE_LOOP=1
+    LINE_LOOP = 1
     """
     Closed polygon: 0-1, 1-2, ..., (n-1)-n, n-0
     """
-    LINE_LIST=2
+    LINE_LIST = 2
     """
     Individual line segments: 0-1, 2-3, 4-5, ...
     """
+
 
 @dataclass
 class LinePrimitive(IdlStruct, typename='foxglove_msgs/LinePrimitive'):
@@ -1104,11 +1142,13 @@ class LinePrimitive(IdlStruct, typename='foxglove_msgs/LinePrimitive'):
     If omitted or empty, indexing will not be used. This default behavior is equivalent to specifying [0, 1, ..., N-1] for the indices (where N is the number of `points` provided).
     """
 
+
 class PositionCovarianceType(Enum):
-    UNKNOWN=0
-    APPROXIMATED=1
-    DIAGONAL_KNOWN=2
-    KNOWN=3
+    UNKNOWN = 0
+    APPROXIMATED = 1
+    DIAGONAL_KNOWN = 2
+    KNOWN = 3
+
 
 @dataclass
 class LocationFix(IdlStruct, typename='foxglove_msgs/LocationFix'):
@@ -1153,13 +1193,15 @@ class LocationFix(IdlStruct, typename='foxglove_msgs/LocationFix'):
     If `position_covariance` is available, `position_covariance_type` must be set to indicate the type of covariance.
     """
 
+
 class LogLevel(Enum):
-    UNKNOWN=0
-    DEBUG=1
-    INFO=2
-    WARNING=3
-    ERROR=4
-    FATAL=5
+    UNKNOWN = 0
+    DEBUG = 1
+    INFO = 2
+    WARNING = 3
+    ERROR = 4
+    FATAL = 5
+
 
 @dataclass
 class Log(IdlStruct, typename='foxglove_msgs/Log'):
@@ -1199,9 +1241,11 @@ class Log(IdlStruct, typename='foxglove_msgs/Log'):
     Line number in the file
     """
 
+
 class DeleteType(Enum):
-    MATCHING_ID=0
-    ALL=1
+    MATCHING_ID = 0
+    ALL = 1
+
 
 @dataclass
 class MarkerDeletion(IdlStruct, typename='foxglove_msgs/MarkerDeletion'):
@@ -1225,6 +1269,7 @@ class MarkerDeletion(IdlStruct, typename='foxglove_msgs/MarkerDeletion'):
     """
     Numeric identifier which must match if `kind` is `MATCHING_ID`.
     """
+
 
 @dataclass
 class ModelMarker(IdlStruct, typename='foxglove_msgs/ModelMarker'):
@@ -1269,6 +1314,7 @@ class ModelMarker(IdlStruct, typename='foxglove_msgs/ModelMarker'):
     Embedded model. Either `url` or `mime_type` and `data` should be provided.
     """
 
+
 @dataclass
 class SphereAttributes(IdlStruct, typename='foxglove_msgs/SphereAttributes'):
     """
@@ -1291,6 +1337,7 @@ class SphereAttributes(IdlStruct, typename='foxglove_msgs/SphereAttributes'):
     """
     Color of the sphere
     """
+
 
 @dataclass
 class SphereListMarker(IdlStruct, typename='foxglove_msgs/SphereListMarker'):
@@ -1335,6 +1382,7 @@ class SphereListMarker(IdlStruct, typename='foxglove_msgs/SphereListMarker'):
     Attributes of each sphere
     """
 
+
 @dataclass
 class TextMarker(IdlStruct, typename='foxglove_msgs/TextMarker'):
     """
@@ -1373,6 +1421,7 @@ class TextMarker(IdlStruct, typename='foxglove_msgs/TextMarker'):
     Text
     """
 
+
 @dataclass
 class TriangleListMarker(IdlStruct, typename='foxglove_msgs/TriangleListMarker'):
     """
@@ -1407,6 +1456,7 @@ class TriangleListMarker(IdlStruct, typename='foxglove_msgs/TriangleListMarker')
     
     If omitted or empty, indexing will not be used. This default behavior is equivalent to specifying [0, 1, ..., N-1] for the indices (where N is the number of `points` provided).
     """
+
 
 @dataclass
 class Markers(IdlStruct, typename='foxglove_msgs/Markers'):
@@ -1461,6 +1511,7 @@ class Markers(IdlStruct, typename='foxglove_msgs/Markers'):
     Model markers
     """
 
+
 @dataclass
 class ModelPrimitive(IdlStruct, typename='foxglove_msgs/ModelPrimitive'):
     """
@@ -1504,6 +1555,7 @@ class ModelPrimitive(IdlStruct, typename='foxglove_msgs/ModelPrimitive'):
     Embedded model. One of `url` or `data` should be provided. If `data` is provided, `media_type` must be set to indicate the type of the data.
     """
 
+
 @dataclass
 class PointCloud(IdlStruct, typename='foxglove_msgs/PointCloud'):
     """
@@ -1542,6 +1594,7 @@ class PointCloud(IdlStruct, typename='foxglove_msgs/PointCloud'):
     Point data, interpreted using `fields`
     """
 
+
 @dataclass
 class PoseInFrame(IdlStruct, typename='foxglove_msgs/PoseInFrame'):
     """
@@ -1564,6 +1617,7 @@ class PoseInFrame(IdlStruct, typename='foxglove_msgs/PoseInFrame'):
     """
     Pose in 3D space
     """
+
 
 @dataclass
 class PosesInFrame(IdlStruct, typename='foxglove_msgs/PosesInFrame'):
@@ -1588,15 +1642,17 @@ class PosesInFrame(IdlStruct, typename='foxglove_msgs/PosesInFrame'):
     Poses in 3D space
     """
 
+
 class DeletionAction(Enum):
-    MATCHING_ID=0
+    MATCHING_ID = 0
     """
     Delete the existing entity on the same topic that has the provided `id`
     """
-    ALL=1
+    ALL = 1
     """
     Delete all existing entities on the same topic
     """
+
 
 @dataclass
 class PrimitiveDeletion(IdlStruct, typename='foxglove_msgs/PrimitiveDeletion'):
@@ -1621,6 +1677,7 @@ class PrimitiveDeletion(IdlStruct, typename='foxglove_msgs/PrimitiveDeletion'):
     Numeric identifier which must match if `kind` is `MATCHING_ID`.
     """
 
+
 @dataclass
 class SceneEntityDeletion(IdlStruct, typename='foxglove_msgs/SceneEntityDeletion'):
     """
@@ -1643,6 +1700,7 @@ class SceneEntityDeletion(IdlStruct, typename='foxglove_msgs/SceneEntityDeletion
     """
     Identifier which must match if `type` is `MATCHING_ID`.
     """
+
 
 @dataclass
 class RawImage(IdlStruct, typename='foxglove_msgs/RawImage'):
@@ -1689,6 +1747,7 @@ class RawImage(IdlStruct, typename='foxglove_msgs/RawImage'):
     Raw image data
     """
 
+
 @dataclass
 class SpherePrimitive(IdlStruct, typename='foxglove_msgs/SpherePrimitive'):
     """
@@ -1711,6 +1770,7 @@ class SpherePrimitive(IdlStruct, typename='foxglove_msgs/SpherePrimitive'):
     """
     Color of the sphere
     """
+
 
 @dataclass
 class TriangleListPrimitive(IdlStruct, typename='foxglove_msgs/TriangleListPrimitive'):
@@ -1746,6 +1806,7 @@ class TriangleListPrimitive(IdlStruct, typename='foxglove_msgs/TriangleListPrimi
     
     If omitted or empty, indexing will not be used. This default behavior is equivalent to specifying [0, 1, ..., N-1] for the indices (where N is the number of `points` provided).
     """
+
 
 @dataclass
 class TextPrimitive(IdlStruct, typename='foxglove_msgs/TextPrimitive'):
@@ -1784,6 +1845,7 @@ class TextPrimitive(IdlStruct, typename='foxglove_msgs/TextPrimitive'):
     """
     Text
     """
+
 
 @dataclass
 class SceneEntity(IdlStruct, typename='foxglove_msgs/SceneEntity'):
@@ -1863,6 +1925,7 @@ class SceneEntity(IdlStruct, typename='foxglove_msgs/SceneEntity'):
     Model primitives
     """
 
+
 @dataclass
 class SceneEntities(IdlStruct, typename='foxglove_msgs/SceneEntities'):
     """
@@ -1880,6 +1943,7 @@ class SceneEntities(IdlStruct, typename='foxglove_msgs/SceneEntities'):
     """
     Scene entities to add or replace
     """
+
 
 @dataclass
 class SceneEntityUpdate(IdlStruct, typename='foxglove_msgs/SceneEntityUpdate'):
@@ -1899,6 +1963,7 @@ class SceneEntityUpdate(IdlStruct, typename='foxglove_msgs/SceneEntityUpdate'):
     Scene entities to add or replace
     """
 
+
 @dataclass
 class SceneUpdate(IdlStruct, typename='foxglove_msgs/SceneUpdate'):
     """
@@ -1916,6 +1981,7 @@ class SceneUpdate(IdlStruct, typename='foxglove_msgs/SceneUpdate'):
     """
     Scene entities to add or replace
     """
+
 
 @dataclass
 class SphereMarker(IdlStruct, typename='foxglove_msgs/SphereMarker'):
@@ -1940,6 +2006,7 @@ class SphereMarker(IdlStruct, typename='foxglove_msgs/SphereMarker'):
     Color of the sphere
     """
 
+
 @dataclass
 class Transform(IdlStruct, typename='foxglove_msgs/Transform'):
     """
@@ -1959,6 +2026,7 @@ class Transform(IdlStruct, typename='foxglove_msgs/Transform'):
     """
     Rotation component of the transform
     """
+
 
 @dataclass
 class TrianglesMarker(IdlStruct, typename='foxglove_msgs/TrianglesMarker'):

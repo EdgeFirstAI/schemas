@@ -1,10 +1,13 @@
 from dataclasses import dataclass
-from pycdr2 import IdlStruct
-from pycdr2.types import sequence, uint8, uint16, uint32, uint64, int16, int32, float32
-from . import default_field
-from .std_msgs import Header
-from .builtin_interfaces import Duration, Time
 from enum import Enum
+
+from pycdr2 import IdlStruct
+from pycdr2.types import (float32, int16, int32, sequence, uint8, uint16,
+                          uint32, uint64)
+
+from . import default_field
+from .builtin_interfaces import Duration, Time
+from .std_msgs import Header
 
 
 @dataclass
@@ -23,8 +26,8 @@ class Date(IdlStruct, typename='edgefirst_msgs/Date'):
     """
     The local time interface publishes the current time on the device.  It is
     mainly intended to allow synchronization of multiple MCAP files by the
-    EdgeFirst Publisher.  The idea is to calculate the offset from the 
-    timestamp in the header with the actual local time, then when multiple MCAP 
+    EdgeFirst Publisher.  The idea is to calculate the offset from the
+    timestamp in the header with the actual local time, then when multiple MCAP
     files have the local time topic recorded the relative offsets can then be
     calculated.
     """
@@ -59,7 +62,7 @@ class Date(IdlStruct, typename='edgefirst_msgs/Date'):
 class Track(IdlStruct, typename='edgefirst_msgs/Track'):
     id: str = ''
     """
-    Unique identifier for the object track (if the object is not tracked then "")
+    Unique identifier for the object track, empty if the object is not tracked.
     """
     lifetime: int32 = 0
     """
@@ -241,7 +244,7 @@ class DmaBuffer(IdlStruct, typename='DmaBuffer'):
     """
 
 
-class RadarMode(Enum):
+class RadarChannel(Enum):
     UNDEFINED = 0
     RANGE = 1
     DOPPLER = 2
@@ -315,7 +318,8 @@ class RadarInfo(IdlStruct, typename='edgefirst_msgs/RadarInfo'):
     range_toggle: str = ''
     """
     The range-toggle mode allows the radar to alternate between various
-    frequency sweep configurations.  Applications must handle range toggling as targets will not be consistent between messages as the frequency alternates.
+    frequency sweep configurations.  Applications must handle range toggling as
+    targets are not consistent between messages as the frequency alternates.
     """
 
     detection_sensitivity: str = ''

@@ -1,11 +1,16 @@
 from dataclasses import dataclass
-from pycdr2 import IdlStruct
-from pycdr2.types import float32, float64, int8, int32, uint8, uint16, uint32, array, sequence
-from . import default_field
-from .std_msgs import Header
-from .builtin_interfaces import Time
-from .geometry_msgs import Point32, Quaternion, Transform, Twist, Wrench, Vector3
 from enum import Enum
+
+from pycdr2 import IdlStruct
+from pycdr2.types import (array, float32, float64, int8, int32, sequence,
+                          uint8, uint16, uint32)
+
+from . import default_field
+from .builtin_interfaces import Time
+from .geometry_msgs import (Point32, Quaternion, Transform, Twist, Vector3,
+                            Wrench)
+from .std_msgs import Header
+
 
 class PowerSupplyStatus(Enum):
     """
@@ -16,6 +21,7 @@ class PowerSupplyStatus(Enum):
     POWER_SUPPLY_STATUS_DISCHARGING = 2
     POWER_SUPPLY_STATUS_NOT_CHARGING = 3
     POWER_SUPPLY_STATUS_FULL = 4
+
 
 class PowerSupplyHealth(Enum):
     """
@@ -31,6 +37,7 @@ class PowerSupplyHealth(Enum):
     POWER_SUPPLY_HEALTH_WATCHDOG_TIMER_EXPIRE = 7
     POWER_SUPPLY_HEALTH_SAFETY_TIMER_EXPIRE = 8
 
+
 class PowerSupplyTech(Enum):
     """
     Power supply technology (chemistry) constants
@@ -43,17 +50,18 @@ class PowerSupplyTech(Enum):
     POWER_SUPPLY_TECHNOLOGY_NICD = 5
     POWER_SUPPLY_TECHNOLOGY_LIMN = 6
 
+
 @dataclass
 class RegionOfInterest(IdlStruct, typename='sensor_msgs/RegionOfInterest'):
     """
     This message is used to specify a region of interest within an image.
-    
+
     When used to specify the ROI setting of the camera when the image was
     taken, the height and width fields should either match the height and
     width fields for the associated image; or height = width = 0
     indicates that the full resolution image was captured.
     """
-    x_offset: uint32 = 0 
+    x_offset: uint32 = 0
     """
     Leftmost pixel of the ROI
     (0 if the ROI includes the left edge of the image)
@@ -67,7 +75,7 @@ class RegionOfInterest(IdlStruct, typename='sensor_msgs/RegionOfInterest'):
     """
     Height of ROI
     """
-    width: uint32 = 0 
+    width: uint32 = 0
     """
     Width of ROI
     """
@@ -80,6 +88,7 @@ class RegionOfInterest(IdlStruct, typename='sensor_msgs/RegionOfInterest'):
     used).
     """
 
+
 @dataclass
 class BatteryState(IdlStruct, typename='sensor_msgs/BatteryState'):
     """
@@ -89,7 +98,7 @@ class BatteryState(IdlStruct, typename='sensor_msgs/BatteryState'):
     all uppercase not mixed case.
     """
     header: Header = default_field(Header)
-    voltage: float32 = 0 
+    voltage: float32 = 0
     """
     Voltage in Volts (Mandatory)
     """
@@ -133,12 +142,12 @@ class BatteryState(IdlStruct, typename='sensor_msgs/BatteryState'):
     """
     True if the battery is present
     """
-    cell_voltage: sequence[float32] = default_field([]) 
+    cell_voltage: sequence[float32] = default_field([])
     """
     An array of individual cell voltages for each cell in the pack
     If individual voltages unknown but number of cells known set each to NaN
     """
-    cell_temperature: sequence[float32] = default_field([]) 
+    cell_temperature: sequence[float32] = default_field([])
     """
     An array of individual cell temperatures for each cell in the pack
     If individual temperatures unknown but number of cells known set each to NaN
@@ -152,29 +161,30 @@ class BatteryState(IdlStruct, typename='sensor_msgs/BatteryState'):
     The best approximation of the battery serial number
     """
 
+
 @dataclass
 class CameraInfo(IdlStruct, typename='sensor_msgs/CameraInfo'):
     """
     This message defines meta information for a camera. It should be in a
     camera namespace on topic "camera_info" and accompanied by up to five
     image topics named:
-    
-      image_raw - raw data from the camera driver, possibly Bayer encoded
-      image            - monochrome, distorted
-      image_color      - color, distorted
-      image_rect       - monochrome, rectified
-      image_rect_color - color, rectified
-    
+
+    - image_raw: raw data from the camera driver, possibly Bayer encoded
+    - image: monochrome, distorted
+    - image_color: color, distorted
+    - image_rect: monochrome, rectified
+    - image_rect_color: color, rectified
+
     The image_pipeline contains packages (image_proc, stereo_image_proc)
     for producing the four processed image topics from image_raw and
     camera_info. The meaning of the camera parameters are described in
     detail at http://www.ros.org/wiki/image_pipeline/CameraInfo.
-    
+
     The image_geometry package provides a user-friendly interface to
     common operations using this meta information. If you want to, e.g.,
     project a 3d point into image coordinates, we strongly recommend
     using image_geometry.
-    
+
     If the camera is uncalibrated, the matrices D, K, R, P should be left
     zeroed out. In particular, clients may assume that K[0] == 0.0
     indicates an uncalibrated camera.
@@ -182,7 +192,7 @@ class CameraInfo(IdlStruct, typename='sensor_msgs/CameraInfo'):
     #######################################################################
     #                     Image acquisition info                          #
     #######################################################################
-    header: Header = default_field(Header) 
+    header: Header = default_field(Header)
     """
     Time of image acquisition, camera coordinate frame ID
     Header timestamp should be acquisition time of image
@@ -245,7 +255,7 @@ class CameraInfo(IdlStruct, typename='sensor_msgs/CameraInfo'):
     stereo image plane so that epipolar lines in both stereo images are
     parallel.
     """
-    
+
     p: array[float64, 12] = default_field([0] * 12)
     """
     3x4 row-major matrix
@@ -301,6 +311,7 @@ class CameraInfo(IdlStruct, typename='sensor_msgs/CameraInfo'):
      full resolution (roi.width = width, roi.height = height).
     """
 
+
 @dataclass
 class ChannelFloat32(IdlStruct, typename='sensor_msgs/ChannelFloat32'):
     """
@@ -309,7 +320,7 @@ class ChannelFloat32(IdlStruct, typename='sensor_msgs/ChannelFloat32'):
     array should be the same as the length of the points array in the
     PointCloud, and each value should be associated with the corresponding
     point.
-    
+
     Channel names in existing practice include:
       "u", "v" - row and column (respectively) in the left stereo image.
                  This is opposite to usual conventions but remains for
@@ -321,7 +332,7 @@ class ChannelFloat32(IdlStruct, typename='sensor_msgs/ChannelFloat32'):
       "intensity" - laser or pixel intensity.
       "distance"
     """
-    
+
     name: str = ''
     """
     The channel name should give semantics of the channel (e.g.
@@ -334,12 +345,13 @@ class ChannelFloat32(IdlStruct, typename='sensor_msgs/ChannelFloat32'):
     PointCloud.
     """
 
+
 @dataclass
 class CompressedImage(IdlStruct, typename='sensor_msgs/CompressedImage'):
     """
     This message contains a compressed image.
     """
-    header: Header = default_field(Header) 
+    header: Header = default_field(Header)
     """
     Header timestamp should be acquisition time of image
     Header frame_id should be optical frame of camera
@@ -348,7 +360,7 @@ class CompressedImage(IdlStruct, typename='sensor_msgs/CompressedImage'):
     +y should point down in the image
     +z should point into to plane of the image
     """
-    format: str = '' 
+    format: str = ''
     """
     Specifies the format of the data
       Acceptable values:
@@ -359,13 +371,14 @@ class CompressedImage(IdlStruct, typename='sensor_msgs/CompressedImage'):
     Compressed image buffer
     """
 
+
 @dataclass
 class FluidPressure(IdlStruct, typename='sensor_msgs/FluidPressure'):
     """
     Single pressure reading.  This message is appropriate for measuring the
     pressure inside of a fluid (air, water, etc).  This also includes
     atmospheric or barometric pressure.
-    
+
     This message is not appropriate for force/pressure contact sensors.
     """
     header: Header = default_field(Header)
@@ -382,6 +395,7 @@ class FluidPressure(IdlStruct, typename='sensor_msgs/FluidPressure'):
     0 is interpreted as variance unknown
     """
 
+
 @dataclass
 class Illuminance(IdlStruct, typename='sensor_msgs/Illuminance'):
     """
@@ -389,10 +403,10 @@ class Illuminance(IdlStruct, typename='sensor_msgs/Illuminance'):
     measured along the sensor's x-axis (the area of detection is the y-z plane).
     The illuminance should have a 0 or positive value and be received with
     the sensor's +X axis pointing toward the light source.
-    
+
     Photometric illuminance is the measure of the human eye's sensitivity of the
     intensity of light encountering or passing through a surface.
-    
+
     All other Photometric and Radiometric measurements should not use this message.
     This message cannot represent:
      - Luminous intensity (candela/light source output)
@@ -408,10 +422,11 @@ class Illuminance(IdlStruct, typename='sensor_msgs/Illuminance'):
     """
     Measurement of the Photometric Illuminance in Lux.
     """
-    variance: float64 = 0 
+    variance: float64 = 0
     """
     0 is interpreted as variance unknown
     """
+
 
 @dataclass
 class Image(IdlStruct, typename='sensor_msgs/Image'):
@@ -419,7 +434,7 @@ class Image(IdlStruct, typename='sensor_msgs/Image'):
     This message contains an uncompressed image
     (0, 0) is at top-left corner of image
     """
-    header: Header = default_field(Header) 
+    header: Header = default_field(Header)
     """
     Header timestamp should be acquisition time of image
     Header frame_id should be optical frame of camera
@@ -439,7 +454,7 @@ class Image(IdlStruct, typename='sensor_msgs/Image'):
     """
     image width, that is, number of columns
     """
-    
+
     encoding: str = ''
     """
     The legal values for encoding are in file src/image_encodings.cpp
@@ -461,18 +476,19 @@ class Image(IdlStruct, typename='sensor_msgs/Image'):
     actual matrix data, size is (step * rows)
     """
 
+
 @dataclass
 class Imu(IdlStruct, typename='sensor_msgs/Imu'):
     """
     This is a message to hold data from an IMU (Inertial Measurement Unit)
-    
+
     Accelerations should be in m/s^2 (not in g's), and rotational velocity should be in rad/sec
-    
+
     If the covariance of the measurement is known, it should be filled in (if all you know is the
     variance of each measurement, e.g. from the datasheet, just put those along the diagonal)
     A covariance matrix of all zeros will be interpreted as "covariance unknown", and to use the
     data a covariance will have to be assumed or gotten from some other source
-    
+
     If you have no estimate for one of the data elements (e.g. your IMU doesn't produce an
     orientation estimate), please set element 0 of the associated covariance matrix to -1
     If you are interpreting this message, please check for a value of -1 in the first element of each
@@ -498,24 +514,25 @@ class Imu(IdlStruct, typename='sensor_msgs/Imu'):
     Row major x, y z
     """
 
+
 @dataclass
 class JointState(IdlStruct, typename='sensor_msgs/JointState'):
     """
     This is a message that holds data to describe the state of a set of torque controlled joints.
-    
+
     The state of each joint (revolute or prismatic) is defined by:
      * the position of the joint (rad or m),
      * the velocity of the joint (rad/s or m/s) and
      * the effort that is applied in the joint (Nm or N).
-    
+
     Each joint is uniquely identified by its name
     The header specifies the time at which the joint states were recorded. All the joint states
     in one message have to be recorded at the same time.
-    
+
     This message consists of a multiple arrays, one for each part of the joint state.
     The goal is to make each of the fields optional. When e.g. your joints have no
     effort associated with them, you can leave the effort array empty.
-    
+
     All arrays in this message should have the same size, or be empty.
     This is the only way to uniquely associate the joint name with the correct
     states.
@@ -526,6 +543,7 @@ class JointState(IdlStruct, typename='sensor_msgs/JointState'):
     position: sequence[float64] = default_field([])
     velocity: sequence[float64] = default_field([])
     effort: sequence[float64] = default_field([])
+
 
 @dataclass
 class Joy(IdlStruct, typename='sensor_msgs/Joy'):
@@ -547,10 +565,12 @@ class Joy(IdlStruct, typename='sensor_msgs/Joy'):
     The buttons measurements from a joystick.
     """
 
+
 class FeedbackType(Enum):
-    TYPE_LED    = 0
+    TYPE_LED = 0
     TYPE_RUMBLE = 1
     TYPE_BUZZER = 2
+
 
 @dataclass
 class JoyFeedback(IdlStruct, typename='sensor_msgs/JoyFeedback'):
@@ -571,6 +591,7 @@ class JoyFeedback(IdlStruct, typename='sensor_msgs/JoyFeedback'):
     actually binary, driver should treat 0<=x<0.5 as off, 0.5<=x<=1 as on.
     """
 
+
 @dataclass
 class JoyFeedbackArray(IdlStruct, typename='sensor_msgs/JoyFeedbackArray'):
     """
@@ -578,28 +599,30 @@ class JoyFeedbackArray(IdlStruct, typename='sensor_msgs/JoyFeedbackArray'):
     """
     array: sequence[JoyFeedback] = default_field([])
 
+
 @dataclass
 class LaserEcho(IdlStruct, typename='sensor_msgs/LaserEcho'):
     """
     This message is a submessage of MultiEchoLaserScan and is not intended
     to be used separately.
     """
-    echoes: sequence[float32] = default_field([])  
+    echoes: sequence[float32] = default_field([])
     """
     Multiple values of ranges or intensities.
     Each array represents data from the same angle increment.
     """
 
+
 @dataclass
 class LaserScan(IdlStruct, typename='sensor_msgs/LaserScan'):
     """
     Single scan from a planar laser range-finder
-    
+
     If you have another ranging device with different behavior (e.g. a sonar
     array), please find or create a different message, since applications
     will make fairly laser-specific assumptions about this data
     """
-    header: Header = default_field(Header) 
+    header: Header = default_field(Header)
     """
     timestamp in the header is the acquisition time of
     the first ray in the scan.
@@ -620,7 +643,7 @@ class LaserScan(IdlStruct, typename='sensor_msgs/LaserScan'):
     """
     angular distance between measurements [rad]
     """
-    time_increment: float32 = 0 
+    time_increment: float32 = 0
     """
     time between measurements [seconds] - if your scanner
     is moving, this will be used in interpolating position
@@ -650,11 +673,12 @@ class LaserScan(IdlStruct, typename='sensor_msgs/LaserScan'):
     the array empty.
     """
 
+
 @dataclass
 class MagneticField(IdlStruct, typename='sensor_msgs/MagneticField'):
     """
     Measurement of the Magnetic Field vector at a specific location.
-    
+
     If the covariance of the measurement is known, it should be filled in.
     If all you know is the variance of each measurement, e.g. from the datasheet,
     just put those along the diagonal.
@@ -662,7 +686,7 @@ class MagneticField(IdlStruct, typename='sensor_msgs/MagneticField'):
     and to use the data a covariance will have to be assumed or gotten from some
     other source.
     """
-    header: Header = default_field(Header) 
+    header: Header = default_field(Header)
     """
     timestamp is the time the
     field was measured
@@ -682,25 +706,26 @@ class MagneticField(IdlStruct, typename='sensor_msgs/MagneticField'):
     0 is interpreted as variance unknown
     """
 
+
 @dataclass
 class MultiDOFJointState(IdlStruct, typename='sensor_msgs/MultiDOFJointState'):
     """
     Representation of state for joints with multiple degrees of freedom,
     following the structure of JointState which can only represent a single degree of freedom.
-    
+
     It is assumed that a joint in a system corresponds to a transform that gets applied
     along the kinematic chain. For example, a planar joint (as in URDF) is 3DOF (x, y, yaw)
     and those 3DOF can be expressed as a transformation matrix, and that transformation
     matrix can be converted back to (x, y, yaw)
-    
+
     Each joint is uniquely identified by its name
     The header specifies the time at which the joint states were recorded. All the joint states
     in one message have to be recorded at the same time.
-    
+
     This message consists of a multiple arrays, one for each part of the joint state.
     The goal is to make each of the fields optional. When e.g. your joints have no
     wrench associated with them, you can leave the wrench array empty.
-    
+
     All arrays in this message should have the same size, or be empty.
     This is the only way to uniquely associate the joint name with the correct
     states.
@@ -712,16 +737,17 @@ class MultiDOFJointState(IdlStruct, typename='sensor_msgs/MultiDOFJointState'):
     twist: sequence[Twist] = default_field([])
     wrench: sequence[Wrench] = default_field([])
 
+
 @dataclass
 class MultiEchoLaserScan(IdlStruct, typename='sensor_msgs/MultiEchoLaserScan'):
     """
     Single scan from a multi-echo planar laser range-finder
-    
+
     If you have another ranging device with different behavior (e.g. a sonar
     array), please find or create a different message, since applications
     will make fairly laser-specific assumptions about this data
     """
-    header: Header = default_field(Header) 
+    header: Header = default_field(Header)
     """
     timestamp in the header is the acquisition time of
     the first ray in the scan.
@@ -774,23 +800,26 @@ class MultiEchoLaserScan(IdlStruct, typename='sensor_msgs/MultiEchoLaserScan'):
     the array empty.
     """
 
+
 class GpsStatus(Enum):
-    STATUS_NO_FIX =  -1        # unable to fix position
-    STATUS_FIX =      0        # unaugmented fix
+    STATUS_NO_FIX = -1        # unable to fix position
+    STATUS_FIX = 0        # unaugmented fix
     STATUS_SBAS_FIX = 1        # with satellite-based augmentation
     STATUS_GBAS_FIX = 2        # with ground-based augmentation
 
+
 class GpsService(Enum):
-    SERVICE_GPS =     1
+    SERVICE_GPS = 1
     SERVICE_GLONASS = 2
     SERVICE_COMPASS = 4      # includes BeiDou.
     SERVICE_GALILEO = 8
+
 
 @dataclass
 class NavSatStatus(IdlStruct, typename='sensor_msgs/NavSatStatus'):
     """
     Navigation Satellite fix status for any Global Navigation Satellite System.
-    
+
     Whether to output an augmented fix is determined by both the fix
     type and the last time differential corrections were received.  A
     fix is valid when status >= STATUS_FIX.
@@ -802,20 +831,22 @@ class NavSatStatus(IdlStruct, typename='sensor_msgs/NavSatStatus'):
     """
     service: uint16 = 0
 
+
 class CovarianceType(Enum):
     COVARIANCE_TYPE_UNKNOWN = 0
     COVARIANCE_TYPE_APPROXIMATED = 1
     COVARIANCE_TYPE_DIAGONAL_KNOWN = 2
     COVARIANCE_TYPE_KNOWN = 3
 
+
 @dataclass
 class NavSatFix(IdlStruct, typename='sensor_msgs/NavSatFix'):
     """
     Navigation Satellite fix for any Global Navigation Satellite System
-    
+
     Specified using the WGS 84 reference ellipsoid
     """
-    
+
     header: Header = default_field(Header)
     """
     header.stamp specifies the ROS time for this measurement (the
@@ -866,6 +897,7 @@ class NavSatFix(IdlStruct, typename='sensor_msgs/NavSatFix'):
     estimate an approximate covariance from that.
     """
 
+
 @dataclass
 class PointCloud(IdlStruct, typename='sensor_msgs/PointCloud'):
     """
@@ -893,15 +925,17 @@ class PointCloud(IdlStruct, typename='sensor_msgs/PointCloud'):
     Channel names in common practice are listed in ChannelFloat32.msg.
     """
 
+
 class PointFieldDatatype(Enum):
-    INT8    = 1
-    UINT8   = 2
-    INT16   = 3
-    UINT16  = 4
-    INT32   = 5
-    UINT32  = 6
+    INT8 = 1
+    UINT8 = 2
+    INT16 = 3
+    UINT16 = 4
+    INT32 = 5
+    UINT32 = 6
     FLOAT32 = 7
     FLOAT64 = 8
+
 
 @dataclass
 class PointField(IdlStruct, typename='sensor_msgs/PointField'):
@@ -927,6 +961,7 @@ class PointField(IdlStruct, typename='sensor_msgs/PointField'):
     How many elements in the field
     """
 
+
 @dataclass
 class PointCloud2(IdlStruct, typename='sensor_msgs/PointCloud2'):
     """
@@ -934,7 +969,7 @@ class PointCloud2(IdlStruct, typename='sensor_msgs/PointCloud2'):
     contain additional information such as normals, intensity, etc. The
     point data is stored as a binary blob, its layout described by the
     contents of the "fields" array.
-    
+
     The point cloud data may be organized 2d (image-like) or 1d (unordered).
     Point clouds organized as 2d images may be produced by camera depth sensors
     such as stereo or time-of-flight.
@@ -955,7 +990,7 @@ class PointCloud2(IdlStruct, typename='sensor_msgs/PointCloud2'):
     Describes the channels and their layout in the binary data blob.
     """
 
-    is_bigendian: bool = False 
+    is_bigendian: bool = False
     """
     Is this data bigendian?
     """
@@ -976,13 +1011,15 @@ class PointCloud2(IdlStruct, typename='sensor_msgs/PointCloud2'):
     True if there are no invalid points
     """
 
+
 class RadiationType(Enum):
     """
     Radiation type enums
     If you want a value added to this list, send an email to the ros-users list
     """
-    ULTRASOUND=0
-    INFRARED=1
+    ULTRASOUND = 0
+    INFRARED = 1
+
 
 @dataclass
 class Range(IdlStruct, typename='sensor_msgs/Range'):
@@ -991,7 +1028,7 @@ class Range(IdlStruct, typename='sensor_msgs/Range'):
     one range reading that is valid along an arc at the distance measured.
     This message is  not appropriate for laser scanners. See the LaserScan
     message if you are working with a laser scanner.
-    
+
     This message also can represent a fixed-distance (binary) ranger.  This
     sensor will have min_range===max_range===distance of detection.
     These sensors follow REP 117 and will output -Inf if the object is detected
@@ -1038,6 +1075,7 @@ class Range(IdlStruct, typename='sensor_msgs/Range'):
     (Object out of range)
     """
 
+
 @dataclass
 class RelativeHumidity(IdlStruct, typename='sensor_msgs/RelativeHumidity'):
     """
@@ -1050,7 +1088,7 @@ class RelativeHumidity(IdlStruct, typename='sensor_msgs/RelativeHumidity'):
     timestamp of the measurement
     frame_id is the location of the humidity sensor
     """
-    relative_humidity: float64 = 0 
+    relative_humidity: float64 = 0
     """
     Expression of the relative humidity
     from 0.0 to 1.0.
@@ -1062,12 +1100,13 @@ class RelativeHumidity(IdlStruct, typename='sensor_msgs/RelativeHumidity'):
     0 is interpreted as variance unknown
     """
 
+
 @dataclass
 class Temperature(IdlStruct, typename='sensor_msgs/Temperature'):
     """
     Single temperature reading.
     """
-    header: Header = default_field(Header) 
+    header: Header = default_field(Header)
     """
     timestamp is the time the temperature was measured
     frame_id is the location of the temperature reading
@@ -1081,12 +1120,13 @@ class Temperature(IdlStruct, typename='sensor_msgs/Temperature'):
     0 is interpreted as variance unknown.
     """
 
+
 @dataclass
 class TimeReference(IdlStruct, typename='sensor_msgs/TimeReference'):
     """
     Measurement from an external time source not actively synchronized with the system clock.
     """
-    header: Header = default_field(Header) 
+    header: Header = default_field(Header)
     """
     stamp is system time for which measurement was valid
     frame_id is not used

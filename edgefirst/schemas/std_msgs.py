@@ -1,10 +1,12 @@
 from dataclasses import dataclass
+
 from pycdr2 import IdlStruct
-from pycdr2.types import (float32, float64, int8, int16, int32,
-                          int64, uint8, uint16, uint32, uint64,
-                          bounded_str, sequence)
+from pycdr2.types import (bounded_str, float32, float64, int8, int16, int32,
+                          int64, sequence, uint8, uint16, uint32, uint64)
+
 from . import default_field
 from .builtin_interfaces import Time
+
 
 @dataclass
 class MultiArrayDimension(IdlStruct, typename='std_msgs/MultiArrayDimension'):
@@ -18,14 +20,15 @@ class MultiArrayDimension(IdlStruct, typename='std_msgs/MultiArrayDimension'):
     """
     label of given dimension
     """
-    size: uint32 = 0 
+    size: uint32 = 0
     """
     size of given dimension (in type units)
     """
-    stride: uint32 = 0 
+    stride: uint32 = 0
     """
     stride of given dimension
     """
+
 
 @dataclass
 class MultiArrayLayout(IdlStruct, typename='std_msgs/MultiArrayLayout'):
@@ -38,15 +41,15 @@ class MultiArrayLayout(IdlStruct, typename='std_msgs/MultiArrayLayout'):
     The multiarray declares a generic multi-dimensional array of a
     particular data type.  Dimensions are ordered from outer most
     to inner most.
-    
+
     Accessors should ALWAYS be written in terms of dimension stride
     and specified outer-most dimension first.
-    
+
     multiarray(i,j,k) = data[data_offset + dim_stride[1]*i + dim_stride[2]*j + k]
-    
+
     A standard, 3-channel 640x480 image with interleaved color channels
     would be specified as:
-    
+
     dim[0].label  = "height"
     dim[0].size   = 480
     dim[0].stride = 3*640*480 = 921600  (note dim[0] stride is just size of image)
@@ -56,7 +59,7 @@ class MultiArrayLayout(IdlStruct, typename='std_msgs/MultiArrayLayout'):
     dim[2].label  = "channel"
     dim[2].size   = 3
     dim[2].stride = 3
-    
+
     multiarray(i,j,k) refers to the ith row, jth column, and kth channel.
     """
     dim: sequence[MultiArrayDimension] = default_field([])
@@ -68,6 +71,7 @@ class MultiArrayLayout(IdlStruct, typename='std_msgs/MultiArrayLayout'):
     padding bytes at front of data
     """
 
+
 @dataclass
 class Bool(IdlStruct, typename='std_msgs/Bool'):
     """
@@ -78,6 +82,7 @@ class Bool(IdlStruct, typename='std_msgs/Bool'):
     """
     data: bool = False
 
+
 @dataclass
 class Byte(IdlStruct, typename='std_msgs/Byte'):
     """
@@ -87,6 +92,7 @@ class Byte(IdlStruct, typename='std_msgs/Byte'):
     However if you would like to continue using this please use the equivalent in example_msgs.
     """
     data: bytes = None
+
 
 @dataclass
 class ByteMultiArray(IdlStruct, typename='std_msgs/ByteMultiArray'):
@@ -108,6 +114,7 @@ class ByteMultiArray(IdlStruct, typename='std_msgs/ByteMultiArray'):
     array of data
     """
 
+
 @dataclass
 class Char(IdlStruct, typename='std_msgs/Char'):
     """
@@ -118,12 +125,14 @@ class Char(IdlStruct, typename='std_msgs/Char'):
     """
     data: bounded_str[1] = ''
 
+
 @dataclass
 class ColorRGBA(IdlStruct, typename='std_msgs/ColorRGBA'):
     r: float32 = 0
     g: float32 = 0
     b: float32 = 0
     a: float32 = 0
+
 
 @dataclass
 class Float32(IdlStruct, typename='std_msgs/Float32'):
@@ -134,6 +143,7 @@ class Float32(IdlStruct, typename='std_msgs/Float32'):
     However if you would like to continue using this please use the equivalent in example_msgs.
     """
     data: float32 = 0
+
 
 @dataclass
 class Float32MultiArray(IdlStruct, typename='std_msgs/Float32MultiArray'):
@@ -150,10 +160,11 @@ class Float32MultiArray(IdlStruct, typename='std_msgs/Float32MultiArray'):
     """
     specification of data layout
     """
-    data: sequence[float32] = default_field([]) 
+    data: sequence[float32] = default_field([])
     """
     array of data
     """
+
 
 @dataclass
 class Float64(IdlStruct, typename='std_msgs/Float64'):
@@ -164,6 +175,7 @@ class Float64(IdlStruct, typename='std_msgs/Float64'):
     However if you would like to continue using this please use the equivalent in example_msgs.
     """
     data: float64 = 0
+
 
 @dataclass
 class Float64MultiArray(IdlStruct, typename='std_msgs/Float64MultiArray'):
@@ -180,10 +192,11 @@ class Float64MultiArray(IdlStruct, typename='std_msgs/Float64MultiArray'):
     """
     specification of data layout
     """
-    data: sequence[float64] = default_field([]) 
+    data: sequence[float64] = default_field([])
     """
     array of data
     """
+
 
 @dataclass
 class Header(IdlStruct, typename='std_msgs/Header'):
@@ -196,10 +209,11 @@ class Header(IdlStruct, typename='std_msgs/Header'):
     """
     Two-integer timestamp that is expressed as seconds and nanoseconds.
     """
-    frame_id: str = '' 
+    frame_id: str = ''
     """
     Transform frame with which this data is associated.
     """
+
 
 @dataclass
 class Int8(IdlStruct, typename='std_msgs/Int8'):
@@ -210,6 +224,7 @@ class Int8(IdlStruct, typename='std_msgs/Int8'):
     However if you would like to continue using this please use the equivalent in example_msgs.
     """
     data: int8 = 0
+
 
 @dataclass
 class Int8MultiArray(IdlStruct, typename='std_msgs/Int8MultiArray'):
@@ -226,10 +241,11 @@ class Int8MultiArray(IdlStruct, typename='std_msgs/Int8MultiArray'):
     """
     specification of data layout
     """
-    data: sequence[int8] = default_field([]) 
+    data: sequence[int8] = default_field([])
     """
     array of data
     """
+
 
 @dataclass
 class Int16(IdlStruct, typename='std_msgs/Int16'):
@@ -240,6 +256,7 @@ class Int16(IdlStruct, typename='std_msgs/Int16'):
     However if you would like to continue using this please use the equivalent in example_msgs.
     """
     data: int16 = 0
+
 
 @dataclass
 class Int16MultiArray(IdlStruct, typename='std_msgs/Int16MultiArray'):
@@ -256,10 +273,11 @@ class Int16MultiArray(IdlStruct, typename='std_msgs/Int16MultiArray'):
     """
     specification of data layout
     """
-    data: sequence[int16] = default_field([]) 
+    data: sequence[int16] = default_field([])
     """
     array of data
     """
+
 
 @dataclass
 class Int32(IdlStruct, typename='std_msgs/Int32'):
@@ -270,6 +288,7 @@ class Int32(IdlStruct, typename='std_msgs/Int32'):
     However if you would like to continue using this please use the equivalent in example_msgs.
     """
     data: int32 = 0
+
 
 @dataclass
 class Int32MultiArray(IdlStruct, typename='std_msgs/Int32MultiArray'):
@@ -286,10 +305,11 @@ class Int32MultiArray(IdlStruct, typename='std_msgs/Int32MultiArray'):
     """
     specification of data layout
     """
-    data: sequence[int32] = default_field([]) 
+    data: sequence[int32] = default_field([])
     """
     array of data
     """
+
 
 @dataclass
 class Int64(IdlStruct, typename='std_msgs/Int64'):
@@ -300,6 +320,7 @@ class Int64(IdlStruct, typename='std_msgs/Int64'):
     However if you would like to continue using this please use the equivalent in example_msgs.
     """
     data: int64 = 0
+
 
 @dataclass
 class Int64MultiArray(IdlStruct, typename='std_msgs/Int64MultiArray'):
@@ -316,10 +337,11 @@ class Int64MultiArray(IdlStruct, typename='std_msgs/Int64MultiArray'):
     """
     specification of data layout
     """
-    data: sequence[int64] = default_field([]) 
+    data: sequence[int64] = default_field([])
     """
     array of data
     """
+
 
 @dataclass
 class String(IdlStruct, typename='std_msgs/String'):
@@ -331,6 +353,7 @@ class String(IdlStruct, typename='std_msgs/String'):
     """
     data: str = ''
 
+
 @dataclass
 class Uint8(IdlStruct, typename='std_msgs/Uint8'):
     """
@@ -340,6 +363,7 @@ class Uint8(IdlStruct, typename='std_msgs/Uint8'):
     However if you would like to continue using this please use the equivalent in example_msgs.
     """
     data: uint8 = 0
+
 
 @dataclass
 class Uint8MultiArray(IdlStruct, typename='std_msgs/Uint8MultiArray'):
@@ -356,10 +380,11 @@ class Uint8MultiArray(IdlStruct, typename='std_msgs/Uint8MultiArray'):
     """
     specification of data layout
     """
-    data: sequence[uint8] = default_field([]) 
+    data: sequence[uint8] = default_field([])
     """
     array of data
     """
+
 
 @dataclass
 class Uint16(IdlStruct, typename='std_msgs/Uint16'):
@@ -370,6 +395,7 @@ class Uint16(IdlStruct, typename='std_msgs/Uint16'):
     However if you would like to continue using this please use the equivalent in example_msgs.
     """
     data: uint16 = 0
+
 
 @dataclass
 class Uint16MultiArray(IdlStruct, typename='std_msgs/Uint16MultiArray'):
@@ -386,10 +412,11 @@ class Uint16MultiArray(IdlStruct, typename='std_msgs/Uint16MultiArray'):
     """
     specification of data layout
     """
-    data: sequence[uint16] = default_field([]) 
+    data: sequence[uint16] = default_field([])
     """
     array of data
     """
+
 
 @dataclass
 class Uint32(IdlStruct, typename='std_msgs/Uint32'):
@@ -400,6 +427,7 @@ class Uint32(IdlStruct, typename='std_msgs/Uint32'):
     However if you would like to continue using this please use the equivalent in example_msgs.
     """
     data: uint32 = 0
+
 
 @dataclass
 class Uint32MultiArray(IdlStruct, typename='std_msgs/Uint32MultiArray'):
@@ -416,10 +444,11 @@ class Uint32MultiArray(IdlStruct, typename='std_msgs/Uint32MultiArray'):
     """
     specification of data layout
     """
-    data: sequence[uint32] = default_field([]) 
+    data: sequence[uint32] = default_field([])
     """
     array of data
     """
+
 
 @dataclass
 class Uint64(IdlStruct, typename='std_msgs/Uint64'):
@@ -430,6 +459,7 @@ class Uint64(IdlStruct, typename='std_msgs/Uint64'):
     However if you would like to continue using this please use the equivalent in example_msgs.
     """
     data: uint64 = 0
+
 
 @dataclass
 class Uint64MultiArray(IdlStruct, typename='std_msgs/Uint64MultiArray'):
@@ -446,7 +476,7 @@ class Uint64MultiArray(IdlStruct, typename='std_msgs/Uint64MultiArray'):
     """
     specification of data layout
     """
-    data: sequence[uint64] = default_field([]) 
+    data: sequence[uint64] = default_field([])
     """
     array of data
     """

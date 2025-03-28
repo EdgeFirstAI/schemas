@@ -1,8 +1,11 @@
 from dataclasses import dataclass
+
 from pycdr2 import IdlStruct
-from pycdr2.types import float32, float64, array, sequence
+from pycdr2.types import array, float32, float64, sequence
+
 from . import default_field
 from .std_msgs import Header
+
 
 @dataclass
 class Quaternion(IdlStruct, typename='geometry_msgs/Quaternion'):
@@ -14,6 +17,7 @@ class Quaternion(IdlStruct, typename='geometry_msgs/Quaternion'):
     z: float64 = 0
     w: float64 = 1
 
+
 @dataclass
 class QuaternionStamped(IdlStruct, typename='geometry_msgs/QuaternionStamped'):
     """
@@ -21,6 +25,7 @@ class QuaternionStamped(IdlStruct, typename='geometry_msgs/QuaternionStamped'):
     """
     header: Header = default_field(Header)
     quaternion: Quaternion = default_field(Quaternion)
+
 
 @dataclass
 class Vector3(IdlStruct, typename='geometry_msgs/Vector3'):
@@ -34,6 +39,7 @@ class Vector3(IdlStruct, typename='geometry_msgs/Vector3'):
     y: float64 = 0
     z: float64 = 0
 
+
 @dataclass
 class Vector3Stamped(IdlStruct, typename='geometry_msgs/Vector3Stamped'):
     """
@@ -44,6 +50,7 @@ class Vector3Stamped(IdlStruct, typename='geometry_msgs/Vector3Stamped'):
     header: Header = default_field(Header)
     vector: Vector3 = default_field(Vector3)
 
+
 @dataclass
 class Accel(IdlStruct, typename='geometry_msgs/Accel'):
     """
@@ -51,6 +58,7 @@ class Accel(IdlStruct, typename='geometry_msgs/Accel'):
     """
     linear: Vector3 = default_field(Vector3)
     angular: Vector3 = default_field(Vector3)
+
 
 @dataclass
 class AccelStamped(IdlStruct, typename='geometry_msgs/AccelStamped'):
@@ -60,13 +68,14 @@ class AccelStamped(IdlStruct, typename='geometry_msgs/AccelStamped'):
     header: Header = default_field(Header)
     accel: Accel = default_field(Accel)
 
+
 @dataclass
 class AccelWithCovariance(IdlStruct, typename='geometry_msgs/AccelWithCovariance'):
     """
     This expresses acceleration in free space with uncertainty.
     """
     accel: Accel = default_field(Accel)
-    
+
     covariance: array[float64, 36] = default_field([0] * 36)
     """
     Row-major representation of the 6x6 covariance matrix
@@ -75,6 +84,7 @@ class AccelWithCovariance(IdlStruct, typename='geometry_msgs/AccelWithCovariance
     (x, y, z, rotation about X axis, rotation about Y axis, rotation about Z axis)
     """
 
+
 @dataclass
 class AccelWithCovarianceStamped(IdlStruct, typename='geometry_msgs/AccelWithCovarianceStamped'):
     """
@@ -82,6 +92,7 @@ class AccelWithCovarianceStamped(IdlStruct, typename='geometry_msgs/AccelWithCov
     """
     header: Header = default_field(Header)
     accel: AccelWithCovariance = default_field(AccelWithCovariance)
+
 
 @dataclass
 class Inertia(IdlStruct, typename='geometry_msgs/Inertia'):
@@ -108,6 +119,7 @@ class Inertia(IdlStruct, typename='geometry_msgs/Inertia'):
         | ixz iyz izz |
     """
 
+
 @dataclass
 class InertiaStamped(IdlStruct, typename='geometry_msgs/InertiaStamped'):
     """
@@ -115,6 +127,7 @@ class InertiaStamped(IdlStruct, typename='geometry_msgs/InertiaStamped'):
     """
     header: Header = default_field(Header)
     inertia: Inertia = default_field(Inertia)
+
 
 @dataclass
 class Point(IdlStruct, typename='geometry_msgs/Point'):
@@ -124,6 +137,7 @@ class Point(IdlStruct, typename='geometry_msgs/Point'):
     x: float64 = 0
     y: float64 = 0
     z: float64 = 0
+
 
 @dataclass
 class Point32(IdlStruct, typename='geometry_msgs/Point32'):
@@ -138,6 +152,7 @@ class Point32(IdlStruct, typename='geometry_msgs/Point32'):
     y: float32 = 0
     z: float32 = 0
 
+
 @dataclass
 class PointStamped(IdlStruct, typename='geometry_msgs/PointStamped'):
     """
@@ -146,12 +161,14 @@ class PointStamped(IdlStruct, typename='geometry_msgs/PointStamped'):
     header: Header = default_field(Header)
     point: Point = default_field(Point)
 
+
 @dataclass
 class Polygon(IdlStruct, typename='geometry_msgs/Polygon'):
     """
     A specification of a polygon where the first and last points are assumed to be connected
     """
     points: sequence[Point32] = default_field([])
+
 
 @dataclass
 class PolygonStamped(IdlStruct, typename='geometry_msgs/PolygonStamped'):
@@ -161,6 +178,7 @@ class PolygonStamped(IdlStruct, typename='geometry_msgs/PolygonStamped'):
     header: Header = default_field(Header)
     polygon: Polygon = default_field(Polygon)
 
+
 @dataclass
 class Pose(IdlStruct, typename='geometry_msgs/Pose'):
     """
@@ -168,6 +186,7 @@ class Pose(IdlStruct, typename='geometry_msgs/Pose'):
     """
     position: Point = default_field(Point)
     orientation: Quaternion = default_field(Quaternion)
+
 
 @dataclass
 class Pose2D(IdlStruct, typename='geometry_msgs/Pose2D'):
@@ -191,6 +210,7 @@ class Pose2D(IdlStruct, typename='geometry_msgs/Pose2D'):
     y: float64 = 0
     theta: float64 = 0
 
+
 @dataclass
 class PoseArray(IdlStruct, typename='geometry_msgs/PoseArray'):
     """
@@ -200,6 +220,7 @@ class PoseArray(IdlStruct, typename='geometry_msgs/PoseArray'):
 
     poses: sequence[Pose] = default_field([])
 
+
 @dataclass
 class PoseStamped(IdlStruct, typename='geometry_msgs/PoseStamped'):
     """
@@ -207,6 +228,7 @@ class PoseStamped(IdlStruct, typename='geometry_msgs/PoseStamped'):
     """
     header: Header = default_field(Header)
     pose: Pose = default_field(Pose)
+
 
 @dataclass
 class PoseWithCovariance(IdlStruct, typename='geometry_msgs/PoseWithCovariance'):
@@ -223,6 +245,7 @@ class PoseWithCovariance(IdlStruct, typename='geometry_msgs/PoseWithCovariance')
     (x, y, z, rotation about X axis, rotation about Y axis, rotation about Z axis)
     """
 
+
 @dataclass
 class PoseWithCovarianceStamped(IdlStruct, typename='geometry_msgs/PoseWithCovarianceStamped'):
     """
@@ -231,6 +254,7 @@ class PoseWithCovarianceStamped(IdlStruct, typename='geometry_msgs/PoseWithCovar
     header: Header = default_field(Header)
     pose: PoseWithCovariance = default_field(PoseWithCovariance)
 
+
 @dataclass
 class Transform(IdlStruct, typename='geometry_msgs/Transform'):
     """
@@ -238,6 +262,7 @@ class Transform(IdlStruct, typename='geometry_msgs/Transform'):
     """
     translation: Vector3 = default_field(Vector3)
     rotation: Quaternion = default_field(Quaternion)
+
 
 @dataclass
 class TransformStamped(IdlStruct, typename='geometry_msgs/TransformStamped'):
@@ -269,6 +294,7 @@ class TransformStamped(IdlStruct, typename='geometry_msgs/TransformStamped'):
     Translation and rotation in 3-dimensions of child_frame_id from header.frame_id.
     """
 
+
 @dataclass
 class Twist(IdlStruct, typename='geometry_msgs/Twist'):
     """
@@ -277,6 +303,7 @@ class Twist(IdlStruct, typename='geometry_msgs/Twist'):
     linear: Vector3 = default_field(Vector3)
     angular: Vector3 = default_field(Vector3)
 
+
 @dataclass
 class TwistStamped(IdlStruct, typename='geometry_msgs/TwistStamped'):
     """
@@ -284,6 +311,7 @@ class TwistStamped(IdlStruct, typename='geometry_msgs/TwistStamped'):
     """
     header: Header = default_field(Header)
     twist: Twist = default_field(Twist)
+
 
 @dataclass
 class TwistWithCovariance(IdlStruct, typename='geometry_msgs/TwistWithCovariance'):
@@ -300,6 +328,7 @@ class TwistWithCovariance(IdlStruct, typename='geometry_msgs/TwistWithCovariance
     (x, y, z, rotation about X axis, rotation about Y axis, rotation about Z axis)
     """
 
+
 @dataclass
 class TwistWithCovarianceStamped(IdlStruct, typename='geometry_msgs/TwistWithCovarianceStamped'):
     """
@@ -308,6 +337,7 @@ class TwistWithCovarianceStamped(IdlStruct, typename='geometry_msgs/TwistWithCov
     header: Header = default_field(Header)
     twist: TwistWithCovariance = default_field(TwistWithCovariance)
 
+
 @dataclass
 class Wrench(IdlStruct, typename='geometry_msgs/Wrench'):
     """
@@ -315,6 +345,7 @@ class Wrench(IdlStruct, typename='geometry_msgs/Wrench'):
     """
     force: Vector3 = default_field(Vector3)
     torque: Vector3 = default_field(Vector3)
+
 
 @dataclass
 class WrenchStamped(IdlStruct, typename='geometry_msgs/WrenchStamped'):
