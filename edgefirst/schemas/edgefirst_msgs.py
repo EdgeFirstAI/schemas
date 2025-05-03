@@ -152,22 +152,22 @@ class Model(IdlStruct, typename='edgefirst_msgs/Model'):
     Metadata including timestamp and coordinate frame
     """
 
-    input_time: Duration = Duration()
+    input_time: Duration = default_field(Duration)
     """
     Duration to load inputs into the model
     """
 
-    model_time: Duration = Duration()
+    model_time: Duration = default_field(Duration)
     """
     Duration to run the model, not including input/output/decoding
     """
 
-    output_time: Duration = Duration()
+    output_time: Duration = default_field(Duration)
     """
     Duration to read outputs from the model
     """
 
-    decode_time: Duration = Duration()
+    decode_time: Duration = default_field(Duration)
     """
     Duration to decode the outputs from the model, including nms and tracking.
     """
