@@ -147,7 +147,7 @@ class Mask(IdlStruct, typename='edgefirst_msgs/Mask'):
 
 @dataclass
 class Model(IdlStruct, typename='edgefirst_msgs/Model'):
-    header: Header = Header()
+    header: Header = default_field(Header)
     """
     Metadata including timestamp and coordinate frame
     """
@@ -306,7 +306,7 @@ class RadarInfo(IdlStruct, typename='edgefirst_msgs/RadarInfo'):
     The RadarInfo interface carries the current radar configuration and status.
     """
 
-    header: Header = Header()
+    header: Header = default_field(Header)
     """Message header containing the timestamp and frame id."""
 
     center_frequency: str = ''
