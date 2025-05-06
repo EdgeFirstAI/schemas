@@ -20,7 +20,7 @@ setup(
     author_email='support@au-zone.com',
     license='AGPL-3.0',
     url='https://studio.edgefirst.ai',
-    packages=find_packages(),  # [ 'edgefirst.schemas' ],
+    packages=['edgefirst.schemas'],
     install_requires=['pycdr2'],
     long_description=open('README.md', 'r').read(),
     long_description_content_type='text/markdown',
