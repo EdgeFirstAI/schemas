@@ -141,6 +141,11 @@ class Mask(IdlStruct, typename='edgefirst_msgs/Mask'):
     height, width, and length dimensions.  The dimension order is row-major.
     """
 
+    boxed: bool = False
+    """
+    If this mask is associated to a corresponding box
+    """
+
 
 @dataclass
 class Model(IdlStruct, typename='edgefirst_msgs/Model'):
