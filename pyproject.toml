@@ -1,0 +1,21 @@
+[project]
+name = "edgefirst-schemas"
+description = "EdgeFirst Middleware Schemas"
+license = { file = "LICENSE" }
+readme = "README.md"
+requires-python = ">= 3.8"
+
+dynamic = ["dependencies", "version"]
+
+[tool.setuptools]
+packages = [
+    "edgefirst.schemas",
+]
+
+[tool.setuptools.dynamic]
+version = { attr = "edgefirst.schemas.__version__" }
+dependencies = {file = "requirements.txt"}
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
