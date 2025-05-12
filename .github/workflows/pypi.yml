@@ -35,7 +35,9 @@ jobs:
         run: |
           sed -i "s/0.0.0/$GIT_VERSION/g" edgefirst/schemas/__init__.py
       - name: Build Package
-        run: python -m build
+        run: |
+          python -m pip install build
+          python -m build
       - uses: actions/upload-artifact@v4
         with:
           name: wheel

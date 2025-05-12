@@ -28,8 +28,8 @@ pub mod rosgraph_msgs;
 
 pub mod service;
 
-use std::collections::HashMap;
 use sensor_msgs::{point_field, PointCloud2, PointField};
+use std::collections::HashMap;
 
 const SIZE_OF_DATATYPE: [usize; 9] = [
     0, 1, // pub const INT8: u8 = 1;
