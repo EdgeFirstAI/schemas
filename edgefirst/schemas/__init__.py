@@ -37,12 +37,14 @@ def decode_pcd(pcd: PointCloud2) -> list[Point]:
                 val = struct.unpack(f'{endian_format}{ext}', arr)[0]
                 if f.name == "x":
                     point.x = val
-                if f.name == "y":
+                elif f.name == "y":
                     point.y = val
-                if f.name == "z":
+                elif f.name == "z":
                     point.z = val
-                if f.name == "cluster_id":
+                elif f.name == "cluster_id":
                     point.id = int(val)
+                else:
+                    point.fields[f.name] = val
             points.append(point)
     return points
 
