@@ -1,8 +1,13 @@
 import copy
 from dataclasses import field
-import struct
-from edgefirst.schemas.sensor_msgs import PointCloud2
 
+def default_field(obj):
+    return field(default_factory=lambda: copy.copy(obj))
+
+
+
+import struct
+from .sensor_msgs import PointCloud2
 
 __version__ = "0.0.0"
 
@@ -59,8 +64,6 @@ def colormap(cmap, x):
             cmap[a][2] + (cmap[b][2] - cmap[a][2]) * f]
 
 
-def default_field(obj):
-    return field(default_factory=lambda: copy.copy(obj))
 
 
 SIZE_OF_DATATYPE = [
