@@ -9,6 +9,20 @@ from . import default_field
 from .builtin_interfaces import Duration, Time
 from .std_msgs import Header
 
+class model_info(Enum):
+    RAW = 0
+    INT8 = 1
+    UINT8 = 2
+    INT16 = 3
+    UINT16 = 4
+    FLOAT16 = 5
+    INT32 = 6
+    UINT32 = 7
+    FLOAT32 = 8
+    INT64 = 9
+    UINT64 = 10
+    FLOAT64 = 11
+    STRING = 12
 
 @dataclass
 class Date(IdlStruct, typename='edgefirst_msgs/Date'):
@@ -22,7 +36,7 @@ class Date(IdlStruct, typename='edgefirst_msgs/Date'):
 
 
 @dataclass
-class Date(IdlStruct, typename='edgefirst_msgs/Date'):
+class LocalTime(IdlStruct, typename='edgefirst_msgs/LocalTime'):
     """
     The local time interface publishes the current time on the device.  It is
     mainly intended to allow synchronization of multiple MCAP files by the
@@ -188,6 +202,44 @@ class Model(IdlStruct, typename='edgefirst_msgs/Model'):
     masks.  Generally models will only generate a single mask if they do.
     """
 
+@dataclass
+class ModelInfo(IdlStruct, typename='edgefirst_msgs/ModelInfo'):
+    header: Header = default_field(Header)
+    """
+    Metadata including timestamp and coordinate frame
+    """
+    input_shape: sequence[uint32] = default_field([])
+    """
+    Shape of the input tensor(s) in the format "height,width,channels" or "height,width,depth,channels"
+    """
+    input_type: uint8 = model_info.RAW
+    """
+    Data type of the input tensor(s) (e.g., "float32", "uint8")
+    """
+    output_shape: sequence[uint32] = default_field([])
+    """
+    Shape of the output tensor(s) in the format "height,width,channels" or "height,width,depth,channels"
+    """
+    output_type: uint8 = model_info.RAW
+    """
+    Data type of the output tensor(s) (e.g., "float32", "uint8")
+    """
+    labels: sequence[str] = default_field([])
+    """
+    Array of strings representing the labels used by the model, empty if no labels available
+    """
+    model_type: str = ''
+    """
+    Model tasks/types (e.g., ["object_detection", "classification"])
+    """
+    model_format: str = ''
+    """
+    Format of the model (e.g., "DeepViewRT", "HailoRT", "RKNN", "TensorRT", "TFLite")
+    """
+    model_name: str = ''
+    """
+    Name of the model (if available), otherwise use filename without extension or path
+    """
 
 @dataclass
 class Detect(IdlStruct, typename='Detect'):

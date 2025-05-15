@@ -1,8 +1,13 @@
 import copy
 from dataclasses import field
-import struct
-from edgefirst.schemas.sensor_msgs import PointCloud2
 
+def default_field(obj):
+    return field(default_factory=lambda: copy.copy(obj))
+
+
+
+import struct
+from .sensor_msgs import PointCloud2
 
 __version__ = "0.0.0"
 
@@ -37,12 +42,14 @@ def decode_pcd(pcd: PointCloud2) -> list[Point]:
                 val = struct.unpack(f'{endian_format}{ext}', arr)[0]
                 if f.name == "x":
                     point.x = val
-                if f.name == "y":
+                elif f.name == "y":
                     point.y = val
-                if f.name == "z":
+                elif f.name == "z":
                     point.z = val
-                if f.name == "cluster_id":
+                elif f.name == "cluster_id":
                     point.id = int(val)
+                else:
+                    point.fields[f.name] = val
             points.append(point)
     return points
 
@@ -57,8 +64,6 @@ def colormap(cmap, x):
             cmap[a][2] + (cmap[b][2] - cmap[a][2]) * f]
 
 
-def default_field(obj):
-    return field(default_factory=lambda: copy.copy(obj))
 
 
 SIZE_OF_DATATYPE = [
