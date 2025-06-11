@@ -1,13 +1,12 @@
+from .sensor_msgs import PointCloud2, PointField
+import struct
 import copy
 from dataclasses import field
+
 
 def default_field(obj):
     return field(default_factory=lambda: copy.copy(obj))
 
-
-
-import struct
-from .sensor_msgs import PointCloud2
 
 __version__ = "0.0.0"
 
@@ -24,32 +23,51 @@ class Point:
 def decode_pcd(pcd: PointCloud2) -> list[Point]:
     points = []
     endian_format = ">" if pcd.is_bigendian else "<"
+    fields: list[PointField] = list(pcd.fields)
+    fields.sort(key=lambda f: f.offset)
+
+    struct_ext = endian_format
+    field_names = []
+
+    has_x = False
+    has_y = False
+    has_z = False
+    has_id = False
+
+    for i in range(len(fields)):
+        if i == 0:
+            struct_ext += "x" * fields[i].offset
+        else:
+            struct_ext += "x" * \
+                (fields[i].offset - (fields[i-1].offset +
+                 SIZE_OF_DATATYPE[fields[i-1].datatype]))
+        struct_ext += STRUCT_LETTER_OF_DATATYPE[fields[i].datatype]
+        field_names.append(fields[i].name)
+        if fields[i].name == "x":
+            has_x = True
+        elif fields[i].name == "y":
+            has_y = True
+        elif fields[i].name == "z":
+            has_z = True
+        elif fields[i].name == "cluster_id":
+            has_id = True
+    from collections import namedtuple
+    Point_ = namedtuple("Point_", field_names)
+    data = bytearray(pcd.data)
     for i in range(pcd.height):
         for j in range(pcd.width):
             point = Point()
             point_start = (i * pcd.width + j) * pcd.point_step
-            # Loop through the provided Fields for each Point (x, y, z, speed,
-            # power, rcs)
-            for f in pcd.fields:
-                val = 0
-                # Decode the data according to the datatype and endian format
-                # stated in the message, location in the array block determined
-                # through the offset
-                start = point_start + f.offset
-                end = point_start + f.offset + SIZE_OF_DATATYPE[f.datatype]
-                arr = bytearray(pcd.data[start:end])
-                ext = STRUCT_LETTER_OF_DATATYPE[f.datatype]
-                val = struct.unpack(f'{endian_format}{ext}', arr)[0]
-                if f.name == "x":
-                    point.x = val
-                elif f.name == "y":
-                    point.y = val
-                elif f.name == "z":
-                    point.z = val
-                elif f.name == "cluster_id":
-                    point.id = int(val)
-                else:
-                    point.fields[f.name] = val
+            p = Point_._make(struct.unpack_from(struct_ext, data, point_start))
+            if has_x:
+                point.x = p.x
+            if has_y:
+                point.y = p.y
+            if has_z:
+                point.z = p.z
+            if has_id:
+                point.id = int(p.cluster_id)
+            point.fields = p._asdict()
             points.append(point)
     return points
 
@@ -62,8 +80,6 @@ def colormap(cmap, x):
     return [cmap[a][0] + (cmap[b][0] - cmap[a][0]) * f,
             cmap[a][1] + (cmap[b][1] - cmap[a][1]) * f,
             cmap[a][2] + (cmap[b][2] - cmap[a][2]) * f]
-
-
 
 
 SIZE_OF_DATATYPE = [
