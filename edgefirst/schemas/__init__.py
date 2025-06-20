@@ -3,6 +3,7 @@ from dataclasses import field
 import copy
 from typing import NamedTuple
 
+
 def default_field(obj):
     return field(default_factory=lambda: copy.copy(obj))
 
@@ -13,6 +14,15 @@ __version__ = "0.0.0"
 
 
 def decode_pcd(pcd: PointCloud2) -> list[NamedTuple]:
+    """
+    Decodes the points from a PointCloud2 ROS message. The fields of each point can be accessed using `point.field_name`.
+    ```python
+    points = decode_pcd(pcd)
+    xyz = (points[0].x, points[0].y, points[0].z)
+    ```
+
+    If the field has multiple values (`count > 1`), then subsequent values are access using `point.field_name1`, `point.field_name2`, ..., etc.
+    """
     points = []
     endian_format = ">" if pcd.is_bigendian else "<"
     fields: list[PointField] = list(pcd.fields)
@@ -22,15 +32,18 @@ def decode_pcd(pcd: PointCloud2) -> list[NamedTuple]:
     field_names = []
 
     for i in range(len(fields)):
-        if i == 0:
-            struct_ext += "x" * fields[i].offset
-        else:
-            struct_ext += "x" * \
-                (fields[i].offset - (fields[i-1].offset +
-                 SIZE_OF_DATATYPE[fields[i-1].datatype]))
-        struct_ext += STRUCT_LETTER_OF_DATATYPE[fields[i].datatype]
-        field_names.append(fields[i].name)
-
+        for j in range(fields[i].count):
+            if j == 0:
+                if i == 0:
+                    struct_ext += "x" * fields[i].offset
+                else:
+                    struct_ext += "x" * (fields[i].offset - (
+                        fields[i-1].offset + SIZE_OF_DATATYPE[fields[i-1].datatype] * fields[i-1].count))
+            struct_ext += STRUCT_LETTER_OF_DATATYPE[fields[i].datatype]
+            if j == 0:
+                field_names.append(fields[i].name)
+            else:
+                field_names.append(f"{fields[i].name}{j}")
     Point_ = namedtuple("Point_", field_names)
     data = bytearray(pcd.data)
     for i in range(pcd.height):
