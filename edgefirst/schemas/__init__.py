@@ -1,26 +1,18 @@
-from .sensor_msgs import PointCloud2, PointField
-import struct
-import copy
+from collections import namedtuple
 from dataclasses import field
-
+import copy
+from typing import NamedTuple
 
 def default_field(obj):
     return field(default_factory=lambda: copy.copy(obj))
 
+import struct
+from .sensor_msgs import PointCloud2, PointField
 
 __version__ = "0.0.0"
 
 
-class Point:
-    def __init__(self):
-        self.x = 0
-        self.y = 0
-        self.z = 0
-        self.id = 0
-        self.fields = dict()
-
-
-def decode_pcd(pcd: PointCloud2) -> list[Point]:
+def decode_pcd(pcd: PointCloud2) -> list[NamedTuple]:
     points = []
     endian_format = ">" if pcd.is_bigendian else "<"
     fields: list[PointField] = list(pcd.fields)
@@ -28,11 +20,6 @@ def decode_pcd(pcd: PointCloud2) -> list[Point]:
 
     struct_ext = endian_format
     field_names = []
-
-    has_x = False
-    has_y = False
-    has_z = False
-    has_id = False
 
     for i in range(len(fields)):
         if i == 0:
@@ -43,32 +30,14 @@ def decode_pcd(pcd: PointCloud2) -> list[Point]:
                  SIZE_OF_DATATYPE[fields[i-1].datatype]))
         struct_ext += STRUCT_LETTER_OF_DATATYPE[fields[i].datatype]
         field_names.append(fields[i].name)
-        if fields[i].name == "x":
-            has_x = True
-        elif fields[i].name == "y":
-            has_y = True
-        elif fields[i].name == "z":
-            has_z = True
-        elif fields[i].name == "cluster_id":
-            has_id = True
-    from collections import namedtuple
+
     Point_ = namedtuple("Point_", field_names)
     data = bytearray(pcd.data)
     for i in range(pcd.height):
         for j in range(pcd.width):
-            point = Point()
             point_start = (i * pcd.width + j) * pcd.point_step
             p = Point_._make(struct.unpack_from(struct_ext, data, point_start))
-            if has_x:
-                point.x = p.x
-            if has_y:
-                point.y = p.y
-            if has_z:
-                point.z = p.z
-            if has_id:
-                point.id = int(p.cluster_id)
-            point.fields = p._asdict()
-            points.append(point)
+            points.append(p)
     return points
 
 
