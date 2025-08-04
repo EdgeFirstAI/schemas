@@ -1,56 +1,56 @@
-import copy
+from collections import namedtuple
 from dataclasses import field
+import copy
+from typing import NamedTuple
+
 
 def default_field(obj):
     return field(default_factory=lambda: copy.copy(obj))
 
-
-
 import struct
-from .sensor_msgs import PointCloud2
+from .sensor_msgs import PointCloud2, PointField
 
 __version__ = "0.0.0"
 
 
-class Point:
-    def __init__(self):
-        self.x = 0
-        self.y = 0
-        self.z = 0
-        self.id = 0
-        self.fields = dict()
+def decode_pcd(pcd: PointCloud2) -> list[NamedTuple]:
+    """
+    Decodes the points from a PointCloud2 ROS message. The fields of each point can be accessed using `point.field_name`.
+    ```python
+    points = decode_pcd(pcd)
+    xyz = (points[0].x, points[0].y, points[0].z)
+    ```
 
-
-def decode_pcd(pcd: PointCloud2) -> list[Point]:
+    If the field has multiple values (`count > 1`), then subsequent values are access using `point.field_name1`, `point.field_name2`, ..., etc.
+    """
     points = []
     endian_format = ">" if pcd.is_bigendian else "<"
+    fields: list[PointField] = list(pcd.fields)
+    fields.sort(key=lambda f: f.offset)
+
+    struct_ext = endian_format
+    field_names = []
+
+    for i in range(len(fields)):
+        for j in range(fields[i].count):
+            if j == 0:
+                if i == 0:
+                    struct_ext += "x" * fields[i].offset
+                else:
+                    struct_ext += "x" * (fields[i].offset - (
+                        fields[i-1].offset + SIZE_OF_DATATYPE[fields[i-1].datatype] * fields[i-1].count))
+            struct_ext += STRUCT_LETTER_OF_DATATYPE[fields[i].datatype]
+            if j == 0:
+                field_names.append(fields[i].name)
+            else:
+                field_names.append(f"{fields[i].name}{j}")
+    Point_ = namedtuple("Point_", field_names)
+    data = bytearray(pcd.data)
     for i in range(pcd.height):
         for j in range(pcd.width):
-            point = Point()
             point_start = (i * pcd.width + j) * pcd.point_step
-            # Loop through the provided Fields for each Point (x, y, z, speed,
-            # power, rcs)
-            for f in pcd.fields:
-                val = 0
-                # Decode the data according to the datatype and endian format
-                # stated in the message, location in the array block determined
-                # through the offset
-                start = point_start + f.offset
-                end = point_start + f.offset + SIZE_OF_DATATYPE[f.datatype]
-                arr = bytearray(pcd.data[start:end])
-                ext = STRUCT_LETTER_OF_DATATYPE[f.datatype]
-                val = struct.unpack(f'{endian_format}{ext}', arr)[0]
-                if f.name == "x":
-                    point.x = val
-                elif f.name == "y":
-                    point.y = val
-                elif f.name == "z":
-                    point.z = val
-                elif f.name == "cluster_id":
-                    point.id = int(val)
-                else:
-                    point.fields[f.name] = val
-            points.append(point)
+            p = Point_._make(struct.unpack_from(struct_ext, data, point_start))
+            points.append(p)
     return points
 
 
@@ -62,8 +62,6 @@ def colormap(cmap, x):
     return [cmap[a][0] + (cmap[b][0] - cmap[a][0]) * f,
             cmap[a][1] + (cmap[b][1] - cmap[a][1]) * f,
             cmap[a][2] + (cmap[b][2] - cmap[a][2]) * f]
-
-
 
 
 SIZE_OF_DATATYPE = [
