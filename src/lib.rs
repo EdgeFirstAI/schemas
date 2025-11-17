@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright © 2025 Au-Zone Technologies. All Rights Reserved.
+
 /// # EdgeFirst Middleware Schemas
 ///
 /// This library provides the Rust structs for EdgeFirst Middleware messages.

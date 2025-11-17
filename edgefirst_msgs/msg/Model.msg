@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright © 2025 Au-Zone Technologies. All Rights Reserved.
+
 # Model Message Interface - edgefirst/msg/Model
 #
 # The model interface carries model inference results.

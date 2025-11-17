@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright © 2025 Au-Zone Technologies. All Rights Reserved.
+
 # Detect Message Interface - edgefirst/msg/Detect
 #
 # The detect interface carries detection information

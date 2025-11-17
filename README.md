@@ -1,73 +1,316 @@
-# EdgeFirst Middleware Schemas
+# EdgeFirst Perception Schemas
 
-This repository hosts the messaging schemas for the EdgeFirst Middleware Services.  This includes the custom schemas as well as the ROS2 Common Interfaces and Foxglove schemas used by EdgeFirst Middleware Services.  The EdgeFirst Middleware Services communicate over the Zenoh messaging framework and follow a ROS2 styled design.  EdgeFirst Middleware Services do not directly work with ROS2 but can be bridged to a system running ROS2 through the Zenoh ROS2 DDS Bridge.  Where relevant we base our ROS2 compatibility on the [ROS2 Humble Hawksbill](https://docs.ros.org/en/rolling/Releases/Release-Humble-Hawksbill.html) LTS release.
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
+[![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/)
 
-The messaging schemas are provided as CDR IDL as well as the Rust and Python structures for working with the schemas, these are also available through crates.io and pypi.org for easy installation into client applications.
+**Core message schemas and language bindings for the EdgeFirst Perception middleware**
 
-# EdgeFirst Middleware Services
+EdgeFirst Perception Schemas provides the foundational message types used throughout the [EdgeFirst Perception](https://doc.edgefirst.ai/latest/perception/) middleware stack. It delivers high-performance Rust and Python bindings for consuming and producing messages in EdgeFirst Perception applications. The library implements [ROS2](https://www.ros.org/) Common Interfaces, [Foxglove](https://foxglove.dev/) schemas, and custom EdgeFirst message types with CDR (Common Data Representation) serialization over [Zenoh](https://zenoh.io/).
 
-The EdgeFirst Perception Middleware is a modular software stack designed as a collection of services
-communicating over a ROS2-like communication middleware called Zenoh. The various application services 
-are each focused on a general task.  For example a camera service is charged with interfacing with the 
-camera and ISP (Image Signal Processor) to efficiently deliver camera frames to other services which
-require access to the camera.  The camera service is also responsible for encoding camera frames using 
-a video codec into H.265 video for efficient recording or remote streaming, this feature of the camera
-service can be configured or disabled if recording or streaming are not required.
+**No ROS2 Required:** EdgeFirst Perception applications work directly on Linux, Windows, and macOS without any ROS2 installation. For systems that do use ROS2, EdgeFirst Perception interoperates seamlessly through the [Zenoh ROS2 DDS Bridge](https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds).
 
-The middleware services communicate with each other using the Zenoh networking middleware which provides 
-a highly efficient publisher/subscriber communications stack.  While we do not directly depend on ROS2
-the services do encode their messages using the ROS2 CDR (Common Data Representation). The middleware
-uses the ROS2 standard schemas where applicable and augment them with custom schemas where required.
-The Recorder and Foxglove chapters go into more detail on how this allows efficient streaming and 
-recording of messages and interoperability with industry standard tools.
+## Features
 
-```mermaid
-graph LR
-    camera --> model["vision model"] --> zenoh    
-    radarpub --> fusion["fusion model"] --> zenoh
-    lidarpub --> zenoh
-    camera --> fusion
-    radarpub --> zenoh
-    camera --> zenoh    
-    model --> fusion
-    navsat --> zenoh
-    imu --> zenoh
-    zenoh --> recorder --> mcap
-    zenoh --> webui --> https
-    zenoh --> user["user apps"]
-    https --> user
+- **🔄 ROS2 Common Interfaces** - Full compatibility with standard [ROS2](https://www.ros.org/) message types (`geometry_msgs`, `sensor_msgs`, `std_msgs`, `nav_msgs`)
+- **📊 Foxglove Schema Support** - Native visualization with [Foxglove Studio](https://foxglove.dev/)
+- **⚡ Custom EdgeFirst Messages** - Specialized types for edge AI (detection, tracking, DMA buffers, radar)
+- **🦀 High-Performance Rust Bindings** - Zero-copy serialization with CDR encoding
+- **🐍 Python Bindings** - Efficient point cloud decoding and message handling
+- **📡 Zenoh-Based Communication** - Modern pub/sub over [Zenoh](https://zenoh.io/) middleware
+- **💻 Cross-Platform** - Linux, Windows, and macOS support
+- **🚫 ROS2 Optional** - No ROS2 installation required for EdgeFirst Perception applications
+
+## Quick Start
+
+### Installation
+
+**Rust** (via [crates.io](https://crates.io/)):
+
+```bash
+cargo add edgefirst-schemas
 ```
 
-The camera service captures from the camera device and publishes topics for the camera info (format, size, calibration profiles), h264 or jpeg encoded streams, and a DMA topic.  The camera DMA topic replaces the typical Image schema in ROS2 with a schema optimized for embedded devices. Instead of costly memory copies the topic publishes file descriptors for the underlying dmabuf camera buffers which client applications can then use for high-performances video processing.  For example the detect service can map these camera buffers directly into the NPU accelerator with the VAAL library.
+**Python** (via pip, when published):
 
-The detect topic handles object detection and tracking by running object detection models on the i.MX 8M Plus NPU and performing object tracking on the results.  The bounding boxes and track information along with model instrumentation are published on the boxes2d topic.  The detect service can also publish to a viz2d topic which provides out of the box visualizations in Foxglove but does not contain all the meta-data and instrumentation of the dedicated boxes2d topic.
+```bash
+pip install edgefirst-schemas
+```
 
-The navsat and imu services publish GNSS (GPS and friends) and IMU sensor data, respectively.  These are used for localization and orientation tracking allowing the object detection and tracking topics to provide environmental context: where in the world are the objects being perceived.
+For detailed installation instructions and troubleshooting, see the [Developer Guide](https://doc.edgefirst.ai/latest/perception/dev/).
 
-# ROS2 Debian Packages
+### Consuming Messages (Primary Use Case)
 
-Debian/Ubuntu packages are provided to integrate the EdgeFirst Schemas into a standard ROS2 installation.  The package is available under releases and will target the current ROS2 LTS release.
+Most applications consume messages from EdgeFirst Perception services. Here's how to decode sensor data:
 
-## Building Debian Package
+**Python Example - Consuming PointCloud2:**
 
-The EdgeFirst Schemas Debian package can be built from these sources, for example if targetting an alternative ROS2 release.
+```python
+from edgefirst.schemas import PointCloud2, decode_pcd
 
-First source your desired ROS2 environment, then build using the colcon command.
+# Receive a point cloud message from EdgeFirst Perception
+# (via Zenoh subscriber - see samples for complete examples)
+points = decode_pcd(point_cloud_msg)
 
-```shell
-source /opt/ros/humble/setup.bash
+# Access point data
+for point in points:
+    x, y, z = point.x, point.y, point.z
+    # Process point data...
+```
+
+**Rust Example - Consuming Detection Results:**
+
+```rust
+use edgefirst_schemas::edgefirst_msgs::Detect;
+use edgefirst_schemas::sensor_msgs::Image;
+
+fn process_detections(detect_msg: Detect) {
+    for bbox in detect_msg.boxes {
+        println!("Class: {}, Confidence: {:.2}",
+                 bbox.class_id, bbox.confidence);
+        // Process detection...
+    }
+}
+```
+
+**Complete working examples:** See the [EdgeFirst Samples](https://github.com/EdgeFirstAI/samples) repository for full subscriber implementations, Zenoh configuration, and integration patterns.
+
+### Producing Messages (Secondary Use Case)
+
+Applications can also produce messages for custom perception pipelines:
+
+**Python Example - Creating Custom Messages:**
+
+```python
+from edgefirst.schemas.geometry_msgs import Pose, Point, Quaternion
+from edgefirst.schemas.std_msgs import Header
+
+# Create a pose message
+pose = Pose(
+    position=Point(x=1.0, y=2.0, z=0.5),
+    orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+)
+```
+
+**Rust Example - Building Detection Messages:**
+
+```rust
+use edgefirst_schemas::edgefirst_msgs::{Detect, Box as BBox, Track};
+use edgefirst_schemas::std_msgs::Header;
+
+fn create_detection() -> Detect {
+    Detect {
+        header: Header::default(),
+        boxes: vec![
+            BBox {
+                class_id: 1,
+                confidence: 0.95,
+                x: 100, y: 100, w: 50, h: 50,
+                ..Default::default()
+            }
+        ],
+        tracks: vec![],
+        model_info: Default::default(),
+    }
+}
+```
+
+**Learn more:** The [Developer Guide](https://doc.edgefirst.ai/latest/perception/dev/) covers serialization, Zenoh publishing, and message lifecycle management.
+
+### Building from Source
+
+**Rust:**
+
+```bash
+cargo build --release
+cargo test
+```
+
+**Python:**
+
+```bash
+python -m pip install -e .
+```
+
+**ROS2 Debian Package** (for ROS2 integration only):
+
+```bash
 cd edgefirst_msgs
+source /opt/ros/humble/setup.bash
 fakeroot debian/rules build
+dpkg -i ../ros-humble-edgefirst-msgs_*.deb
 ```
 
-The package is then found in the project root as ros-DISTRO-edgefirst-msgs_VERSION_ARCH.deb and can be installed using dpkg -i PACKAGE.deb.
+For complete build instructions, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-# Licenses
+## Message Schemas
 
-The EdgeFirst Middleware Schemas and libraries are dual-licensed under the Affero GPL 2.0 license or the EdgeFirst Middleware Commercial License for customers who have such a license.
+EdgeFirst Perception Schemas combines three sources of message definitions:
 
-The [ROS2 Common Interfaces](https://github.com/ros2/common_interfaces/tree/humble) schemas are under the Apache-2.0 license.
+### 1. ROS2 Common Interfaces
 
-The [Foxglove Schemas](https://github.com/foxglove/schemas) are under the MIT license.
+Standard [ROS2](https://www.ros.org/) message types for broad interoperability:
 
-The Rust library is originally based on the [zenoh-ros-type](https://github.com/evshary/zenoh-ros-type) under the Apache-2.0 license.
+- **`std_msgs`** - Basic primitive types (Header, String, etc.)
+- **`geometry_msgs`** - Spatial messages (Pose, Transform, Twist, etc.)
+- **`sensor_msgs`** - Sensor data (PointCloud2, Image, CameraInfo, Imu, NavSatFix, etc.)
+- **`nav_msgs`** - Navigation (Odometry, Path)
+- **`builtin_interfaces`** - Time and Duration
+- **`rosgraph_msgs`** - Clock
+
+Based on [ROS2 Humble Hawksbill](https://docs.ros.org/en/humble/index.html) LTS release.
+
+### 2. Foxglove Schemas
+
+Visualization-focused message types from [Foxglove Schemas](https://github.com/foxglove/schemas):
+
+- Scene graph visualization - 3D rendering primitives
+- Annotation types - Bounding boxes, markers, text
+- Panel-specific messages - Optimized for [Foxglove Studio](https://foxglove.dev/)
+
+### 3. EdgeFirst Custom Messages
+
+Specialized types for edge AI perception workflows:
+
+- **`Detect`** - Object detection results with bounding boxes and tracks
+- **`Box`** - 2D bounding box with confidence and class
+- **`Track`** - Object tracking information with unique IDs
+- **`DmaBuffer`** - Zero-copy DMA buffer sharing for hardware accelerators
+- **`RadarCube`** - Raw radar data cube for processing
+- **`RadarInfo`** - Radar sensor calibration and metadata
+- **`Model`** - Neural network model metadata
+- **`ModelInfo`** - Inference performance instrumentation
+
+Full message definitions and field descriptions are in the [API Reference](https://docs.rs/edgefirst-schemas/).
+
+## Platform Support
+
+EdgeFirst Perception Schemas works on:
+
+- **Linux** - Primary development and deployment platform
+- **Windows** - Full support for development and integration
+- **macOS** - Development and testing support
+
+**No ROS2 Required:** Applications can consume and produce EdgeFirst Perception messages on any supported platform without installing ROS2. ROS2 is only needed if you want to bridge EdgeFirst Perception data into an existing ROS2 ecosystem.
+
+See the [EdgeFirst Samples](https://github.com/EdgeFirstAI/samples) repository for platform-specific examples and setup guides.
+
+## Hardware Platforms
+
+EdgeFirst Perception is optimized for Au-Zone edge AI platforms:
+
+- **[Au-Zone Maivin](https://www.edgefirst.ai/edgefirstmodules)** - Edge AI development platform
+- **[Au-Zone Raivin](https://www.edgefirst.ai/edgefirstmodules)** - Rugged edge AI computer for industrial deployment
+
+These platforms provide hardware-accelerated inference and sensor integration. For custom hardware projects, contact Au-Zone for engineering services.
+
+## Use Cases
+
+EdgeFirst Perception Schemas enables:
+
+- **Consuming Sensor Data** - Subscribe to camera, radar, lidar, IMU, GPS topics
+- **Processing Detections** - Receive object detection and tracking results
+- **Custom Perception Services** - Build new perception algorithms that integrate with EdgeFirst
+- **Recording & Playback** - Use with MCAP for data recording and analysis
+- **Visualization** - Connect [Foxglove Studio](https://foxglove.dev/) for real-time monitoring
+- **ROS2 Integration** - Bridge to ROS2 systems when needed
+
+**Example applications:** Explore the [EdgeFirst Samples](https://github.com/EdgeFirstAI/samples) for complete implementations including camera subscribers, detection visualizers, sensor fusion examples, and custom service templates.
+
+## Documentation
+
+- **[EdgeFirst Perception Documentation](https://doc.edgefirst.ai/latest/perception/)** - Main documentation hub
+- **[Developer Guide](https://doc.edgefirst.ai/latest/perception/dev/)** - In-depth development guide
+- **[EdgeFirst Samples](https://github.com/EdgeFirstAI/samples)** - Working code examples
+- **[API Reference](https://docs.rs/edgefirst-schemas/)** - Rust API documentation
+- **[ROS2 Message Reference](https://docs.ros.org/en/humble/p/common_interfaces/)** - ROS2 Common Interfaces
+- **[Foxglove Schemas](https://github.com/foxglove/schemas)** - Foxglove message definitions
+
+## Support
+
+### Community Resources
+
+- **[GitHub Discussions](https://github.com/EdgeFirstAI/schemas/discussions)** - Ask questions and share ideas
+- **[Issue Tracker](https://github.com/EdgeFirstAI/schemas/issues)** - Report bugs and request features
+- **[EdgeFirst Documentation](https://doc.edgefirst.ai/latest/perception/)** - Comprehensive guides and tutorials
+- **[Sample Code](https://github.com/EdgeFirstAI/samples)** - Example applications and integrations
+
+### EdgeFirst Ecosystem
+
+**[EdgeFirst Studio](https://studio.edgefirst.ai)** - Complete MLOps platform for edge AI:
+- Deploy models to devices running EdgeFirst Perception
+- Monitor inference performance in real-time
+- Manage fleets of edge devices
+- Record and replay sensor data with MCAP
+- Visualize messages with integrated Foxglove
+- Free tier available for development
+
+**EdgeFirst Hardware Platforms**:
+- [Maivin and Raivin](https://www.edgefirst.ai/edgefirstmodules) edge AI computers
+- Custom carrier board design services
+- Rugged industrial enclosures for harsh environments
+
+### Professional Services
+
+Au-Zone Technologies offers commercial support for production deployments:
+
+- **Training & Workshops** - Accelerate your team's development with EdgeFirst Perception
+- **Custom Development** - Tailored perception solutions and algorithm integration
+- **Integration Services** - Connect EdgeFirst Perception to your existing systems
+- **Production Support** - SLA-backed support for mission-critical applications
+
+**Contact:** support@au-zone.com | **Learn more:** [au-zone.com](https://au-zone.com)
+
+## Architecture
+
+For detailed information about message serialization, CDR encoding, Zenoh communication patterns, and system architecture, see the [ARCHITECTURE.md](ARCHITECTURE.md) document.
+
+Quick overview:
+- Messages are serialized using CDR (Common Data Representation)
+- Communication happens over [Zenoh](https://zenoh.io/) pub/sub middleware
+- ROS2 interoperability via [Zenoh ROS2 DDS Bridge](https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds) when needed
+- Zero-copy optimizations for embedded platforms using DMA buffers
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on:
+
+- Development setup and build process
+- Code style and testing requirements
+- Pull request process
+- Issue reporting guidelines
+
+All contributors must follow our [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Security
+
+For reporting security vulnerabilities, please see our [Security Policy](SECURITY.md). Do not report security issues through public GitHub issues.
+
+## License
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
+
+```
+Copyright © 2025 Au-Zone Technologies. All Rights Reserved.
+```
+
+### Third-Party Acknowledgments
+
+This project incorporates schemas and code from:
+
+- **[ROS2 Common Interfaces](https://github.com/ros2/common_interfaces)** - Apache-2.0 License
+- **[Foxglove Schemas](https://github.com/foxglove/schemas)** - MIT License
+- **[zenoh-ros-type](https://github.com/evshary/zenoh-ros-type)** - Apache-2.0 License (original Rust implementation basis)
+
+See [NOTICE](NOTICE) file for complete third-party license information.
+
+## Related Projects
+
+- **[Zenoh](https://zenoh.io/)** - High-performance pub/sub middleware
+- **[ROS2](https://www.ros.org/)** - Robot Operating System
+- **[Foxglove Studio](https://foxglove.dev/)** - Robotics visualization and debugging
+- **[EdgeFirst Samples](https://github.com/EdgeFirstAI/samples)** - Example applications
+
+---
+
+**EdgeFirst Perception** is a trademark of Au-Zone Technologies Inc.

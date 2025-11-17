@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright © 2025 Au-Zone Technologies. All Rights Reserved.
+
 use crate::{
     builtin_interfaces::{Duration, Time},
     std_msgs::{self, Header},

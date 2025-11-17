@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright © 2025 Au-Zone Technologies. All Rights Reserved.
+
 # Segmentation Mask as sent by the Model message.  Masks can be classical
 # segmentation masks or occupancy grids, including voxel grids when using 3D
 # masks (width, height, and length are non-zero).

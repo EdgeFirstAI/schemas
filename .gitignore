@@ -31,3 +31,8 @@ log/
 *.ddeb
 
 .vscode-ctags
+
+# SBOM generation artifacts
+*.cdx.json
+sbom.json
+source-sbom*.json
