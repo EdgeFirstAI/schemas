@@ -9,8 +9,6 @@ This product includes software developed at Au-Zone Technologies
 This software contains components from the following third-party projects
 that require attribution:
 
-  * edgefirst-schemas 0.0.0 (Apache-2.0)
-  * edgefirst-schemas 0.0.0 (Apache-2.0)
   * proc-macro2 1.0.103 (Apache-2.0, MIT)
   * quote 1.0.42 (Apache-2.0, MIT)
   * serde 1.0.228 (Apache-2.0, MIT)
@@ -32,18 +30,9 @@ This project incorporates schemas and definitions from:
   * Based on zenoh-ros-type (Apache-2.0)
     https://github.com/evshary/zenoh-ros-type
 
-## Software Bill of Materials (SBOM)
+## Software Content Register (SBOM)
 
-The official Software Bill of Materials (SBOM) for this project is the
-CycloneDX JSON artifact (sbom.json) included with all releases. The SBOM
-provides a complete inventory of all dependencies, licenses, copyright
-information, and version details.
-
-To access the SBOM:
-- **GitHub Releases**: Download sbom.json from the release assets
-- **GitHub Actions**: Available as an artifact from workflow runs
-- **Local Generation**: Run .github/scripts/generate_sbom.sh
-
-For questions about licensing or SBOM contents, see CONTRIBUTING.md or
-contact support@au-zone.com.
-
+For a complete Software Bill of Materials (SBOM) including all dependencies,
+licenses, copyright information, and version information, see the sbom.json
+file included in the release artifacts or generated via GitHub Actions in
+this repository.
