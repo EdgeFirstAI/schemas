@@ -29,6 +29,7 @@ Homepage = "https://doc.edgefirst.ai"
 Documentation = "https://doc.edgefirst.ai/latest/perception/"
 Repository = "https://github.com/EdgeFirstAI/schemas"
 Issues = "https://github.com/EdgeFirstAI/schemas/issues"
+Changelog = "https://github.com/EdgeFirstAI/schemas/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
 packages = [
