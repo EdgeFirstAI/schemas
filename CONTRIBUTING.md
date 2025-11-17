@@ -504,9 +504,9 @@ Follow [SemVer 2.0.0](https://semver.org/):
 
 #### Other Conventions
 
-- **Tag format**: No 'v' prefix (e.g., `0.1.0` not `v0.1.0`)
+- **Tag format**: 'v' prefix (e.g., `v0.1.0`)
 - **Changelog**: Maintain [CHANGELOG.md](CHANGELOG.md) following [Keep a Changelog](https://keepachangelog.com/)
-- **Pre-releases**: Use `-rc1`, `-rc2` suffixes for release candidates (e.g., `0.2.0-rc1`)
+- **Pre-releases**: Use `-rc1`, `-rc2` suffixes for release candidates (e.g., `v0.2.0-rc1`)
 
 ### Release Steps
 
@@ -528,7 +528,7 @@ Developer Actions                GitHub Actions (Automated)
    ↓ (commits changes)
                                 
 4. cargo release tag
-   ↓ (creates tag: 0.2.0)
+   ↓ (creates tag: v0.2.0)
                                 
 5. cargo release push          → Tag pushed to GitHub
    ↓                             ↓
@@ -645,7 +645,7 @@ cargo install cargo-release
    cargo release tag --execute
    ```
 
-   This creates a git tag (e.g., `0.2.0` - no 'v' prefix)
+   This creates a git tag (e.g., `v0.2.0` with 'v' prefix)
 
 9. **Push to GitHub**
    ```bash
@@ -725,7 +725,7 @@ Before creating a release, verify:
 
 ### GitHub Actions Release Workflow
 
-**Trigger**: Pushing a tag (format: `X.Y.Z` or `X.Y.Z-suffix`, no 'v' prefix)
+**Trigger**: Pushing a tag (format: `vX.Y.Z` or `vX.Y.Z-suffix` with 'v' prefix)
 
 **Automated Steps**:
 

@@ -8,7 +8,7 @@
 # 3. cargo release commit --execute
 #    - Commits all version changes
 # 4. cargo release tag --execute
-#    - Creates git tag (format: <version>, no 'v' prefix)
+#    - Creates git tag (format: vX.Y.Z with 'v' prefix)
 # 5. cargo release push --execute
 #    - Pushes commits and tags to remote
 # 6. GitHub workflows handle building and publishing to crates.io, PyPI, and Debian repos
@@ -19,8 +19,8 @@
 # Only allow releases from main branch
 allow-branch = ["main"]
 
-# Tag format (no 'v' prefix, consistent with edgefirst-client)
-tag-name = "{{version}}"
+# Tag format (v-prefix to match existing convention)
+tag-name = "v{{version}}"
 
 # Commit message for version bump
 tag-message = "Release {{version}}"

@@ -7,65 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0] - 2025-11-17
-
 ### Added
 
-**Core Documentation:**
-- README.md with comprehensive project overview and usage examples
-- CONTRIBUTING.md with development guidelines and dependency management process
-- SECURITY.md with vulnerability reporting and security best practices
-- ARCHITECTURE.md with technical architecture and EdgeFirst Perception integration details
-- AGENTS.md with AI assistant development guidelines
-- CODE_OF_CONDUCT.md following Contributor Covenant
+**Version Management:**
+- Implemented cargo-release for automated version management across Rust, Python, and ROS2
+- Added `release.toml` with pre-release-replacements for version synchronization
+- Created `.github/scripts/check_version_sync.sh` to verify version consistency
+- Added dedicated `version-check.yml` GitHub Actions workflow to block PRs with version mismatches
 
-**Source Code Compliance:**
-- SPDX headers (Apache-2.0) added to all source files:
-  - 9 Rust files (src/*.rs)
-  - 8 Python files (edgefirst/schemas/*.py)
-  - 11 message definitions (edgefirst_msgs/msg/*.msg)
-- Complete Apache-2.0 LICENSE file
-- Cargo.toml license metadata
+**CI/CD Improvements:**
+- Created automated GitHub Release workflow (`release.yml`)
+- Fixed GitHub Actions workflow syntax errors (branches array format)
+- Removed version manipulation from rust.yml and pypi.yml (now managed by cargo-release)
+- Added automated CHANGELOG extraction for GitHub Releases
 
-**SBOM Infrastructure:**
-- Automated SBOM generation using merged workflow (cargo-cyclonedx + scancode-toolkit)
-- License policy validation with configurable allow/deny lists
-- NOTICE file generation for third-party attributions
-- GitHub Actions workflow for CI/CD automation (sbom.yml)
-- SBOM artifacts available in GitHub Actions and releases
+**Documentation:**
+- Updated CONTRIBUTING.md with comprehensive cargo-release workflow documentation
+- Added visual workflow diagram showing developer actions vs automated steps
+- Clarified that GitHub Release is auto-created by tag push, not manually
+- Added troubleshooting section for failed releases
 
-**Message Types:**
-- ROS2 Common Interfaces (std_msgs, sensor_msgs, geometry_msgs, nav_msgs, builtin_interfaces)
-- Foxglove visualization schemas (SceneUpdate, ImageAnnotations, Grid)
-- EdgeFirst custom messages:
-  - Detect, Box, Track (object detection and tracking)
-  - DmaBuffer (zero-copy hardware buffers)
-  - RadarCube, RadarInfo (radar sensor data)
-  - Model, ModelInfo (inference metadata)
-  - Mask, Date, LocalTime (supporting types)
-
-**Language Bindings:**
-- Rust implementation with serde-based CDR serialization
-- Python bindings with pycdr2 compatibility
-- PointCloud2 decode utilities for both Rust and Python
-- ROS2 Humble message compatibility
-
-**Integration Features:**
-- Zenoh pub/sub message patterns
-- ROS2 DDS bridge compatibility via Zenoh
-- DMA buffer file descriptor sharing for zero-copy (Linux)
-- CDR (Common Data Representation) encoding
+**Package Updates:**
+- Updated ROS2 package.xml to use real version instead of 0.0.0 placeholder
+- Updated debian/rules to extract version from package.xml instead of git tags
 
 ### Changed
-- Updated Cargo.toml description to reflect EdgeFirst Perception focus
-- Updated homepage URL to https://www.edgefirst.ai
-- Added keywords and categories for crates.io discoverability
+- Python version now sourced from `__init__.py` __version__ (industry standard)
+- All three version sources (Cargo.toml, __init__.py, package.xml) now synchronized via cargo-release
+- Release process now uses standard cargo-release steps: version, replace, commit, tag, push
 
-### Documentation
-- ARCHITECTURE.md includes actual EdgeFirst Perception topic names (rt/camera/*, rt/radar/*, etc.)
-- Real-world message flow examples showing camera, radar, and sensor fusion
-- DMA buffer documentation with Linux kernel API details (pidfd_open/pidfd_getfd)
-- Comprehensive SBOM and NOTICE maintenance procedures in CONTRIBUTING.md
+### Fixed
+- Version synchronization issues between Rust, Python, and ROS2 packages
+- GitHub Actions workflow schema validation errors
 
-[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/0.1.0...HEAD
-[0.1.0]: https://github.com/EdgeFirstAI/schemas/releases/tag/0.1.0
+## [1.3.1] - 2024-11-15
+
+### Changed
+- Optimized PointCloud2 decode to decode entire point in one call instead of one call per field
+- Use named tuple for even faster decode
+- Added decoding fields where count > 1
+
+[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/EdgeFirstAI/schemas/releases/tag/v1.3.1
