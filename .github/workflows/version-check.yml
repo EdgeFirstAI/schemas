@@ -1,0 +1,36 @@
+name: Version Sync Check
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+  push:
+    branches:
+      - main
+      - develop
+
+jobs:
+  check-versions:
+    name: Verify Version Synchronization
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check version synchronization
+        run: bash .github/scripts/check_version_sync.sh
+        
+      - name: Fail if versions are out of sync
+        if: failure()
+        run: |
+          echo "❌ Version synchronization check failed!"
+          echo ""
+          echo "Versions must match across:"
+          echo "  - Cargo.toml"
+          echo "  - edgefirst/schemas/__init__.py"
+          echo "  - edgefirst_msgs/package.xml"
+          echo ""
+          echo "Use 'cargo release version <level>' to update all versions together."
+          exit 1

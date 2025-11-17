@@ -17,9 +17,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check version synchronization
-        run: .github/scripts/check_version_sync.sh
-
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
