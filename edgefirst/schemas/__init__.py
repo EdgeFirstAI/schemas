@@ -13,7 +13,7 @@ def default_field(obj):
 import struct
 from .sensor_msgs import PointCloud2, PointField
 
-__version__ = "0.0.0"
+__version__ = "0.1.0"
 
 
 def decode_pcd(pcd: PointCloud2) -> list[NamedTuple]:

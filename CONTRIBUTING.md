@@ -12,6 +12,7 @@ Thank you for your interest in contributing to EdgeFirst Perception Schemas! Thi
 - [Dependency Management](#dependency-management)
 - [Testing Requirements](#testing-requirements)
 - [Pull Request Process](#pull-request-process)
+- [Release Process](#release-process)
 - [License](#license)
 
 ## Code of Conduct
@@ -425,6 +426,342 @@ Before submitting, ensure:
 - Update your local repository: `git pull upstream main`
 - Delete your feature branch (optional)
 - Celebrate! Thank you for contributing! 🎉
+
+---
+
+## Release Process
+
+**For Project Maintainers Only**
+
+EdgeFirst Perception Schemas follows the same release conventions as [edgefirst-client](https://github.com/EdgeFirstAI/client):
+
+### Version Management
+
+EdgeFirst Perception Schemas is a **multi-language project** (Rust + Python + ROS2) requiring version synchronization:
+
+#### Version Sources
+
+**Three sources are kept automatically synchronized using cargo-release:**
+
+1. **Cargo.toml** (Rust ecosystem):
+   ```toml
+   [package]
+   version = "0.2.0"
+   ```
+
+2. **edgefirst/schemas/__init__.py** (Python ecosystem):
+   ```python
+   __version__ = "0.2.0"
+   ```
+
+3. **edgefirst_msgs/package.xml** (ROS2 ecosystem):
+   ```xml
+   <version>0.2.0</version>
+   ```
+
+**Why three sources?**
+- Rust (crates.io), Python (PyPI), and ROS2 (Debian packages) are separate packaging ecosystems
+- Each requires its own version declaration
+- This is standard practice for multi-language projects
+- **cargo-release automatically synchronizes all three versions**
+
+#### Version Access
+
+**Rust**: Version is embedded in crate metadata
+```rust
+// Automatically available via Cargo.toml
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+```
+
+**Python**: Version accessible via `__version__` attribute
+```python
+import edgefirst.schemas
+print(edgefirst.schemas.__version__)  # "0.2.0"
+```
+
+**Installed package**: Use `importlib.metadata`
+```python
+from importlib.metadata import version
+print(version("edgefirst-schemas"))  # "0.2.0"
+```
+
+#### Semantic Versioning
+
+Follow [SemVer 2.0.0](https://semver.org/):
+
+- **MAJOR** (X.0.0): Incompatible API changes
+  - Removing message types or fields
+  - Changing field types in incompatible ways
+  - Breaking serialization compatibility
+- **MINOR** (0.X.0): Backwards-compatible functionality additions
+  - Adding new message types
+  - Adding new fields (with defaults)
+  - New decode utilities or helper functions
+- **PATCH** (0.0.X): Backwards-compatible bug fixes
+  - Fixing serialization bugs
+  - Documentation corrections
+  - Performance improvements (no API changes)
+
+#### Other Conventions
+
+- **Tag format**: No 'v' prefix (e.g., `0.1.0` not `v0.1.0`)
+- **Changelog**: Maintain [CHANGELOG.md](CHANGELOG.md) following [Keep a Changelog](https://keepachangelog.com/)
+- **Pre-releases**: Use `-rc1`, `-rc2` suffixes for release candidates (e.g., `0.2.0-rc1`)
+
+### Release Steps
+
+EdgeFirst uses **cargo-release** to automate version management across all three languages.
+
+#### Release Workflow Overview
+
+```
+Developer Actions                GitHub Actions (Automated)
+─────────────────                ──────────────────────────
+                                
+1. cargo release version patch    
+   ↓ (updates 3 version files)
+                                
+2. Update CHANGELOG.md manually
+   ↓
+                                
+3. cargo release commit
+   ↓ (commits changes)
+                                
+4. cargo release tag
+   ↓ (creates tag: 0.2.0)
+                                
+5. cargo release push          → Tag pushed to GitHub
+   ↓                             ↓
+                                 ├→ release.yml
+                                 │  └→ Creates GitHub Release
+                                 │     - Extracts CHANGELOG
+                                 │     - Attaches SBOM
+                                 │
+                                 ├→ rust.yml  
+                                 │  └→ Publishes to crates.io
+                                 │
+                                 ├→ pypi.yml
+                                 │  └→ Publishes to PyPI
+                                 │
+                                 └→ debian.yml
+                                    └→ Builds .deb packages
+```
+
+**Key Points:**
+- GitHub Release is **automatically created** when tag is pushed
+- All publishing (crates.io, PyPI) happens **in parallel** from tag push
+- No manual GitHub Release creation needed
+- PyPI is **not** triggered by GitHub Release - it's triggered by the tag
+
+#### Prerequisites
+
+```bash
+# Install cargo-release if not already installed
+cargo install cargo-release
+```
+
+#### Standard Release Process
+
+1. **Ensure clean state**
+   ```bash
+   # Verify you're on main branch
+   git checkout main
+   git pull origin main
+
+   # Ensure working directory is clean
+   git status  # Should show "nothing to commit, working tree clean"
+   ```
+
+2. **Bump version in Cargo.toml**
+   ```bash
+   # For patch release (0.1.0 -> 0.1.1)
+   cargo release version patch --execute
+
+   # For minor release (0.1.0 -> 0.2.0)
+   cargo release version minor --execute
+
+   # For major release (0.1.0 -> 1.0.0)
+   cargo release version major --execute
+
+   # Or specify exact version
+   cargo release version 1.4.0 --execute
+   ```
+
+   This command updates `Cargo.toml` version only.
+
+3. **Update Python and ROS2 versions**
+   ```bash
+   cargo release replace --execute
+   ```
+
+   This runs pre-release-replacements to update:
+   - `edgefirst/schemas/__init__.py` __version__
+   - `edgefirst_msgs/package.xml` <version>
+   - `CHANGELOG.md` (adds new version section)
+
+4. **Review version changes**
+   ```bash
+   git diff
+
+   # Verify all three versions match
+   .github/scripts/check_version_sync.sh
+   # Should output: ✅ All versions are synchronized!
+   ```
+
+5. **Update CHANGELOG.md content manually**
+   
+   The `replace` step added the version header, now add the actual changes:
+   
+   ```markdown
+   ## [Unreleased]
+
+   ## [0.2.0] - 2025-11-20  # <-- Added by 'replace' step
+
+   ### Added                # <-- Add your changes here
+   - New feature descriptions
+
+   ### Changed
+   - Modified behavior descriptions
+
+   ### Fixed
+   - Bug fix descriptions
+   ```
+
+6. **Regenerate SBOM and NOTICE** (if dependencies changed)
+   ```bash
+   .github/scripts/generate_sbom.sh
+   git diff NOTICE
+   ```
+
+7. **Commit version bump**
+   ```bash
+   cargo release commit --execute
+   ```
+
+   This creates a commit with message: "Release 0.2.0"
+
+8. **Create release tag**
+   ```bash
+   cargo release tag --execute
+   ```
+
+   This creates a git tag (e.g., `0.2.0` - no 'v' prefix)
+
+9. **Push to GitHub**
+   ```bash
+   cargo release push --execute
+   ```
+
+   This pushes both the commit and tag to origin
+
+10. **Automated GitHub Actions workflow**
+   
+   Pushing the tag triggers multiple workflows automatically:
+   
+   **a) GitHub Release Creation** (`.github/workflows/release.yml`)
+   - Extracts version from tag name
+   - Extracts release notes from CHANGELOG.md
+   - Generates SBOM (Software Bill of Materials)
+   - Creates GitHub Release with:
+     - Version number as title
+     - Changelog section as description
+     - SBOM attached as artifact
+     - Marked as pre-release if version contains `-` (e.g., `0.2.0-rc1`)
+   
+   **b) Rust Publishing** (`.github/workflows/rust.yml`)
+   - Runs tests and formatting checks
+   - Publishes to crates.io using version from Cargo.toml
+   
+   **c) Python Publishing** (`.github/workflows/pypi.yml`)
+   - Builds Python wheel using version from `__init__.py`
+   - Publishes to PyPI
+   
+   **d) Debian Package Build** (`.github/workflows/debian.yml`)
+   - Extracts version from package.xml
+   - Builds .deb packages for AMD64 and ARM64
+   - Uploads artifacts (can be attached to GitHub Release manually if needed)
+
+10. **Verify successful release**
+    
+    Monitor the following:
+    - GitHub Actions: All workflows complete successfully
+    - GitHub Release: Created at https://github.com/EdgeFirstAI/schemas/releases
+    - crates.io: Published at https://crates.io/crates/edgefirst-schemas
+    - PyPI: Published at https://pypi.org/project/edgefirst-schemas/
+
+#### Quick Release (All Steps Combined)
+
+For experienced users who want to automate the entire process:
+
+```bash
+# Bump version and run all steps in one command
+cargo release patch --execute
+
+# Or specify exact version
+cargo release 1.4.0 --execute
+```
+
+This runs all steps in sequence:
+1. `version` - Updates Cargo.toml
+2. `replace` - Updates __init__.py, package.xml, CHANGELOG.md
+3. `commit` - Commits all changes
+4. `tag` - Creates git tag
+5. `push` - Pushes to remote
+
+**Note**: You still need to manually edit CHANGELOG.md content before running this command (the `replace` step only adds the version header, not the actual changes).
+
+### Pre-Release Checklist
+
+Before creating a release, verify:
+
+- [ ] All tests pass (`cargo test`, `pytest`)
+- [ ] Documentation is up-to-date
+- [ ] CHANGELOG.md updated with all changes since last release (following [Keep a Changelog](https://keepachangelog.com/) format)
+- [ ] Versions synchronized via `cargo release version <level>` (validates all three: Cargo.toml, __init__.py, package.xml)
+- [ ] NOTICE file regenerated if dependencies changed
+- [ ] No uncommitted changes (`git status` clean)
+- [ ] On `main` branch with latest changes pulled
+- [ ] Version sync check passes: `.github/scripts/check_version_sync.sh`
+
+### GitHub Actions Release Workflow
+
+**Trigger**: Pushing a tag (format: `X.Y.Z` or `X.Y.Z-suffix`, no 'v' prefix)
+
+**Automated Steps**:
+
+1. **GitHub Release** - Automatically created with:
+   - Release title: Version number (e.g., "0.2.0")
+   - Description: Extracted from CHANGELOG.md for that version
+   - Assets: SBOM (sbom.json)
+   - Pre-release flag: Set if version contains `-` (e.g., `0.2.0-rc1`)
+
+2. **crates.io** - Rust crate published automatically
+
+3. **PyPI** - Python package published automatically
+
+4. **Debian packages** - Built for AMD64 and ARM64, available as workflow artifacts
+
+**Important**: 
+- The GitHub Release is created **automatically by the tag push**, not manually
+- PyPI publishing is triggered by the **tag push**, not by the GitHub Release creation
+- All publishing happens in parallel when the tag is pushed
+
+### Troubleshooting Releases
+
+**If a workflow fails:**
+1. Check GitHub Actions logs for specific error
+2. Common issues:
+   - Missing secrets (CARGO_REGISTRY_TOKEN, PyPI credentials)
+   - Version already exists on crates.io or PyPI
+   - Test failures blocking deployment
+3. Fix the issue and re-tag (delete old tag first):
+   ```bash
+   git tag -d 0.2.0
+   git push origin :refs/tags/0.2.0
+   # Fix the issue, then re-run cargo release
+   ```
+
+---
 
 ## License
 

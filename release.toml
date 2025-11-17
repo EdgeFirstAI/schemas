@@ -1,0 +1,48 @@
+# cargo-release configuration for edgefirst-schemas
+#
+# Release Process (using cargo-release steps):
+# 1. cargo release version <patch|minor|major|<version>> --execute
+#    - Updates version in Cargo.toml only
+# 2. cargo release replace --execute  
+#    - Runs pre-release-replacements to update __init__.py, package.xml, and CHANGELOG.md
+# 3. cargo release commit --execute
+#    - Commits all version changes
+# 4. cargo release tag --execute
+#    - Creates git tag (format: <version>, no 'v' prefix)
+# 5. cargo release push --execute
+#    - Pushes commits and tags to remote
+# 6. GitHub workflows handle building and publishing to crates.io, PyPI, and Debian repos
+#
+# Or use single command: cargo release <patch|minor|major|<version>> --execute
+# (runs all steps: version, replace, commit, tag, push)
+
+# Only allow releases from main branch
+allow-branch = ["main"]
+
+# Tag format (no 'v' prefix, consistent with edgefirst-client)
+tag-name = "{{version}}"
+
+# Commit message for version bump
+tag-message = "Release {{version}}"
+
+# Don't automatically publish to crates.io (handled by workflow)
+publish = false
+
+# Don't automatically push commits and tags (manual control via cargo release push)
+push = false
+
+# Commit message for version bump
+pre-release-commit-message = "Release {{version}}"
+
+# Pre-release replacements - sync versions across all three languages
+# These run during the 'replace' step (after 'version' step, before 'commit' step)
+pre-release-replacements = [
+  # Update CHANGELOG.md
+  { file = "CHANGELOG.md", search = "## \\[Unreleased\\]", replace = "## [Unreleased]\n\n## [{{version}}] - {{date}}", exactly = 1 },
+  
+  # Update Python __init__.py version
+  { file = "edgefirst/schemas/__init__.py", search = '__version__ = ".*"', replace = '__version__ = "{{version}}"', exactly = 1 },
+  
+  # Update ROS2 package.xml version
+  { file = "edgefirst_msgs/package.xml", search = '<version>.*</version>', replace = '<version>{{version}}</version>', exactly = 1 },
+]

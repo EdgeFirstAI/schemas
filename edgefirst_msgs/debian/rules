@@ -6,8 +6,8 @@
 # dh-make output file, you may use that output file without restriction.
 # This special exception was added by Craig Small in version 0.37 of dh-make.
 
-TAG := $(shell git describe --tags | cut -b2-)
-COMMENT := $(shell git tag -l -n1 $(TAG))
+# Extract version from package.xml
+VERSION := $(shell grep '<version>' package.xml | sed 's/.*<version>\(.*\)<\/version>.*/\1/')
 BUILD_NUMBER ?= 0
 ROS_DISTRO ?= humble
 
@@ -75,4 +75,4 @@ version:
 	$(RM) debian/changelog
 	dch --create --distribution stable \
 		--package ros-$(ROS_DISTRO)-edgefirst-msgs \
-		--newversion $(TAG)-$(BUILD_NUMBER) "$(COMMENT)"
+		--newversion $(VERSION)-$(BUILD_NUMBER) "Release $(VERSION)"
