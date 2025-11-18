@@ -74,15 +74,13 @@ def generate_notice(sbom_path: str) -> str:
     # Sort by name
     attribution_components.sort(key=lambda x: x[0].lower())
 
-    # Generate NOTICE content - CUSTOMIZED FOR EDGEFIRST PERCEPTION SCHEMAS
+    # Generate NOTICE content
     notice = []
     notice.append("EdgeFirst Perception Schemas")
     notice.append("Copyright © 2025 Au-Zone Technologies. All Rights Reserved.")
     notice.append("")
     notice.append("This product includes software developed at Au-Zone Technologies")
     notice.append("(https://au-zone.com/).")
-    notice.append("")
-    notice.append("## Third-Party Software")
     notice.append("")
     notice.append("This software contains components from the following third-party projects")
     notice.append("that require attribution:")
@@ -96,25 +94,9 @@ def generate_notice(sbom_path: str) -> str:
         notice.append("  (No third-party components requiring attribution)")
 
     notice.append("")
-    notice.append("## Included Open Source Components")
-    notice.append("")
-    notice.append("This project incorporates schemas and definitions from:")
-    notice.append("")
-    notice.append("  * ROS2 Common Interfaces (Apache-2.0)")
-    notice.append("    https://github.com/ros2/common_interfaces")
-    notice.append("")
-    notice.append("  * Foxglove Schemas (MIT)")
-    notice.append("    https://github.com/foxglove/schemas")
-    notice.append("")
-    notice.append("  * Based on zenoh-ros-type (Apache-2.0)")
-    notice.append("    https://github.com/evshary/zenoh-ros-type")
-    notice.append("")
-    notice.append("## Software Content Register (SBOM)")
-    notice.append("")
-    notice.append("For a complete Software Bill of Materials (SBOM) including all dependencies,")
-    notice.append("licenses, copyright information, and version information, see the sbom.json")
-    notice.append("file included in the release artifacts or generated via GitHub Actions in")
-    notice.append("this repository.")
+    notice.append("For a complete Software Content Register (SBOM) including all dependencies,")
+    notice.append("licenses, and version information, see the sbom.json file generated via")
+    notice.append("GitHub Actions in this repository or included in release artifacts.")
     notice.append("")
 
     return "\n".join(notice)

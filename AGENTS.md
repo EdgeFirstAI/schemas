@@ -21,6 +21,52 @@ This document provides instructions for AI coding assistants (GitHub Copilot, Cu
 
 ---
 
+## Process Documentation Reference
+
+**For Au-Zone Internal Developers:**
+
+This project follows Au-Zone Technologies Software Process standards. Complete process documentation is available in the internal Software Process repository.
+
+### Key Process Areas
+
+**Git Workflow:**
+- Branch naming: `<type>/PROJECTKEY-###[-description]`
+- Commit format: `PROJECTKEY-###: Brief description`
+- Multi-repository coordination: Use same JIRA key across related repos
+- Release management: Semantic versioning with comprehensive pre-release checklist
+
+**JIRA Integration:**
+- Automatic ticket transitions on branch/PR events
+- Time tracking with Tempo
+- Blocker management and dependency tracking
+- External contributors: Use `feature/<description>` format without JIRA keys
+
+**SBOM and License Compliance:**
+- Automated via `.github/scripts/generate_sbom.sh`
+- Scancode-toolkit for unified scanning (all languages)
+- License policy enforced in CI/CD via `.github/scripts/check_license_policy.py`
+- MPL-2.0 allowed as dependency only, not in source code
+- Parent directory scanning approach for optimal performance
+
+**Testing Standards:**
+- 70% minimum coverage per component/language
+- Testing pyramid: Unit (70%+), Integration (20-25%), E2E (5-10%)
+- Multi-language testing strategies (Rust + Python + ROS2)
+- Performance benchmarks for serialization/deserialization
+
+**For External Contributors:**
+- Use simplified workflow: `feature/<description>`, `bugfix/<description>`
+- No JIRA key required
+- Follow PR checklist in CONTRIBUTING.md
+- License policy automatically enforced in CI/CD
+
+**Process Documentation Location (Au-Zone Staff):**
+- Internal repository: Contact development leadership
+- Templates available in Software Process docs
+- Regular quarterly updates
+
+---
+
 ## Overview
 
 Au-Zone Technologies develops edge AI and computer vision solutions for resource-constrained embedded devices. Our software spans:

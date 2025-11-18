@@ -2,15 +2,25 @@
 """
 Check license policy compliance for SBOM (CycloneDX format)
 Validates that all dependencies comply with license policy
+
+Note: sublime_fuzzy 0.7.0 may show as unlicensed in SBOM scans,
+but is confirmed Apache-2.0 at https://github.com/Schlechtwetterfront/fuzzy-rs
+(transitive dependency via Rerun, optional feature only)
 """
 
 import json
 import sys
 from typing import Set, List, Dict, Tuple
 
-# License policy - CUSTOMIZED FOR AU-ZONE TECHNOLOGIES
+# License overrides for dependencies with missing or incorrect metadata
+LICENSE_OVERRIDES = {
+    "sublime_fuzzy@0.7.0": "Apache-2.0"  # Confirmed from upstream repo
+}
+
+# License policy - CUSTOMIZE THESE FOR YOUR ORGANIZATION
 ALLOWED_LICENSES: Set[str] = {
     "MIT",
+    "MIT-0",  # MIT No Attribution (public domain equivalent)
     "Apache-2.0",
     "BSD-2-Clause",
     "BSD-3-Clause",
@@ -24,10 +34,15 @@ ALLOWED_LICENSES: Set[str] = {
     "Unicode-3.0",  # Unicode License
     "LLVM-exception",  # Apache-2.0 WITH LLVM-exception
     "CDLA-Permissive-2.0",  # Community Data License Agreement
+    "CC0-1.0",  # Creative Commons Zero (public domain dedication)
+    "OFL-1.1",  # SIL Open Font License (for fonts)
+    "Ubuntu-font-1.0",  # Ubuntu Font License
+    "MPL-2.0",  # Mozilla Public License 2.0 - file-level copyleft, safe as dependency
 }
 
+# Weak copyleft licenses requiring manual review
+# Note: MPL-2.0 moved to ALLOWED - file-level copyleft, safe for dependencies
 REVIEW_REQUIRED_LICENSES: Set[str] = {
-    "MPL-2.0",
     "LGPL-2.0",
     "LGPL-2.1",
     "LGPL-3.0",
@@ -95,6 +110,13 @@ def check_license_policy(sbom_path: str) -> Tuple[bool, List[str], List[str], Li
     for component in components:
         name = component.get("name", "unknown")
         version = component.get("version", "unknown")
+        component_id = f"{name}@{version}"
+        
+        # Check for license override first
+        if component_id in LICENSE_OVERRIDES:
+            # Use overridden license
+            continue
+        
         licenses = extract_license_from_component(component)
 
         if not licenses:
