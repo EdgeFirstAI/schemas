@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2025-11-18
+
+### Changed
+- **All packages now licensed under Apache-2.0**: Updated Rust crate, Python package, and ROS2 package metadata to reflect Apache-2.0 license across all distributions
+- SBOM generation is now 3x faster (17s → 5-6s), reducing build times for downstream users
+- Updated dependency scanning for improved security and compliance
+
+### Fixed
+- Improved reliability of license policy enforcement
+
 ## [1.4.0] - 2025-11-17
 
 ### Added
@@ -133,7 +143,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Python build issues with wheel generation
 - Removed auxiliary files from ROS2 schemas not required for this project
 
-[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/EdgeFirstAI/schemas/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/EdgeFirstAI/schemas/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/EdgeFirstAI/schemas/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/EdgeFirstAI/schemas/compare/v1.2.11...v1.3.0
