@@ -1,0 +1,163 @@
+name: ROS
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+  pull_request:
+
+jobs:
+  build:
+    name: ${{ matrix.ros_distro }} (${{ matrix.arch }})
+    runs-on: ubuntu-${{ matrix.ubuntu }}${{ matrix.runner_suffix }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Ubuntu 22.04 (Jammy) + ROS2 Humble
+          - ubuntu: "22.04"
+            ros_distro: humble
+            arch: amd64
+            runner_suffix: ""
+          - ubuntu: "22.04"
+            ros_distro: humble
+            arch: arm64
+            runner_suffix: "-arm"
+          # Ubuntu 24.04 (Noble) + ROS2 Jazzy
+          - ubuntu: "24.04"
+            ros_distro: jazzy
+            arch: amd64
+            runner_suffix: ""
+          - ubuntu: "24.04"
+            ros_distro: jazzy
+            arch: arm64
+            runner_suffix: "-arm"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup ROS environment
+        uses: ros-tooling/setup-ros@2b7b7e10fd30ff131dfb33248ddd71c5ba31dd30 # v0.7
+        # No required-ros-distributions - we only need dev tools, not desktop
+
+      - name: Install ROS build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ros-${{ matrix.ros_distro }}-ament-cmake \
+            ros-${{ matrix.ros_distro }}-rosidl-default-generators \
+            ros-${{ matrix.ros_distro }}-rosidl-default-runtime \
+            ros-${{ matrix.ros_distro }}-std-msgs \
+            fakeroot \
+            debhelper \
+            devscripts
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(grep '<version>' edgefirst_msgs/package.xml | sed 's/.*<version>\(.*\)<\/version>.*/\1/')
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Building version ${VERSION} for ROS2 ${{ matrix.ros_distro }} on ${{ matrix.arch }}"
+
+      - name: Build Debian package
+        working-directory: edgefirst_msgs
+        env:
+          ROS_DISTRO: ${{ matrix.ros_distro }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          # Source ROS setup for build environment
+          source /opt/ros/${{ matrix.ros_distro }}/setup.bash
+          
+          # Generate control and changelog
+          fakeroot debian/rules version
+          
+          # Show generated files for debugging
+          echo "=== Generated debian/control ==="
+          cat debian/control
+          echo ""
+          echo "=== Generated debian/changelog ==="
+          cat debian/changelog
+          echo ""
+          
+          # Build the package
+          fakeroot debian/rules binary
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p artifacts
+          cp edgefirst_msgs/../*.deb artifacts/ 2>/dev/null || cp *.deb artifacts/
+          ls -la artifacts/
+
+      - name: Upload Debian package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ros-${{ matrix.ros_distro }}-edgefirst-msgs_${{ steps.version.outputs.version }}_${{ matrix.arch }}
+          path: artifacts/*.deb
+          if-no-files-found: error
+
+      - name: Write job summary
+        run: |
+          echo "## ROS2 Debian Package Build" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| ROS Distro | ${{ matrix.ros_distro }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Ubuntu | ${{ matrix.ubuntu }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Architecture | ${{ matrix.arch }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | ${{ steps.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build Number | ${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          ls -lh artifacts/*.deb >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  # Combine all artifacts into a single release artifact on tags
+  release:
+    name: Combine Release Artifacts
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: packages
+          pattern: ros-*-edgefirst-msgs_*
+
+      - name: Combine packages
+        run: |
+          mkdir -p release
+          find packages -name '*.deb' -exec cp {} release/ \;
+          ls -la release/
+
+      - name: Upload combined release artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ros-edgefirst-msgs-all
+          path: release/*.deb
+          if-no-files-found: error
+
+      - name: Write release summary
+        run: |
+          echo "## ROS2 Release Packages" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### All Debian Packages" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          ls -lh release/*.deb >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Package Matrix" >> $GITHUB_STEP_SUMMARY
+          echo "| Package | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|------|" >> $GITHUB_STEP_SUMMARY
+          for f in release/*.deb; do
+            name=$(basename "$f")
+            size=$(du -h "$f" | cut -f1)
+            echo "| $name | $size |" >> $GITHUB_STEP_SUMMARY
+          done

@@ -36,3 +36,5 @@ log/
 *.cdx.json
 sbom.json
 source-sbom*.json
+
+.DS_Store

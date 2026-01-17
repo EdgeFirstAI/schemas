@@ -1,6 +1,12 @@
 /files
 /ros-humble-edgefirst-msgs
+/ros-jazzy-edgefirst-msgs
+/ros-*-edgefirst-msgs
 /debhelper-build-stamp
+
+# Generated from templates at build time
+/control
+/changelog
 
 *.debhelper
 *.log

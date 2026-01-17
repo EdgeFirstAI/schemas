@@ -1,15 +1,15 @@
 #!/usr/bin/make -f
 # -*- makefile -*-
-# Sample debian/rules that uses debhelper.
-# This file was originally written by Joey Hess and Craig Small.
-# As a special exception, when this file is copied by dh-make into a
-# dh-make output file, you may use that output file without restriction.
-# This special exception was added by Craig Small in version 0.37 of dh-make.
+# Debian rules for building ros-<distro>-edgefirst-msgs packages.
+# Supports multiple ROS2 distributions via ROS_DISTRO variable.
 
 # Extract version from package.xml
 VERSION := $(shell grep '<version>' package.xml | sed 's/.*<version>\(.*\)<\/version>.*/\1/')
 BUILD_NUMBER ?= 0
 ROS_DISTRO ?= humble
+
+# Repository root (for changelog generation)
+REPO_ROOT := $(shell cd .. && pwd)
 
 # Uncomment this to turn on verbose mode.
 export DH_VERBOSE=1
@@ -71,8 +71,9 @@ override_dh_auto_install:
 	if [ -f "/opt/ros/$(ROS_DISTRO)/setup.sh" ]; then . "/opt/ros/$(ROS_DISTRO)/setup.sh"; fi && \
 	dh_auto_install
 
+# Generate debian/control from template and debian/changelog from CHANGELOG.md
 version:
-	$(RM) debian/changelog
-	dch --create --distribution stable \
-		--package ros-$(ROS_DISTRO)-edgefirst-msgs \
-		--newversion $(VERSION)-$(BUILD_NUMBER) "Release $(VERSION)"
+	@echo "Generating debian/control for ROS_DISTRO=$(ROS_DISTRO)"
+	sed 's/@ROS_DISTRO@/$(ROS_DISTRO)/g' debian/control.in > debian/control
+	@echo "Generating debian/changelog for version $(VERSION)-$(BUILD_NUMBER)"
+	$(REPO_ROOT)/scripts/generate-debian-changelog.sh $(ROS_DISTRO) $(VERSION) $(BUILD_NUMBER) > debian/changelog
