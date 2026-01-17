@@ -252,3 +252,165 @@ pub struct Date {
     pub month: u8,
     pub day: u8,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::builtin_interfaces::Time;
+    use crate::serde_cdr::{deserialize, serialize};
+
+    #[test]
+    fn test_detect_track_serialize() {
+        let track = DetectTrack {
+            id: "track_001".to_string(),
+            lifetime: 15,
+            created: Time { sec: 100, nanosec: 0 },
+        };
+        let bytes = serialize(&track).unwrap();
+        let decoded: DetectTrack = deserialize(&bytes).unwrap();
+        assert_eq!(track, decoded);
+    }
+
+    #[test]
+    fn test_detect_box2d_serialize() {
+        let box2d = DetectBox2D {
+            center_x: 0.5,
+            center_y: 0.5,
+            width: 0.2,
+            height: 0.3,
+            label: "person".to_string(),
+            score: 0.95,
+            distance: 5.5,
+            speed: 1.2,
+            track: DetectTrack {
+                id: "t1".to_string(),
+                lifetime: 10,
+                created: Time { sec: 50, nanosec: 0 },
+            },
+        };
+        let bytes = serialize(&box2d).unwrap();
+        let decoded: DetectBox2D = deserialize(&bytes).unwrap();
+        assert_eq!(box2d, decoded);
+    }
+
+    #[test]
+    fn test_detect_serialize() {
+        let detect = Detect {
+            header: Header {
+                stamp: Time { sec: 100, nanosec: 500_000_000 },
+                frame_id: "camera".to_string(),
+            },
+            input_timestamp: Time { sec: 100, nanosec: 400_000_000 },
+            model_time: Time { sec: 0, nanosec: 50_000_000 },
+            output_time: Time { sec: 100, nanosec: 500_000_000 },
+            boxes: vec![
+                DetectBox2D {
+                    center_x: 0.5,
+                    center_y: 0.5,
+                    width: 0.1,
+                    height: 0.2,
+                    label: "car".to_string(),
+                    score: 0.98,
+                    distance: 10.0,
+                    speed: 5.0,
+                    track: DetectTrack {
+                        id: "t1".to_string(),
+                        lifetime: 5,
+                        created: Time { sec: 95, nanosec: 0 },
+                    },
+                },
+            ],
+        };
+        let bytes = serialize(&detect).unwrap();
+        let decoded: Detect = deserialize(&bytes).unwrap();
+        assert_eq!(detect, decoded);
+    }
+
+    #[test]
+    fn test_detect_empty_boxes() {
+        let detect = Detect {
+            header: Header {
+                stamp: Time { sec: 0, nanosec: 0 },
+                frame_id: "".to_string(),
+            },
+            input_timestamp: Time { sec: 0, nanosec: 0 },
+            model_time: Time { sec: 0, nanosec: 0 },
+            output_time: Time { sec: 0, nanosec: 0 },
+            boxes: vec![],
+        };
+        let bytes = serialize(&detect).unwrap();
+        let decoded: Detect = deserialize(&bytes).unwrap();
+        assert_eq!(detect, decoded);
+    }
+
+    #[test]
+    fn test_mask_serialize() {
+        let mask = Mask {
+            height: 480,
+            width: 640,
+            length: 0,
+            encoding: "".to_string(),
+            mask: vec![0u8; 100],
+            boxed: false,
+        };
+        let bytes = serialize(&mask).unwrap();
+        let decoded: Mask = deserialize(&bytes).unwrap();
+        assert_eq!(mask, decoded);
+    }
+
+    #[test]
+    fn test_mask_with_encoding() {
+        let mask = Mask {
+            height: 1080,
+            width: 1920,
+            length: 0,
+            encoding: "zstd".to_string(),
+            mask: vec![1, 2, 3, 4, 5],
+            boxed: true,
+        };
+        let bytes = serialize(&mask).unwrap();
+        let decoded: Mask = deserialize(&bytes).unwrap();
+        assert_eq!(mask, decoded);
+    }
+
+    #[test]
+    fn test_dmabuf_serialize() {
+        let dmabuf = DmaBuf {
+            header: Header {
+                stamp: Time { sec: 100, nanosec: 0 },
+                frame_id: "camera".to_string(),
+            },
+            pid: 12345,
+            height: 1080,
+            width: 1920,
+            stride: 1920 * 3,
+            fourcc: 0x34325247,
+            fd: 42,
+            length: 1920 * 1080 * 3,
+        };
+        let bytes = serialize(&dmabuf).unwrap();
+        let decoded: DmaBuf = deserialize(&bytes).unwrap();
+        assert_eq!(dmabuf, decoded);
+    }
+
+    #[test]
+    fn test_model_info_serialize() {
+        let model = ModelInfo {
+            header: Header {
+                stamp: Time { sec: 0, nanosec: 0 },
+                frame_id: "".to_string(),
+            },
+            input_shape: vec![1, 3, 640, 640],
+            input_type: 8,
+            output_shape: vec![1, 25200, 85],
+            output_type: 8,
+            labels: vec!["person".to_string(), "car".to_string()],
+            model_type: "yolov8".to_string(),
+            model_format: "onnx".to_string(),
+            model_name: "yolov8n".to_string(),
+        };
+        let bytes = serialize(&model).unwrap();
+        let decoded: ModelInfo = deserialize(&bytes).unwrap();
+        assert_eq!(model, decoded);
+    }
+}

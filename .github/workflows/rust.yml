@@ -13,13 +13,16 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # ==========================================================================
+  # Format Check
+  # ==========================================================================
   format:
     name: Format
     runs-on: ubuntu-latest
     env:
       RUSTV: nightly-2024-04-09
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - name: Install
         run: |
           rustup toolchain install $RUSTV
@@ -27,22 +30,262 @@ jobs:
       - name: Check
         run: cargo +$RUSTV fmt -- --check
 
+  # ==========================================================================
+  # Phase 1: Build & Test with Coverage on ARM Runner
+  # ==========================================================================
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-arm
     steps:
-    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-    - name: Run tests
-      run: cargo test --verbose
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup component add llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@30eab0fabba9ea3f522099957e668b21876aa39e # v2.66.6
+        with:
+          tool: cargo-llvm-cov
+
+      - name: Run tests with coverage
+        run: |
+          cargo llvm-cov test --all-features --workspace \
+            --lcov --output-path lcov.info
+
+      - name: Generate coverage summary
+        id: coverage
+        run: |
+          # Extract coverage percentage from lcov
+          TOTAL_LINES=$(grep -E "^LF:" lcov.info | cut -d: -f2 | paste -sd+ | bc)
+          COVERED_LINES=$(grep -E "^LH:" lcov.info | cut -d: -f2 | paste -sd+ | bc)
+          if [ "$TOTAL_LINES" -gt 0 ]; then
+            COVERAGE=$(echo "scale=2; $COVERED_LINES * 100 / $TOTAL_LINES" | bc)
+          else
+            COVERAGE="0"
+          fi
+          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+          echo "total_lines=$TOTAL_LINES" >> $GITHUB_OUTPUT
+          echo "covered_lines=$COVERED_LINES" >> $GITHUB_OUTPUT
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@0561704f0f02c16a585d4c7555e57fa2e44cf909 # v5.5.2
+        with:
+          files: lcov.info
+          flags: rust
+          fail_ci_if_error: false
+
+      - name: Write job summary
+        run: |
+          echo "## 🧪 Rust Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Coverage** | ${{ steps.coverage.outputs.coverage }}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Lines Covered** | ${{ steps.coverage.outputs.covered_lines }} / ${{ steps.coverage.outputs.total_lines }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Runner** | ubuntu-22.04-arm |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All tests passed" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: rust-coverage
+          path: lcov.info
+          retention-days: 30
+
+  # ==========================================================================
+  # Phase 1: Build Benchmark Binaries on ARM Runner
+  # ==========================================================================
+  build-benchmarks:
+    name: Build Benchmarks
+    runs-on: ubuntu-22.04-arm
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+
+      - name: Build benchmark binaries
+        run: |
+          # Build all benchmark binaries in release mode
+          cargo bench --no-run
+
+          # Find and copy benchmark binaries
+          mkdir -p benchmark-binaries
+          find target/release/deps -maxdepth 1 -type f -executable -name "serialization*" | \
+            while read bin; do
+              # Skip .d files and library files
+              if [[ ! "$bin" =~ \.(so|a|d|rlib)$ ]]; then
+                cp "$bin" benchmark-binaries/
+                echo "Copied: $(basename $bin)"
+              fi
+            done
+
+          ls -la benchmark-binaries/
+
+      - name: Upload benchmark binaries
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: benchmark-binaries-aarch64
+          path: benchmark-binaries/
+          retention-days: 7
+
+  # ==========================================================================
+  # Phase 2: Run Benchmarks on NXP i.MX 8M Plus Hardware
+  # ==========================================================================
+  run-benchmarks:
+    name: Run Benchmarks
+    needs: build-benchmarks
+    runs-on: nxp-imx8mp-latest
+    steps:
+      - name: Clean workspace
+        run: |
+          rm -rf benchmark-binaries/ benchmark-results/ 2>/dev/null || true
+
+      - name: Download benchmark binaries
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: benchmark-binaries-aarch64
+          path: benchmark-binaries/
+
+      - name: Make binaries executable
+        run: chmod +x benchmark-binaries/*
+
+      - name: Run benchmarks
+        run: |
+          mkdir -p benchmark-results
+
+          # Run each benchmark binary with Criterion options
+          for bench_bin in benchmark-binaries/*; do
+            if [ -x "$bench_bin" ]; then
+              BENCH_NAME=$(basename "$bench_bin")
+              echo "=== Running benchmark: $BENCH_NAME ==="
+
+              # Run benchmark with JSON output for machine parsing
+              # --noplot to skip HTML generation (no display on target)
+              # --save-baseline to save results
+              "$bench_bin" --bench --noplot \
+                --save-baseline nxp-imx8mp \
+                2>&1 | tee "benchmark-results/${BENCH_NAME}.txt"
+            fi
+          done
+
+          echo "=== Benchmark files generated ==="
+          ls -la benchmark-results/
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: benchmark-results-raw
+          path: benchmark-results/
+          retention-days: 30
+
+  # ==========================================================================
+  # Phase 3: Process Benchmark Results and Generate Report
+  # ==========================================================================
+  process-benchmarks:
+    name: Process Benchmark Results
+    needs: run-benchmarks
+    runs-on: ubuntu-22.04-arm
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Download benchmark results
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: benchmark-results-raw
+          path: benchmark-results/
+
+      - name: Parse and format benchmark results
+        id: bench
+        run: |
+          # Combine all benchmark output files
+          cat benchmark-results/*.txt > benchmark-output.txt
+
+          # Create markdown summary
+          {
+            echo "## 📊 Benchmark Results (NXP i.MX 8M Plus)"
+            echo ""
+            echo "**Target Hardware:** NXP i.MX 8M Plus (Cortex-A53 @ 1.8GHz)"
+            echo "**Architecture:** aarch64"
+            echo ""
+            echo "### CDR Serialization Performance"
+            echo ""
+            echo "| Benchmark | Time (median) | Throughput |"
+            echo "|-----------|---------------|------------|"
+          } > benchmark-summary.md
+
+          # Parse Criterion output format:
+          # "benchmark_name    time:   [lower bound  median  upper bound]"
+          # "                  thrpt:  [lower bound  median  upper bound]"
+          grep -E "^[a-zA-Z].*time:" benchmark-output.txt | while read -r line; do
+            # Extract benchmark name and time
+            NAME=$(echo "$line" | awk '{print $1}')
+            # Extract median time (middle value in brackets)
+            TIME=$(echo "$line" | sed -n 's/.*time:[^[]*\[\([^]]*\)\].*/\1/p' | awk '{print $2}')
+
+            # Look for corresponding throughput line
+            THRPT=$(grep -A1 "^${NAME}" benchmark-output.txt | grep "thrpt:" | \
+                    sed -n 's/.*thrpt:[^[]*\[\([^]]*\)\].*/\1/p' | awk '{print $2}' || echo "-")
+
+            if [ -n "$TIME" ]; then
+              echo "| $NAME | $TIME | ${THRPT:-N/A} |" >> benchmark-summary.md
+            fi
+          done
+
+          {
+            echo ""
+            echo "### Benchmark Categories"
+            echo ""
+            echo "- **builtin_interfaces**: Time, Duration (8-12 bytes)"
+            echo "- **std_msgs**: Header, ColorRGBA (16-64 bytes)"
+            echo "- **geometry_msgs**: Vector3, Pose, Transform (24-112 bytes)"
+            echo "- **Heavy Messages**: CompressedVideo, RadarCube, PointCloud2, Mask, Image (10KB-24MB)"
+            echo ""
+          } >> benchmark-summary.md
+
+          # Count benchmarks
+          BENCH_COUNT=$(grep -c "Benchmarking" benchmark-output.txt 2>/dev/null || echo "0")
+          echo "bench_count=$BENCH_COUNT" >> $GITHUB_OUTPUT
+
+      - name: Write job summary
+        run: |
+          cat benchmark-summary.md >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "<details>" >> $GITHUB_STEP_SUMMARY
+          echo "<summary>📋 Full Benchmark Output</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat benchmark-output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload processed results
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: benchmark-results
+          path: |
+            benchmark-output.txt
+            benchmark-summary.md
+          retention-days: 30
+
+  # ==========================================================================
+  # Deploy to crates.io
+  # ==========================================================================
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
     needs: [test, format]
     if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-      - uses: taiki-e/install-action@8cd2ac21dc357ca7dd807fe294d11e9ef84f60ec # v2.62.53
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: taiki-e/install-action@30eab0fabba9ea3f522099957e668b21876aa39e # v2.66.6
         with:
           tool: cargo-workspaces
       - name: Publish

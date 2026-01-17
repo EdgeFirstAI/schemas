@@ -12,6 +12,28 @@ documentation = "https://docs.rs/edgefirst-schemas/"
 keywords = ["ros2", "perception", "schemas", "edge-ai", "zenoh"]
 categories = ["encoding", "data-structures"]
 
+[lib]
+crate-type = ["lib", "staticlib", "cdylib"]
+
 [dependencies]
-serde = "1.0.219"
-serde_derive = "1.0.219"
+serde = "1.0"
+serde_derive = "1.0"
+cdr = "0.2"
+libc = "0.2"
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+rand = "0.9"
+
+[[bench]]
+name = "serialization"
+harness = false
+
+[build-dependencies]
+cbindgen = "0.27"
+
+# Profile for coverage instrumentation (strip=false, debug=true required for LLVM coverage)
+[profile.profiling]
+inherits = "release"
+strip = false
+debug = true

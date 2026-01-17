@@ -120,3 +120,97 @@ pub struct RegionOfInterest {
     pub width: u32,
     pub do_rectify: bool,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::builtin_interfaces::Time;
+    use crate::serde_cdr::{deserialize, serialize};
+
+    #[test]
+    fn test_point_field_serialize() {
+        let field = PointField {
+            name: "x".to_string(),
+            offset: 0,
+            datatype: 7, // FLOAT32
+            count: 1,
+        };
+        let bytes = serialize(&field).unwrap();
+        let decoded: PointField = deserialize(&bytes).unwrap();
+        assert_eq!(field, decoded);
+    }
+
+    #[test]
+    fn test_point_cloud2_serialize() {
+        let cloud = PointCloud2 {
+            header: crate::std_msgs::Header {
+                stamp: Time { sec: 100, nanosec: 0 },
+                frame_id: "lidar".to_string(),
+            },
+            height: 1,
+            width: 1024,
+            fields: vec![
+                PointField { name: "x".to_string(), offset: 0, datatype: 7, count: 1 },
+                PointField { name: "y".to_string(), offset: 4, datatype: 7, count: 1 },
+                PointField { name: "z".to_string(), offset: 8, datatype: 7, count: 1 },
+            ],
+            is_bigendian: false,
+            point_step: 12,
+            row_step: 12288,
+            data: vec![0u8; 100],
+            is_dense: true,
+        };
+        let bytes = serialize(&cloud).unwrap();
+        let decoded: PointCloud2 = deserialize(&bytes).unwrap();
+        assert_eq!(cloud, decoded);
+    }
+
+    #[test]
+    fn test_nav_sat_status_serialize() {
+        let status = NavSatStatus {
+            status: 0,  // FIX
+            service: 1, // GPS
+        };
+        let bytes = serialize(&status).unwrap();
+        let decoded: NavSatStatus = deserialize(&bytes).unwrap();
+        assert_eq!(status, decoded);
+    }
+
+    #[test]
+    fn test_nav_sat_fix_serialize() {
+        let fix = NavSatFix {
+            header: crate::std_msgs::Header {
+                stamp: Time { sec: 100, nanosec: 0 },
+                frame_id: "gps".to_string(),
+            },
+            status: NavSatStatus { status: 0, service: 1 },
+            latitude: 45.5017,
+            longitude: -73.5673,
+            altitude: 100.0,
+            position_covariance: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+            position_covariance_type: 2, // DIAGONAL_KNOWN
+        };
+        let bytes = serialize(&fix).unwrap();
+        let decoded: NavSatFix = deserialize(&bytes).unwrap();
+        assert_eq!(fix, decoded);
+    }
+
+    #[test]
+    fn test_image_serialize() {
+        let image = Image {
+            header: crate::std_msgs::Header {
+                stamp: Time { sec: 100, nanosec: 0 },
+                frame_id: "camera".to_string(),
+            },
+            height: 480,
+            width: 640,
+            encoding: "rgb8".to_string(),
+            is_bigendian: 0,
+            step: 1920,
+            data: vec![0u8; 100],
+        };
+        let bytes = serialize(&image).unwrap();
+        let decoded: Image = deserialize(&bytes).unwrap();
+        assert_eq!(image, decoded);
+    }
+}
