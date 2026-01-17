@@ -144,15 +144,33 @@ mod tests {
     fn test_point_cloud2_serialize() {
         let cloud = PointCloud2 {
             header: crate::std_msgs::Header {
-                stamp: Time { sec: 100, nanosec: 0 },
+                stamp: Time {
+                    sec: 100,
+                    nanosec: 0,
+                },
                 frame_id: "lidar".to_string(),
             },
             height: 1,
             width: 1024,
             fields: vec![
-                PointField { name: "x".to_string(), offset: 0, datatype: 7, count: 1 },
-                PointField { name: "y".to_string(), offset: 4, datatype: 7, count: 1 },
-                PointField { name: "z".to_string(), offset: 8, datatype: 7, count: 1 },
+                PointField {
+                    name: "x".to_string(),
+                    offset: 0,
+                    datatype: 7,
+                    count: 1,
+                },
+                PointField {
+                    name: "y".to_string(),
+                    offset: 4,
+                    datatype: 7,
+                    count: 1,
+                },
+                PointField {
+                    name: "z".to_string(),
+                    offset: 8,
+                    datatype: 7,
+                    count: 1,
+                },
             ],
             is_bigendian: false,
             point_step: 12,
@@ -180,10 +198,16 @@ mod tests {
     fn test_nav_sat_fix_serialize() {
         let fix = NavSatFix {
             header: crate::std_msgs::Header {
-                stamp: Time { sec: 100, nanosec: 0 },
+                stamp: Time {
+                    sec: 100,
+                    nanosec: 0,
+                },
                 frame_id: "gps".to_string(),
             },
-            status: NavSatStatus { status: 0, service: 1 },
+            status: NavSatStatus {
+                status: 0,
+                service: 1,
+            },
             latitude: 45.5017,
             longitude: -73.5673,
             altitude: 100.0,
@@ -199,7 +223,10 @@ mod tests {
     fn test_image_serialize() {
         let image = Image {
             header: crate::std_msgs::Header {
-                stamp: Time { sec: 100, nanosec: 0 },
+                stamp: Time {
+                    sec: 100,
+                    nanosec: 0,
+                },
                 frame_id: "camera".to_string(),
             },
             height: 480,

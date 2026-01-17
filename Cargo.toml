@@ -16,21 +16,21 @@ categories = ["encoding", "data-structures"]
 crate-type = ["lib", "staticlib", "cdylib"]
 
 [dependencies]
-serde = "1.0"
-serde_derive = "1.0"
-cdr = "0.2"
-libc = "0.2"
+serde = "1.0.228"
+serde_derive = "1.0.228"
+cdr = "0.2.4"
+libc = "0.2.180"
 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
-rand = "0.9"
+criterion = { version = "0.8.1", features = ["html_reports"] }
+rand = "0.9.2"
 
 [[bench]]
 name = "serialization"
 harness = false
 
 [build-dependencies]
-cbindgen = "0.27"
+cbindgen = "0.29.2"
 
 # Profile for coverage instrumentation (strip=false, debug=true required for LLVM coverage)
 [profile.profiling]

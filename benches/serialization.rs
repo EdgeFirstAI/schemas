@@ -9,8 +9,9 @@
 //! Run all benchmarks: `cargo bench`
 //! Run specific group: `cargo bench -- "RadarCube"`
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use rand::Rng;
+use std::hint::black_box;
 
 use edgefirst_schemas::builtin_interfaces::{Duration, Time};
 use edgefirst_schemas::edgefirst_msgs::{Mask, RadarCube};
@@ -152,9 +153,7 @@ fn bench_builtin_interfaces(c: &mut Criterion) {
     let time_bytes = serialize(&time).unwrap();
     group.throughput(Throughput::Bytes(time_bytes.len() as u64));
 
-    group.bench_function("Time/serialize", |b| {
-        b.iter(|| serialize(black_box(&time)))
-    });
+    group.bench_function("Time/serialize", |b| b.iter(|| serialize(black_box(&time))));
     group.bench_function("Time/deserialize", |b| {
         b.iter(|| deserialize::<Time>(black_box(&time_bytes)))
     });
@@ -284,9 +283,7 @@ fn bench_geometry_msgs(c: &mut Criterion) {
         orientation: quat.clone(),
     };
     let pose_bytes = serialize(&pose).unwrap();
-    group.bench_function("Pose/serialize", |b| {
-        b.iter(|| serialize(black_box(&pose)))
-    });
+    group.bench_function("Pose/serialize", |b| b.iter(|| serialize(black_box(&pose))));
     group.bench_function("Pose/deserialize", |b| {
         b.iter(|| deserialize::<Pose>(black_box(&pose_bytes)))
     });

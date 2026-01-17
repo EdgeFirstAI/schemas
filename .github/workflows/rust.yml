@@ -57,9 +57,11 @@ jobs:
       - name: Generate coverage summary
         id: coverage
         run: |
-          # Extract coverage percentage from lcov
-          TOTAL_LINES=$(grep -E "^LF:" lcov.info | cut -d: -f2 | paste -sd+ | bc)
-          COVERED_LINES=$(grep -E "^LH:" lcov.info | cut -d: -f2 | paste -sd+ | bc)
+          # Extract coverage percentage from lcov (handle empty results gracefully)
+          TOTAL_LINES=$(grep -E "^LF:" lcov.info 2>/dev/null | cut -d: -f2 | paste -sd+ | bc 2>/dev/null || echo "0")
+          COVERED_LINES=$(grep -E "^LH:" lcov.info 2>/dev/null | cut -d: -f2 | paste -sd+ | bc 2>/dev/null || echo "0")
+          if [ -z "$TOTAL_LINES" ]; then TOTAL_LINES=0; fi
+          if [ -z "$COVERED_LINES" ]; then COVERED_LINES=0; fi
           if [ "$TOTAL_LINES" -gt 0 ]; then
             COVERAGE=$(echo "scale=2; $COVERED_LINES * 100 / $TOTAL_LINES" | bc)
           else
@@ -114,16 +116,11 @@ jobs:
           # Build all benchmark binaries in release mode
           cargo bench --no-run
 
-          # Find and copy benchmark binaries
+          # Find and copy benchmark binaries (using -print0/xargs for robustness)
           mkdir -p benchmark-binaries
-          find target/release/deps -maxdepth 1 -type f -executable -name "serialization*" | \
-            while read bin; do
-              # Skip .d files and library files
-              if [[ ! "$bin" =~ \.(so|a|d|rlib)$ ]]; then
-                cp "$bin" benchmark-binaries/
-                echo "Copied: $(basename $bin)"
-              fi
-            done
+          find target/release/deps -maxdepth 1 -type f -executable -name "serialization*" \
+            ! -name '*.so' ! -name '*.a' ! -name '*.d' ! -name '*.rlib' -print0 | \
+            xargs -0 -I{} sh -c 'cp "$1" benchmark-binaries/ && echo "Copied: $(basename "$1")"' sh '{}'
 
           ls -la benchmark-binaries/
 
@@ -219,21 +216,24 @@ jobs:
             echo "|-----------|---------------|------------|"
           } > benchmark-summary.md
 
-          # Parse Criterion output format:
+          # Parse Criterion output format (robust against format variations):
           # "benchmark_name    time:   [lower bound  median  upper bound]"
           # "                  thrpt:  [lower bound  median  upper bound]"
-          grep -E "^[a-zA-Z].*time:" benchmark-output.txt | while read -r line; do
-            # Extract benchmark name and time
-            NAME=$(echo "$line" | awk '{print $1}')
-            # Extract median time (middle value in brackets)
-            TIME=$(echo "$line" | sed -n 's/.*time:[^[]*\[\([^]]*\)\].*/\1/p' | awk '{print $2}')
+          grep -E "time:" benchmark-output.txt 2>/dev/null | while IFS= read -r line; do
+            # Extract benchmark name by removing the 'time:' section and trimming whitespace
+            NAME=$(printf '%s\n' "$line" | sed -E 's/[[:space:]]+time:.*$//' | sed -E 's/^[[:space:]]+//;s/[[:space:]]+$//')
+            # Extract median time (middle value in brackets) in a format-tolerant way
+            TIME=$(printf '%s\n' "$line" | awk -F'[][]' 'NF>=2 {print $2}' | awk '{print $2}')
 
-            # Look for corresponding throughput line
-            THRPT=$(grep -A1 "^${NAME}" benchmark-output.txt | grep "thrpt:" | \
-                    sed -n 's/.*thrpt:[^[]*\[\([^]]*\)\].*/\1/p' | awk '{print $2}' || echo "-")
+            # Look for corresponding throughput line using fixed-string match
+            THRPT_LINE=$(grep -F -A1 -- "$NAME" benchmark-output.txt 2>/dev/null | grep "thrpt:" || true)
+            THRPT=$(printf '%s\n' "$THRPT_LINE" | awk -F'[][]' 'NF>=2 {print $2}' | awk '{print $2}')
+            if [ -z "$THRPT" ]; then
+              THRPT="N/A"
+            fi
 
-            if [ -n "$TIME" ]; then
-              echo "| $NAME | $TIME | ${THRPT:-N/A} |" >> benchmark-summary.md
+            if [ -n "$TIME" ] && [ -n "$NAME" ]; then
+              echo "| $NAME | $TIME | $THRPT |" >> benchmark-summary.md
             fi
           done
 

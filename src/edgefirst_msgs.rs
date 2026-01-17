@@ -264,7 +264,10 @@ mod tests {
         let track = DetectTrack {
             id: "track_001".to_string(),
             lifetime: 15,
-            created: Time { sec: 100, nanosec: 0 },
+            created: Time {
+                sec: 100,
+                nanosec: 0,
+            },
         };
         let bytes = serialize(&track).unwrap();
         let decoded: DetectTrack = deserialize(&bytes).unwrap();
@@ -285,7 +288,10 @@ mod tests {
             track: DetectTrack {
                 id: "t1".to_string(),
                 lifetime: 10,
-                created: Time { sec: 50, nanosec: 0 },
+                created: Time {
+                    sec: 50,
+                    nanosec: 0,
+                },
             },
         };
         let bytes = serialize(&box2d).unwrap();
@@ -297,29 +303,42 @@ mod tests {
     fn test_detect_serialize() {
         let detect = Detect {
             header: Header {
-                stamp: Time { sec: 100, nanosec: 500_000_000 },
+                stamp: Time {
+                    sec: 100,
+                    nanosec: 500_000_000,
+                },
                 frame_id: "camera".to_string(),
             },
-            input_timestamp: Time { sec: 100, nanosec: 400_000_000 },
-            model_time: Time { sec: 0, nanosec: 50_000_000 },
-            output_time: Time { sec: 100, nanosec: 500_000_000 },
-            boxes: vec![
-                DetectBox2D {
-                    center_x: 0.5,
-                    center_y: 0.5,
-                    width: 0.1,
-                    height: 0.2,
-                    label: "car".to_string(),
-                    score: 0.98,
-                    distance: 10.0,
-                    speed: 5.0,
-                    track: DetectTrack {
-                        id: "t1".to_string(),
-                        lifetime: 5,
-                        created: Time { sec: 95, nanosec: 0 },
+            input_timestamp: Time {
+                sec: 100,
+                nanosec: 400_000_000,
+            },
+            model_time: Time {
+                sec: 0,
+                nanosec: 50_000_000,
+            },
+            output_time: Time {
+                sec: 100,
+                nanosec: 500_000_000,
+            },
+            boxes: vec![DetectBox2D {
+                center_x: 0.5,
+                center_y: 0.5,
+                width: 0.1,
+                height: 0.2,
+                label: "car".to_string(),
+                score: 0.98,
+                distance: 10.0,
+                speed: 5.0,
+                track: DetectTrack {
+                    id: "t1".to_string(),
+                    lifetime: 5,
+                    created: Time {
+                        sec: 95,
+                        nanosec: 0,
                     },
                 },
-            ],
+            }],
         };
         let bytes = serialize(&detect).unwrap();
         let decoded: Detect = deserialize(&bytes).unwrap();
@@ -377,7 +396,10 @@ mod tests {
     fn test_dmabuf_serialize() {
         let dmabuf = DmaBuf {
             header: Header {
-                stamp: Time { sec: 100, nanosec: 0 },
+                stamp: Time {
+                    sec: 100,
+                    nanosec: 0,
+                },
                 frame_id: "camera".to_string(),
             },
             pid: 12345,
@@ -412,5 +434,52 @@ mod tests {
         let bytes = serialize(&model).unwrap();
         let decoded: ModelInfo = deserialize(&bytes).unwrap();
         assert_eq!(model, decoded);
+    }
+
+    #[test]
+    fn test_radar_cube_serialize() {
+        let cube = RadarCube {
+            header: Header {
+                stamp: Time {
+                    sec: 1234567890,
+                    nanosec: 123456789,
+                },
+                frame_id: "radar_frame".to_string(),
+            },
+            timestamp: 1234567890123456,
+            layout: vec![6, 1, 5, 2], // SEQUENCE, RANGE, RXCHANNEL, DOPPLER
+            shape: vec![16, 256, 4, 64],
+            scales: vec![1.0, 2.5, 1.0, 0.5],
+            cube: (0..16 * 256 * 4 * 64).map(|i| i as i16).collect(),
+            is_complex: false,
+        };
+        let bytes = serialize(&cube).unwrap();
+        let decoded: RadarCube = deserialize(&bytes).unwrap();
+        assert_eq!(cube.header, decoded.header);
+        assert_eq!(cube.timestamp, decoded.timestamp);
+        assert_eq!(cube.layout, decoded.layout);
+        assert_eq!(cube.shape, decoded.shape);
+        assert_eq!(cube.scales, decoded.scales);
+        assert_eq!(cube.cube.len(), decoded.cube.len());
+        assert_eq!(cube.is_complex, decoded.is_complex);
+    }
+
+    #[test]
+    fn test_radar_cube_complex() {
+        let cube = RadarCube {
+            header: Header {
+                stamp: Time { sec: 0, nanosec: 0 },
+                frame_id: "".to_string(),
+            },
+            timestamp: 0,
+            layout: vec![1, 2], // RANGE, DOPPLER
+            shape: vec![64, 32],
+            scales: vec![1.0, 0.1],
+            cube: vec![100, 200, -100, -200], // Sample complex data
+            is_complex: true,
+        };
+        let bytes = serialize(&cube).unwrap();
+        let decoded: RadarCube = deserialize(&bytes).unwrap();
+        assert_eq!(cube, decoded);
     }
 }

@@ -35,12 +35,6 @@ impl std::error::Error for Error {
     }
 }
 
-impl From<cdr::Error> for Error {
-    fn from(err: cdr::Error) -> Self {
-        Error::Serialization(err)
-    }
-}
-
 /// Serialize a message to CDR format
 ///
 /// # Arguments
