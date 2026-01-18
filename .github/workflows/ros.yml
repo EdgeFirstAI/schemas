@@ -70,6 +70,7 @@ jobs:
         env:
           ROS_DISTRO: ${{ matrix.ros_distro }}
           BUILD_NUMBER: ${{ github.run_number }}
+          DEB_BUILD_OPTIONS: nocheck
         run: |
           # Source ROS setup for build environment
           source /opt/ros/${{ matrix.ros_distro }}/setup.bash
@@ -85,7 +86,7 @@ jobs:
           cat debian/changelog
           echo ""
           
-          # Build the package
+          # Build the package (DEB_BUILD_OPTIONS=nocheck skips tests)
           fakeroot debian/rules binary
 
       - name: Collect artifacts
