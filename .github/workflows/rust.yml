@@ -425,14 +425,15 @@ jobs:
                   f.write("\n")
 
                   # Chart: horizontal orientation puts size labels on Y-axis, time on X-axis
+                  # Reverse order so smaller sizes at bottom, larger at top
                   max_time = cat_info['max_time']
                   f.write("```mermaid\n")
                   f.write("xychart-beta horizontal\n")
                   f.write(f"    title \"{cat_name} Latency (ms)\"\n")
-                  f.write(f"    x-axis [{', '.join(chart_labels)}]\n")
+                  f.write(f"    x-axis [{', '.join(reversed(chart_labels))}]\n")
                   f.write(f"    y-axis \"Time (ms)\" 0 --> {max_time}\n")
-                  f.write(f"    line \"Serialize\" [{', '.join(ser_times)}]\n")
-                  f.write(f"    line \"Deserialize\" [{', '.join(deser_times)}]\n")
+                  f.write(f"    line \"Serialize\" [{', '.join(reversed(ser_times))}]\n")
+                  f.write(f"    line \"Deserialize\" [{', '.join(reversed(deser_times))}]\n")
                   f.write("```\n\n")
 
               # Basic message types summary (collapsed)
