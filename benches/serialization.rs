@@ -279,8 +279,8 @@ fn bench_geometry_msgs(c: &mut Criterion) {
 
     // Pose
     let pose = Pose {
-        position: point.clone(),
-        orientation: quat.clone(),
+        position: point,
+        orientation: quat,
     };
     let pose_bytes = serialize(&pose).unwrap();
     group.bench_function("Pose/serialize", |b| b.iter(|| serialize(black_box(&pose))));
@@ -304,8 +304,8 @@ fn bench_geometry_msgs(c: &mut Criterion) {
 
     // Transform
     let transform = Transform {
-        translation: vec3.clone(),
-        rotation: quat.clone(),
+        translation: vec3,
+        rotation: quat,
     };
     let transform_bytes = serialize(&transform).unwrap();
     group.bench_function("Transform/serialize", |b| {
@@ -317,7 +317,7 @@ fn bench_geometry_msgs(c: &mut Criterion) {
 
     // Twist
     let twist = Twist {
-        linear: vec3.clone(),
+        linear: vec3,
         angular: Vector3 {
             x: 0.0,
             y: 0.0,

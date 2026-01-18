@@ -4,7 +4,7 @@
 use crate::std_msgs;
 use serde_derive::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
 pub struct Accel {
     pub linear: Vector3,
     pub angular: Vector3,
@@ -16,7 +16,7 @@ pub struct AccelStamped {
     pub accel: Accel,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
 pub struct Inertia {
     pub m: f64,
     pub com: Vector3,
@@ -34,14 +34,14 @@ pub struct InertiaStamped {
     pub inertia: Inertia,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
 pub struct Point {
     pub x: f64,
     pub y: f64,
     pub z: f64,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
 pub struct Point32 {
     pub x: f32,
     pub y: f32,
@@ -54,7 +54,7 @@ pub struct PointStamped {
     pub point: Point,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
 pub struct Quaternion {
     pub x: f64,
     pub y: f64,
@@ -62,20 +62,20 @@ pub struct Quaternion {
     pub w: f64,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
 pub struct Pose {
     pub position: Point,
     pub orientation: Quaternion,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
 pub struct Pose2D {
     pub x: f64,
     pub y: f64,
     pub theta: f64,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
 pub struct Transform {
     pub translation: Vector3,
     pub rotation: Quaternion,
@@ -88,7 +88,7 @@ pub struct TransformStamped {
     pub transform: Transform,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
 pub struct Twist {
     pub linear: Vector3,
     pub angular: Vector3,
@@ -100,7 +100,7 @@ pub struct TwistStamped {
     pub twist: Twist,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug)]
 pub struct Vector3 {
     pub x: f64,
     pub y: f64,
