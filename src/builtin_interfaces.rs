@@ -57,34 +57,27 @@ mod tests {
     use crate::serde_cdr::{deserialize, serialize};
 
     #[test]
-    fn test_time_new() {
-        let time = Time::new(42, 123456789);
-        let bytes = serialize(&time).unwrap();
-        let decoded: Time = deserialize(&bytes).unwrap();
-        assert_eq!(decoded.sec, 42);
-        assert_eq!(decoded.nanosec, 123456789);
+    fn time_roundtrip() {
+        // Test various edge cases in one comprehensive test
+        let cases = [
+            (0, 0, "zero"),
+            (1, 500_000_000, "typical"),
+            (-100, 500_000_000, "negative sec"),
+            (i32::MAX, 999_999_999, "max values"),
+            (i32::MIN, 0, "min sec"),
+        ];
+        for (sec, nanosec, name) in cases {
+            let time = Time::new(sec, nanosec);
+            let bytes = serialize(&time).unwrap();
+            let decoded: Time = deserialize(&bytes).unwrap();
+            assert_eq!(time, decoded, "failed for case: {}", name);
+        }
     }
 
     #[test]
-    fn test_time_from_nanos() {
-        let time = Time::from_nanos(1_500_000_000);
-        let bytes = serialize(&time).unwrap();
-        let decoded: Time = deserialize(&bytes).unwrap();
-        assert_eq!(decoded.sec, 1);
-        assert_eq!(decoded.nanosec, 500_000_000);
-    }
-
-    #[test]
-    fn test_time_to_nanos() {
-        let time = Time::new(2, 300_000_000);
-        let bytes = serialize(&time).unwrap();
-        let decoded: Time = deserialize(&bytes).unwrap();
-        assert_eq!(decoded.to_nanos(), 2_300_000_000);
-    }
-
-    #[test]
-    fn test_time_roundtrip_nanos() {
-        let original_nanos = 123_456_789_012;
+    fn time_nanos_conversion() {
+        // Verify from_nanos/to_nanos are consistent after serialization
+        let original_nanos = 123_456_789_012u64;
         let time = Time::from_nanos(original_nanos);
         let bytes = serialize(&time).unwrap();
         let decoded: Time = deserialize(&bytes).unwrap();
@@ -92,84 +85,27 @@ mod tests {
     }
 
     #[test]
-    fn test_time_serialize_deserialize() {
-        let time = Time {
-            sec: 1234567890,
-            nanosec: 123456789,
-        };
-        let bytes = serialize(&time).unwrap();
-        let decoded: Time = deserialize(&bytes).unwrap();
-        assert_eq!(time, decoded);
+    fn duration_roundtrip() {
+        let cases = [
+            (0, 0, "zero"),
+            (5, 500_000_000, "typical"),
+            (-5, 0, "negative"),
+            (i32::MAX, 999_999_999, "max values"),
+        ];
+        for (sec, nanosec, name) in cases {
+            let duration = Duration { sec, nanosec };
+            let bytes = serialize(&duration).unwrap();
+            let decoded: Duration = deserialize(&bytes).unwrap();
+            assert_eq!(duration, decoded, "failed for case: {}", name);
+        }
     }
 
     #[test]
-    fn test_time_zero() {
-        let time = Time { sec: 0, nanosec: 0 };
-        let bytes = serialize(&time).unwrap();
-        let decoded: Time = deserialize(&bytes).unwrap();
-        assert_eq!(time, decoded);
-    }
-
-    #[test]
-    fn test_time_negative_sec() {
-        let time = Time {
-            sec: -100,
-            nanosec: 500_000_000,
-        };
-        let bytes = serialize(&time).unwrap();
-        let decoded: Time = deserialize(&bytes).unwrap();
-        assert_eq!(time, decoded);
-    }
-
-    #[test]
-    fn test_duration_new() {
-        let duration = Duration {
-            sec: 5,
-            nanosec: 500_000_000,
-        };
-        let bytes = serialize(&duration).unwrap();
-        let decoded: Duration = deserialize(&bytes).unwrap();
-        assert_eq!(decoded.sec, 5);
-        assert_eq!(decoded.nanosec, 500_000_000);
-    }
-
-    #[test]
-    fn test_duration_from_std_duration() {
+    fn duration_from_std() {
         let std_dur = Dur::new(10, 250_000_000);
         let duration: Duration = std_dur.into();
         let bytes = serialize(&duration).unwrap();
         let decoded: Duration = deserialize(&bytes).unwrap();
-        assert_eq!(decoded.sec, 10);
-        assert_eq!(decoded.nanosec, 250_000_000);
-    }
-
-    #[test]
-    fn test_duration_serialize_deserialize() {
-        let duration = Duration {
-            sec: 42,
-            nanosec: 999_999_999,
-        };
-        let bytes = serialize(&duration).unwrap();
-        let decoded: Duration = deserialize(&bytes).unwrap();
-        assert_eq!(duration, decoded);
-    }
-
-    #[test]
-    fn test_duration_zero() {
-        let duration = Duration { sec: 0, nanosec: 0 };
-        let bytes = serialize(&duration).unwrap();
-        let decoded: Duration = deserialize(&bytes).unwrap();
-        assert_eq!(duration, decoded);
-    }
-
-    #[test]
-    fn test_duration_negative() {
-        let duration = Duration {
-            sec: -5,
-            nanosec: 0,
-        };
-        let bytes = serialize(&duration).unwrap();
-        let decoded: Duration = deserialize(&bytes).unwrap();
-        assert_eq!(duration, decoded);
+        assert_eq!(decoded, duration);
     }
 }

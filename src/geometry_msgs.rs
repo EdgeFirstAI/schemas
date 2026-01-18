@@ -114,43 +114,33 @@ mod tests {
     use crate::serde_cdr::{deserialize, serialize};
 
     #[test]
-    fn test_vector3_serialize() {
+    fn primitive_types_roundtrip() {
+        // Vector3, Point, Point32, Quaternion - basic building blocks
         let vec = Vector3 {
             x: 1.5,
-            y: 2.5,
-            z: 3.5,
+            y: -2.5,
+            z: f64::MAX,
         };
         let bytes = serialize(&vec).unwrap();
-        let decoded: Vector3 = deserialize(&bytes).unwrap();
-        assert_eq!(vec, decoded);
-    }
+        assert_eq!(vec, deserialize::<Vector3>(&bytes).unwrap());
 
-    #[test]
-    fn test_point_origin() {
         let point = Point {
             x: 0.0,
             y: 0.0,
             z: 0.0,
         };
         let bytes = serialize(&point).unwrap();
-        let decoded: Point = deserialize(&bytes).unwrap();
-        assert_eq!(point, decoded);
-    }
+        assert_eq!(point, deserialize::<Point>(&bytes).unwrap());
 
-    #[test]
-    fn test_point32_serialize() {
-        let point = Point32 {
-            x: 1.0,
+        let point32 = Point32 {
+            x: 1.0f32,
             y: 2.0,
-            z: 3.0,
+            z: f32::MIN,
         };
-        let bytes = serialize(&point).unwrap();
-        let decoded: Point32 = deserialize(&bytes).unwrap();
-        assert_eq!(point, decoded);
-    }
+        let bytes = serialize(&point32).unwrap();
+        assert_eq!(point32, deserialize::<Point32>(&bytes).unwrap());
 
-    #[test]
-    fn test_quaternion_identity() {
+        // Identity quaternion
         let quat = Quaternion {
             x: 0.0,
             y: 0.0,
@@ -158,12 +148,22 @@ mod tests {
             w: 1.0,
         };
         let bytes = serialize(&quat).unwrap();
-        let decoded: Quaternion = deserialize(&bytes).unwrap();
-        assert_eq!(quat, decoded);
+        assert_eq!(quat, deserialize::<Quaternion>(&bytes).unwrap());
+
+        // 90-degree rotation around Z
+        let quat_rot = Quaternion {
+            x: 0.0,
+            y: 0.0,
+            z: 0.707,
+            w: 0.707,
+        };
+        let bytes = serialize(&quat_rot).unwrap();
+        assert_eq!(quat_rot, deserialize::<Quaternion>(&bytes).unwrap());
     }
 
     #[test]
-    fn test_pose_serialize() {
+    fn composite_types_roundtrip() {
+        // Pose, Pose2D, Transform, Twist, Accel
         let pose = Pose {
             position: Point {
                 x: 1.0,
@@ -178,24 +178,16 @@ mod tests {
             },
         };
         let bytes = serialize(&pose).unwrap();
-        let decoded: Pose = deserialize(&bytes).unwrap();
-        assert_eq!(pose, decoded);
-    }
+        assert_eq!(pose, deserialize::<Pose>(&bytes).unwrap());
 
-    #[test]
-    fn test_pose2d_serialize() {
-        let pose = Pose2D {
+        let pose2d = Pose2D {
             x: 10.0,
             y: 20.0,
-            theta: 1.57,
+            theta: std::f64::consts::PI,
         };
-        let bytes = serialize(&pose).unwrap();
-        let decoded: Pose2D = deserialize(&bytes).unwrap();
-        assert_eq!(pose, decoded);
-    }
+        let bytes = serialize(&pose2d).unwrap();
+        assert_eq!(pose2d, deserialize::<Pose2D>(&bytes).unwrap());
 
-    #[test]
-    fn test_transform_serialize() {
         let transform = Transform {
             translation: Vector3 {
                 x: 1.0,
@@ -210,12 +202,8 @@ mod tests {
             },
         };
         let bytes = serialize(&transform).unwrap();
-        let decoded: Transform = deserialize(&bytes).unwrap();
-        assert_eq!(transform, decoded);
-    }
+        assert_eq!(transform, deserialize::<Transform>(&bytes).unwrap());
 
-    #[test]
-    fn test_twist_serialize() {
         let twist = Twist {
             linear: Vector3 {
                 x: 1.0,
@@ -229,12 +217,8 @@ mod tests {
             },
         };
         let bytes = serialize(&twist).unwrap();
-        let decoded: Twist = deserialize(&bytes).unwrap();
-        assert_eq!(twist, decoded);
-    }
+        assert_eq!(twist, deserialize::<Twist>(&bytes).unwrap());
 
-    #[test]
-    fn test_accel_serialize() {
         let accel = Accel {
             linear: Vector3 {
                 x: 9.8,
@@ -248,12 +232,11 @@ mod tests {
             },
         };
         let bytes = serialize(&accel).unwrap();
-        let decoded: Accel = deserialize(&bytes).unwrap();
-        assert_eq!(accel, decoded);
+        assert_eq!(accel, deserialize::<Accel>(&bytes).unwrap());
     }
 
     #[test]
-    fn test_inertia_serialize() {
+    fn inertia_roundtrip() {
         let inertia = Inertia {
             m: 10.0,
             com: Vector3 {
@@ -269,18 +252,14 @@ mod tests {
             izz: 1.0,
         };
         let bytes = serialize(&inertia).unwrap();
-        let decoded: Inertia = deserialize(&bytes).unwrap();
-        assert_eq!(inertia, decoded);
+        assert_eq!(inertia, deserialize::<Inertia>(&bytes).unwrap());
     }
 
     #[test]
-    fn test_transform_stamped_serialize() {
-        let transform = TransformStamped {
+    fn transform_stamped_roundtrip() {
+        let ts = TransformStamped {
             header: crate::std_msgs::Header {
-                stamp: Time {
-                    sec: 100,
-                    nanosec: 0,
-                },
+                stamp: Time::new(100, 0),
                 frame_id: "map".to_string(),
             },
             child_frame_id: "base_link".to_string(),
@@ -298,8 +277,7 @@ mod tests {
                 },
             },
         };
-        let bytes = serialize(&transform).unwrap();
-        let decoded: TransformStamped = deserialize(&bytes).unwrap();
-        assert_eq!(transform, decoded);
+        let bytes = serialize(&ts).unwrap();
+        assert_eq!(ts, deserialize::<TransformStamped>(&bytes).unwrap());
     }
 }

@@ -94,31 +94,31 @@ mod tests {
     use crate::std_msgs::Header;
 
     #[test]
-    fn test_serialize_deserialize_header() {
-        let header = Header {
-            stamp: Time {
-                sec: 42,
-                nanosec: 123456789,
+    fn serialize_deserialize_roundtrip() {
+        // Test with data and empty strings
+        let cases = [
+            Header {
+                stamp: Time::new(42, 123456789),
+                frame_id: "test_frame".to_string(),
             },
-            frame_id: "test_frame".to_string(),
-        };
-
-        let bytes = serialize(&header).unwrap();
-        let deserialized: Header = deserialize(&bytes).unwrap();
-
-        assert_eq!(header, deserialized);
+            Header {
+                stamp: Time::new(0, 0),
+                frame_id: String::new(),
+            },
+        ];
+        for header in &cases {
+            let bytes = serialize(header).unwrap();
+            assert_eq!(*header, deserialize::<Header>(&bytes).unwrap());
+        }
     }
 
     #[test]
-    fn test_roundtrip_empty_string() {
-        let header = Header {
-            stamp: Time { sec: 0, nanosec: 0 },
-            frame_id: String::new(),
-        };
-
-        let bytes = serialize(&header).unwrap();
-        let deserialized: Header = deserialize(&bytes).unwrap();
-
-        assert_eq!(header, deserialized);
+    fn error_display() {
+        // Verify error formatting works
+        let bad_bytes = &[0u8; 1];
+        let result: Result<Header, _> = deserialize(bad_bytes);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("Deserialization error"));
     }
 }

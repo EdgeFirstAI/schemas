@@ -24,117 +24,40 @@ mod tests {
     use crate::serde_cdr::{deserialize, serialize};
 
     #[test]
-    fn test_header_new() {
-        let header = Header {
-            stamp: Time::new(100, 500_000_000),
-            frame_id: "camera".to_string(),
-        };
-        let bytes = serialize(&header).unwrap();
-        let decoded: Header = deserialize(&bytes).unwrap();
-        assert_eq!(decoded.stamp.sec, 100);
-        assert_eq!(decoded.frame_id, "camera");
+    fn header_roundtrip() {
+        let cases = [
+            (0, 0, "", "empty"),
+            (100, 500_000_000, "camera", "typical"),
+            (42, 0, &"a".repeat(1000), "long frame_id"),
+            (1, 0, "camera/optical_frame", "path separator"),
+            (i32::MAX, 999_999_999, "max_frame", "max time"),
+        ];
+        for (sec, nanosec, frame_id, name) in cases {
+            let header = Header {
+                stamp: Time::new(sec, nanosec),
+                frame_id: frame_id.to_string(),
+            };
+            let bytes = serialize(&header).unwrap();
+            let decoded: Header = deserialize(&bytes).unwrap();
+            assert_eq!(header, decoded, "failed for case: {}", name);
+        }
     }
 
     #[test]
-    fn test_header_serialize_deserialize() {
-        let header = Header {
-            stamp: Time {
-                sec: 1234567890,
-                nanosec: 123456789,
-            },
-            frame_id: "test_frame".to_string(),
-        };
-        let bytes = serialize(&header).unwrap();
-        let decoded: Header = deserialize(&bytes).unwrap();
-        assert_eq!(header, decoded);
-    }
-
-    #[test]
-    fn test_header_empty_frame_id() {
-        let header = Header {
-            stamp: Time { sec: 0, nanosec: 0 },
-            frame_id: String::new(),
-        };
-        let bytes = serialize(&header).unwrap();
-        let decoded: Header = deserialize(&bytes).unwrap();
-        assert_eq!(header, decoded);
-    }
-
-    #[test]
-    fn test_header_long_frame_id() {
-        let long_id = "a".repeat(1000);
-        let header = Header {
-            stamp: Time {
-                sec: 42,
-                nanosec: 0,
-            },
-            frame_id: long_id.clone(),
-        };
-        let bytes = serialize(&header).unwrap();
-        let decoded: Header = deserialize(&bytes).unwrap();
-        assert_eq!(decoded.frame_id, long_id);
-    }
-
-    #[test]
-    fn test_header_special_chars() {
-        let header = Header {
-            stamp: Time { sec: 1, nanosec: 0 },
-            frame_id: "camera/optical_frame".to_string(),
-        };
-        let bytes = serialize(&header).unwrap();
-        let decoded: Header = deserialize(&bytes).unwrap();
-        assert_eq!(header, decoded);
-    }
-
-    #[test]
-    fn test_color_rgba_red() {
-        let color = ColorRGBA {
-            r: 1.0,
-            g: 0.0,
-            b: 0.0,
-            a: 1.0,
-        };
-        let bytes = serialize(&color).unwrap();
-        let decoded: ColorRGBA = deserialize(&bytes).unwrap();
-        assert_eq!(color, decoded);
-    }
-
-    #[test]
-    fn test_color_rgba_transparent() {
-        let color = ColorRGBA {
-            r: 0.5,
-            g: 0.5,
-            b: 0.5,
-            a: 0.5,
-        };
-        let bytes = serialize(&color).unwrap();
-        let decoded: ColorRGBA = deserialize(&bytes).unwrap();
-        assert_eq!(color, decoded);
-    }
-
-    #[test]
-    fn test_color_rgba_zero() {
-        let color = ColorRGBA {
-            r: 0.0,
-            g: 0.0,
-            b: 0.0,
-            a: 0.0,
-        };
-        let bytes = serialize(&color).unwrap();
-        let decoded: ColorRGBA = deserialize(&bytes).unwrap();
-        assert_eq!(color, decoded);
-    }
-
-    #[test]
-    fn test_color_rgba_full() {
-        let color = ColorRGBA {
-            r: 1.0,
-            g: 1.0,
-            b: 1.0,
-            a: 1.0,
-        };
-        let bytes = serialize(&color).unwrap();
-        let decoded: ColorRGBA = deserialize(&bytes).unwrap();
-        assert_eq!(color, decoded);
+    fn color_rgba_roundtrip() {
+        let cases = [
+            (0.0, 0.0, 0.0, 0.0, "zero/transparent"),
+            (1.0, 0.0, 0.0, 1.0, "red"),
+            (0.0, 1.0, 0.0, 1.0, "green"),
+            (0.0, 0.0, 1.0, 1.0, "blue"),
+            (1.0, 1.0, 1.0, 1.0, "white"),
+            (0.5, 0.5, 0.5, 0.5, "gray semi-transparent"),
+        ];
+        for (r, g, b, a, name) in cases {
+            let color = ColorRGBA { r, g, b, a };
+            let bytes = serialize(&color).unwrap();
+            let decoded: ColorRGBA = deserialize(&bytes).unwrap();
+            assert_eq!(color, decoded, "failed for case: {}", name);
+        }
     }
 }

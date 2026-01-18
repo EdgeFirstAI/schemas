@@ -260,67 +260,30 @@ mod tests {
     use crate::serde_cdr::{deserialize, serialize};
 
     #[test]
-    fn test_detect_track_serialize() {
-        let track = DetectTrack {
-            id: "track_001".to_string(),
-            lifetime: 15,
-            created: Time {
-                sec: 100,
-                nanosec: 0,
+    fn detect_roundtrip() {
+        // Empty detections (common case)
+        let empty = Detect {
+            header: Header {
+                stamp: Time::new(0, 0),
+                frame_id: String::new(),
             },
+            input_timestamp: Time::new(0, 0),
+            model_time: Time::new(0, 0),
+            output_time: Time::new(0, 0),
+            boxes: vec![],
         };
-        let bytes = serialize(&track).unwrap();
-        let decoded: DetectTrack = deserialize(&bytes).unwrap();
-        assert_eq!(track, decoded);
-    }
+        let bytes = serialize(&empty).unwrap();
+        assert_eq!(empty, deserialize::<Detect>(&bytes).unwrap());
 
-    #[test]
-    fn test_detect_box2d_serialize() {
-        let box2d = DetectBox2D {
-            center_x: 0.5,
-            center_y: 0.5,
-            width: 0.2,
-            height: 0.3,
-            label: "person".to_string(),
-            score: 0.95,
-            distance: 5.5,
-            speed: 1.2,
-            track: DetectTrack {
-                id: "t1".to_string(),
-                lifetime: 10,
-                created: Time {
-                    sec: 50,
-                    nanosec: 0,
-                },
-            },
-        };
-        let bytes = serialize(&box2d).unwrap();
-        let decoded: DetectBox2D = deserialize(&bytes).unwrap();
-        assert_eq!(box2d, decoded);
-    }
-
-    #[test]
-    fn test_detect_serialize() {
+        // With detections
         let detect = Detect {
             header: Header {
-                stamp: Time {
-                    sec: 100,
-                    nanosec: 500_000_000,
-                },
+                stamp: Time::new(100, 500_000_000),
                 frame_id: "camera".to_string(),
             },
-            input_timestamp: Time {
-                sec: 100,
-                nanosec: 400_000_000,
-            },
-            model_time: Time {
-                sec: 0,
-                nanosec: 50_000_000,
-            },
-            output_time: Time {
-                sec: 100,
-                nanosec: 500_000_000,
-            },
+            input_timestamp: Time::new(100, 400_000_000),
+            model_time: Time::new(0, 50_000_000),
+            output_time: Time::new(100, 500_000_000),
             boxes: vec![DetectBox2D {
                 center_x: 0.5,
                 center_y: 0.5,
@@ -333,118 +296,87 @@ mod tests {
                 track: DetectTrack {
                     id: "t1".to_string(),
                     lifetime: 5,
-                    created: Time {
-                        sec: 95,
-                        nanosec: 0,
-                    },
+                    created: Time::new(95, 0),
                 },
             }],
         };
         let bytes = serialize(&detect).unwrap();
-        let decoded: Detect = deserialize(&bytes).unwrap();
-        assert_eq!(detect, decoded);
+        assert_eq!(detect, deserialize::<Detect>(&bytes).unwrap());
     }
 
     #[test]
-    fn test_detect_empty_boxes() {
-        let detect = Detect {
-            header: Header {
-                stamp: Time { sec: 0, nanosec: 0 },
-                frame_id: "".to_string(),
-            },
-            input_timestamp: Time { sec: 0, nanosec: 0 },
-            model_time: Time { sec: 0, nanosec: 0 },
-            output_time: Time { sec: 0, nanosec: 0 },
-            boxes: vec![],
-        };
-        let bytes = serialize(&detect).unwrap();
-        let decoded: Detect = deserialize(&bytes).unwrap();
-        assert_eq!(detect, decoded);
-    }
-
-    #[test]
-    fn test_mask_serialize() {
+    fn mask_roundtrip() {
+        // Uncompressed mask
         let mask = Mask {
             height: 480,
             width: 640,
             length: 0,
-            encoding: "".to_string(),
-            mask: vec![0u8; 100],
+            encoding: String::new(),
+            mask: vec![0u8; 480 * 640],
             boxed: false,
         };
         let bytes = serialize(&mask).unwrap();
-        let decoded: Mask = deserialize(&bytes).unwrap();
-        assert_eq!(mask, decoded);
-    }
+        assert_eq!(mask, deserialize::<Mask>(&bytes).unwrap());
 
-    #[test]
-    fn test_mask_with_encoding() {
-        let mask = Mask {
+        // Compressed mask
+        let compressed = Mask {
             height: 1080,
             width: 1920,
-            length: 0,
+            length: 5,
             encoding: "zstd".to_string(),
             mask: vec![1, 2, 3, 4, 5],
             boxed: true,
         };
-        let bytes = serialize(&mask).unwrap();
-        let decoded: Mask = deserialize(&bytes).unwrap();
-        assert_eq!(mask, decoded);
+        let bytes = serialize(&compressed).unwrap();
+        assert_eq!(compressed, deserialize::<Mask>(&bytes).unwrap());
     }
 
     #[test]
-    fn test_dmabuf_serialize() {
+    fn dmabuf_roundtrip() {
         let dmabuf = DmaBuf {
             header: Header {
-                stamp: Time {
-                    sec: 100,
-                    nanosec: 0,
-                },
+                stamp: Time::new(100, 0),
                 frame_id: "camera".to_string(),
             },
             pid: 12345,
             height: 1080,
             width: 1920,
             stride: 1920 * 3,
-            fourcc: 0x34325247,
+            fourcc: 0x34325247, // RG24
             fd: 42,
             length: 1920 * 1080 * 3,
         };
         let bytes = serialize(&dmabuf).unwrap();
-        let decoded: DmaBuf = deserialize(&bytes).unwrap();
-        assert_eq!(dmabuf, decoded);
+        assert_eq!(dmabuf, deserialize::<DmaBuf>(&bytes).unwrap());
     }
 
     #[test]
-    fn test_model_info_serialize() {
+    fn model_info_roundtrip() {
         let model = ModelInfo {
             header: Header {
-                stamp: Time { sec: 0, nanosec: 0 },
-                frame_id: "".to_string(),
+                stamp: Time::new(0, 0),
+                frame_id: String::new(),
             },
             input_shape: vec![1, 3, 640, 640],
-            input_type: 8,
+            input_type: 8, // FLOAT32
             output_shape: vec![1, 25200, 85],
-            output_type: 8,
+            output_type: 8, // FLOAT32
             labels: vec!["person".to_string(), "car".to_string()],
             model_type: "yolov8".to_string(),
             model_format: "onnx".to_string(),
             model_name: "yolov8n".to_string(),
         };
         let bytes = serialize(&model).unwrap();
-        let decoded: ModelInfo = deserialize(&bytes).unwrap();
-        assert_eq!(model, decoded);
+        assert_eq!(model, deserialize::<ModelInfo>(&bytes).unwrap());
     }
 
     #[test]
-    fn test_radar_cube_serialize() {
+    fn radar_cube_roundtrip() {
+        // Small real-valued cube
         let cube = RadarCube {
             header: Header {
-                stamp: Time {
-                    sec: 1234567890,
-                    nanosec: 123456789,
-                },
-                frame_id: "radar_frame".to_string(),
+                stamp: Time::new(1234567890, 123456789),
+                frame_id: "radar".to_string(),
             },
             timestamp: 1234567890123456,
             layout: vec![6, 1, 5, 2], // SEQUENCE, RANGE, RXCHANNEL, DOPPLER
@@ -454,32 +386,41 @@ mod tests {
             is_complex: false,
         };
         let bytes = serialize(&cube).unwrap();
-        let decoded: RadarCube = deserialize(&bytes).unwrap();
-        assert_eq!(cube.header, decoded.header);
-        assert_eq!(cube.timestamp, decoded.timestamp);
-        assert_eq!(cube.layout, decoded.layout);
-        assert_eq!(cube.shape, decoded.shape);
-        assert_eq!(cube.scales, decoded.scales);
-        assert_eq!(cube.cube.len(), decoded.cube.len());
-        assert_eq!(cube.is_complex, decoded.is_complex);
-    }
+        assert_eq!(cube, deserialize::<RadarCube>(&bytes).unwrap());
 
-    #[test]
-    fn test_radar_cube_complex() {
-        let cube = RadarCube {
+        // Complex cube
+        let complex_cube = RadarCube {
             header: Header {
-                stamp: Time { sec: 0, nanosec: 0 },
-                frame_id: "".to_string(),
+                stamp: Time::new(0, 0),
+                frame_id: String::new(),
             },
             timestamp: 0,
             layout: vec![1, 2], // RANGE, DOPPLER
             shape: vec![64, 32],
             scales: vec![1.0, 0.1],
-            cube: vec![100, 200, -100, -200], // Sample complex data
+            cube: vec![100, 200, -100, -200],
             is_complex: true,
         };
-        let bytes = serialize(&cube).unwrap();
-        let decoded: RadarCube = deserialize(&bytes).unwrap();
-        assert_eq!(cube, decoded);
+        let bytes = serialize(&complex_cube).unwrap();
+        assert_eq!(complex_cube, deserialize::<RadarCube>(&bytes).unwrap());
+    }
+
+    #[test]
+    fn local_time_roundtrip() {
+        let lt = LocalTime {
+            header: Header {
+                stamp: Time::new(0, 0),
+                frame_id: "clock".to_string(),
+            },
+            date: Date {
+                year: 2025,
+                month: 1,
+                day: 27,
+            },
+            time: Time::new(43200, 0), // noon
+            timezone: -300,            // EST (UTC-5)
+        };
+        let bytes = serialize(&lt).unwrap();
+        assert_eq!(lt, deserialize::<LocalTime>(&bytes).unwrap());
     }
 }
