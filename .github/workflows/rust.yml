@@ -203,52 +203,195 @@ jobs:
           # Combine all benchmark output files
           cat benchmark-results/*.txt > benchmark-output.txt
 
-          # Create markdown summary
-          {
-            echo "## 📊 Benchmark Results (NXP i.MX 8M Plus)"
-            echo ""
-            echo "**Target Hardware:** NXP i.MX 8M Plus (Cortex-A53 @ 1.8GHz)"
-            echo "**Architecture:** aarch64"
-            echo ""
-            echo "### CDR Serialization Performance"
-            echo ""
-            echo "| Benchmark | Time (median) | Throughput |"
-            echo "|-----------|---------------|------------|"
-          } > benchmark-summary.md
+          # Parse Criterion output and generate JSON for processing
+          # Criterion format:
+          #   benchmark_name
+          #                   time:   [lower median upper]
+          #                   thrpt:  [lower median upper]  (optional)
+          python3 << 'PARSE_SCRIPT'
+          import re
+          import json
+          import sys
 
-          # Parse Criterion output format (robust against format variations):
-          # "benchmark_name    time:   [lower bound  median  upper bound]"
-          # "                  thrpt:  [lower bound  median  upper bound]"
-          grep -E "time:" benchmark-output.txt 2>/dev/null | while IFS= read -r line; do
-            # Extract benchmark name by removing the 'time:' section and trimming whitespace
-            NAME=$(printf '%s\n' "$line" | sed -E 's/[[:space:]]+time:.*$//' | sed -E 's/^[[:space:]]+//;s/[[:space:]]+$//')
-            # Extract median time (middle value in brackets) in a format-tolerant way
-            TIME=$(printf '%s\n' "$line" | awk -F'[][]' 'NF>=2 {print $2}' | awk '{print $2}')
+          benchmarks = []
+          current_name = None
 
-            # Look for corresponding throughput line using fixed-string match
-            THRPT_LINE=$(grep -F -A1 -- "$NAME" benchmark-output.txt 2>/dev/null | grep "thrpt:" || true)
-            THRPT=$(printf '%s\n' "$THRPT_LINE" | awk -F'[][]' 'NF>=2 {print $2}' | awk '{print $2}')
-            if [ -z "$THRPT" ]; then
-              THRPT="N/A"
-            fi
+          with open('benchmark-output.txt', 'r') as f:
+              lines = f.readlines()
 
-            if [ -n "$TIME" ] && [ -n "$NAME" ]; then
-              echo "| $NAME | $TIME | $THRPT |" >> benchmark-summary.md
-            fi
-          done
+          i = 0
+          while i < len(lines):
+              line = lines[i].rstrip()
 
-          {
-            echo ""
-            echo "### Benchmark Categories"
-            echo ""
-            echo "- **builtin_interfaces**: Time, Duration (8-12 bytes)"
-            echo "- **std_msgs**: Header, ColorRGBA (16-64 bytes)"
-            echo "- **geometry_msgs**: Vector3, Pose, Transform (24-112 bytes)"
-            echo "- **Heavy Messages**: CompressedVideo, RadarCube, PointCloud2, Mask, Image (10KB-24MB)"
-            echo ""
-          } >> benchmark-summary.md
+              # Look for benchmark name lines (not indented, contains /)
+              if line and not line.startswith(' ') and '/' in line and 'Benchmarking' not in line:
+                  current_name = line.strip()
 
-          # Count benchmarks
+              # Look for time: line (must be primary, not "change" which has % values)
+              elif 'time:' in line and current_name:
+                  # Skip "change" lines which contain percentages
+                  if '%' not in line:
+                      # Extract median (middle value in brackets)
+                      match = re.search(r'\[([\d.]+)\s*(\w+)\s+([\d.]+)\s*(\w+)\s+([\d.]+)\s*(\w+)\]', line)
+                      if match:
+                          median_val = match.group(3)
+                          median_unit = match.group(4)
+                          time_str = f"{median_val} {median_unit}"
+
+                          # Look for throughput on next line
+                          thrpt_str = "N/A"
+                          if i + 1 < len(lines):
+                              next_line = lines[i + 1]
+                              if 'thrpt:' in next_line and '%' not in next_line:
+                                  thrpt_match = re.search(r'\[([\d.]+)\s*(\S+)\s+([\d.]+)\s*(\S+)\s+([\d.]+)\s*(\S+)\]', next_line)
+                                  if thrpt_match:
+                                      thrpt_str = f"{thrpt_match.group(3)} {thrpt_match.group(4)}"
+
+                          benchmarks.append({
+                              'name': current_name,
+                              'time': time_str,
+                              'throughput': thrpt_str
+                          })
+                          current_name = None  # Reset after capturing
+              i += 1
+
+          # Write JSON for further processing
+          with open('benchmarks.json', 'w') as f:
+              json.dump(benchmarks, f, indent=2)
+
+          print(f"Parsed {len(benchmarks)} benchmarks")
+          PARSE_SCRIPT
+
+          # Generate markdown summary from JSON
+          python3 << 'GENERATE_SCRIPT'
+          import json
+
+          with open('benchmarks.json', 'r') as f:
+              benchmarks = json.load(f)
+
+          # Categorize benchmarks
+          basic_msgs = []  # builtin_interfaces, std_msgs, geometry_msgs
+          heavy_msgs = []  # Image, PointCloud2, Mask, RadarCube, CompressedVideo
+
+          for b in benchmarks:
+              name = b['name']
+              if any(cat in name for cat in ['builtin_interfaces', 'std_msgs', 'geometry_msgs']):
+                  basic_msgs.append(b)
+              else:
+                  heavy_msgs.append(b)
+
+          with open('benchmark-summary.md', 'w') as f:
+              f.write("## 📊 On-Target Benchmark Results\n\n")
+              f.write("**Target Hardware:** NXP i.MX 8M Plus (Cortex-A53 @ 1.8GHz)\n")
+              f.write("**Architecture:** aarch64\n")
+              f.write(f"**Total Benchmarks:** {len(benchmarks)}\n\n")
+
+              # Basic message types table
+              f.write("### Basic Message Types\n\n")
+              f.write("| Message | Serialize | Deserialize | Throughput (ser) |\n")
+              f.write("|---------|-----------|-------------|------------------|\n")
+
+              # Group by message type
+              msg_data = {}
+              for b in basic_msgs:
+                  parts = b['name'].split('/')
+                  if len(parts) >= 3:
+                      msg_type = f"{parts[0]}/{parts[1]}"
+                      op = parts[2]
+                      if msg_type not in msg_data:
+                          msg_data[msg_type] = {'serialize': 'N/A', 'deserialize': 'N/A', 'throughput': 'N/A'}
+                      msg_data[msg_type][op] = b['time']
+                      if op == 'serialize' and b['throughput'] != 'N/A':
+                          msg_data[msg_type]['throughput'] = b['throughput']
+
+              for msg_type in sorted(msg_data.keys()):
+                  data = msg_data[msg_type]
+                  f.write(f"| {msg_type} | {data['serialize']} | {data['deserialize']} | {data['throughput']} |\n")
+
+              f.write("\n")
+
+              # Throughput chart using Mermaid xychart
+              f.write("### Serialization Throughput (Basic Types)\n\n")
+              f.write("```mermaid\n")
+              f.write("xychart-beta horizontal\n")
+              f.write("    title \"Throughput (MiB/s) - Higher is Better\"\n")
+
+              # Collect data for chart (only basic types with throughput)
+              chart_data = []
+              for msg_type in sorted(msg_data.keys()):
+                  thrpt = msg_data[msg_type]['throughput']
+                  if thrpt != 'N/A':
+                      # Extract numeric value
+                      val = float(thrpt.split()[0])
+                      # Short label
+                      label = msg_type.split('/')[-1]
+                      chart_data.append((label, val))
+
+              if chart_data:
+                  labels = [f'"{d[0]}"' for d in chart_data]
+                  values = [str(d[1]) for d in chart_data]
+                  f.write(f"    x-axis [{', '.join(labels)}]\n")
+                  f.write(f"    bar [{', '.join(values)}]\n")
+              else:
+                  f.write('    x-axis ["No data"]\n    bar [0]\n')
+
+              f.write("```\n\n")
+
+              # Heavy message performance by category
+              heavy_categories = {
+                  'Image': [],
+                  'PointCloud2': [],
+                  'Mask': [],
+                  'RadarCube': [],
+                  'FoxgloveCompressedVideo': []
+              }
+
+              for b in heavy_msgs:
+                  for cat in heavy_categories:
+                      if b['name'].startswith(cat + '/'):
+                          heavy_categories[cat].append(b)
+                          break
+
+              for cat_name, cat_benchmarks in heavy_categories.items():
+                  if not cat_benchmarks:
+                      continue
+
+                  f.write(f"### {cat_name} Performance\n\n")
+                  f.write("| Variant | Serialize | Deserialize | Throughput |\n")
+                  f.write("|---------|-----------|-------------|------------|\n")
+
+                  # Group by variant - format is Category/operation/variant
+                  variants = {}
+                  for b in cat_benchmarks:
+                      parts = b['name'].split('/')
+                      # parts[0] = category, parts[1] = operation, parts[2] = variant
+                      if len(parts) >= 3:
+                          op = parts[1]  # serialize or deserialize
+                          variant = parts[2]
+                      else:
+                          op = parts[1] if len(parts) > 1 else 'unknown'
+                          variant = 'default'
+                      if variant not in variants:
+                          variants[variant] = {'serialize': 'N/A', 'deserialize': 'N/A', 'throughput': 'N/A'}
+                      variants[variant][op] = b['time']
+                      if op == 'serialize' and b['throughput'] != 'N/A':
+                          variants[variant]['throughput'] = b['throughput']
+
+                  for variant, data in variants.items():
+                      f.write(f"| {variant} | {data['serialize']} | {data['deserialize']} | {data['throughput']} |\n")
+
+                  f.write("\n")
+
+              # Summary statistics
+              f.write("### Summary\n\n")
+              f.write(f"- **Basic message types:** {len(basic_msgs)} benchmarks\n")
+              f.write(f"- **Heavy message types:** {len(heavy_msgs)} benchmarks\n")
+              f.write(f"- **Total:** {len(benchmarks)} benchmarks\n")
+
+          print("Generated benchmark-summary.md")
+          GENERATE_SCRIPT
+
+          # Count benchmarks for output
           BENCH_COUNT=$(grep -c "Benchmarking" benchmark-output.txt 2>/dev/null || echo "0")
           echo "bench_count=$BENCH_COUNT" >> $GITHUB_OUTPUT
 
