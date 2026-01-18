@@ -117,6 +117,34 @@ fn create_detection() -> Detect {
 
 **Learn more:** The [Developer Guide](https://doc.edgefirst.ai/latest/perception/dev/) covers serialization, Zenoh publishing, and message lifecycle management.
 
+**Examples:** See the [`examples/`](examples/) directory for language-specific examples:
+- [`examples/rust/`](examples/rust/) - Rust examples demonstrating message creation and CDR serialization
+
+### CDR Serialization
+
+EdgeFirst Schemas uses [CDR (Common Data Representation)](https://www.omg.org/spec/CDR/) for efficient binary serialization, compatible with ROS2 and DDS systems.
+
+**Rust - Serializing and Deserializing Messages:**
+
+```rust
+use edgefirst_schemas::std_msgs::Header;
+use edgefirst_schemas::builtin_interfaces::Time;
+use edgefirst_schemas::serde_cdr::{serialize, deserialize};
+
+// Create a message
+let header = Header {
+    stamp: Time { sec: 1234567890, nanosec: 123456789 },
+    frame_id: "camera_frame".to_string(),
+};
+
+// Serialize to CDR bytes (for network transmission)
+let bytes = serialize(&header).expect("serialization failed");
+
+// Deserialize from CDR bytes (received from network)
+let decoded: Header = deserialize(&bytes).expect("deserialization failed");
+assert_eq!(header, decoded);
+```
+
 ### Building from Source
 
 **Rust:**
@@ -124,6 +152,20 @@ fn create_detection() -> Detect {
 ```bash
 cargo build --release
 cargo test
+```
+
+**Run Benchmarks:**
+
+```bash
+# Run all benchmarks
+cargo bench
+
+# Run specific benchmark group
+cargo bench -- "RadarCube"
+cargo bench -- "PointCloud2"
+
+# View HTML reports
+open target/criterion/report/index.html
 ```
 
 **Python:**

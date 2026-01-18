@@ -252,3 +252,175 @@ pub struct Date {
     pub month: u8,
     pub day: u8,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::builtin_interfaces::Time;
+    use crate::serde_cdr::{deserialize, serialize};
+
+    #[test]
+    fn detect_roundtrip() {
+        // Empty detections (common case)
+        let empty = Detect {
+            header: Header {
+                stamp: Time::new(0, 0),
+                frame_id: String::new(),
+            },
+            input_timestamp: Time::new(0, 0),
+            model_time: Time::new(0, 0),
+            output_time: Time::new(0, 0),
+            boxes: vec![],
+        };
+        let bytes = serialize(&empty).unwrap();
+        assert_eq!(empty, deserialize::<Detect>(&bytes).unwrap());
+
+        // With detections
+        let detect = Detect {
+            header: Header {
+                stamp: Time::new(100, 500_000_000),
+                frame_id: "camera".to_string(),
+            },
+            input_timestamp: Time::new(100, 400_000_000),
+            model_time: Time::new(0, 50_000_000),
+            output_time: Time::new(100, 500_000_000),
+            boxes: vec![DetectBox2D {
+                center_x: 0.5,
+                center_y: 0.5,
+                width: 0.1,
+                height: 0.2,
+                label: "car".to_string(),
+                score: 0.98,
+                distance: 10.0,
+                speed: 5.0,
+                track: DetectTrack {
+                    id: "t1".to_string(),
+                    lifetime: 5,
+                    created: Time::new(95, 0),
+                },
+            }],
+        };
+        let bytes = serialize(&detect).unwrap();
+        assert_eq!(detect, deserialize::<Detect>(&bytes).unwrap());
+    }
+
+    #[test]
+    fn mask_roundtrip() {
+        // Uncompressed mask
+        let mask = Mask {
+            height: 480,
+            width: 640,
+            length: 0,
+            encoding: String::new(),
+            mask: vec![0u8; 480 * 640],
+            boxed: false,
+        };
+        let bytes = serialize(&mask).unwrap();
+        assert_eq!(mask, deserialize::<Mask>(&bytes).unwrap());
+
+        // Compressed mask
+        let compressed = Mask {
+            height: 1080,
+            width: 1920,
+            length: 5,
+            encoding: "zstd".to_string(),
+            mask: vec![1, 2, 3, 4, 5],
+            boxed: true,
+        };
+        let bytes = serialize(&compressed).unwrap();
+        assert_eq!(compressed, deserialize::<Mask>(&bytes).unwrap());
+    }
+
+    #[test]
+    fn dmabuf_roundtrip() {
+        let dmabuf = DmaBuf {
+            header: Header {
+                stamp: Time::new(100, 0),
+                frame_id: "camera".to_string(),
+            },
+            pid: 12345,
+            height: 1080,
+            width: 1920,
+            stride: 1920 * 3,
+            fourcc: 0x34325247, // RG24
+            fd: 42,
+            length: 1920 * 1080 * 3,
+        };
+        let bytes = serialize(&dmabuf).unwrap();
+        assert_eq!(dmabuf, deserialize::<DmaBuf>(&bytes).unwrap());
+    }
+
+    #[test]
+    fn model_info_roundtrip() {
+        let model = ModelInfo {
+            header: Header {
+                stamp: Time::new(0, 0),
+                frame_id: String::new(),
+            },
+            input_shape: vec![1, 3, 640, 640],
+            input_type: 8, // FLOAT32
+            output_shape: vec![1, 25200, 85],
+            output_type: 8, // FLOAT32
+            labels: vec!["person".to_string(), "car".to_string()],
+            model_type: "yolov8".to_string(),
+            model_format: "onnx".to_string(),
+            model_name: "yolov8n".to_string(),
+        };
+        let bytes = serialize(&model).unwrap();
+        assert_eq!(model, deserialize::<ModelInfo>(&bytes).unwrap());
+    }
+
+    #[test]
+    fn radar_cube_roundtrip() {
+        // Small real-valued cube
+        let cube = RadarCube {
+            header: Header {
+                stamp: Time::new(1234567890, 123456789),
+                frame_id: "radar".to_string(),
+            },
+            timestamp: 1234567890123456,
+            layout: vec![6, 1, 5, 2], // SEQUENCE, RANGE, RXCHANNEL, DOPPLER
+            shape: vec![16, 256, 4, 64],
+            scales: vec![1.0, 2.5, 1.0, 0.5],
+            cube: (0..16 * 256 * 4 * 64).map(|i| i as i16).collect(),
+            is_complex: false,
+        };
+        let bytes = serialize(&cube).unwrap();
+        assert_eq!(cube, deserialize::<RadarCube>(&bytes).unwrap());
+
+        // Complex cube
+        let complex_cube = RadarCube {
+            header: Header {
+                stamp: Time::new(0, 0),
+                frame_id: String::new(),
+            },
+            timestamp: 0,
+            layout: vec![1, 2], // RANGE, DOPPLER
+            shape: vec![64, 32],
+            scales: vec![1.0, 0.1],
+            cube: vec![100, 200, -100, -200],
+            is_complex: true,
+        };
+        let bytes = serialize(&complex_cube).unwrap();
+        assert_eq!(complex_cube, deserialize::<RadarCube>(&bytes).unwrap());
+    }
+
+    #[test]
+    fn local_time_roundtrip() {
+        let lt = LocalTime {
+            header: Header {
+                stamp: Time::new(0, 0),
+                frame_id: "clock".to_string(),
+            },
+            date: Date {
+                year: 2025,
+                month: 1,
+                day: 27,
+            },
+            time: Time::new(43200, 0), // noon
+            timezone: -300,            // EST (UTC-5)
+        };
+        let bytes = serialize(&lt).unwrap();
+        assert_eq!(lt, deserialize::<LocalTime>(&bytes).unwrap());
+    }
+}

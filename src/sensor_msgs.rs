@@ -120,3 +120,90 @@ pub struct RegionOfInterest {
     pub width: u32,
     pub do_rectify: bool,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::builtin_interfaces::Time;
+    use crate::serde_cdr::{deserialize, serialize};
+
+    #[test]
+    fn point_cloud2_roundtrip() {
+        let cloud = PointCloud2 {
+            header: crate::std_msgs::Header {
+                stamp: Time::new(100, 0),
+                frame_id: "lidar".to_string(),
+            },
+            height: 1,
+            width: 1024,
+            fields: vec![
+                PointField {
+                    name: "x".to_string(),
+                    offset: 0,
+                    datatype: 7,
+                    count: 1,
+                },
+                PointField {
+                    name: "y".to_string(),
+                    offset: 4,
+                    datatype: 7,
+                    count: 1,
+                },
+                PointField {
+                    name: "z".to_string(),
+                    offset: 8,
+                    datatype: 7,
+                    count: 1,
+                },
+            ],
+            is_bigendian: false,
+            point_step: 12,
+            row_step: 12288,
+            data: vec![0u8; 12288],
+            is_dense: true,
+        };
+        let bytes = serialize(&cloud).unwrap();
+        let decoded: PointCloud2 = deserialize(&bytes).unwrap();
+        assert_eq!(cloud, decoded);
+    }
+
+    #[test]
+    fn nav_sat_fix_roundtrip() {
+        let fix = NavSatFix {
+            header: crate::std_msgs::Header {
+                stamp: Time::new(100, 0),
+                frame_id: "gps".to_string(),
+            },
+            status: NavSatStatus {
+                status: 0,
+                service: 1,
+            },
+            latitude: 45.5017,
+            longitude: -73.5673,
+            altitude: 100.0,
+            position_covariance: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+            position_covariance_type: 2,
+        };
+        let bytes = serialize(&fix).unwrap();
+        assert_eq!(fix, deserialize::<NavSatFix>(&bytes).unwrap());
+    }
+
+    #[test]
+    fn image_roundtrip() {
+        // Test with realistic VGA image metadata
+        let image = Image {
+            header: crate::std_msgs::Header {
+                stamp: Time::new(100, 500_000_000),
+                frame_id: "camera_optical".to_string(),
+            },
+            height: 480,
+            width: 640,
+            encoding: "rgb8".to_string(),
+            is_bigendian: 0,
+            step: 1920,
+            data: vec![128u8; 1920 * 480], // Gray image
+        };
+        let bytes = serialize(&image).unwrap();
+        assert_eq!(image, deserialize::<Image>(&bytes).unwrap());
+    }
+}

@@ -1,0 +1,16 @@
+Source: ros-@ROS_DISTRO@-edgefirst-msgs
+Section: misc
+Priority: optional
+Maintainer: Sébastien Taylor <sebastien@au-zone.com>
+Build-Depends: debhelper (>= 9.0.0), ros-@ROS_DISTRO@-ament-cmake, ros-@ROS_DISTRO@-ament-lint-auto <!nocheck>, ros-@ROS_DISTRO@-ament-lint-common <!nocheck>, ros-@ROS_DISTRO@-rosidl-default-generators, ros-@ROS_DISTRO@-std-msgs
+Homepage: https://github.com/EdgeFirstAI/schemas
+Standards-Version: 3.9.2
+
+Package: ros-@ROS_DISTRO@-edgefirst-msgs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-@ROS_DISTRO@-rosidl-default-runtime, ros-@ROS_DISTRO@-std-msgs
+Description: EdgeFirst ROS2 message definitions for edge AI perception
+ This package provides ROS2 message definitions used by EdgeFirst AI
+ perception middleware. Includes messages for object detection, tracking,
+ segmentation, DMA buffer handling, and sensor data types optimized for
+ embedded edge AI platforms.

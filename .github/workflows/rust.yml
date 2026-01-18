@@ -13,13 +13,16 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # ==========================================================================
+  # Format Check
+  # ==========================================================================
   format:
     name: Format
     runs-on: ubuntu-latest
     env:
       RUSTV: nightly-2024-04-09
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - name: Install
         run: |
           rustup toolchain install $RUSTV
@@ -27,22 +30,481 @@ jobs:
       - name: Check
         run: cargo +$RUSTV fmt -- --check
 
+  # ==========================================================================
+  # Phase 1: Build & Test with Coverage on ARM Runner
+  # ==========================================================================
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-arm
     steps:
-    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-    - name: Run tests
-      run: cargo test --verbose
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup component add llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@30eab0fabba9ea3f522099957e668b21876aa39e # v2.66.6
+        with:
+          tool: cargo-llvm-cov
+
+      - name: Run tests with coverage
+        run: |
+          cargo llvm-cov test --all-features --workspace \
+            --lcov --output-path lcov.info
+
+      - name: Generate coverage summary
+        id: coverage
+        run: |
+          # Extract coverage percentage from lcov (handle empty results gracefully)
+          TOTAL_LINES=$(grep -E "^LF:" lcov.info 2>/dev/null | cut -d: -f2 | paste -sd+ | bc 2>/dev/null || echo "0")
+          COVERED_LINES=$(grep -E "^LH:" lcov.info 2>/dev/null | cut -d: -f2 | paste -sd+ | bc 2>/dev/null || echo "0")
+          if [ -z "$TOTAL_LINES" ]; then TOTAL_LINES=0; fi
+          if [ -z "$COVERED_LINES" ]; then COVERED_LINES=0; fi
+          if [ "$TOTAL_LINES" -gt 0 ]; then
+            COVERAGE=$(echo "scale=2; $COVERED_LINES * 100 / $TOTAL_LINES" | bc)
+          else
+            COVERAGE="0"
+          fi
+          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+          echo "total_lines=$TOTAL_LINES" >> $GITHUB_OUTPUT
+          echo "covered_lines=$COVERED_LINES" >> $GITHUB_OUTPUT
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@0561704f0f02c16a585d4c7555e57fa2e44cf909 # v5.5.2
+        with:
+          files: lcov.info
+          flags: rust
+          fail_ci_if_error: false
+
+      - name: Write job summary
+        run: |
+          echo "## 🧪 Rust Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Coverage** | ${{ steps.coverage.outputs.coverage }}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Lines Covered** | ${{ steps.coverage.outputs.covered_lines }} / ${{ steps.coverage.outputs.total_lines }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Runner** | ubuntu-22.04-arm |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All tests passed" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: rust-coverage
+          path: lcov.info
+          retention-days: 30
+
+  # ==========================================================================
+  # Phase 1: Build Benchmark Binaries on ARM Runner
+  # ==========================================================================
+  build-benchmarks:
+    name: Build Benchmarks
+    runs-on: ubuntu-22.04-arm
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+
+      - name: Build benchmark binaries
+        run: |
+          # Build all benchmark binaries in release mode
+          cargo bench --no-run
+
+          # Find and copy benchmark binaries (using -print0/xargs for robustness)
+          mkdir -p benchmark-binaries
+          find target/release/deps -maxdepth 1 -type f -executable -name "serialization*" \
+            ! -name '*.so' ! -name '*.a' ! -name '*.d' ! -name '*.rlib' -print0 | \
+            xargs -0 -I{} sh -c 'cp "$1" benchmark-binaries/ && echo "Copied: $(basename "$1")"' sh '{}'
+
+          ls -la benchmark-binaries/
+
+      - name: Upload benchmark binaries
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: benchmark-binaries-aarch64
+          path: benchmark-binaries/
+          retention-days: 7
+
+  # ==========================================================================
+  # Phase 2: Run Benchmarks on NXP i.MX 8M Plus Hardware
+  # ==========================================================================
+  run-benchmarks:
+    name: Run Benchmarks
+    needs: build-benchmarks
+    runs-on: nxp-imx8mp-latest
+    steps:
+      - name: Clean workspace
+        run: |
+          rm -rf benchmark-binaries/ benchmark-results/ 2>/dev/null || true
+
+      - name: Download benchmark binaries
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: benchmark-binaries-aarch64
+          path: benchmark-binaries/
+
+      - name: Make binaries executable
+        run: chmod +x benchmark-binaries/*
+
+      - name: Run benchmarks
+        run: |
+          mkdir -p benchmark-results
+
+          # Run each benchmark binary with Criterion options
+          for bench_bin in benchmark-binaries/*; do
+            if [ -x "$bench_bin" ]; then
+              BENCH_NAME=$(basename "$bench_bin")
+              echo "=== Running benchmark: $BENCH_NAME ==="
+
+              # Run benchmark with JSON output for machine parsing
+              # --noplot to skip HTML generation (no display on target)
+              # --save-baseline to save results
+              "$bench_bin" --bench --noplot \
+                --save-baseline nxp-imx8mp \
+                2>&1 | tee "benchmark-results/${BENCH_NAME}.txt"
+            fi
+          done
+
+          echo "=== Benchmark files generated ==="
+          ls -la benchmark-results/
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: benchmark-results-raw
+          path: benchmark-results/
+          retention-days: 30
+
+  # ==========================================================================
+  # Phase 3: Process Benchmark Results and Generate Report
+  # ==========================================================================
+  process-benchmarks:
+    name: Process Benchmark Results
+    needs: run-benchmarks
+    runs-on: ubuntu-22.04-arm
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Download benchmark results
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: benchmark-results-raw
+          path: benchmark-results/
+
+      - name: Parse and format benchmark results
+        id: bench
+        run: |
+          # Combine all benchmark output files
+          cat benchmark-results/*.txt > benchmark-output.txt
+
+          # Parse Criterion output and generate JSON for processing
+          # Criterion format:
+          #   benchmark_name
+          #                   time:   [lower median upper]
+          #                   thrpt:  [lower median upper]  (optional)
+          python3 << 'PARSE_SCRIPT'
+          import re
+          import json
+          import sys
+
+          benchmarks = []
+          current_name = None
+
+          with open('benchmark-output.txt', 'r') as f:
+              lines = f.readlines()
+
+          i = 0
+          while i < len(lines):
+              line = lines[i].rstrip()
+
+              # Look for benchmark name lines (not indented, contains /)
+              if line and not line.startswith(' ') and '/' in line and 'Benchmarking' not in line:
+                  current_name = line.strip()
+
+              # Look for time: line (must be primary, not "change" which has % values)
+              elif 'time:' in line and current_name:
+                  # Skip "change" lines which contain percentages
+                  if '%' not in line:
+                      # Extract median (middle value in brackets)
+                      match = re.search(r'\[([\d.]+)\s*(\w+)\s+([\d.]+)\s*(\w+)\s+([\d.]+)\s*(\w+)\]', line)
+                      if match:
+                          median_val = match.group(3)
+                          median_unit = match.group(4)
+                          time_str = f"{median_val} {median_unit}"
+
+                          # Look for throughput on next line
+                          thrpt_str = "N/A"
+                          if i + 1 < len(lines):
+                              next_line = lines[i + 1]
+                              if 'thrpt:' in next_line and '%' not in next_line:
+                                  thrpt_match = re.search(r'\[([\d.]+)\s*(\S+)\s+([\d.]+)\s*(\S+)\s+([\d.]+)\s*(\S+)\]', next_line)
+                                  if thrpt_match:
+                                      thrpt_str = f"{thrpt_match.group(3)} {thrpt_match.group(4)}"
+
+                          benchmarks.append({
+                              'name': current_name,
+                              'time': time_str,
+                              'throughput': thrpt_str
+                          })
+                          current_name = None  # Reset after capturing
+              i += 1
+
+          # Write JSON for further processing
+          with open('benchmarks.json', 'w') as f:
+              json.dump(benchmarks, f, indent=2)
+
+          print(f"Parsed {len(benchmarks)} benchmarks")
+          PARSE_SCRIPT
+
+          # Generate markdown summary from JSON
+          python3 << 'GENERATE_SCRIPT'
+          import json
+          import re
+
+          with open('benchmarks.json', 'r') as f:
+              benchmarks = json.load(f)
+
+          # Human-readable size labels for chart y-axis (the main parameter affecting size)
+          SIZE_LABELS = {
+              # Image: resolution
+              'VGA_rgb8': '640×480',
+              'HD_rgb8': '1280×720',
+              'FHD_rgb8': '1920×1080',
+              'FHD_yuyv': '1920×1080 (YUYV)',
+              # PointCloud2: point count
+              'sparse_1K': '1K points',
+              'medium_10K': '10K points',
+              'dense_65K': '65K points',
+              'very_dense_131K': '131K points',
+              # Mask: resolution
+              'small_256x256': '256×256',
+              'medium_640x480': '640×480',
+              'large_1920x1080': '1920×1080',
+              'multiclass_640x480x20': '640×480×20ch',
+              # RadarCube: cube size
+              'small_128KB': '128 KB',
+              'medium_2MB': '2 MB',
+              'large_24MB': '24 MB',
+              'small_complex': '128 KB (complex)',
+              # CompressedVideo: payload size
+              '10KB': '10 KB',
+              '100KB': '100 KB',
+              '500KB': '500 KB',
+              '1MB': '1 MB',
+          }
+
+          # Sort order for variants (by approximate size)
+          SIZE_ORDER = {
+              'VGA_rgb8': 1, 'HD_rgb8': 2, 'FHD_yuyv': 3, 'FHD_rgb8': 4,
+              'sparse_1K': 1, 'medium_10K': 2, 'dense_65K': 3, 'very_dense_131K': 4,
+              'small_256x256': 1, 'medium_640x480': 2, 'large_1920x1080': 3, 'multiclass_640x480x20': 4,
+              'small_128KB': 1, 'small_complex': 2, 'medium_2MB': 3, 'large_24MB': 4,
+              '10KB': 1, '100KB': 2, '500KB': 3, '1MB': 4,
+          }
+
+          def parse_time_to_ms(time_str):
+              """Convert time string to milliseconds."""
+              if time_str == 'N/A':
+                  return None
+              match = re.match(r'([\d.]+)\s*(\w+)', time_str)
+              if not match:
+                  return None
+              val, unit = float(match.group(1)), match.group(2)
+              multipliers = {'ns': 0.000001, 'µs': 0.001, 'us': 0.001, 'ms': 1, 's': 1000}
+              return val * multipliers.get(unit, 1)
+
+          # Categorize benchmarks
+          basic_msgs = []
+          heavy_msgs = []
+
+          for b in benchmarks:
+              name = b['name']
+              if any(cat in name for cat in ['builtin_interfaces', 'std_msgs', 'geometry_msgs']):
+                  basic_msgs.append(b)
+              else:
+                  heavy_msgs.append(b)
+
+          # Heavy message categories with metadata
+          heavy_categories = {
+              'Image': {
+                  'benchmarks': [],
+                  'desc': 'Camera frame serialization (RGB/YUYV)',
+                  'size_axis': 'Resolution',
+                  'max_time': 60,
+              },
+              'PointCloud2': {
+                  'benchmarks': [],
+                  'desc': 'LiDAR point cloud data',
+                  'size_axis': 'Point Count',
+                  'max_time': 20,
+              },
+              'Mask': {
+                  'benchmarks': [],
+                  'desc': 'Segmentation mask data',
+                  'size_axis': 'Resolution',
+                  'max_time': 60,
+              },
+              'RadarCube': {
+                  'benchmarks': [],
+                  'desc': 'Radar FFT cube tensors',
+                  'size_axis': 'Cube Size',
+                  'max_time': 120,
+              },
+              'FoxgloveCompressedVideo': {
+                  'benchmarks': [],
+                  'desc': 'Compressed video frames',
+                  'size_axis': 'Payload Size',
+                  'max_time': 10,
+              },
+          }
+
+          for b in heavy_msgs:
+              for cat in heavy_categories:
+                  if b['name'].startswith(cat + '/'):
+                      heavy_categories[cat]['benchmarks'].append(b)
+                      break
+
+          with open('benchmark-summary.md', 'w') as f:
+              f.write("## 📊 On-Target Benchmark Results\n\n")
+              f.write("**Target Hardware:** NXP i.MX 8M Plus (Cortex-A53 @ 1.8GHz)\n")
+              f.write("**Architecture:** aarch64\n")
+              f.write(f"**Total Benchmarks:** {len(benchmarks)}\n\n")
+
+              for cat_name, cat_info in heavy_categories.items():
+                  cat_benchmarks = cat_info['benchmarks']
+                  if not cat_benchmarks:
+                      continue
+
+                  f.write(f"### {cat_name}\n\n")
+                  f.write(f"*{cat_info['desc']}*\n\n")
+
+                  # Group by variant
+                  variants = {}
+                  for b in cat_benchmarks:
+                      parts = b['name'].split('/')
+                      if len(parts) >= 3:
+                          op = parts[1]
+                          variant = parts[2]
+                      else:
+                          op = parts[1] if len(parts) > 1 else 'unknown'
+                          variant = 'default'
+                      if variant not in variants:
+                          variants[variant] = {'serialize': 'N/A', 'deserialize': 'N/A'}
+                      variants[variant][op] = b['time']
+
+                  # Sort variants by size order
+                  sorted_variants = sorted(variants.items(),
+                      key=lambda x: SIZE_ORDER.get(x[0], 99))
+
+                  # Table
+                  f.write(f"| {cat_info['size_axis']} | Serialize | Deserialize |\n")
+                  f.write("|------------|-----------|-------------|\n")
+
+                  chart_labels = []
+                  ser_times = []
+                  deser_times = []
+
+                  for variant, data in sorted_variants:
+                      label = SIZE_LABELS.get(variant, variant)
+                      f.write(f"| {label} | {data['serialize']} | {data['deserialize']} |\n")
+
+                      # Collect for chart
+                      ser_ms = parse_time_to_ms(data['serialize'])
+                      deser_ms = parse_time_to_ms(data['deserialize'])
+
+                      chart_labels.append(f'"{label}"')
+                      ser_times.append(f"{ser_ms:.2f}" if ser_ms else "0")
+                      deser_times.append(f"{deser_ms:.2f}" if deser_ms else "0")
+
+                  f.write("\n")
+
+                  # Chart: horizontal orientation puts size labels on Y-axis, time on X-axis
+                  # Reverse order so smaller sizes at bottom, larger at top
+                  max_time = cat_info['max_time']
+                  f.write("```mermaid\n")
+                  f.write("xychart-beta horizontal\n")
+                  f.write(f"    title \"{cat_name} Latency (ms)\"\n")
+                  f.write(f"    x-axis [{', '.join(reversed(chart_labels))}]\n")
+                  f.write(f"    y-axis \"Time (ms)\" 0 --> {max_time}\n")
+                  f.write(f"    line \"Serialize\" [{', '.join(reversed(ser_times))}]\n")
+                  f.write(f"    line \"Deserialize\" [{', '.join(reversed(deser_times))}]\n")
+                  f.write("```\n\n")
+
+              # Basic message types summary (collapsed)
+              f.write("<details>\n")
+              f.write("<summary>Basic Message Types (click to expand)</summary>\n\n")
+              f.write("| Message | Serialize | Deserialize |\n")
+              f.write("|---------|-----------|-------------|\n")
+
+              msg_data = {}
+              for b in basic_msgs:
+                  parts = b['name'].split('/')
+                  if len(parts) >= 3:
+                      msg_type = f"{parts[0]}/{parts[1]}"
+                      op = parts[2]
+                      if msg_type not in msg_data:
+                          msg_data[msg_type] = {'serialize': 'N/A', 'deserialize': 'N/A'}
+                      msg_data[msg_type][op] = b['time']
+
+              for msg_type in sorted(msg_data.keys()):
+                  data = msg_data[msg_type]
+                  f.write(f"| {msg_type} | {data['serialize']} | {data['deserialize']} |\n")
+
+              f.write("\n</details>\n\n")
+
+              # Summary statistics
+              f.write("### Summary\n\n")
+              f.write(f"- **Heavy message benchmarks:** {len(heavy_msgs)}\n")
+              f.write(f"- **Basic message benchmarks:** {len(basic_msgs)}\n")
+              f.write(f"- **Total:** {len(benchmarks)}\n")
+
+          print("Generated benchmark-summary.md")
+          GENERATE_SCRIPT
+
+          # Count benchmarks for output
+          BENCH_COUNT=$(grep -c "Benchmarking" benchmark-output.txt 2>/dev/null || echo "0")
+          echo "bench_count=$BENCH_COUNT" >> $GITHUB_OUTPUT
+
+      - name: Write job summary
+        run: |
+          cat benchmark-summary.md >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "<details>" >> $GITHUB_STEP_SUMMARY
+          echo "<summary>📋 Full Benchmark Output</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat benchmark-output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload processed results
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: benchmark-results
+          path: |
+            benchmark-output.txt
+            benchmark-summary.md
+          retention-days: 30
+
+  # ==========================================================================
+  # Deploy to crates.io
+  # ==========================================================================
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
     needs: [test, format]
     if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-      - uses: taiki-e/install-action@8cd2ac21dc357ca7dd807fe294d11e9ef84f60ec # v2.62.53
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: taiki-e/install-action@30eab0fabba9ea3f522099957e668b21876aa39e # v2.66.6
         with:
           tool: cargo-workspaces
       - name: Publish

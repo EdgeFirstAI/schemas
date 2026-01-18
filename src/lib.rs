@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright © 2025 Au-Zone Technologies. All Rights Reserved.
 
-/// # EdgeFirst Middleware Schemas
-///
-/// This library provides the Rust structs for EdgeFirst Middleware messages.
-///
-/// Common Rust struct for ROS 2 messages used by EdgeFirst Middleware Services with Zenoh.
-///
-/// Here are some ROS message source:
-/// * [common_interface](https://github.com/ros2/common_interfaces): Common-used ROS message
-/// * [rcl_interface](https://github.com/ros2/rcl_interfaces): Common interface in RCL
-/// * [foxglove_api_msgs](https://github.com/foxglove/schemas/tree/main/ros_foxglove_msgs)
-/// * [edgefirst_api_msgs](https://github.com/EdgeFirstAI/schemas): EdgeFirst ROS messages
-///
+//! # EdgeFirst Middleware Schemas
+//!
+//! This library provides the Rust structs for EdgeFirst Middleware messages.
+//!
+//! Common Rust struct for ROS 2 messages used by EdgeFirst Middleware Services with Zenoh.
+//!
+//! Here are some ROS message source:
+//!
+//! * [common_interface](https://github.com/ros2/common_interfaces): Common-used ROS message
+//! * [rcl_interface](https://github.com/ros2/rcl_interfaces): Common interface in RCL
+//! * [foxglove_api_msgs](https://github.com/foxglove/schemas/tree/main/ros_foxglove_msgs)
+//! * [edgefirst_api_msgs](https://github.com/EdgeFirstAI/schemas): EdgeFirst ROS messages
 
 /// EdgeFirst Messages
 pub mod edgefirst_msgs;
@@ -30,6 +30,9 @@ pub mod builtin_interfaces;
 pub mod rosgraph_msgs;
 
 pub mod service;
+
+/// CDR serialization/deserialization support
+pub mod serde_cdr;
 
 use sensor_msgs::{point_field, PointCloud2, PointField};
 use std::collections::HashMap;
