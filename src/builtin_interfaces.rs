@@ -59,31 +59,36 @@ mod tests {
     #[test]
     fn test_time_new() {
         let time = Time::new(42, 123456789);
-        assert_eq!(time.sec, 42);
-        assert_eq!(time.nanosec, 123456789);
+        let bytes = serialize(&time).unwrap();
+        let decoded: Time = deserialize(&bytes).unwrap();
+        assert_eq!(decoded.sec, 42);
+        assert_eq!(decoded.nanosec, 123456789);
     }
 
     #[test]
     fn test_time_from_nanos() {
         let time = Time::from_nanos(1_500_000_000);
-        assert_eq!(time.sec, 1);
-        assert_eq!(time.nanosec, 500_000_000);
+        let bytes = serialize(&time).unwrap();
+        let decoded: Time = deserialize(&bytes).unwrap();
+        assert_eq!(decoded.sec, 1);
+        assert_eq!(decoded.nanosec, 500_000_000);
     }
 
     #[test]
     fn test_time_to_nanos() {
-        let time = Time {
-            sec: 2,
-            nanosec: 300_000_000,
-        };
-        assert_eq!(time.to_nanos(), 2_300_000_000);
+        let time = Time::new(2, 300_000_000);
+        let bytes = serialize(&time).unwrap();
+        let decoded: Time = deserialize(&bytes).unwrap();
+        assert_eq!(decoded.to_nanos(), 2_300_000_000);
     }
 
     #[test]
     fn test_time_roundtrip_nanos() {
         let original_nanos = 123_456_789_012;
         let time = Time::from_nanos(original_nanos);
-        assert_eq!(time.to_nanos(), original_nanos);
+        let bytes = serialize(&time).unwrap();
+        let decoded: Time = deserialize(&bytes).unwrap();
+        assert_eq!(decoded.to_nanos(), original_nanos);
     }
 
     #[test]
@@ -122,16 +127,20 @@ mod tests {
             sec: 5,
             nanosec: 500_000_000,
         };
-        assert_eq!(duration.sec, 5);
-        assert_eq!(duration.nanosec, 500_000_000);
+        let bytes = serialize(&duration).unwrap();
+        let decoded: Duration = deserialize(&bytes).unwrap();
+        assert_eq!(decoded.sec, 5);
+        assert_eq!(decoded.nanosec, 500_000_000);
     }
 
     #[test]
     fn test_duration_from_std_duration() {
         let std_dur = Dur::new(10, 250_000_000);
         let duration: Duration = std_dur.into();
-        assert_eq!(duration.sec, 10);
-        assert_eq!(duration.nanosec, 250_000_000);
+        let bytes = serialize(&duration).unwrap();
+        let decoded: Duration = deserialize(&bytes).unwrap();
+        assert_eq!(decoded.sec, 10);
+        assert_eq!(decoded.nanosec, 250_000_000);
     }
 
     #[test]

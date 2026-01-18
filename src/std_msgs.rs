@@ -26,14 +26,13 @@ mod tests {
     #[test]
     fn test_header_new() {
         let header = Header {
-            stamp: Time {
-                sec: 100,
-                nanosec: 500_000_000,
-            },
+            stamp: Time::new(100, 500_000_000),
             frame_id: "camera".to_string(),
         };
-        assert_eq!(header.stamp.sec, 100);
-        assert_eq!(header.frame_id, "camera");
+        let bytes = serialize(&header).unwrap();
+        let decoded: Header = deserialize(&bytes).unwrap();
+        assert_eq!(decoded.stamp.sec, 100);
+        assert_eq!(decoded.frame_id, "camera");
     }
 
     #[test]
