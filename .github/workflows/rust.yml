@@ -270,53 +270,54 @@ jobs:
           with open('benchmarks.json', 'r') as f:
               benchmarks = json.load(f)
 
-          # Size mapping for variants (approximate payload sizes in bytes)
-          SIZE_MAP = {
-              # Image variants
-              'VGA_rgb8': 921600,           # 640x480x3
-              'HD_rgb8': 2764800,           # 1280x720x3
-              'FHD_rgb8': 6220800,          # 1920x1080x3
-              'FHD_yuyv': 4147200,          # 1920x1080x2
-              # PointCloud2 variants
-              'sparse_1K': 16000,           # 1K points * 16 bytes
-              'medium_10K': 160000,         # 10K points * 16 bytes
-              'dense_65K': 1048576,         # 65K points * 16 bytes
-              'very_dense_131K': 2097152,   # 131K points * 16 bytes
-              # Mask variants
-              'small_256x256': 65536,       # 256x256
-              'medium_640x480': 307200,     # 640x480
-              'large_1920x1080': 2073600,   # 1920x1080
-              'multiclass_640x480x20': 6144000,  # 640x480x20
-              # RadarCube variants
-              'small_128KB': 131072,
-              'medium_2MB': 2097152,
-              'large_24MB': 25165824,
-              'small_complex': 131072,
-              # CompressedVideo variants
-              '10KB': 10240,
-              '100KB': 102400,
-              '500KB': 512000,
-              '1MB': 1048576,
+          # Human-readable size labels for chart y-axis (the main parameter affecting size)
+          SIZE_LABELS = {
+              # Image: resolution
+              'VGA_rgb8': '640×480',
+              'HD_rgb8': '1280×720',
+              'FHD_rgb8': '1920×1080',
+              'FHD_yuyv': '1920×1080 (YUYV)',
+              # PointCloud2: point count
+              'sparse_1K': '1K points',
+              'medium_10K': '10K points',
+              'dense_65K': '65K points',
+              'very_dense_131K': '131K points',
+              # Mask: resolution
+              'small_256x256': '256×256',
+              'medium_640x480': '640×480',
+              'large_1920x1080': '1920×1080',
+              'multiclass_640x480x20': '640×480×20ch',
+              # RadarCube: cube size
+              'small_128KB': '128 KB',
+              'medium_2MB': '2 MB',
+              'large_24MB': '24 MB',
+              'small_complex': '128 KB (complex)',
+              # CompressedVideo: payload size
+              '10KB': '10 KB',
+              '100KB': '100 KB',
+              '500KB': '500 KB',
+              '1MB': '1 MB',
           }
 
-          def parse_time_to_us(time_str):
-              """Convert time string to microseconds for comparison."""
+          # Sort order for variants (by approximate size)
+          SIZE_ORDER = {
+              'VGA_rgb8': 1, 'HD_rgb8': 2, 'FHD_yuyv': 3, 'FHD_rgb8': 4,
+              'sparse_1K': 1, 'medium_10K': 2, 'dense_65K': 3, 'very_dense_131K': 4,
+              'small_256x256': 1, 'medium_640x480': 2, 'large_1920x1080': 3, 'multiclass_640x480x20': 4,
+              'small_128KB': 1, 'small_complex': 2, 'medium_2MB': 3, 'large_24MB': 4,
+              '10KB': 1, '100KB': 2, '500KB': 3, '1MB': 4,
+          }
+
+          def parse_time_to_ms(time_str):
+              """Convert time string to milliseconds."""
               if time_str == 'N/A':
                   return None
               match = re.match(r'([\d.]+)\s*(\w+)', time_str)
               if not match:
                   return None
               val, unit = float(match.group(1)), match.group(2)
-              multipliers = {'ns': 0.001, 'µs': 1, 'us': 1, 'ms': 1000, 's': 1000000}
+              multipliers = {'ns': 0.000001, 'µs': 0.001, 'us': 0.001, 'ms': 1, 's': 1000}
               return val * multipliers.get(unit, 1)
-
-          def format_size(bytes_val):
-              """Format byte size for display."""
-              if bytes_val >= 1048576:
-                  return f"{bytes_val / 1048576:.1f} MB"
-              elif bytes_val >= 1024:
-                  return f"{bytes_val / 1024:.0f} KB"
-              return f"{bytes_val} B"
 
           # Categorize benchmarks
           basic_msgs = []
@@ -329,13 +330,38 @@ jobs:
               else:
                   heavy_msgs.append(b)
 
-          # Heavy message categories with descriptions
+          # Heavy message categories with metadata
           heavy_categories = {
-              'Image': {'benchmarks': [], 'desc': 'Camera frame serialization'},
-              'PointCloud2': {'benchmarks': [], 'desc': 'LiDAR point cloud data'},
-              'Mask': {'benchmarks': [], 'desc': 'Segmentation mask data'},
-              'RadarCube': {'benchmarks': [], 'desc': 'Radar cube tensors'},
-              'FoxgloveCompressedVideo': {'benchmarks': [], 'desc': 'Compressed video frames'},
+              'Image': {
+                  'benchmarks': [],
+                  'desc': 'Camera frame serialization (RGB/YUYV)',
+                  'size_axis': 'Resolution',
+                  'max_time': 60,
+              },
+              'PointCloud2': {
+                  'benchmarks': [],
+                  'desc': 'LiDAR point cloud data',
+                  'size_axis': 'Point Count',
+                  'max_time': 20,
+              },
+              'Mask': {
+                  'benchmarks': [],
+                  'desc': 'Segmentation mask data',
+                  'size_axis': 'Resolution',
+                  'max_time': 60,
+              },
+              'RadarCube': {
+                  'benchmarks': [],
+                  'desc': 'Radar FFT cube tensors',
+                  'size_axis': 'Cube Size',
+                  'max_time': 120,
+              },
+              'FoxgloveCompressedVideo': {
+                  'benchmarks': [],
+                  'desc': 'Compressed video frames',
+                  'size_axis': 'Payload Size',
+                  'max_time': 10,
+              },
           }
 
           for b in heavy_msgs:
@@ -350,9 +376,6 @@ jobs:
               f.write("**Architecture:** aarch64\n")
               f.write(f"**Total Benchmarks:** {len(benchmarks)}\n\n")
 
-              # Collect all heavy message data for the chart
-              all_chart_data = []  # [(category, variant, size_bytes, serialize_us, deserialize_us)]
-
               for cat_name, cat_info in heavy_categories.items():
                   cat_benchmarks = cat_info['benchmarks']
                   if not cat_benchmarks:
@@ -360,8 +383,6 @@ jobs:
 
                   f.write(f"### {cat_name}\n\n")
                   f.write(f"*{cat_info['desc']}*\n\n")
-                  f.write("| Variant | Size | Serialize | Deserialize |\n")
-                  f.write("|---------|------|-----------|-------------|\n")
 
                   # Group by variant
                   variants = {}
@@ -377,57 +398,42 @@ jobs:
                           variants[variant] = {'serialize': 'N/A', 'deserialize': 'N/A'}
                       variants[variant][op] = b['time']
 
-                  # Sort variants by size
+                  # Sort variants by size order
                   sorted_variants = sorted(variants.items(),
-                      key=lambda x: SIZE_MAP.get(x[0], 0))
+                      key=lambda x: SIZE_ORDER.get(x[0], 99))
+
+                  # Table
+                  f.write(f"| {cat_info['size_axis']} | Serialize | Deserialize |\n")
+                  f.write("|------------|-----------|-------------|\n")
+
+                  chart_labels = []
+                  ser_times = []
+                  deser_times = []
 
                   for variant, data in sorted_variants:
-                      size_bytes = SIZE_MAP.get(variant, 0)
-                      size_str = format_size(size_bytes) if size_bytes > 0 else '?'
-                      f.write(f"| {variant} | {size_str} | {data['serialize']} | {data['deserialize']} |\n")
+                      label = SIZE_LABELS.get(variant, variant)
+                      f.write(f"| {label} | {data['serialize']} | {data['deserialize']} |\n")
 
                       # Collect for chart
-                      ser_us = parse_time_to_us(data['serialize'])
-                      deser_us = parse_time_to_us(data['deserialize'])
-                      if ser_us is not None and size_bytes > 0:
-                          all_chart_data.append((cat_name, variant, size_bytes, ser_us, deser_us))
+                      ser_ms = parse_time_to_ms(data['serialize'])
+                      deser_ms = parse_time_to_ms(data['deserialize'])
+
+                      chart_labels.append(f'"{label}"')
+                      ser_times.append(f"{ser_ms:.2f}" if ser_ms else "0")
+                      deser_times.append(f"{deser_ms:.2f}" if deser_ms else "0")
 
                   f.write("\n")
 
-              # Latency vs Size Chart using Mermaid xychart
-              f.write("### Serialization Latency vs Message Size\n\n")
-              f.write("```mermaid\n")
-              f.write("xychart-beta\n")
-              f.write("    title \"Serialize Latency (ms) by Message Size\"\n")
-              f.write("    x-axis \"Message Size\"\n")
-              f.write("    y-axis \"Time (ms)\" 0 --> 120\n")
-
-              # Sort by size and create chart data
-              sorted_chart = sorted(all_chart_data, key=lambda x: x[2])
-              if sorted_chart:
-                  # Use variant names as x-axis labels, time in ms as values
-                  labels = [f'"{d[1]}"' for d in sorted_chart]
-                  ser_values = [f"{d[3]/1000:.2f}" for d in sorted_chart]  # Convert µs to ms
-                  f.write(f"    x-axis [{', '.join(labels)}]\n")
-                  f.write(f"    line [{', '.join(ser_values)}]\n")
-
-              f.write("```\n\n")
-
-              # Deserialization chart
-              f.write("### Deserialization Latency vs Message Size\n\n")
-              f.write("```mermaid\n")
-              f.write("xychart-beta\n")
-              f.write("    title \"Deserialize Latency (ms) by Message Size\"\n")
-              f.write("    x-axis \"Message Size\"\n")
-              f.write("    y-axis \"Time (ms)\" 0 --> 120\n")
-
-              if sorted_chart:
-                  labels = [f'"{d[1]}"' for d in sorted_chart]
-                  deser_values = [f"{(d[4] or 0)/1000:.2f}" for d in sorted_chart]
-                  f.write(f"    x-axis [{', '.join(labels)}]\n")
-                  f.write(f"    line [{', '.join(deser_values)}]\n")
-
-              f.write("```\n\n")
+                  # Chart: horizontal orientation puts size labels on Y-axis, time on X-axis
+                  max_time = cat_info['max_time']
+                  f.write("```mermaid\n")
+                  f.write("xychart-beta horizontal\n")
+                  f.write(f"    title \"{cat_name} Latency (ms)\"\n")
+                  f.write(f"    x-axis [{', '.join(chart_labels)}]\n")
+                  f.write(f"    y-axis \"Time (ms)\" 0 --> {max_time}\n")
+                  f.write(f"    line \"Serialize\" [{', '.join(ser_times)}]\n")
+                  f.write(f"    line \"Deserialize\" [{', '.join(deser_times)}]\n")
+                  f.write("```\n\n")
 
               # Basic message types summary (collapsed)
               f.write("<details>\n")
