@@ -38,3 +38,6 @@ sbom.json
 source-sbom*.json
 
 .DS_Store
+
+# Local TODO tracking (mirrored in JIRA)
+TODO*.md
