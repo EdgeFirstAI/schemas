@@ -977,6 +977,319 @@ EdgeFirstDmaBuf* edgefirst_dmabuf_deserialize(const uint8_t* bytes, size_t len);
 #define FOXGLOVE_POINT_ANNOTATION_LINE_LOOP  2
 #define FOXGLOVE_POINT_ANNOTATION_LINE_STRIP 3
 #define FOXGLOVE_POINT_ANNOTATION_LINE_LIST  4
+
+/* ============================================================================
+ * foxglove_msgs - FoxgloveCompressedVideo
+ * ========================================================================= */
+
+/**
+ * @brief Create a new FoxgloveCompressedVideo message
+ * @return Pointer to new FoxgloveCompressedVideo or NULL on allocation failure
+ *
+ * @par Errors (errno):
+ * - ENOMEM: Memory allocation failed
+ */
+FoxgloveCompressedVideo* foxglove_compressed_video_new(void);
+
+/**
+ * @brief Free a FoxgloveCompressedVideo message
+ * @param video Pointer to FoxgloveCompressedVideo to free (can be NULL)
+ */
+void foxglove_compressed_video_free(FoxgloveCompressedVideo* video);
+
+/**
+ * @brief Get header field (borrowed pointer)
+ * @param video FoxgloveCompressedVideo message
+ * @return Pointer to Header
+ */
+const RosHeader* foxglove_compressed_video_get_header(const FoxgloveCompressedVideo* video);
+
+/**
+ * @brief Get mutable header field
+ * @param video FoxgloveCompressedVideo message
+ * @return Mutable pointer to Header
+ */
+RosHeader* foxglove_compressed_video_get_header_mut(FoxgloveCompressedVideo* video);
+
+/**
+ * @brief Get video data field (borrowed pointer)
+ * @param video FoxgloveCompressedVideo message
+ * @param out_len Output parameter for data length
+ * @return Pointer to video data (valid during video lifetime)
+ */
+const uint8_t* foxglove_compressed_video_get_data(const FoxgloveCompressedVideo* video, size_t* out_len);
+
+/**
+ * @brief Get format field (caller must free)
+ * @param video FoxgloveCompressedVideo message
+ * @return Newly allocated format string (e.g., "h264", "h265")
+ */
+char* foxglove_compressed_video_get_format(const FoxgloveCompressedVideo* video);
+
+/**
+ * @brief Set video data field (copies data)
+ * @param video FoxgloveCompressedVideo message
+ * @param data Pointer to video data
+ * @param len Length of data in bytes
+ * @return 0 on success, -1 on error
+ *
+ * @par Errors (errno):
+ * - EINVAL: Invalid parameter (NULL pointer)
+ * - ENOMEM: Memory allocation failed
+ */
+int foxglove_compressed_video_set_data(FoxgloveCompressedVideo* video, const uint8_t* data, size_t len);
+
+/**
+ * @brief Set format field
+ * @param video FoxgloveCompressedVideo message
+ * @param format Format string (e.g., "h264", "h265")
+ * @return 0 on success, -1 on error
+ *
+ * @par Errors (errno):
+ * - EINVAL: Invalid parameter (NULL pointer)
+ * - ENOMEM: Memory allocation failed
+ */
+int foxglove_compressed_video_set_format(FoxgloveCompressedVideo* video, const char* format);
+
+/**
+ * @brief Serialize FoxgloveCompressedVideo to CDR format (Khronos-style buffer pattern)
+ * @param video FoxgloveCompressedVideo message to serialize (must not be NULL)
+ * @param buffer Output buffer for CDR bytes (may be NULL to query size)
+ * @param capacity Size of buffer in bytes (ignored if buffer is NULL)
+ * @param size If non-NULL, receives the number of bytes written/required
+ * @return 0 on success, -1 on error
+ *
+ * @par Errors (errno):
+ * - EINVAL: video is NULL
+ * - ENOBUFS: buffer too small (size ALWAYS written with required capacity)
+ * - EBADMSG: CDR serialization failed
+ *
+ * @par Usage Pattern:
+ * @code
+ * // Query required size
+ * size_t required_size = 0;
+ * foxglove_compressed_video_serialize(video, NULL, 0, &required_size);
+ *
+ * // Allocate and serialize
+ * uint8_t* buffer = malloc(required_size);
+ * foxglove_compressed_video_serialize(video, buffer, required_size, NULL);
+ * @endcode
+ */
+int foxglove_compressed_video_serialize(
+    const FoxgloveCompressedVideo* video,
+    uint8_t* buffer,
+    size_t capacity,
+    size_t* size
+);
+
+/**
+ * @brief Deserialize FoxgloveCompressedVideo from CDR format
+ * @param bytes CDR encoded bytes
+ * @param len Length of bytes
+ * @return Pointer to deserialized FoxgloveCompressedVideo or NULL on error
+ *
+ * @par Errors (errno):
+ * - EINVAL: bytes is NULL or len is 0
+ * - EBADMSG: CDR decoding failed (malformed data)
+ * - ENOMEM: Memory allocation failed
+ */
+FoxgloveCompressedVideo* foxglove_compressed_video_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * edgefirst_msgs - RadarCube
+ * ========================================================================= */
+
+/**
+ * @brief Create a new RadarCube message
+ * @return Pointer to new RadarCube or NULL on allocation failure
+ *
+ * The RadarCube message carries various radar cube representations of the
+ * Radar FFT before generally being processed by CFAR into a point cloud.
+ *
+ * @par Errors (errno):
+ * - ENOMEM: Memory allocation failed
+ */
+EdgeFirstRadarCube* edgefirst_radarcube_new(void);
+
+/**
+ * @brief Free a RadarCube message
+ * @param cube Pointer to RadarCube to free (can be NULL)
+ */
+void edgefirst_radarcube_free(EdgeFirstRadarCube* cube);
+
+/**
+ * @brief Get header field (borrowed pointer)
+ * @param cube RadarCube message
+ * @return Pointer to Header
+ */
+const RosHeader* edgefirst_radarcube_get_header(const EdgeFirstRadarCube* cube);
+
+/**
+ * @brief Get mutable header field
+ * @param cube RadarCube message
+ * @return Mutable pointer to Header
+ */
+RosHeader* edgefirst_radarcube_get_header_mut(EdgeFirstRadarCube* cube);
+
+/**
+ * @brief Get radar timestamp
+ * @param cube RadarCube message
+ * @return Timestamp in microseconds (generated by radar module)
+ */
+uint64_t edgefirst_radarcube_get_timestamp(const EdgeFirstRadarCube* cube);
+
+/**
+ * @brief Set radar timestamp
+ * @param cube RadarCube message
+ * @param timestamp Timestamp in microseconds
+ */
+void edgefirst_radarcube_set_timestamp(EdgeFirstRadarCube* cube, uint64_t timestamp);
+
+/**
+ * @brief Get layout array (dimension labels)
+ * @param cube RadarCube message
+ * @param out_len Output: number of dimensions
+ * @return Borrowed pointer to layout array (valid during cube lifetime)
+ * @note Values are EDGEFIRST_RADAR_CUBE_DIMENSION_* constants
+ */
+const uint8_t* edgefirst_radarcube_get_layout(const EdgeFirstRadarCube* cube, size_t* out_len);
+
+/**
+ * @brief Set layout array (dimension labels)
+ * @param cube RadarCube message
+ * @param layout Array of dimension labels
+ * @param len Number of dimensions
+ * @return 0 on success, -1 on error
+ *
+ * @par Errors (errno):
+ * - EINVAL: Invalid parameter (NULL pointer)
+ * - ENOMEM: Memory allocation failed
+ */
+int edgefirst_radarcube_set_layout(EdgeFirstRadarCube* cube, const uint8_t* layout, size_t len);
+
+/**
+ * @brief Get shape array (dimension sizes)
+ * @param cube RadarCube message
+ * @param out_len Output: number of dimensions
+ * @return Borrowed pointer to shape array (valid during cube lifetime)
+ */
+const uint16_t* edgefirst_radarcube_get_shape(const EdgeFirstRadarCube* cube, size_t* out_len);
+
+/**
+ * @brief Set shape array (dimension sizes)
+ * @param cube RadarCube message
+ * @param shape Array of dimension sizes
+ * @param len Number of dimensions
+ * @return 0 on success, -1 on error
+ *
+ * @par Errors (errno):
+ * - EINVAL: Invalid parameter (NULL pointer)
+ * - ENOMEM: Memory allocation failed
+ */
+int edgefirst_radarcube_set_shape(EdgeFirstRadarCube* cube, const uint16_t* shape, size_t len);
+
+/**
+ * @brief Get scales array (physical unit scaling factors)
+ * @param cube RadarCube message
+ * @param out_len Output: number of scale values
+ * @return Borrowed pointer to scales array (valid during cube lifetime)
+ * @note Scale converts bin index to physical units (e.g., 2.5 = 2.5m per bin)
+ */
+const float* edgefirst_radarcube_get_scales(const EdgeFirstRadarCube* cube, size_t* out_len);
+
+/**
+ * @brief Set scales array (physical unit scaling factors)
+ * @param cube RadarCube message
+ * @param scales Array of scale values
+ * @param len Number of scale values
+ * @return 0 on success, -1 on error
+ *
+ * @par Errors (errno):
+ * - EINVAL: Invalid parameter (NULL pointer)
+ * - ENOMEM: Memory allocation failed
+ */
+int edgefirst_radarcube_set_scales(EdgeFirstRadarCube* cube, const float* scales, size_t len);
+
+/**
+ * @brief Get cube data array
+ * @param cube RadarCube message
+ * @param out_len Output: number of i16 elements
+ * @return Borrowed pointer to cube data (valid during cube lifetime)
+ * @note If is_complex is true, elements are real/imaginary pairs
+ */
+const int16_t* edgefirst_radarcube_get_cube(const EdgeFirstRadarCube* cube, size_t* out_len);
+
+/**
+ * @brief Set cube data array
+ * @param cube RadarCube message
+ * @param data Array of i16 values
+ * @param len Number of i16 elements
+ * @return 0 on success, -1 on error
+ *
+ * @par Errors (errno):
+ * - EINVAL: Invalid parameter (NULL pointer)
+ * - ENOMEM: Memory allocation failed
+ */
+int edgefirst_radarcube_set_cube(EdgeFirstRadarCube* cube, const int16_t* data, size_t len);
+
+/**
+ * @brief Get is_complex flag
+ * @param cube RadarCube message
+ * @return true if cube contains complex numbers (real/imaginary pairs)
+ */
+bool edgefirst_radarcube_get_is_complex(const EdgeFirstRadarCube* cube);
+
+/**
+ * @brief Set is_complex flag
+ * @param cube RadarCube message
+ * @param is_complex true if cube contains complex numbers
+ */
+void edgefirst_radarcube_set_is_complex(EdgeFirstRadarCube* cube, bool is_complex);
+
+/**
+ * @brief Serialize RadarCube to CDR format (Khronos-style buffer pattern)
+ * @param cube RadarCube message to serialize (must not be NULL)
+ * @param buffer Output buffer for CDR bytes (may be NULL to query size)
+ * @param capacity Size of buffer in bytes (ignored if buffer is NULL)
+ * @param size If non-NULL, receives the number of bytes written/required
+ * @return 0 on success, -1 on error
+ *
+ * @par Errors (errno):
+ * - EINVAL: cube is NULL
+ * - ENOBUFS: buffer too small (size ALWAYS written with required capacity)
+ * - EBADMSG: CDR serialization failed
+ *
+ * @par Usage Pattern:
+ * @code
+ * // Query required size
+ * size_t required_size = 0;
+ * edgefirst_radarcube_serialize(cube, NULL, 0, &required_size);
+ *
+ * // Allocate and serialize
+ * uint8_t* buffer = malloc(required_size);
+ * edgefirst_radarcube_serialize(cube, buffer, required_size, NULL);
+ * @endcode
+ */
+int edgefirst_radarcube_serialize(
+    const EdgeFirstRadarCube* cube,
+    uint8_t* buffer,
+    size_t capacity,
+    size_t* size
+);
+
+/**
+ * @brief Deserialize RadarCube from CDR format
+ * @param bytes CDR encoded bytes
+ * @param len Length of bytes
+ * @return Pointer to deserialized RadarCube or NULL on error
+ *
+ * @par Errors (errno):
+ * - EINVAL: bytes is NULL or len is 0
+ * - EBADMSG: CDR decoding failed (malformed data)
+ * - ENOMEM: Memory allocation failed
+ */
+EdgeFirstRadarCube* edgefirst_radarcube_deserialize(const uint8_t* bytes, size_t len);
+
 /* ============================================================================
  * TIER 1 API - Most Used Types
  * ========================================================================= */
@@ -1843,23 +2156,502 @@ int ros_nav_sat_fix_serialize(const RosNavSatFix* fix, uint8_t** out_bytes, size
 RosNavSatFix* ros_nav_sat_fix_deserialize(const uint8_t* bytes, size_t len);
 
 /* ============================================================================
- * Note: Additional types follow similar patterns
- * 
- * This header provides the core types most commonly used. Additional message
- * types (CameraInfo, IMU, PointCloud2, RadarCube, Detect, Model, etc.) follow
- * the same API pattern:
- * - <type>_new() - allocate
- * - <type>_free() - deallocate
- * - <type>_get_<field>() - getter (returns copy for primitives, borrowed ptr
- *   for nested objects, allocated string for String fields)
- * - <type>_get_<field>_mut() - mutable getter for nested objects
- * - <type>_set_<field>() - setter (copies data)
- * - <type>_serialize() - serialize to CDR
- * - <type>_deserialize() - deserialize from CDR
- * 
- * For complete API documentation of all types, see implementation or generate
- * Doxygen documentation.
+ * geometry_msgs - Point32
  * ========================================================================= */
+
+RosPoint32* ros_point32_new(void);
+void ros_point32_free(RosPoint32* point);
+float ros_point32_get_x(const RosPoint32* point);
+float ros_point32_get_y(const RosPoint32* point);
+float ros_point32_get_z(const RosPoint32* point);
+void ros_point32_set_x(RosPoint32* point, float x);
+void ros_point32_set_y(RosPoint32* point, float y);
+void ros_point32_set_z(RosPoint32* point, float z);
+int ros_point32_serialize(const RosPoint32* point, uint8_t** out_bytes, size_t* out_len);
+RosPoint32* ros_point32_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * geometry_msgs - Pose
+ * ========================================================================= */
+
+RosPose* ros_pose_new(void);
+void ros_pose_free(RosPose* pose);
+/** @brief Get position (borrowed pointer, owned by parent - do NOT free) */
+const RosPoint* ros_pose_get_position(const RosPose* pose);
+RosPoint* ros_pose_get_position_mut(RosPose* pose);
+/** @brief Get orientation (borrowed pointer, owned by parent - do NOT free) */
+const RosQuaternion* ros_pose_get_orientation(const RosPose* pose);
+RosQuaternion* ros_pose_get_orientation_mut(RosPose* pose);
+int ros_pose_serialize(const RosPose* pose, uint8_t** out_bytes, size_t* out_len);
+RosPose* ros_pose_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * geometry_msgs - Pose2D
+ * ========================================================================= */
+
+RosPose2D* ros_pose2d_new(void);
+void ros_pose2d_free(RosPose2D* pose);
+double ros_pose2d_get_x(const RosPose2D* pose);
+double ros_pose2d_get_y(const RosPose2D* pose);
+double ros_pose2d_get_theta(const RosPose2D* pose);
+void ros_pose2d_set_x(RosPose2D* pose, double x);
+void ros_pose2d_set_y(RosPose2D* pose, double y);
+void ros_pose2d_set_theta(RosPose2D* pose, double theta);
+int ros_pose2d_serialize(const RosPose2D* pose, uint8_t** out_bytes, size_t* out_len);
+RosPose2D* ros_pose2d_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * geometry_msgs - Transform
+ * ========================================================================= */
+
+RosTransform* ros_transform_new(void);
+void ros_transform_free(RosTransform* transform);
+/** @brief Get translation (borrowed pointer, owned by parent - do NOT free) */
+const RosVector3* ros_transform_get_translation(const RosTransform* transform);
+RosVector3* ros_transform_get_translation_mut(RosTransform* transform);
+/** @brief Get rotation (borrowed pointer, owned by parent - do NOT free) */
+const RosQuaternion* ros_transform_get_rotation(const RosTransform* transform);
+RosQuaternion* ros_transform_get_rotation_mut(RosTransform* transform);
+int ros_transform_serialize(const RosTransform* transform, uint8_t** out_bytes, size_t* out_len);
+RosTransform* ros_transform_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * geometry_msgs - Twist
+ * ========================================================================= */
+
+RosTwist* ros_twist_new(void);
+void ros_twist_free(RosTwist* twist);
+/** @brief Get linear velocity (borrowed pointer, owned by parent - do NOT free) */
+const RosVector3* ros_twist_get_linear(const RosTwist* twist);
+RosVector3* ros_twist_get_linear_mut(RosTwist* twist);
+/** @brief Get angular velocity (borrowed pointer, owned by parent - do NOT free) */
+const RosVector3* ros_twist_get_angular(const RosTwist* twist);
+RosVector3* ros_twist_get_angular_mut(RosTwist* twist);
+int ros_twist_serialize(const RosTwist* twist, uint8_t** out_bytes, size_t* out_len);
+RosTwist* ros_twist_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * geometry_msgs - Inertia
+ * ========================================================================= */
+
+RosInertia* ros_inertia_new(void);
+void ros_inertia_free(RosInertia* inertia);
+double ros_inertia_get_m(const RosInertia* inertia);
+/** @brief Get center of mass (borrowed pointer, owned by parent - do NOT free) */
+const RosVector3* ros_inertia_get_com(const RosInertia* inertia);
+RosVector3* ros_inertia_get_com_mut(RosInertia* inertia);
+double ros_inertia_get_ixx(const RosInertia* inertia);
+double ros_inertia_get_ixy(const RosInertia* inertia);
+double ros_inertia_get_ixz(const RosInertia* inertia);
+double ros_inertia_get_iyy(const RosInertia* inertia);
+double ros_inertia_get_iyz(const RosInertia* inertia);
+double ros_inertia_get_izz(const RosInertia* inertia);
+void ros_inertia_set_m(RosInertia* inertia, double m);
+void ros_inertia_set_ixx(RosInertia* inertia, double ixx);
+void ros_inertia_set_ixy(RosInertia* inertia, double ixy);
+void ros_inertia_set_ixz(RosInertia* inertia, double ixz);
+void ros_inertia_set_iyy(RosInertia* inertia, double iyy);
+void ros_inertia_set_iyz(RosInertia* inertia, double iyz);
+void ros_inertia_set_izz(RosInertia* inertia, double izz);
+int ros_inertia_serialize(const RosInertia* inertia, uint8_t** out_bytes, size_t* out_len);
+RosInertia* ros_inertia_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * geometry_msgs - InertiaStamped
+ * ========================================================================= */
+
+RosInertiaStamped* ros_inertia_stamped_new(void);
+void ros_inertia_stamped_free(RosInertiaStamped* inertia);
+/** @brief Get header (borrowed pointer, owned by parent - do NOT free) */
+const RosHeader* ros_inertia_stamped_get_header(const RosInertiaStamped* inertia);
+RosHeader* ros_inertia_stamped_get_header_mut(RosInertiaStamped* inertia);
+/** @brief Get inertia (borrowed pointer, owned by parent - do NOT free) */
+const RosInertia* ros_inertia_stamped_get_inertia(const RosInertiaStamped* inertia);
+RosInertia* ros_inertia_stamped_get_inertia_mut(RosInertiaStamped* inertia);
+int ros_inertia_stamped_serialize(const RosInertiaStamped* inertia, uint8_t** out_bytes, size_t* out_len);
+RosInertiaStamped* ros_inertia_stamped_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * sensor_msgs - RegionOfInterest
+ * ========================================================================= */
+
+RosRegionOfInterest* ros_region_of_interest_new(void);
+void ros_region_of_interest_free(RosRegionOfInterest* roi);
+uint32_t ros_region_of_interest_get_x_offset(const RosRegionOfInterest* roi);
+uint32_t ros_region_of_interest_get_y_offset(const RosRegionOfInterest* roi);
+uint32_t ros_region_of_interest_get_height(const RosRegionOfInterest* roi);
+uint32_t ros_region_of_interest_get_width(const RosRegionOfInterest* roi);
+bool ros_region_of_interest_get_do_rectify(const RosRegionOfInterest* roi);
+void ros_region_of_interest_set_x_offset(RosRegionOfInterest* roi, uint32_t x_offset);
+void ros_region_of_interest_set_y_offset(RosRegionOfInterest* roi, uint32_t y_offset);
+void ros_region_of_interest_set_height(RosRegionOfInterest* roi, uint32_t height);
+void ros_region_of_interest_set_width(RosRegionOfInterest* roi, uint32_t width);
+void ros_region_of_interest_set_do_rectify(RosRegionOfInterest* roi, bool do_rectify);
+int ros_region_of_interest_serialize(const RosRegionOfInterest* roi, uint8_t** out_bytes, size_t* out_len);
+RosRegionOfInterest* ros_region_of_interest_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * sensor_msgs - CompressedImage
+ * ========================================================================= */
+
+RosCompressedImage* ros_compressed_image_new(void);
+void ros_compressed_image_free(RosCompressedImage* image);
+/** @brief Get header (borrowed pointer, owned by parent - do NOT free) */
+const RosHeader* ros_compressed_image_get_header(const RosCompressedImage* image);
+RosHeader* ros_compressed_image_get_header_mut(RosCompressedImage* image);
+/** @brief Get format string (caller must free returned string) */
+char* ros_compressed_image_get_format(const RosCompressedImage* image);
+/** @brief Get image data (borrowed pointer, owned by parent - do NOT free) */
+const uint8_t* ros_compressed_image_get_data(const RosCompressedImage* image, size_t* out_len);
+int ros_compressed_image_set_format(RosCompressedImage* image, const char* format);
+int ros_compressed_image_set_data(RosCompressedImage* image, const uint8_t* data, size_t len);
+int ros_compressed_image_serialize(const RosCompressedImage* image, uint8_t** out_bytes, size_t* out_len);
+RosCompressedImage* ros_compressed_image_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * sensor_msgs - IMU
+ * ========================================================================= */
+
+RosImu* ros_imu_new(void);
+void ros_imu_free(RosImu* imu);
+/** @brief Get header (borrowed pointer, owned by parent - do NOT free) */
+const RosHeader* ros_imu_get_header(const RosImu* imu);
+RosHeader* ros_imu_get_header_mut(RosImu* imu);
+/** @brief Get orientation (borrowed pointer, owned by parent - do NOT free) */
+const RosQuaternion* ros_imu_get_orientation(const RosImu* imu);
+RosQuaternion* ros_imu_get_orientation_mut(RosImu* imu);
+/** @brief Get orientation covariance array (borrowed pointer, 9 elements) */
+const double* ros_imu_get_orientation_covariance(const RosImu* imu);
+int ros_imu_set_orientation_covariance(RosImu* imu, const double* covariance);
+/** @brief Get angular velocity (borrowed pointer, owned by parent - do NOT free) */
+const RosVector3* ros_imu_get_angular_velocity(const RosImu* imu);
+RosVector3* ros_imu_get_angular_velocity_mut(RosImu* imu);
+/** @brief Get angular velocity covariance array (borrowed pointer, 9 elements) */
+const double* ros_imu_get_angular_velocity_covariance(const RosImu* imu);
+int ros_imu_set_angular_velocity_covariance(RosImu* imu, const double* covariance);
+/** @brief Get linear acceleration (borrowed pointer, owned by parent - do NOT free) */
+const RosVector3* ros_imu_get_linear_acceleration(const RosImu* imu);
+RosVector3* ros_imu_get_linear_acceleration_mut(RosImu* imu);
+/** @brief Get linear acceleration covariance array (borrowed pointer, 9 elements) */
+const double* ros_imu_get_linear_acceleration_covariance(const RosImu* imu);
+int ros_imu_set_linear_acceleration_covariance(RosImu* imu, const double* covariance);
+int ros_imu_serialize(const RosImu* imu, uint8_t** out_bytes, size_t* out_len);
+RosImu* ros_imu_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * sensor_msgs - CameraInfo
+ * ========================================================================= */
+
+RosCameraInfo* ros_camera_info_new(void);
+void ros_camera_info_free(RosCameraInfo* info);
+/** @brief Get header (borrowed pointer, owned by parent - do NOT free) */
+const RosHeader* ros_camera_info_get_header(const RosCameraInfo* info);
+RosHeader* ros_camera_info_get_header_mut(RosCameraInfo* info);
+uint32_t ros_camera_info_get_height(const RosCameraInfo* info);
+uint32_t ros_camera_info_get_width(const RosCameraInfo* info);
+/** @brief Get distortion model string (caller must free returned string) */
+char* ros_camera_info_get_distortion_model(const RosCameraInfo* info);
+/** @brief Get distortion coefficients D (borrowed pointer with length) */
+const double* ros_camera_info_get_d(const RosCameraInfo* info, size_t* out_len);
+/** @brief Get intrinsic camera matrix K (borrowed pointer, 9 elements) */
+const double* ros_camera_info_get_k(const RosCameraInfo* info);
+/** @brief Get rectification matrix R (borrowed pointer, 9 elements) */
+const double* ros_camera_info_get_r(const RosCameraInfo* info);
+/** @brief Get projection matrix P (borrowed pointer, 12 elements) */
+const double* ros_camera_info_get_p(const RosCameraInfo* info);
+uint32_t ros_camera_info_get_binning_x(const RosCameraInfo* info);
+uint32_t ros_camera_info_get_binning_y(const RosCameraInfo* info);
+/** @brief Get region of interest (borrowed pointer, owned by parent - do NOT free) */
+const RosRegionOfInterest* ros_camera_info_get_roi(const RosCameraInfo* info);
+RosRegionOfInterest* ros_camera_info_get_roi_mut(RosCameraInfo* info);
+void ros_camera_info_set_height(RosCameraInfo* info, uint32_t height);
+void ros_camera_info_set_width(RosCameraInfo* info, uint32_t width);
+int ros_camera_info_set_distortion_model(RosCameraInfo* info, const char* model);
+int ros_camera_info_set_d(RosCameraInfo* info, const double* d, size_t len);
+int ros_camera_info_set_k(RosCameraInfo* info, const double* k);
+int ros_camera_info_set_r(RosCameraInfo* info, const double* r);
+int ros_camera_info_set_p(RosCameraInfo* info, const double* p);
+void ros_camera_info_set_binning_x(RosCameraInfo* info, uint32_t binning_x);
+void ros_camera_info_set_binning_y(RosCameraInfo* info, uint32_t binning_y);
+int ros_camera_info_serialize(const RosCameraInfo* info, uint8_t** out_bytes, size_t* out_len);
+RosCameraInfo* ros_camera_info_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * edgefirst_msgs - Date
+ * ========================================================================= */
+
+EdgeFirstDate* edgefirst_date_new(void);
+void edgefirst_date_free(EdgeFirstDate* date);
+uint16_t edgefirst_date_get_year(const EdgeFirstDate* date);
+uint8_t edgefirst_date_get_month(const EdgeFirstDate* date);
+uint8_t edgefirst_date_get_day(const EdgeFirstDate* date);
+void edgefirst_date_set_year(EdgeFirstDate* date, uint16_t year);
+void edgefirst_date_set_month(EdgeFirstDate* date, uint8_t month);
+void edgefirst_date_set_day(EdgeFirstDate* date, uint8_t day);
+int edgefirst_date_serialize(const EdgeFirstDate* date, uint8_t** out_bytes, size_t* out_len);
+EdgeFirstDate* edgefirst_date_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * edgefirst_msgs - LocalTime
+ * ========================================================================= */
+
+EdgeFirstLocalTime* edgefirst_local_time_new(void);
+void edgefirst_local_time_free(EdgeFirstLocalTime* local_time);
+/** @brief Get header (borrowed pointer, owned by parent - do NOT free) */
+const RosHeader* edgefirst_local_time_get_header(const EdgeFirstLocalTime* local_time);
+RosHeader* edgefirst_local_time_get_header_mut(EdgeFirstLocalTime* local_time);
+/** @brief Get date (borrowed pointer, owned by parent - do NOT free) */
+const EdgeFirstDate* edgefirst_local_time_get_date(const EdgeFirstLocalTime* local_time);
+EdgeFirstDate* edgefirst_local_time_get_date_mut(EdgeFirstLocalTime* local_time);
+/** @brief Get time (borrowed pointer, owned by parent - do NOT free) */
+const RosTime* edgefirst_local_time_get_time(const EdgeFirstLocalTime* local_time);
+RosTime* edgefirst_local_time_get_time_mut(EdgeFirstLocalTime* local_time);
+int16_t edgefirst_local_time_get_timezone(const EdgeFirstLocalTime* local_time);
+void edgefirst_local_time_set_timezone(EdgeFirstLocalTime* local_time, int16_t timezone);
+int edgefirst_local_time_serialize(const EdgeFirstLocalTime* local_time, uint8_t** out_bytes, size_t* out_len);
+EdgeFirstLocalTime* edgefirst_local_time_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * edgefirst_msgs - RadarInfo
+ * ========================================================================= */
+
+EdgeFirstRadarInfo* edgefirst_radar_info_new(void);
+void edgefirst_radar_info_free(EdgeFirstRadarInfo* info);
+/** @brief Get header (borrowed pointer, owned by parent - do NOT free) */
+const RosHeader* edgefirst_radar_info_get_header(const EdgeFirstRadarInfo* info);
+RosHeader* edgefirst_radar_info_get_header_mut(EdgeFirstRadarInfo* info);
+/** @brief Get center frequency string (caller must free returned string) */
+char* edgefirst_radar_info_get_center_frequency(const EdgeFirstRadarInfo* info);
+char* edgefirst_radar_info_get_frequency_sweep(const EdgeFirstRadarInfo* info);
+char* edgefirst_radar_info_get_range_toggle(const EdgeFirstRadarInfo* info);
+char* edgefirst_radar_info_get_detection_sensitivity(const EdgeFirstRadarInfo* info);
+bool edgefirst_radar_info_get_cube(const EdgeFirstRadarInfo* info);
+int edgefirst_radar_info_set_center_frequency(EdgeFirstRadarInfo* info, const char* center_frequency);
+int edgefirst_radar_info_set_frequency_sweep(EdgeFirstRadarInfo* info, const char* frequency_sweep);
+int edgefirst_radar_info_set_range_toggle(EdgeFirstRadarInfo* info, const char* range_toggle);
+int edgefirst_radar_info_set_detection_sensitivity(EdgeFirstRadarInfo* info, const char* detection_sensitivity);
+void edgefirst_radar_info_set_cube(EdgeFirstRadarInfo* info, bool cube);
+int edgefirst_radar_info_serialize(const EdgeFirstRadarInfo* info, uint8_t** out_bytes, size_t* out_len);
+EdgeFirstRadarInfo* edgefirst_radar_info_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * edgefirst_msgs - Model
+ * ========================================================================= */
+
+EdgeFirstModel* edgefirst_model_new(void);
+void edgefirst_model_free(EdgeFirstModel* model);
+/** @brief Get header (borrowed pointer, owned by parent - do NOT free) */
+const RosHeader* edgefirst_model_get_header(const EdgeFirstModel* model);
+RosHeader* edgefirst_model_get_header_mut(EdgeFirstModel* model);
+/** @brief Get timing durations (borrowed pointer, owned by parent - do NOT free) */
+const RosDuration* edgefirst_model_get_input_time(const EdgeFirstModel* model);
+RosDuration* edgefirst_model_get_input_time_mut(EdgeFirstModel* model);
+const RosDuration* edgefirst_model_get_model_time(const EdgeFirstModel* model);
+RosDuration* edgefirst_model_get_model_time_mut(EdgeFirstModel* model);
+const RosDuration* edgefirst_model_get_output_time(const EdgeFirstModel* model);
+RosDuration* edgefirst_model_get_output_time_mut(EdgeFirstModel* model);
+const RosDuration* edgefirst_model_get_decode_time(const EdgeFirstModel* model);
+RosDuration* edgefirst_model_get_decode_time_mut(EdgeFirstModel* model);
+/** @brief Get detection box (borrowed pointer, owned by parent - do NOT free) */
+const EdgeFirstDetectBox2D* edgefirst_model_get_box(const EdgeFirstModel* model, size_t index);
+size_t edgefirst_model_get_boxes_count(const EdgeFirstModel* model);
+int edgefirst_model_add_box(EdgeFirstModel* model, const EdgeFirstDetectBox2D* box);
+void edgefirst_model_clear_boxes(EdgeFirstModel* model);
+/** @brief Get mask (borrowed pointer, owned by parent - do NOT free) */
+const EdgeFirstMask* edgefirst_model_get_mask(const EdgeFirstModel* model, size_t index);
+size_t edgefirst_model_get_masks_count(const EdgeFirstModel* model);
+int edgefirst_model_add_mask(EdgeFirstModel* model, const EdgeFirstMask* mask);
+void edgefirst_model_clear_masks(EdgeFirstModel* model);
+int edgefirst_model_serialize(const EdgeFirstModel* model, uint8_t** out_bytes, size_t* out_len);
+EdgeFirstModel* edgefirst_model_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * edgefirst_msgs - ModelInfo
+ * ========================================================================= */
+
+EdgeFirstModelInfo* edgefirst_model_info_new(void);
+void edgefirst_model_info_free(EdgeFirstModelInfo* info);
+/** @brief Get header (borrowed pointer, owned by parent - do NOT free) */
+const RosHeader* edgefirst_model_info_get_header(const EdgeFirstModelInfo* info);
+RosHeader* edgefirst_model_info_get_header_mut(EdgeFirstModelInfo* info);
+/** @brief Get input shape (borrowed pointer with length) */
+const uint32_t* edgefirst_model_info_get_input_shape(const EdgeFirstModelInfo* info, size_t* out_len);
+uint8_t edgefirst_model_info_get_input_type(const EdgeFirstModelInfo* info);
+const uint32_t* edgefirst_model_info_get_output_shape(const EdgeFirstModelInfo* info, size_t* out_len);
+uint8_t edgefirst_model_info_get_output_type(const EdgeFirstModelInfo* info);
+size_t edgefirst_model_info_get_labels_count(const EdgeFirstModelInfo* info);
+/** @brief Get label (caller must free returned string) */
+char* edgefirst_model_info_get_label(const EdgeFirstModelInfo* info, size_t index);
+char* edgefirst_model_info_get_model_type(const EdgeFirstModelInfo* info);
+char* edgefirst_model_info_get_model_format(const EdgeFirstModelInfo* info);
+char* edgefirst_model_info_get_model_name(const EdgeFirstModelInfo* info);
+int edgefirst_model_info_set_input_shape(EdgeFirstModelInfo* info, const uint32_t* shape, size_t len);
+void edgefirst_model_info_set_input_type(EdgeFirstModelInfo* info, uint8_t input_type);
+int edgefirst_model_info_set_output_shape(EdgeFirstModelInfo* info, const uint32_t* shape, size_t len);
+void edgefirst_model_info_set_output_type(EdgeFirstModelInfo* info, uint8_t output_type);
+int edgefirst_model_info_add_label(EdgeFirstModelInfo* info, const char* label);
+void edgefirst_model_info_clear_labels(EdgeFirstModelInfo* info);
+int edgefirst_model_info_set_model_type(EdgeFirstModelInfo* info, const char* model_type);
+int edgefirst_model_info_set_model_format(EdgeFirstModelInfo* info, const char* model_format);
+int edgefirst_model_info_set_model_name(EdgeFirstModelInfo* info, const char* model_name);
+int edgefirst_model_info_serialize(const EdgeFirstModelInfo* info, uint8_t** out_bytes, size_t* out_len);
+EdgeFirstModelInfo* edgefirst_model_info_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * foxglove_msgs - Point2
+ * ========================================================================= */
+
+FoxglovePoint2* foxglove_point2_new(void);
+void foxglove_point2_free(FoxglovePoint2* point);
+double foxglove_point2_get_x(const FoxglovePoint2* point);
+double foxglove_point2_get_y(const FoxglovePoint2* point);
+void foxglove_point2_set_x(FoxglovePoint2* point, double x);
+void foxglove_point2_set_y(FoxglovePoint2* point, double y);
+
+/* ============================================================================
+ * foxglove_msgs - Color
+ * ========================================================================= */
+
+FoxgloveColor* foxglove_color_new(void);
+void foxglove_color_free(FoxgloveColor* color);
+double foxglove_color_get_r(const FoxgloveColor* color);
+double foxglove_color_get_g(const FoxgloveColor* color);
+double foxglove_color_get_b(const FoxgloveColor* color);
+double foxglove_color_get_a(const FoxgloveColor* color);
+void foxglove_color_set_r(FoxgloveColor* color, double r);
+void foxglove_color_set_g(FoxgloveColor* color, double g);
+void foxglove_color_set_b(FoxgloveColor* color, double b);
+void foxglove_color_set_a(FoxgloveColor* color, double a);
+
+/* ============================================================================
+ * foxglove_msgs - CircleAnnotations
+ * ========================================================================= */
+
+FoxgloveCircleAnnotations* foxglove_circle_annotations_new(void);
+void foxglove_circle_annotations_free(FoxgloveCircleAnnotations* circle);
+/** @brief Get timestamp (borrowed pointer, owned by parent - do NOT free) */
+const RosTime* foxglove_circle_annotations_get_timestamp(const FoxgloveCircleAnnotations* circle);
+RosTime* foxglove_circle_annotations_get_timestamp_mut(FoxgloveCircleAnnotations* circle);
+/** @brief Get position (borrowed pointer, owned by parent - do NOT free) */
+const FoxglovePoint2* foxglove_circle_annotations_get_position(const FoxgloveCircleAnnotations* circle);
+FoxglovePoint2* foxglove_circle_annotations_get_position_mut(FoxgloveCircleAnnotations* circle);
+double foxglove_circle_annotations_get_diameter(const FoxgloveCircleAnnotations* circle);
+double foxglove_circle_annotations_get_thickness(const FoxgloveCircleAnnotations* circle);
+/** @brief Get colors (borrowed pointer, owned by parent - do NOT free) */
+const FoxgloveColor* foxglove_circle_annotations_get_fill_color(const FoxgloveCircleAnnotations* circle);
+FoxgloveColor* foxglove_circle_annotations_get_fill_color_mut(FoxgloveCircleAnnotations* circle);
+const FoxgloveColor* foxglove_circle_annotations_get_outline_color(const FoxgloveCircleAnnotations* circle);
+FoxgloveColor* foxglove_circle_annotations_get_outline_color_mut(FoxgloveCircleAnnotations* circle);
+void foxglove_circle_annotations_set_diameter(FoxgloveCircleAnnotations* circle, double diameter);
+void foxglove_circle_annotations_set_thickness(FoxgloveCircleAnnotations* circle, double thickness);
+
+/* ============================================================================
+ * foxglove_msgs - PointAnnotations
+ * ========================================================================= */
+
+FoxglovePointAnnotations* foxglove_point_annotations_new(void);
+void foxglove_point_annotations_free(FoxglovePointAnnotations* ann);
+/** @brief Get timestamp (borrowed pointer, owned by parent - do NOT free) */
+const RosTime* foxglove_point_annotations_get_timestamp(const FoxglovePointAnnotations* ann);
+RosTime* foxglove_point_annotations_get_timestamp_mut(FoxglovePointAnnotations* ann);
+uint8_t foxglove_point_annotations_get_type(const FoxglovePointAnnotations* ann);
+void foxglove_point_annotations_set_type(FoxglovePointAnnotations* ann, uint8_t type_);
+/** @brief Get point (borrowed pointer, owned by parent - do NOT free) */
+const FoxglovePoint2* foxglove_point_annotations_get_point(const FoxglovePointAnnotations* ann, size_t index);
+size_t foxglove_point_annotations_get_points_count(const FoxglovePointAnnotations* ann);
+int foxglove_point_annotations_add_point(FoxglovePointAnnotations* ann, const FoxglovePoint2* point);
+void foxglove_point_annotations_clear_points(FoxglovePointAnnotations* ann);
+/** @brief Get colors (borrowed pointer, owned by parent - do NOT free) */
+const FoxgloveColor* foxglove_point_annotations_get_outline_color(const FoxglovePointAnnotations* ann);
+FoxgloveColor* foxglove_point_annotations_get_outline_color_mut(FoxglovePointAnnotations* ann);
+const FoxgloveColor* foxglove_point_annotations_get_fill_color(const FoxglovePointAnnotations* ann);
+FoxgloveColor* foxglove_point_annotations_get_fill_color_mut(FoxglovePointAnnotations* ann);
+double foxglove_point_annotations_get_thickness(const FoxglovePointAnnotations* ann);
+void foxglove_point_annotations_set_thickness(FoxglovePointAnnotations* ann, double thickness);
+
+/* ============================================================================
+ * foxglove_msgs - TextAnnotations
+ * ========================================================================= */
+
+FoxgloveTextAnnotations* foxglove_text_annotations_new(void);
+void foxglove_text_annotations_free(FoxgloveTextAnnotations* ann);
+/** @brief Get timestamp (borrowed pointer, owned by parent - do NOT free) */
+const RosTime* foxglove_text_annotations_get_timestamp(const FoxgloveTextAnnotations* ann);
+RosTime* foxglove_text_annotations_get_timestamp_mut(FoxgloveTextAnnotations* ann);
+/** @brief Get position (borrowed pointer, owned by parent - do NOT free) */
+const FoxglovePoint2* foxglove_text_annotations_get_position(const FoxgloveTextAnnotations* ann);
+FoxglovePoint2* foxglove_text_annotations_get_position_mut(FoxgloveTextAnnotations* ann);
+/** @brief Get text string (caller must free returned string) */
+char* foxglove_text_annotations_get_text(const FoxgloveTextAnnotations* ann);
+int foxglove_text_annotations_set_text(FoxgloveTextAnnotations* ann, const char* text);
+double foxglove_text_annotations_get_font_size(const FoxgloveTextAnnotations* ann);
+void foxglove_text_annotations_set_font_size(FoxgloveTextAnnotations* ann, double font_size);
+/** @brief Get colors (borrowed pointer, owned by parent - do NOT free) */
+const FoxgloveColor* foxglove_text_annotations_get_text_color(const FoxgloveTextAnnotations* ann);
+FoxgloveColor* foxglove_text_annotations_get_text_color_mut(FoxgloveTextAnnotations* ann);
+const FoxgloveColor* foxglove_text_annotations_get_background_color(const FoxgloveTextAnnotations* ann);
+FoxgloveColor* foxglove_text_annotations_get_background_color_mut(FoxgloveTextAnnotations* ann);
+
+/* ============================================================================
+ * foxglove_msgs - ImageAnnotations
+ * ========================================================================= */
+
+FoxgloveImageAnnotations* foxglove_image_annotations_new(void);
+void foxglove_image_annotations_free(FoxgloveImageAnnotations* ann);
+/** @brief Get circle annotation (borrowed pointer, owned by parent - do NOT free) */
+const FoxgloveCircleAnnotations* foxglove_image_annotations_get_circle(const FoxgloveImageAnnotations* ann, size_t index);
+size_t foxglove_image_annotations_get_circles_count(const FoxgloveImageAnnotations* ann);
+int foxglove_image_annotations_add_circle(FoxgloveImageAnnotations* ann, const FoxgloveCircleAnnotations* circle);
+void foxglove_image_annotations_clear_circles(FoxgloveImageAnnotations* ann);
+/** @brief Get point annotation (borrowed pointer, owned by parent - do NOT free) */
+const FoxglovePointAnnotations* foxglove_image_annotations_get_point(const FoxgloveImageAnnotations* ann, size_t index);
+size_t foxglove_image_annotations_get_points_count(const FoxgloveImageAnnotations* ann);
+int foxglove_image_annotations_add_point(FoxgloveImageAnnotations* ann, const FoxglovePointAnnotations* point);
+void foxglove_image_annotations_clear_points(FoxgloveImageAnnotations* ann);
+/** @brief Get text annotation (borrowed pointer, owned by parent - do NOT free) */
+const FoxgloveTextAnnotations* foxglove_image_annotations_get_text(const FoxgloveImageAnnotations* ann, size_t index);
+size_t foxglove_image_annotations_get_texts_count(const FoxgloveImageAnnotations* ann);
+int foxglove_image_annotations_add_text(FoxgloveImageAnnotations* ann, const FoxgloveTextAnnotations* text);
+void foxglove_image_annotations_clear_texts(FoxgloveImageAnnotations* ann);
+int foxglove_image_annotations_serialize(const FoxgloveImageAnnotations* ann, uint8_t** out_bytes, size_t* out_len);
+FoxgloveImageAnnotations* foxglove_image_annotations_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * Ownership Note
+ * ========================================================================= */
+
+/**
+ * @section Ownership Model
+ *
+ * This API follows strict ownership semantics:
+ *
+ * ## Root Types (caller must free)
+ * Objects created via `*_new()` or `*_deserialize()` are "root types".
+ * Caller is responsible for freeing these via `*_free()`.
+ *
+ * ## Child Types (do NOT free)
+ * Objects returned via `*_get_*()` or `*_get_*_mut()` are "borrowed pointers".
+ * These are owned by their parent and must NOT be freed by the caller.
+ * The borrowed pointer is only valid while the parent exists.
+ *
+ * ## Strings (caller must free)
+ * String getters (returning `char*`) allocate new memory.
+ * Caller must free these with `free()`.
+ *
+ * ## Example
+ * @code
+ * // Root type - caller must free
+ * RosPose* pose = ros_pose_new();
+ *
+ * // Borrowed pointer - do NOT free
+ * RosPoint* position = ros_pose_get_position_mut(pose);
+ * ros_point_set_x(position, 1.0);  // OK - modify through borrowed pointer
+ * // ros_point_free(position);     // WRONG - don't free borrowed pointers!
+ *
+ * // Correctly free the root type (also frees position internally)
+ * ros_pose_free(pose);
+ * @endcode
+ */
 
 #ifdef __cplusplus
 }

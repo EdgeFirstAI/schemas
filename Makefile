@@ -1,0 +1,74 @@
+# EdgeFirst Schemas Makefile
+#
+# Targets:
+#   all       - Build library and C tests
+#   lib       - Build Rust library (release)
+#   test-c    - Build and run C tests
+#   clean     - Remove build artifacts
+
+# Rust library output
+LIB_NAME = libedgefirst_schemas
+LIB_DIR = target/release
+
+# C test configuration
+CC = gcc
+CRITERION_PREFIX = $(shell brew --prefix criterion 2>/dev/null || echo /usr/local)
+CFLAGS = -Wall -Wextra -Werror -std=c11 -I./include -I$(CRITERION_PREFIX)/include
+LDFLAGS = -L$(LIB_DIR) -ledgefirst_schemas -L$(CRITERION_PREFIX)/lib -lcriterion -Wl,-rpath,$(LIB_DIR)
+
+# Build output directory
+BUILD_DIR = build
+
+# C test sources
+TEST_DIR = tests/c
+TEST_SOURCES = $(wildcard $(TEST_DIR)/test_*.c)
+TEST_BINARIES = $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/%,$(TEST_SOURCES))
+
+.PHONY: all lib test-c clean help
+
+all: lib $(TEST_BINARIES)
+
+# Build Rust library
+lib:
+	@echo "Building Rust library..."
+	@cargo build --release
+
+# Ensure build directory exists
+$(BUILD_DIR):
+	@mkdir -p $(BUILD_DIR)
+
+# Build C test binaries (depends on library)
+$(BUILD_DIR)/%: $(TEST_DIR)/%.c lib | $(BUILD_DIR)
+	@echo "Compiling $@..."
+	@$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
+# Run C tests
+test-c: $(TEST_BINARIES)
+	@echo "Running C test suite..."
+	@for test in $(TEST_BINARIES); do \
+		echo ""; \
+		echo "========================================"; \
+		echo "Running $$test"; \
+		echo "========================================"; \
+		./$$test --verbose || exit 1; \
+	done
+	@echo ""
+	@echo "========================================"
+	@echo "All C tests passed!"
+	@echo "========================================"
+
+clean:
+	@echo "Cleaning build artifacts..."
+	@rm -rf $(BUILD_DIR)
+	@cargo clean
+
+help:
+	@echo "EdgeFirst Schemas Build System"
+	@echo ""
+	@echo "Targets:"
+	@echo "  all      - Build library and C tests"
+	@echo "  lib      - Build Rust library (release)"
+	@echo "  test-c   - Build and run C tests"
+	@echo "  clean    - Remove all build artifacts"
+	@echo ""
+	@echo "C test binaries are built to: $(BUILD_DIR)/"
