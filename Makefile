@@ -24,7 +24,7 @@ TEST_DIR = tests/c
 TEST_SOURCES = $(wildcard $(TEST_DIR)/test_*.c)
 TEST_BINARIES = $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/%,$(TEST_SOURCES))
 
-.PHONY: all lib test-c clean help
+.PHONY: all lib test-c test-c-xml clean help
 
 all: lib $(TEST_BINARIES)
 
@@ -57,6 +57,17 @@ test-c: $(TEST_BINARIES)
 	@echo "All C tests passed!"
 	@echo "========================================"
 
+# Run C tests with XML output (for CI reporting)
+test-c-xml: $(TEST_BINARIES)
+	@mkdir -p $(BUILD_DIR)/test-results
+	@echo "Running C test suite with XML reporting..."
+	@for test in $(TEST_BINARIES); do \
+		name=$$(basename $$test); \
+		echo "Running $$name..."; \
+		./$$test --output=xml:$(BUILD_DIR)/test-results/$$name.xml || exit 1; \
+	done
+	@echo "Test results written to $(BUILD_DIR)/test-results/"
+
 clean:
 	@echo "Cleaning build artifacts..."
 	@rm -rf $(BUILD_DIR)
@@ -66,9 +77,10 @@ help:
 	@echo "EdgeFirst Schemas Build System"
 	@echo ""
 	@echo "Targets:"
-	@echo "  all      - Build library and C tests"
-	@echo "  lib      - Build Rust library (release)"
-	@echo "  test-c   - Build and run C tests"
-	@echo "  clean    - Remove all build artifacts"
+	@echo "  all        - Build library and C tests"
+	@echo "  lib        - Build Rust library (release)"
+	@echo "  test-c     - Build and run C tests"
+	@echo "  test-c-xml - Build and run C tests with XML output (for CI)"
+	@echo "  clean      - Remove all build artifacts"
 	@echo ""
 	@echo "C test binaries are built to: $(BUILD_DIR)/"
