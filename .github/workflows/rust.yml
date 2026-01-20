@@ -174,6 +174,13 @@ jobs:
           echo "=== Benchmark files generated ==="
           ls -la benchmark-results/
 
+          # Archive Criterion's JSON data for reliable parsing
+          echo "=== Archiving Criterion JSON data ==="
+          if [ -d "target/criterion" ]; then
+            tar -czf benchmark-results/criterion-data.tar.gz -C target criterion
+            echo "Archived Criterion data ($(du -h benchmark-results/criterion-data.tar.gz | cut -f1))"
+          fi
+
       - name: Upload benchmark results
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
@@ -200,66 +207,135 @@ jobs:
       - name: Parse and format benchmark results
         id: bench
         run: |
-          # Combine all benchmark output files
-          cat benchmark-results/*.txt > benchmark-output.txt
+          # Extract Criterion JSON data if available
+          if [ -f benchmark-results/criterion-data.tar.gz ]; then
+            echo "Extracting Criterion JSON data..."
+            tar -xzf benchmark-results/criterion-data.tar.gz
+          fi
 
-          # Parse Criterion output and generate JSON for processing
-          # Criterion format:
-          #   benchmark_name
-          #                   time:   [lower median upper]
-          #                   thrpt:  [lower median upper]  (optional)
+          # Parse Criterion JSON for reliable benchmark data
           python3 << 'PARSE_SCRIPT'
-          import re
           import json
-          import sys
+          import os
+          import glob
 
           benchmarks = []
-          current_name = None
 
-          with open('benchmark-output.txt', 'r') as f:
-              lines = f.readlines()
+          # Parse Criterion JSON files (more reliable than text output)
+          criterion_dir = 'criterion'
+          if os.path.isdir(criterion_dir):
+              print("Using Criterion JSON data for parsing")
 
-          i = 0
-          while i < len(lines):
-              line = lines[i].rstrip()
+              # Find all benchmark.json files in 'new' directories
+              for bench_json in glob.glob(f'{criterion_dir}/**/new/benchmark.json', recursive=True):
+                  bench_dir = os.path.dirname(bench_json)
+                  estimates_json = os.path.join(bench_dir, 'estimates.json')
 
-              # Look for benchmark name lines (not indented, contains /)
-              if line and not line.startswith(' ') and '/' in line and 'Benchmarking' not in line:
-                  current_name = line.strip()
+                  if not os.path.exists(estimates_json):
+                      continue
 
-              # Look for time: line (must be primary, not "change" which has % values)
-              elif 'time:' in line and current_name:
-                  # Skip "change" lines which contain percentages
-                  if '%' not in line:
-                      # Extract median (middle value in brackets)
-                      match = re.search(r'\[([\d.]+)\s*(\w+)\s+([\d.]+)\s*(\w+)\s+([\d.]+)\s*(\w+)\]', line)
-                      if match:
-                          median_val = match.group(3)
-                          median_unit = match.group(4)
-                          time_str = f"{median_val} {median_unit}"
+                  try:
+                      with open(bench_json) as f:
+                          bench_data = json.load(f)
+                      with open(estimates_json) as f:
+                          estimates = json.load(f)
 
-                          # Look for throughput on next line
-                          thrpt_str = "N/A"
-                          if i + 1 < len(lines):
-                              next_line = lines[i + 1]
-                              if 'thrpt:' in next_line and '%' not in next_line:
-                                  thrpt_match = re.search(r'\[([\d.]+)\s*(\S+)\s+([\d.]+)\s*(\S+)\s+([\d.]+)\s*(\S+)\]', next_line)
-                                  if thrpt_match:
-                                      thrpt_str = f"{thrpt_match.group(3)} {thrpt_match.group(4)}"
+                      # Get full benchmark name from benchmark.json
+                      full_id = bench_data.get('full_id', '')
+                      if not full_id:
+                          continue
+
+                      # Get median time in nanoseconds from estimates.json
+                      # Use 'slope' if available (more accurate), else 'median'
+                      time_data = estimates.get('slope', estimates.get('median', {}))
+                      point_estimate = time_data.get('point_estimate')
+
+                      if point_estimate is not None:
+                          # Convert from nanoseconds to appropriate unit
+                          ns = float(point_estimate)
+                          if ns >= 1e9:
+                              time_str = f"{ns/1e9:.4f} s"
+                          elif ns >= 1e6:
+                              time_str = f"{ns/1e6:.4f} ms"
+                          elif ns >= 1e3:
+                              time_str = f"{ns/1e3:.4f} µs"
+                          else:
+                              time_str = f"{ns:.4f} ns"
+
+                          # Get throughput if available
+                          throughput = bench_data.get('throughput', {})
+                          thrpt_str = 'N/A'
+                          if throughput:
+                              # Calculate throughput from time and bytes/elements
+                              bytes_per_iter = throughput.get('Bytes')
+                              if bytes_per_iter and ns > 0:
+                                  bytes_per_sec = bytes_per_iter * 1e9 / ns
+                                  if bytes_per_sec >= 1e9:
+                                      thrpt_str = f"{bytes_per_sec/1e9:.2f} GiB/s"
+                                  elif bytes_per_sec >= 1e6:
+                                      thrpt_str = f"{bytes_per_sec/1e6:.2f} MiB/s"
+                                  else:
+                                      thrpt_str = f"{bytes_per_sec/1e3:.2f} KiB/s"
 
                           benchmarks.append({
-                              'name': current_name,
+                              'name': full_id,
                               'time': time_str,
                               'throughput': thrpt_str
                           })
-                          current_name = None  # Reset after capturing
-              i += 1
+                  except Exception as e:
+                      print(f"Warning: Failed to parse {bench_json}: {e}")
 
-          # Write JSON for further processing
+          # Fallback to text parsing if no JSON or not enough results
+          if len(benchmarks) == 0:
+              print("Falling back to text parsing")
+              import re
+              import subprocess
+
+              result = subprocess.run(
+                  f"cat benchmark-results/*.txt 2>/dev/null",
+                  shell=True, capture_output=True, text=True
+              )
+              lines = result.stdout.splitlines()
+
+              current_name = None
+              for line in lines:
+                  line = line.rstrip()
+
+                  # Look for benchmark name lines (not indented, contains /)
+                  if line and not line.startswith(' ') and '/' in line and 'Benchmarking' not in line:
+                      # Handle name+time on same line
+                      if 'time:' in line and '%' not in line:
+                          name_part = line.split('time:')[0].strip()
+                          match = re.search(r'\[([\d.]+)\s*(\w+)\s+([\d.]+)\s*(\w+)\s+([\d.]+)\s*(\w+)\]', line)
+                          if match:
+                              benchmarks.append({
+                                  'name': name_part,
+                                  'time': f"{match.group(3)} {match.group(4)}",
+                                  'throughput': 'N/A'
+                              })
+                      else:
+                          current_name = line.strip()
+
+                  # Look for time: on separate line
+                  elif 'time:' in line and current_name and '%' not in line:
+                      match = re.search(r'\[([\d.]+)\s*(\w+)\s+([\d.]+)\s*(\w+)\s+([\d.]+)\s*(\w+)\]', line)
+                      if match:
+                          benchmarks.append({
+                              'name': current_name,
+                              'time': f"{match.group(3)} {match.group(4)}",
+                              'throughput': 'N/A'
+                          })
+                          current_name = None
+
+          # Write JSON for markdown generation
           with open('benchmarks.json', 'w') as f:
               json.dump(benchmarks, f, indent=2)
 
           print(f"Parsed {len(benchmarks)} benchmarks")
+          for b in sorted(benchmarks, key=lambda x: x['name'])[:10]:
+              print(f"  {b['name']}: {b['time']}")
+          if len(benchmarks) > 10:
+              print(f"  ... and {len(benchmarks) - 10} more")
           PARSE_SCRIPT
 
           # Generate markdown summary from JSON
