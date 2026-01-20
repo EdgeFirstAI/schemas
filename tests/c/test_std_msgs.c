@@ -174,9 +174,11 @@ Test(std_msgs, colorrgba_create_zero) {
     RosColorRGBA *color = ros_color_rgba_new();
     cr_assert_not_null(color);
 
-    // Default values should be zero
+    // Default: RGB = 0.0 (black), Alpha = 1.0 (fully opaque)
     cr_assert_float_eq(ros_color_rgba_get_r(color), 0.0f, 0.0001f);
-    cr_assert_float_eq(ros_color_rgba_get_a(color), 0.0f, 0.0001f);
+    cr_assert_float_eq(ros_color_rgba_get_g(color), 0.0f, 0.0001f);
+    cr_assert_float_eq(ros_color_rgba_get_b(color), 0.0f, 0.0001f);
+    cr_assert_float_eq(ros_color_rgba_get_a(color), 1.0f, 0.0001f);
 
     ros_color_rgba_free(color);
 }

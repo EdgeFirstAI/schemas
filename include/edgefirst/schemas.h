@@ -111,9 +111,15 @@ extern "C" {
 typedef struct RosTime RosTime;
 typedef struct RosDuration RosDuration;
 
+/* rosgraph_msgs */
+typedef struct RosClock RosClock;
+
 /* std_msgs */
 typedef struct RosHeader RosHeader;
 typedef struct RosColorRGBA RosColorRGBA;
+
+/* service */
+typedef struct RosServiceHeader RosServiceHeader;
 
 /* geometry_msgs */
 typedef struct RosVector3 RosVector3;
@@ -2231,6 +2237,84 @@ int ros_twist_serialize(const RosTwist* twist, uint8_t** out_bytes, size_t* out_
 RosTwist* ros_twist_deserialize(const uint8_t* bytes, size_t len);
 
 /* ============================================================================
+ * geometry_msgs - TwistStamped
+ * ========================================================================= */
+
+RosTwistStamped* ros_twist_stamped_new(void);
+void ros_twist_stamped_free(RosTwistStamped* twist);
+/** @brief Get header (borrowed pointer, owned by parent - do NOT free) */
+const RosHeader* ros_twist_stamped_get_header(const RosTwistStamped* twist);
+RosHeader* ros_twist_stamped_get_header_mut(RosTwistStamped* twist);
+/** @brief Get twist (borrowed pointer, owned by parent - do NOT free) */
+const RosTwist* ros_twist_stamped_get_twist(const RosTwistStamped* twist);
+RosTwist* ros_twist_stamped_get_twist_mut(RosTwistStamped* twist);
+int ros_twist_stamped_serialize(const RosTwistStamped* twist, uint8_t** out_bytes, size_t* out_len);
+RosTwistStamped* ros_twist_stamped_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * geometry_msgs - Accel
+ * ========================================================================= */
+
+RosAccel* ros_accel_new(void);
+void ros_accel_free(RosAccel* accel);
+/** @brief Get linear acceleration (borrowed pointer, owned by parent - do NOT free) */
+const RosVector3* ros_accel_get_linear(const RosAccel* accel);
+RosVector3* ros_accel_get_linear_mut(RosAccel* accel);
+/** @brief Get angular acceleration (borrowed pointer, owned by parent - do NOT free) */
+const RosVector3* ros_accel_get_angular(const RosAccel* accel);
+RosVector3* ros_accel_get_angular_mut(RosAccel* accel);
+int ros_accel_serialize(const RosAccel* accel, uint8_t** out_bytes, size_t* out_len);
+RosAccel* ros_accel_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * geometry_msgs - AccelStamped
+ * ========================================================================= */
+
+RosAccelStamped* ros_accel_stamped_new(void);
+void ros_accel_stamped_free(RosAccelStamped* accel);
+/** @brief Get header (borrowed pointer, owned by parent - do NOT free) */
+const RosHeader* ros_accel_stamped_get_header(const RosAccelStamped* accel);
+RosHeader* ros_accel_stamped_get_header_mut(RosAccelStamped* accel);
+/** @brief Get accel (borrowed pointer, owned by parent - do NOT free) */
+const RosAccel* ros_accel_stamped_get_accel(const RosAccelStamped* accel);
+RosAccel* ros_accel_stamped_get_accel_mut(RosAccelStamped* accel);
+int ros_accel_stamped_serialize(const RosAccelStamped* accel, uint8_t** out_bytes, size_t* out_len);
+RosAccelStamped* ros_accel_stamped_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * geometry_msgs - PointStamped
+ * ========================================================================= */
+
+RosPointStamped* ros_point_stamped_new(void);
+void ros_point_stamped_free(RosPointStamped* point);
+/** @brief Get header (borrowed pointer, owned by parent - do NOT free) */
+const RosHeader* ros_point_stamped_get_header(const RosPointStamped* point);
+RosHeader* ros_point_stamped_get_header_mut(RosPointStamped* point);
+/** @brief Get point (borrowed pointer, owned by parent - do NOT free) */
+const RosPoint* ros_point_stamped_get_point(const RosPointStamped* point);
+RosPoint* ros_point_stamped_get_point_mut(RosPointStamped* point);
+int ros_point_stamped_serialize(const RosPointStamped* point, uint8_t** out_bytes, size_t* out_len);
+RosPointStamped* ros_point_stamped_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * geometry_msgs - TransformStamped
+ * ========================================================================= */
+
+RosTransformStamped* ros_transform_stamped_new(void);
+void ros_transform_stamped_free(RosTransformStamped* transform);
+/** @brief Get header (borrowed pointer, owned by parent - do NOT free) */
+const RosHeader* ros_transform_stamped_get_header(const RosTransformStamped* transform);
+RosHeader* ros_transform_stamped_get_header_mut(RosTransformStamped* transform);
+/** @brief Get child_frame_id string (caller must free returned string) */
+char* ros_transform_stamped_get_child_frame_id(const RosTransformStamped* transform);
+int ros_transform_stamped_set_child_frame_id(RosTransformStamped* transform, const char* child_frame_id);
+/** @brief Get transform (borrowed pointer, owned by parent - do NOT free) */
+const RosTransform* ros_transform_stamped_get_transform(const RosTransformStamped* transform);
+RosTransform* ros_transform_stamped_get_transform_mut(RosTransformStamped* transform);
+int ros_transform_stamped_serialize(const RosTransformStamped* transform, uint8_t** out_bytes, size_t* out_len);
+RosTransformStamped* ros_transform_stamped_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
  * geometry_msgs - Inertia
  * ========================================================================= */
 
@@ -2615,6 +2699,31 @@ int foxglove_image_annotations_add_text(FoxgloveImageAnnotations* ann, const Fox
 void foxglove_image_annotations_clear_texts(FoxgloveImageAnnotations* ann);
 int foxglove_image_annotations_serialize(const FoxgloveImageAnnotations* ann, uint8_t** out_bytes, size_t* out_len);
 FoxgloveImageAnnotations* foxglove_image_annotations_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * rosgraph_msgs - Clock
+ * ========================================================================= */
+
+RosClock* ros_clock_new(void);
+void ros_clock_free(RosClock* clock);
+/** @brief Get clock time (borrowed pointer, owned by parent - do NOT free) */
+const RosTime* ros_clock_get_clock(const RosClock* clock);
+RosTime* ros_clock_get_clock_mut(RosClock* clock);
+int ros_clock_serialize(const RosClock* clock, uint8_t** out_bytes, size_t* out_len);
+RosClock* ros_clock_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * service - ServiceHeader
+ * ========================================================================= */
+
+RosServiceHeader* ros_service_header_new(void);
+void ros_service_header_free(RosServiceHeader* header);
+int64_t ros_service_header_get_guid(const RosServiceHeader* header);
+uint64_t ros_service_header_get_seq(const RosServiceHeader* header);
+void ros_service_header_set_guid(RosServiceHeader* header, int64_t guid);
+void ros_service_header_set_seq(RosServiceHeader* header, uint64_t seq);
+int ros_service_header_serialize(const RosServiceHeader* header, uint8_t** out_bytes, size_t* out_len);
+RosServiceHeader* ros_service_header_deserialize(const uint8_t* bytes, size_t len);
 
 /* ============================================================================
  * Ownership Note

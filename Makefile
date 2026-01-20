@@ -14,7 +14,7 @@ LIB_DIR = target/release
 CC = gcc
 CRITERION_PREFIX = $(shell brew --prefix criterion 2>/dev/null || echo /usr/local)
 CFLAGS = -Wall -Wextra -Werror -std=c11 -I./include -I$(CRITERION_PREFIX)/include
-LDFLAGS = -L$(LIB_DIR) -ledgefirst_schemas -L$(CRITERION_PREFIX)/lib -lcriterion -Wl,-rpath,$(LIB_DIR)
+LDFLAGS = -L$(LIB_DIR) -ledgefirst_schemas -L$(CRITERION_PREFIX)/lib -lcriterion -lm -Wl,-rpath,$(LIB_DIR)
 
 # Build output directory
 BUILD_DIR = build

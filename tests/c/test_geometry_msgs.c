@@ -632,3 +632,417 @@ Test(geometry_msgs, inertia_stamped_serialize_deserialize) {
 Test(geometry_msgs, inertia_stamped_free_null) {
     ros_inertia_stamped_free(NULL);
 }
+
+// ============================================================================
+// Accel Tests
+// ============================================================================
+
+Test(geometry_msgs, accel_create_and_destroy) {
+    RosAccel *accel = ros_accel_new();
+    cr_assert_not_null(accel);
+
+    RosVector3 *linear = ros_accel_get_linear_mut(accel);
+    cr_assert_not_null(linear);
+    ros_vector3_set_x(linear, 1.0);
+    ros_vector3_set_y(linear, 2.0);
+    ros_vector3_set_z(linear, 3.0);
+
+    RosVector3 *angular = ros_accel_get_angular_mut(accel);
+    cr_assert_not_null(angular);
+    ros_vector3_set_z(angular, 0.5);
+
+    const RosVector3 *lin = ros_accel_get_linear(accel);
+    cr_assert_float_eq(ros_vector3_get_x(lin), 1.0, 0.0001);
+    cr_assert_float_eq(ros_vector3_get_y(lin), 2.0, 0.0001);
+    cr_assert_float_eq(ros_vector3_get_z(lin), 3.0, 0.0001);
+
+    const RosVector3 *ang = ros_accel_get_angular(accel);
+    cr_assert_float_eq(ros_vector3_get_z(ang), 0.5, 0.0001);
+
+    ros_accel_free(accel);
+}
+
+Test(geometry_msgs, accel_default_zero) {
+    RosAccel *accel = ros_accel_new();
+    cr_assert_not_null(accel);
+
+    const RosVector3 *lin = ros_accel_get_linear(accel);
+    cr_assert_float_eq(ros_vector3_get_x(lin), 0.0, 0.0001);
+    cr_assert_float_eq(ros_vector3_get_y(lin), 0.0, 0.0001);
+    cr_assert_float_eq(ros_vector3_get_z(lin), 0.0, 0.0001);
+
+    const RosVector3 *ang = ros_accel_get_angular(accel);
+    cr_assert_float_eq(ros_vector3_get_x(ang), 0.0, 0.0001);
+    cr_assert_float_eq(ros_vector3_get_y(ang), 0.0, 0.0001);
+    cr_assert_float_eq(ros_vector3_get_z(ang), 0.0, 0.0001);
+
+    ros_accel_free(accel);
+}
+
+Test(geometry_msgs, accel_serialize_deserialize) {
+    RosAccel *original = ros_accel_new();
+    cr_assert_not_null(original);
+
+    RosVector3 *linear = ros_accel_get_linear_mut(original);
+    ros_vector3_set_x(linear, 9.8);
+    ros_vector3_set_y(linear, 0.0);
+    ros_vector3_set_z(linear, -9.8);
+
+    RosVector3 *angular = ros_accel_get_angular_mut(original);
+    ros_vector3_set_x(angular, 0.1);
+    ros_vector3_set_y(angular, 0.2);
+    ros_vector3_set_z(angular, 0.3);
+
+    uint8_t *buffer = NULL;
+    size_t len = 0;
+
+    int ret = ros_accel_serialize(original, &buffer, &len);
+    cr_assert_eq(ret, 0);
+
+    RosAccel *deserialized = ros_accel_deserialize(buffer, len);
+    cr_assert_not_null(deserialized);
+
+    const RosVector3 *deser_lin = ros_accel_get_linear(deserialized);
+    cr_assert_float_eq(ros_vector3_get_x(deser_lin), 9.8, 0.0001);
+    cr_assert_float_eq(ros_vector3_get_z(deser_lin), -9.8, 0.0001);
+
+    const RosVector3 *deser_ang = ros_accel_get_angular(deserialized);
+    cr_assert_float_eq(ros_vector3_get_x(deser_ang), 0.1, 0.0001);
+    cr_assert_float_eq(ros_vector3_get_y(deser_ang), 0.2, 0.0001);
+    cr_assert_float_eq(ros_vector3_get_z(deser_ang), 0.3, 0.0001);
+
+    ros_accel_free(original);
+    ros_accel_free(deserialized);
+    free(buffer);
+}
+
+Test(geometry_msgs, accel_free_null) {
+    ros_accel_free(NULL);
+}
+
+// ============================================================================
+// AccelStamped Tests
+// ============================================================================
+
+Test(geometry_msgs, accel_stamped_create_and_destroy) {
+    RosAccelStamped *stamped = ros_accel_stamped_new();
+    cr_assert_not_null(stamped);
+
+    RosHeader *header = ros_accel_stamped_get_header_mut(stamped);
+    cr_assert_not_null(header);
+    ros_header_set_frame_id(header, "imu_link");
+
+    RosAccel *accel = ros_accel_stamped_get_accel_mut(stamped);
+    cr_assert_not_null(accel);
+    RosVector3 *linear = ros_accel_get_linear_mut(accel);
+    ros_vector3_set_z(linear, -9.8);
+
+    const RosHeader *header_const = ros_accel_stamped_get_header(stamped);
+    char *frame_id = ros_header_get_frame_id(header_const);
+    cr_assert_str_eq(frame_id, "imu_link");
+    free(frame_id);
+
+    const RosAccel *accel_const = ros_accel_stamped_get_accel(stamped);
+    const RosVector3 *lin = ros_accel_get_linear(accel_const);
+    cr_assert_float_eq(ros_vector3_get_z(lin), -9.8, 0.0001);
+
+    ros_accel_stamped_free(stamped);
+}
+
+Test(geometry_msgs, accel_stamped_serialize_deserialize) {
+    RosAccelStamped *original = ros_accel_stamped_new();
+    cr_assert_not_null(original);
+
+    RosHeader *header = ros_accel_stamped_get_header_mut(original);
+    ros_header_set_frame_id(header, "accel_frame");
+    RosTime *stamp = ros_header_get_stamp_mut(header);
+    ros_time_set_sec(stamp, 12345);
+    ros_time_set_nanosec(stamp, 6789);
+
+    RosAccel *accel = ros_accel_stamped_get_accel_mut(original);
+    RosVector3 *linear = ros_accel_get_linear_mut(accel);
+    ros_vector3_set_x(linear, 1.1);
+    ros_vector3_set_y(linear, 2.2);
+    ros_vector3_set_z(linear, 3.3);
+
+    uint8_t *buffer = NULL;
+    size_t len = 0;
+
+    int ret = ros_accel_stamped_serialize(original, &buffer, &len);
+    cr_assert_eq(ret, 0);
+
+    RosAccelStamped *deserialized = ros_accel_stamped_deserialize(buffer, len);
+    cr_assert_not_null(deserialized);
+
+    const RosHeader *deser_header = ros_accel_stamped_get_header(deserialized);
+    char *frame_id = ros_header_get_frame_id(deser_header);
+    cr_assert_str_eq(frame_id, "accel_frame");
+    free(frame_id);
+
+    const RosTime *deser_stamp = ros_header_get_stamp(deser_header);
+    cr_assert_eq(ros_time_get_sec(deser_stamp), 12345);
+    cr_assert_eq(ros_time_get_nanosec(deser_stamp), 6789);
+
+    const RosAccel *deser_accel = ros_accel_stamped_get_accel(deserialized);
+    const RosVector3 *deser_lin = ros_accel_get_linear(deser_accel);
+    cr_assert_float_eq(ros_vector3_get_x(deser_lin), 1.1, 0.0001);
+    cr_assert_float_eq(ros_vector3_get_y(deser_lin), 2.2, 0.0001);
+    cr_assert_float_eq(ros_vector3_get_z(deser_lin), 3.3, 0.0001);
+
+    ros_accel_stamped_free(original);
+    ros_accel_stamped_free(deserialized);
+    free(buffer);
+}
+
+Test(geometry_msgs, accel_stamped_free_null) {
+    ros_accel_stamped_free(NULL);
+}
+
+// ============================================================================
+// PointStamped Tests
+// ============================================================================
+
+Test(geometry_msgs, point_stamped_create_and_destroy) {
+    RosPointStamped *stamped = ros_point_stamped_new();
+    cr_assert_not_null(stamped);
+
+    RosHeader *header = ros_point_stamped_get_header_mut(stamped);
+    cr_assert_not_null(header);
+    ros_header_set_frame_id(header, "map");
+
+    RosPoint *point = ros_point_stamped_get_point_mut(stamped);
+    cr_assert_not_null(point);
+    ros_point_set_x(point, 10.0);
+    ros_point_set_y(point, 20.0);
+    ros_point_set_z(point, 5.0);
+
+    const RosHeader *header_const = ros_point_stamped_get_header(stamped);
+    char *frame_id = ros_header_get_frame_id(header_const);
+    cr_assert_str_eq(frame_id, "map");
+    free(frame_id);
+
+    const RosPoint *point_const = ros_point_stamped_get_point(stamped);
+    cr_assert_float_eq(ros_point_get_x(point_const), 10.0, 0.0001);
+    cr_assert_float_eq(ros_point_get_y(point_const), 20.0, 0.0001);
+    cr_assert_float_eq(ros_point_get_z(point_const), 5.0, 0.0001);
+
+    ros_point_stamped_free(stamped);
+}
+
+Test(geometry_msgs, point_stamped_serialize_deserialize) {
+    RosPointStamped *original = ros_point_stamped_new();
+    cr_assert_not_null(original);
+
+    RosHeader *header = ros_point_stamped_get_header_mut(original);
+    ros_header_set_frame_id(header, "world");
+    RosTime *stamp = ros_header_get_stamp_mut(header);
+    ros_time_set_sec(stamp, 100);
+    ros_time_set_nanosec(stamp, 200);
+
+    RosPoint *point = ros_point_stamped_get_point_mut(original);
+    ros_point_set_x(point, -5.5);
+    ros_point_set_y(point, 15.25);
+    ros_point_set_z(point, 0.0);
+
+    uint8_t *buffer = NULL;
+    size_t len = 0;
+
+    int ret = ros_point_stamped_serialize(original, &buffer, &len);
+    cr_assert_eq(ret, 0);
+
+    RosPointStamped *deserialized = ros_point_stamped_deserialize(buffer, len);
+    cr_assert_not_null(deserialized);
+
+    const RosHeader *deser_header = ros_point_stamped_get_header(deserialized);
+    char *frame_id = ros_header_get_frame_id(deser_header);
+    cr_assert_str_eq(frame_id, "world");
+    free(frame_id);
+
+    const RosPoint *deser_point = ros_point_stamped_get_point(deserialized);
+    cr_assert_float_eq(ros_point_get_x(deser_point), -5.5, 0.0001);
+    cr_assert_float_eq(ros_point_get_y(deser_point), 15.25, 0.0001);
+    cr_assert_float_eq(ros_point_get_z(deser_point), 0.0, 0.0001);
+
+    ros_point_stamped_free(original);
+    ros_point_stamped_free(deserialized);
+    free(buffer);
+}
+
+Test(geometry_msgs, point_stamped_free_null) {
+    ros_point_stamped_free(NULL);
+}
+
+// ============================================================================
+// TransformStamped Tests
+// ============================================================================
+
+Test(geometry_msgs, transform_stamped_create_and_destroy) {
+    RosTransformStamped *stamped = ros_transform_stamped_new();
+    cr_assert_not_null(stamped);
+
+    RosHeader *header = ros_transform_stamped_get_header_mut(stamped);
+    cr_assert_not_null(header);
+    ros_header_set_frame_id(header, "world");
+
+    int ret = ros_transform_stamped_set_child_frame_id(stamped, "robot_base");
+    cr_assert_eq(ret, 0);
+
+    RosTransform *transform = ros_transform_stamped_get_transform_mut(stamped);
+    cr_assert_not_null(transform);
+    RosVector3 *translation = ros_transform_get_translation_mut(transform);
+    ros_vector3_set_x(translation, 1.0);
+    ros_vector3_set_y(translation, 2.0);
+    ros_vector3_set_z(translation, 0.5);
+
+    const RosHeader *header_const = ros_transform_stamped_get_header(stamped);
+    char *frame_id = ros_header_get_frame_id(header_const);
+    cr_assert_str_eq(frame_id, "world");
+    free(frame_id);
+
+    char *child_frame_id = ros_transform_stamped_get_child_frame_id(stamped);
+    cr_assert_str_eq(child_frame_id, "robot_base");
+    free(child_frame_id);
+
+    const RosTransform *transform_const = ros_transform_stamped_get_transform(stamped);
+    const RosVector3 *trans = ros_transform_get_translation(transform_const);
+    cr_assert_float_eq(ros_vector3_get_x(trans), 1.0, 0.0001);
+
+    ros_transform_stamped_free(stamped);
+}
+
+Test(geometry_msgs, transform_stamped_serialize_deserialize) {
+    RosTransformStamped *original = ros_transform_stamped_new();
+    cr_assert_not_null(original);
+
+    RosHeader *header = ros_transform_stamped_get_header_mut(original);
+    ros_header_set_frame_id(header, "odom");
+    RosTime *stamp = ros_header_get_stamp_mut(header);
+    ros_time_set_sec(stamp, 1000);
+
+    ros_transform_stamped_set_child_frame_id(original, "base_footprint");
+
+    RosTransform *transform = ros_transform_stamped_get_transform_mut(original);
+    RosVector3 *translation = ros_transform_get_translation_mut(transform);
+    ros_vector3_set_x(translation, 5.0);
+    ros_vector3_set_y(translation, 3.0);
+    ros_vector3_set_z(translation, 0.0);
+
+    RosQuaternion *rotation = ros_transform_get_rotation_mut(transform);
+    ros_quaternion_set_w(rotation, 1.0);
+
+    uint8_t *buffer = NULL;
+    size_t len = 0;
+
+    int ret = ros_transform_stamped_serialize(original, &buffer, &len);
+    cr_assert_eq(ret, 0);
+
+    RosTransformStamped *deserialized = ros_transform_stamped_deserialize(buffer, len);
+    cr_assert_not_null(deserialized);
+
+    const RosHeader *deser_header = ros_transform_stamped_get_header(deserialized);
+    char *frame_id = ros_header_get_frame_id(deser_header);
+    cr_assert_str_eq(frame_id, "odom");
+    free(frame_id);
+
+    char *child_frame_id = ros_transform_stamped_get_child_frame_id(deserialized);
+    cr_assert_str_eq(child_frame_id, "base_footprint");
+    free(child_frame_id);
+
+    const RosTransform *deser_transform = ros_transform_stamped_get_transform(deserialized);
+    const RosVector3 *deser_trans = ros_transform_get_translation(deser_transform);
+    cr_assert_float_eq(ros_vector3_get_x(deser_trans), 5.0, 0.0001);
+    cr_assert_float_eq(ros_vector3_get_y(deser_trans), 3.0, 0.0001);
+
+    ros_transform_stamped_free(original);
+    ros_transform_stamped_free(deserialized);
+    free(buffer);
+}
+
+Test(geometry_msgs, transform_stamped_free_null) {
+    ros_transform_stamped_free(NULL);
+}
+
+// ============================================================================
+// TwistStamped Tests
+// ============================================================================
+
+Test(geometry_msgs, twist_stamped_create_and_destroy) {
+    RosTwistStamped *stamped = ros_twist_stamped_new();
+    cr_assert_not_null(stamped);
+
+    RosHeader *header = ros_twist_stamped_get_header_mut(stamped);
+    cr_assert_not_null(header);
+    ros_header_set_frame_id(header, "base_link");
+
+    RosTwist *twist = ros_twist_stamped_get_twist_mut(stamped);
+    cr_assert_not_null(twist);
+    RosVector3 *linear = ros_twist_get_linear_mut(twist);
+    ros_vector3_set_x(linear, 1.5);
+
+    RosVector3 *angular = ros_twist_get_angular_mut(twist);
+    ros_vector3_set_z(angular, 0.3);
+
+    const RosHeader *header_const = ros_twist_stamped_get_header(stamped);
+    char *frame_id = ros_header_get_frame_id(header_const);
+    cr_assert_str_eq(frame_id, "base_link");
+    free(frame_id);
+
+    const RosTwist *twist_const = ros_twist_stamped_get_twist(stamped);
+    const RosVector3 *lin = ros_twist_get_linear(twist_const);
+    cr_assert_float_eq(ros_vector3_get_x(lin), 1.5, 0.0001);
+
+    ros_twist_stamped_free(stamped);
+}
+
+Test(geometry_msgs, twist_stamped_serialize_deserialize) {
+    RosTwistStamped *original = ros_twist_stamped_new();
+    cr_assert_not_null(original);
+
+    RosHeader *header = ros_twist_stamped_get_header_mut(original);
+    ros_header_set_frame_id(header, "robot");
+    RosTime *stamp = ros_header_get_stamp_mut(header);
+    ros_time_set_sec(stamp, 500);
+    ros_time_set_nanosec(stamp, 123456);
+
+    RosTwist *twist = ros_twist_stamped_get_twist_mut(original);
+    RosVector3 *linear = ros_twist_get_linear_mut(twist);
+    ros_vector3_set_x(linear, 2.0);
+    ros_vector3_set_y(linear, 0.0);
+    ros_vector3_set_z(linear, 0.0);
+
+    RosVector3 *angular = ros_twist_get_angular_mut(twist);
+    ros_vector3_set_z(angular, -0.5);
+
+    uint8_t *buffer = NULL;
+    size_t len = 0;
+
+    int ret = ros_twist_stamped_serialize(original, &buffer, &len);
+    cr_assert_eq(ret, 0);
+
+    RosTwistStamped *deserialized = ros_twist_stamped_deserialize(buffer, len);
+    cr_assert_not_null(deserialized);
+
+    const RosHeader *deser_header = ros_twist_stamped_get_header(deserialized);
+    char *frame_id = ros_header_get_frame_id(deser_header);
+    cr_assert_str_eq(frame_id, "robot");
+    free(frame_id);
+
+    const RosTime *deser_stamp = ros_header_get_stamp(deser_header);
+    cr_assert_eq(ros_time_get_sec(deser_stamp), 500);
+    cr_assert_eq(ros_time_get_nanosec(deser_stamp), 123456);
+
+    const RosTwist *deser_twist = ros_twist_stamped_get_twist(deserialized);
+    const RosVector3 *deser_lin = ros_twist_get_linear(deser_twist);
+    cr_assert_float_eq(ros_vector3_get_x(deser_lin), 2.0, 0.0001);
+
+    const RosVector3 *deser_ang = ros_twist_get_angular(deser_twist);
+    cr_assert_float_eq(ros_vector3_get_z(deser_ang), -0.5, 0.0001);
+
+    ros_twist_stamped_free(original);
+    ros_twist_stamped_free(deserialized);
+    free(buffer);
+}
+
+Test(geometry_msgs, twist_stamped_free_null) {
+    ros_twist_stamped_free(NULL);
+}

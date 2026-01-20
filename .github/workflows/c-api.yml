@@ -1,0 +1,71 @@
+name: C API Tests
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ==========================================================================
+  # C API Tests
+  # ==========================================================================
+  c-tests:
+    name: C API Tests
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup component add llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@30eab0fabba9ea3f522099957e668b21876aa39e # v2.66.6
+        with:
+          tool: cargo-llvm-cov
+
+      - name: Install Criterion test framework
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcriterion-dev
+
+      - name: Build coverage-instrumented library
+        run: |
+          # Set up coverage environment
+          eval "$(cargo llvm-cov show-env --export-prefix)"
+          # Build release library with coverage instrumentation
+          cargo build --release
+
+      - name: Build and run C tests
+        run: |
+          # Export library path for runtime linking
+          export LD_LIBRARY_PATH=$PWD/target/release:$LD_LIBRARY_PATH
+          # Build and run C tests
+          make test-c
+
+      - name: Count test results
+        id: tests
+        run: |
+          # Count total tests from verbose output
+          TEST_COUNT=$(make test-c 2>&1 | grep -E "^\[====\] Synthesis:" | \
+            awk -F'|' '{sum += $2} END {print sum}' | tr -d ' ')
+          PASS_COUNT=$(make test-c 2>&1 | grep -E "^\[====\] Synthesis:" | \
+            awk -F'|' '{sum += $3} END {print sum}' | tr -d ' ')
+          echo "test_count=$TEST_COUNT" >> $GITHUB_OUTPUT
+          echo "pass_count=$PASS_COUNT" >> $GITHUB_OUTPUT
+
+      - name: Write job summary
+        run: |
+          echo "## 🧪 C API Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Tests Passed** | ${{ steps.tests.outputs.pass_count }} / ${{ steps.tests.outputs.test_count }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Runner** | ubuntu-22.04 |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All C API tests passed" >> $GITHUB_STEP_SUMMARY

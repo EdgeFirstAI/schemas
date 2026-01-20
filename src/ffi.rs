@@ -118,18 +118,18 @@ pub extern "C" fn ros_time_free(time: *mut builtin_interfaces::Time) {
 
 #[no_mangle]
 pub extern "C" fn ros_time_get_sec(time: *const builtin_interfaces::Time) -> i32 {
-    unsafe {
-        assert!(!time.is_null());
-        (*time).sec
+    if time.is_null() {
+        return 0;
     }
+    unsafe { (*time).sec }
 }
 
 #[no_mangle]
 pub extern "C" fn ros_time_get_nanosec(time: *const builtin_interfaces::Time) -> u32 {
-    unsafe {
-        assert!(!time.is_null());
-        (*time).nanosec
+    if time.is_null() {
+        return 0;
     }
+    unsafe { (*time).nanosec }
 }
 
 #[no_mangle]
@@ -1391,7 +1391,9 @@ pub extern "C" fn foxglove_compressed_video_new() -> *mut foxglove_msgs::Foxglov
 }
 
 #[no_mangle]
-pub extern "C" fn foxglove_compressed_video_free(video: *mut foxglove_msgs::FoxgloveCompressedVideo) {
+pub extern "C" fn foxglove_compressed_video_free(
+    video: *mut foxglove_msgs::FoxgloveCompressedVideo,
+) {
     if !video.is_null() {
         unsafe {
             drop(Box::from_raw(video));
@@ -1516,7 +1518,9 @@ pub extern "C" fn foxglove_compressed_video_serialize(
 
     // Write size if requested (always, even on ENOBUFS)
     if !size.is_null() {
-        unsafe { *size = bytes.len(); }
+        unsafe {
+            *size = bytes.len();
+        }
     }
 
     // If buffer is NULL, caller is querying size only
@@ -1805,7 +1809,9 @@ pub extern "C" fn edgefirst_radarcube_serialize(
 
     // Write size if requested (always, even on ENOBUFS)
     if !size.is_null() {
-        unsafe { *size = bytes.len(); }
+        unsafe {
+            *size = bytes.len();
+        }
     }
 
     // If buffer is NULL, caller is querying size only
@@ -2479,9 +2485,18 @@ pub extern "C" fn edgefirst_mask_get_mask(
     mask: *const edgefirst_msgs::Mask,
     out_len: *mut usize,
 ) -> *const u8 {
+    if mask.is_null() {
+        if !out_len.is_null() {
+            unsafe {
+                *out_len = 0;
+            }
+        }
+        return ptr::null();
+    }
+    if out_len.is_null() {
+        return ptr::null();
+    }
     unsafe {
-        assert!(!mask.is_null());
-        assert!(!out_len.is_null());
         *out_len = (*mask).mask.len();
         (*mask).mask.as_ptr()
     }
@@ -2997,10 +3012,10 @@ pub extern "C" fn ros_nav_sat_status_free(status: *mut sensor_msgs::NavSatStatus
 }
 
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_status_get_status(status: *const sensor_msgs::NavSatStatus) -> i8 {
+pub extern "C" fn ros_nav_sat_status_get_status(status: *const sensor_msgs::NavSatStatus) -> i16 {
     unsafe {
         assert!(!status.is_null());
-        (*status).status
+        (*status).status as i16
     }
 }
 
@@ -3013,10 +3028,13 @@ pub extern "C" fn ros_nav_sat_status_get_service(status: *const sensor_msgs::Nav
 }
 
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_status_set_status(status: *mut sensor_msgs::NavSatStatus, value: i8) {
+pub extern "C" fn ros_nav_sat_status_set_status(
+    status: *mut sensor_msgs::NavSatStatus,
+    value: i16,
+) {
     unsafe {
         assert!(!status.is_null());
-        (*status).status = value;
+        (*status).status = value as i8;
     }
 }
 
@@ -3155,13 +3173,16 @@ pub extern "C" fn ros_nav_sat_fix_set_altitude(fix: *mut sensor_msgs::NavSatFix,
 pub extern "C" fn ros_nav_sat_fix_set_position_covariance(
     fix: *mut sensor_msgs::NavSatFix,
     covariance: *const f64,
-) {
+) -> i32 {
+    if fix.is_null() || covariance.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
     unsafe {
-        assert!(!fix.is_null());
-        assert!(!covariance.is_null());
         let slice = slice::from_raw_parts(covariance, 9);
         (*fix).position_covariance.copy_from_slice(slice);
     }
+    0
 }
 
 #[no_mangle]
@@ -4643,9 +4664,7 @@ pub extern "C" fn ros_imu_get_orientation_mut(
 /// Returns a pointer to the orientation covariance array (9 elements).
 /// The returned pointer is owned by the parent IMU and must NOT be freed.
 #[no_mangle]
-pub extern "C" fn ros_imu_get_orientation_covariance(
-    imu: *const sensor_msgs::IMU,
-) -> *const f64 {
+pub extern "C" fn ros_imu_get_orientation_covariance(imu: *const sensor_msgs::IMU) -> *const f64 {
     unsafe {
         assert!(!imu.is_null());
         (*imu).orientation_covariance.as_ptr()
@@ -5063,10 +5082,7 @@ pub extern "C" fn ros_camera_info_set_d(
 /// Sets the intrinsic camera matrix K (must point to 9 f64 values).
 /// Returns 0 on success, -1 on error.
 #[no_mangle]
-pub extern "C" fn ros_camera_info_set_k(
-    info: *mut sensor_msgs::CameraInfo,
-    k: *const f64,
-) -> i32 {
+pub extern "C" fn ros_camera_info_set_k(info: *mut sensor_msgs::CameraInfo, k: *const f64) -> i32 {
     check_null!(info);
     check_null!(k);
 
@@ -5080,10 +5096,7 @@ pub extern "C" fn ros_camera_info_set_k(
 /// Sets the rectification matrix R (must point to 9 f64 values).
 /// Returns 0 on success, -1 on error.
 #[no_mangle]
-pub extern "C" fn ros_camera_info_set_r(
-    info: *mut sensor_msgs::CameraInfo,
-    r: *const f64,
-) -> i32 {
+pub extern "C" fn ros_camera_info_set_r(info: *mut sensor_msgs::CameraInfo, r: *const f64) -> i32 {
     check_null!(info);
     check_null!(r);
 
@@ -5097,10 +5110,7 @@ pub extern "C" fn ros_camera_info_set_r(
 /// Sets the projection matrix P (must point to 12 f64 values).
 /// Returns 0 on success, -1 on error.
 #[no_mangle]
-pub extern "C" fn ros_camera_info_set_p(
-    info: *mut sensor_msgs::CameraInfo,
-    p: *const f64,
-) -> i32 {
+pub extern "C" fn ros_camera_info_set_p(info: *mut sensor_msgs::CameraInfo, p: *const f64) -> i32 {
     check_null!(info);
     check_null!(p);
 
@@ -5112,7 +5122,10 @@ pub extern "C" fn ros_camera_info_set_p(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_set_binning_x(info: *mut sensor_msgs::CameraInfo, binning_x: u32) {
+pub extern "C" fn ros_camera_info_set_binning_x(
+    info: *mut sensor_msgs::CameraInfo,
+    binning_x: u32,
+) {
     unsafe {
         assert!(!info.is_null());
         (*info).binning_x = binning_x;
@@ -5120,7 +5133,10 @@ pub extern "C" fn ros_camera_info_set_binning_x(info: *mut sensor_msgs::CameraIn
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_set_binning_y(info: *mut sensor_msgs::CameraInfo, binning_y: u32) {
+pub extern "C" fn ros_camera_info_set_binning_y(
+    info: *mut sensor_msgs::CameraInfo,
+    binning_y: u32,
+) {
     unsafe {
         assert!(!info.is_null());
         (*info).binning_y = binning_y;
@@ -7403,6 +7419,889 @@ pub extern "C" fn foxglove_image_annotations_deserialize(
         let slice = slice::from_raw_parts(bytes, len);
         match serde_cdr::deserialize::<foxglove_msgs::FoxgloveImageAnnotations>(slice) {
             Ok(ann) => Box::into_raw(Box::new(ann)),
+            Err(_) => {
+                set_errno(EBADMSG);
+                ptr::null_mut()
+            }
+        }
+    }
+}
+
+// =============================================================================
+// geometry_msgs::Accel
+// =============================================================================
+
+#[no_mangle]
+pub extern "C" fn ros_accel_new() -> *mut geometry_msgs::Accel {
+    Box::into_raw(Box::new(geometry_msgs::Accel {
+        linear: geometry_msgs::Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        angular: geometry_msgs::Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        },
+    }))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_accel_free(accel: *mut geometry_msgs::Accel) {
+    if !accel.is_null() {
+        unsafe {
+            drop(Box::from_raw(accel));
+        }
+    }
+}
+
+/// Returns a pointer to the linear acceleration field. The returned pointer is owned by
+/// the parent Accel and must NOT be freed by the caller.
+#[no_mangle]
+pub extern "C" fn ros_accel_get_linear(
+    accel: *const geometry_msgs::Accel,
+) -> *const geometry_msgs::Vector3 {
+    unsafe {
+        assert!(!accel.is_null());
+        &(*accel).linear
+    }
+}
+
+/// Returns a mutable pointer to the linear acceleration field for modification.
+/// The returned pointer is owned by the parent Accel and must NOT be freed.
+#[no_mangle]
+pub extern "C" fn ros_accel_get_linear_mut(
+    accel: *mut geometry_msgs::Accel,
+) -> *mut geometry_msgs::Vector3 {
+    unsafe {
+        assert!(!accel.is_null());
+        &mut (*accel).linear
+    }
+}
+
+/// Returns a pointer to the angular acceleration field. The returned pointer is owned by
+/// the parent Accel and must NOT be freed by the caller.
+#[no_mangle]
+pub extern "C" fn ros_accel_get_angular(
+    accel: *const geometry_msgs::Accel,
+) -> *const geometry_msgs::Vector3 {
+    unsafe {
+        assert!(!accel.is_null());
+        &(*accel).angular
+    }
+}
+
+/// Returns a mutable pointer to the angular acceleration field for modification.
+/// The returned pointer is owned by the parent Accel and must NOT be freed.
+#[no_mangle]
+pub extern "C" fn ros_accel_get_angular_mut(
+    accel: *mut geometry_msgs::Accel,
+) -> *mut geometry_msgs::Vector3 {
+    unsafe {
+        assert!(!accel.is_null());
+        &mut (*accel).angular
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_accel_serialize(
+    accel: *const geometry_msgs::Accel,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    check_null!(accel);
+    check_null!(out_bytes);
+    check_null!(out_len);
+
+    unsafe {
+        match serde_cdr::serialize(&*accel) {
+            Ok(bytes) => {
+                let len = bytes.len();
+                let ptr = Box::into_raw(bytes.into_boxed_slice()) as *mut u8;
+                *out_bytes = ptr;
+                *out_len = len;
+                0
+            }
+            Err(_) => {
+                set_errno(ENOMEM);
+                -1
+            }
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_accel_deserialize(bytes: *const u8, len: usize) -> *mut geometry_msgs::Accel {
+    check_null_ret_null!(bytes);
+
+    if len == 0 {
+        set_errno(EINVAL);
+        return ptr::null_mut();
+    }
+
+    unsafe {
+        let slice = slice::from_raw_parts(bytes, len);
+        match serde_cdr::deserialize::<geometry_msgs::Accel>(slice) {
+            Ok(accel) => Box::into_raw(Box::new(accel)),
+            Err(_) => {
+                set_errno(EBADMSG);
+                ptr::null_mut()
+            }
+        }
+    }
+}
+
+// =============================================================================
+// geometry_msgs::AccelStamped
+// =============================================================================
+
+#[no_mangle]
+pub extern "C" fn ros_accel_stamped_new() -> *mut geometry_msgs::AccelStamped {
+    Box::into_raw(Box::new(geometry_msgs::AccelStamped {
+        header: std_msgs::Header {
+            stamp: builtin_interfaces::Time { sec: 0, nanosec: 0 },
+            frame_id: String::new(),
+        },
+        accel: geometry_msgs::Accel {
+            linear: geometry_msgs::Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            angular: geometry_msgs::Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+        },
+    }))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_accel_stamped_free(accel: *mut geometry_msgs::AccelStamped) {
+    if !accel.is_null() {
+        unsafe {
+            drop(Box::from_raw(accel));
+        }
+    }
+}
+
+/// Returns a pointer to the header field. The returned pointer is owned by
+/// the parent AccelStamped and must NOT be freed by the caller.
+#[no_mangle]
+pub extern "C" fn ros_accel_stamped_get_header(
+    accel: *const geometry_msgs::AccelStamped,
+) -> *const std_msgs::Header {
+    unsafe {
+        assert!(!accel.is_null());
+        &(*accel).header
+    }
+}
+
+/// Returns a mutable pointer to the header field for modification.
+/// The returned pointer is owned by the parent AccelStamped and must NOT be freed.
+#[no_mangle]
+pub extern "C" fn ros_accel_stamped_get_header_mut(
+    accel: *mut geometry_msgs::AccelStamped,
+) -> *mut std_msgs::Header {
+    unsafe {
+        assert!(!accel.is_null());
+        &mut (*accel).header
+    }
+}
+
+/// Returns a pointer to the accel field. The returned pointer is owned by
+/// the parent AccelStamped and must NOT be freed by the caller.
+#[no_mangle]
+pub extern "C" fn ros_accel_stamped_get_accel(
+    stamped: *const geometry_msgs::AccelStamped,
+) -> *const geometry_msgs::Accel {
+    unsafe {
+        assert!(!stamped.is_null());
+        &(*stamped).accel
+    }
+}
+
+/// Returns a mutable pointer to the accel field for modification.
+/// The returned pointer is owned by the parent AccelStamped and must NOT be freed.
+#[no_mangle]
+pub extern "C" fn ros_accel_stamped_get_accel_mut(
+    stamped: *mut geometry_msgs::AccelStamped,
+) -> *mut geometry_msgs::Accel {
+    unsafe {
+        assert!(!stamped.is_null());
+        &mut (*stamped).accel
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_accel_stamped_serialize(
+    accel: *const geometry_msgs::AccelStamped,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    check_null!(accel);
+    check_null!(out_bytes);
+    check_null!(out_len);
+
+    unsafe {
+        match serde_cdr::serialize(&*accel) {
+            Ok(bytes) => {
+                let len = bytes.len();
+                let ptr = Box::into_raw(bytes.into_boxed_slice()) as *mut u8;
+                *out_bytes = ptr;
+                *out_len = len;
+                0
+            }
+            Err(_) => {
+                set_errno(ENOMEM);
+                -1
+            }
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_accel_stamped_deserialize(
+    bytes: *const u8,
+    len: usize,
+) -> *mut geometry_msgs::AccelStamped {
+    check_null_ret_null!(bytes);
+
+    if len == 0 {
+        set_errno(EINVAL);
+        return ptr::null_mut();
+    }
+
+    unsafe {
+        let slice = slice::from_raw_parts(bytes, len);
+        match serde_cdr::deserialize::<geometry_msgs::AccelStamped>(slice) {
+            Ok(accel) => Box::into_raw(Box::new(accel)),
+            Err(_) => {
+                set_errno(EBADMSG);
+                ptr::null_mut()
+            }
+        }
+    }
+}
+
+// =============================================================================
+// geometry_msgs::PointStamped
+// =============================================================================
+
+#[no_mangle]
+pub extern "C" fn ros_point_stamped_new() -> *mut geometry_msgs::PointStamped {
+    Box::into_raw(Box::new(geometry_msgs::PointStamped {
+        header: std_msgs::Header {
+            stamp: builtin_interfaces::Time { sec: 0, nanosec: 0 },
+            frame_id: String::new(),
+        },
+        point: geometry_msgs::Point {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        },
+    }))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_stamped_free(point: *mut geometry_msgs::PointStamped) {
+    if !point.is_null() {
+        unsafe {
+            drop(Box::from_raw(point));
+        }
+    }
+}
+
+/// Returns a pointer to the header field. The returned pointer is owned by
+/// the parent PointStamped and must NOT be freed by the caller.
+#[no_mangle]
+pub extern "C" fn ros_point_stamped_get_header(
+    point: *const geometry_msgs::PointStamped,
+) -> *const std_msgs::Header {
+    unsafe {
+        assert!(!point.is_null());
+        &(*point).header
+    }
+}
+
+/// Returns a mutable pointer to the header field for modification.
+/// The returned pointer is owned by the parent PointStamped and must NOT be freed.
+#[no_mangle]
+pub extern "C" fn ros_point_stamped_get_header_mut(
+    point: *mut geometry_msgs::PointStamped,
+) -> *mut std_msgs::Header {
+    unsafe {
+        assert!(!point.is_null());
+        &mut (*point).header
+    }
+}
+
+/// Returns a pointer to the point field. The returned pointer is owned by
+/// the parent PointStamped and must NOT be freed by the caller.
+#[no_mangle]
+pub extern "C" fn ros_point_stamped_get_point(
+    stamped: *const geometry_msgs::PointStamped,
+) -> *const geometry_msgs::Point {
+    unsafe {
+        assert!(!stamped.is_null());
+        &(*stamped).point
+    }
+}
+
+/// Returns a mutable pointer to the point field for modification.
+/// The returned pointer is owned by the parent PointStamped and must NOT be freed.
+#[no_mangle]
+pub extern "C" fn ros_point_stamped_get_point_mut(
+    stamped: *mut geometry_msgs::PointStamped,
+) -> *mut geometry_msgs::Point {
+    unsafe {
+        assert!(!stamped.is_null());
+        &mut (*stamped).point
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_stamped_serialize(
+    point: *const geometry_msgs::PointStamped,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    check_null!(point);
+    check_null!(out_bytes);
+    check_null!(out_len);
+
+    unsafe {
+        match serde_cdr::serialize(&*point) {
+            Ok(bytes) => {
+                let len = bytes.len();
+                let ptr = Box::into_raw(bytes.into_boxed_slice()) as *mut u8;
+                *out_bytes = ptr;
+                *out_len = len;
+                0
+            }
+            Err(_) => {
+                set_errno(ENOMEM);
+                -1
+            }
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_stamped_deserialize(
+    bytes: *const u8,
+    len: usize,
+) -> *mut geometry_msgs::PointStamped {
+    check_null_ret_null!(bytes);
+
+    if len == 0 {
+        set_errno(EINVAL);
+        return ptr::null_mut();
+    }
+
+    unsafe {
+        let slice = slice::from_raw_parts(bytes, len);
+        match serde_cdr::deserialize::<geometry_msgs::PointStamped>(slice) {
+            Ok(point) => Box::into_raw(Box::new(point)),
+            Err(_) => {
+                set_errno(EBADMSG);
+                ptr::null_mut()
+            }
+        }
+    }
+}
+
+// =============================================================================
+// geometry_msgs::TransformStamped
+// =============================================================================
+
+#[no_mangle]
+pub extern "C" fn ros_transform_stamped_new() -> *mut geometry_msgs::TransformStamped {
+    Box::into_raw(Box::new(geometry_msgs::TransformStamped {
+        header: std_msgs::Header {
+            stamp: builtin_interfaces::Time { sec: 0, nanosec: 0 },
+            frame_id: String::new(),
+        },
+        child_frame_id: String::new(),
+        transform: geometry_msgs::Transform {
+            translation: geometry_msgs::Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            rotation: geometry_msgs::Quaternion {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                w: 1.0,
+            },
+        },
+    }))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_transform_stamped_free(transform: *mut geometry_msgs::TransformStamped) {
+    if !transform.is_null() {
+        unsafe {
+            drop(Box::from_raw(transform));
+        }
+    }
+}
+
+/// Returns a pointer to the header field. The returned pointer is owned by
+/// the parent TransformStamped and must NOT be freed by the caller.
+#[no_mangle]
+pub extern "C" fn ros_transform_stamped_get_header(
+    transform: *const geometry_msgs::TransformStamped,
+) -> *const std_msgs::Header {
+    unsafe {
+        assert!(!transform.is_null());
+        &(*transform).header
+    }
+}
+
+/// Returns a mutable pointer to the header field for modification.
+/// The returned pointer is owned by the parent TransformStamped and must NOT be freed.
+#[no_mangle]
+pub extern "C" fn ros_transform_stamped_get_header_mut(
+    transform: *mut geometry_msgs::TransformStamped,
+) -> *mut std_msgs::Header {
+    unsafe {
+        assert!(!transform.is_null());
+        &mut (*transform).header
+    }
+}
+
+/// Returns the child_frame_id field. Caller must free the returned string.
+#[no_mangle]
+pub extern "C" fn ros_transform_stamped_get_child_frame_id(
+    transform: *const geometry_msgs::TransformStamped,
+) -> *mut c_char {
+    unsafe {
+        assert!(!transform.is_null());
+        string_to_c_char(&(*transform).child_frame_id)
+    }
+}
+
+/// Sets the child_frame_id field. Returns 0 on success, -1 on error.
+#[no_mangle]
+pub extern "C" fn ros_transform_stamped_set_child_frame_id(
+    transform: *mut geometry_msgs::TransformStamped,
+    child_frame_id: *const c_char,
+) -> i32 {
+    check_null!(transform);
+    check_null!(child_frame_id);
+
+    unsafe {
+        match c_char_to_string(child_frame_id) {
+            Some(s) => {
+                (*transform).child_frame_id = s;
+                0
+            }
+            None => {
+                set_errno(EINVAL);
+                -1
+            }
+        }
+    }
+}
+
+/// Returns a pointer to the transform field. The returned pointer is owned by
+/// the parent TransformStamped and must NOT be freed by the caller.
+#[no_mangle]
+pub extern "C" fn ros_transform_stamped_get_transform(
+    stamped: *const geometry_msgs::TransformStamped,
+) -> *const geometry_msgs::Transform {
+    unsafe {
+        assert!(!stamped.is_null());
+        &(*stamped).transform
+    }
+}
+
+/// Returns a mutable pointer to the transform field for modification.
+/// The returned pointer is owned by the parent TransformStamped and must NOT be freed.
+#[no_mangle]
+pub extern "C" fn ros_transform_stamped_get_transform_mut(
+    stamped: *mut geometry_msgs::TransformStamped,
+) -> *mut geometry_msgs::Transform {
+    unsafe {
+        assert!(!stamped.is_null());
+        &mut (*stamped).transform
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_transform_stamped_serialize(
+    transform: *const geometry_msgs::TransformStamped,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    check_null!(transform);
+    check_null!(out_bytes);
+    check_null!(out_len);
+
+    unsafe {
+        match serde_cdr::serialize(&*transform) {
+            Ok(bytes) => {
+                let len = bytes.len();
+                let ptr = Box::into_raw(bytes.into_boxed_slice()) as *mut u8;
+                *out_bytes = ptr;
+                *out_len = len;
+                0
+            }
+            Err(_) => {
+                set_errno(ENOMEM);
+                -1
+            }
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_transform_stamped_deserialize(
+    bytes: *const u8,
+    len: usize,
+) -> *mut geometry_msgs::TransformStamped {
+    check_null_ret_null!(bytes);
+
+    if len == 0 {
+        set_errno(EINVAL);
+        return ptr::null_mut();
+    }
+
+    unsafe {
+        let slice = slice::from_raw_parts(bytes, len);
+        match serde_cdr::deserialize::<geometry_msgs::TransformStamped>(slice) {
+            Ok(transform) => Box::into_raw(Box::new(transform)),
+            Err(_) => {
+                set_errno(EBADMSG);
+                ptr::null_mut()
+            }
+        }
+    }
+}
+
+// =============================================================================
+// geometry_msgs::TwistStamped
+// =============================================================================
+
+#[no_mangle]
+pub extern "C" fn ros_twist_stamped_new() -> *mut geometry_msgs::TwistStamped {
+    Box::into_raw(Box::new(geometry_msgs::TwistStamped {
+        header: std_msgs::Header {
+            stamp: builtin_interfaces::Time { sec: 0, nanosec: 0 },
+            frame_id: String::new(),
+        },
+        twist: geometry_msgs::Twist {
+            linear: geometry_msgs::Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            angular: geometry_msgs::Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+        },
+    }))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_twist_stamped_free(twist: *mut geometry_msgs::TwistStamped) {
+    if !twist.is_null() {
+        unsafe {
+            drop(Box::from_raw(twist));
+        }
+    }
+}
+
+/// Returns a pointer to the header field. The returned pointer is owned by
+/// the parent TwistStamped and must NOT be freed by the caller.
+#[no_mangle]
+pub extern "C" fn ros_twist_stamped_get_header(
+    twist: *const geometry_msgs::TwistStamped,
+) -> *const std_msgs::Header {
+    unsafe {
+        assert!(!twist.is_null());
+        &(*twist).header
+    }
+}
+
+/// Returns a mutable pointer to the header field for modification.
+/// The returned pointer is owned by the parent TwistStamped and must NOT be freed.
+#[no_mangle]
+pub extern "C" fn ros_twist_stamped_get_header_mut(
+    twist: *mut geometry_msgs::TwistStamped,
+) -> *mut std_msgs::Header {
+    unsafe {
+        assert!(!twist.is_null());
+        &mut (*twist).header
+    }
+}
+
+/// Returns a pointer to the twist field. The returned pointer is owned by
+/// the parent TwistStamped and must NOT be freed by the caller.
+#[no_mangle]
+pub extern "C" fn ros_twist_stamped_get_twist(
+    stamped: *const geometry_msgs::TwistStamped,
+) -> *const geometry_msgs::Twist {
+    unsafe {
+        assert!(!stamped.is_null());
+        &(*stamped).twist
+    }
+}
+
+/// Returns a mutable pointer to the twist field for modification.
+/// The returned pointer is owned by the parent TwistStamped and must NOT be freed.
+#[no_mangle]
+pub extern "C" fn ros_twist_stamped_get_twist_mut(
+    stamped: *mut geometry_msgs::TwistStamped,
+) -> *mut geometry_msgs::Twist {
+    unsafe {
+        assert!(!stamped.is_null());
+        &mut (*stamped).twist
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_twist_stamped_serialize(
+    twist: *const geometry_msgs::TwistStamped,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    check_null!(twist);
+    check_null!(out_bytes);
+    check_null!(out_len);
+
+    unsafe {
+        match serde_cdr::serialize(&*twist) {
+            Ok(bytes) => {
+                let len = bytes.len();
+                let ptr = Box::into_raw(bytes.into_boxed_slice()) as *mut u8;
+                *out_bytes = ptr;
+                *out_len = len;
+                0
+            }
+            Err(_) => {
+                set_errno(ENOMEM);
+                -1
+            }
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_twist_stamped_deserialize(
+    bytes: *const u8,
+    len: usize,
+) -> *mut geometry_msgs::TwistStamped {
+    check_null_ret_null!(bytes);
+
+    if len == 0 {
+        set_errno(EINVAL);
+        return ptr::null_mut();
+    }
+
+    unsafe {
+        let slice = slice::from_raw_parts(bytes, len);
+        match serde_cdr::deserialize::<geometry_msgs::TwistStamped>(slice) {
+            Ok(twist) => Box::into_raw(Box::new(twist)),
+            Err(_) => {
+                set_errno(EBADMSG);
+                ptr::null_mut()
+            }
+        }
+    }
+}
+
+// =============================================================================
+// rosgraph_msgs::Clock
+// =============================================================================
+
+#[no_mangle]
+pub extern "C" fn ros_clock_new() -> *mut rosgraph_msgs::Clock {
+    Box::into_raw(Box::new(rosgraph_msgs::Clock {
+        clock: builtin_interfaces::Time { sec: 0, nanosec: 0 },
+    }))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_clock_free(clock: *mut rosgraph_msgs::Clock) {
+    if !clock.is_null() {
+        unsafe {
+            drop(Box::from_raw(clock));
+        }
+    }
+}
+
+/// Returns a pointer to the clock field. The returned pointer is owned by
+/// the parent Clock and must NOT be freed by the caller.
+#[no_mangle]
+pub extern "C" fn ros_clock_get_clock(
+    clock: *const rosgraph_msgs::Clock,
+) -> *const builtin_interfaces::Time {
+    unsafe {
+        assert!(!clock.is_null());
+        &(*clock).clock
+    }
+}
+
+/// Returns a mutable pointer to the clock field for modification.
+/// The returned pointer is owned by the parent Clock and must NOT be freed.
+#[no_mangle]
+pub extern "C" fn ros_clock_get_clock_mut(
+    clock: *mut rosgraph_msgs::Clock,
+) -> *mut builtin_interfaces::Time {
+    unsafe {
+        assert!(!clock.is_null());
+        &mut (*clock).clock
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_clock_serialize(
+    clock: *const rosgraph_msgs::Clock,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    check_null!(clock);
+    check_null!(out_bytes);
+    check_null!(out_len);
+
+    unsafe {
+        match serde_cdr::serialize(&*clock) {
+            Ok(bytes) => {
+                let len = bytes.len();
+                let ptr = Box::into_raw(bytes.into_boxed_slice()) as *mut u8;
+                *out_bytes = ptr;
+                *out_len = len;
+                0
+            }
+            Err(_) => {
+                set_errno(ENOMEM);
+                -1
+            }
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_clock_deserialize(bytes: *const u8, len: usize) -> *mut rosgraph_msgs::Clock {
+    check_null_ret_null!(bytes);
+
+    if len == 0 {
+        set_errno(EINVAL);
+        return ptr::null_mut();
+    }
+
+    unsafe {
+        let slice = slice::from_raw_parts(bytes, len);
+        match serde_cdr::deserialize::<rosgraph_msgs::Clock>(slice) {
+            Ok(clock) => Box::into_raw(Box::new(clock)),
+            Err(_) => {
+                set_errno(EBADMSG);
+                ptr::null_mut()
+            }
+        }
+    }
+}
+
+// =============================================================================
+// service::ServiceHeader
+// =============================================================================
+
+#[no_mangle]
+pub extern "C" fn ros_service_header_new() -> *mut service::ServiceHeader {
+    Box::into_raw(Box::new(service::ServiceHeader { guid: 0, seq: 0 }))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_service_header_free(header: *mut service::ServiceHeader) {
+    if !header.is_null() {
+        unsafe {
+            drop(Box::from_raw(header));
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_service_header_get_guid(header: *const service::ServiceHeader) -> i64 {
+    if header.is_null() {
+        return 0;
+    }
+    unsafe { (*header).guid }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_service_header_get_seq(header: *const service::ServiceHeader) -> u64 {
+    if header.is_null() {
+        return 0;
+    }
+    unsafe { (*header).seq }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_service_header_set_guid(header: *mut service::ServiceHeader, guid: i64) {
+    unsafe {
+        assert!(!header.is_null());
+        (*header).guid = guid;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_service_header_set_seq(header: *mut service::ServiceHeader, seq: u64) {
+    unsafe {
+        assert!(!header.is_null());
+        (*header).seq = seq;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_service_header_serialize(
+    header: *const service::ServiceHeader,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    check_null!(header);
+    check_null!(out_bytes);
+    check_null!(out_len);
+
+    unsafe {
+        match serde_cdr::serialize(&*header) {
+            Ok(bytes) => {
+                let len = bytes.len();
+                let ptr = Box::into_raw(bytes.into_boxed_slice()) as *mut u8;
+                *out_bytes = ptr;
+                *out_len = len;
+                0
+            }
+            Err(_) => {
+                set_errno(ENOMEM);
+                -1
+            }
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_service_header_deserialize(
+    bytes: *const u8,
+    len: usize,
+) -> *mut service::ServiceHeader {
+    check_null_ret_null!(bytes);
+
+    if len == 0 {
+        set_errno(EINVAL);
+        return ptr::null_mut();
+    }
+
+    unsafe {
+        let slice = slice::from_raw_parts(bytes, len);
+        match serde_cdr::deserialize::<service::ServiceHeader>(slice) {
+            Ok(header) => Box::into_raw(Box::new(header)),
             Err(_) => {
                 set_errno(EBADMSG);
                 ptr::null_mut()

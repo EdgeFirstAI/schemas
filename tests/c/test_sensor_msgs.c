@@ -24,7 +24,7 @@ Test(sensor_msgs, pointfield_create_and_destroy) {
 
     cr_assert_eq(ros_point_field_get_offset(field), 0);
     cr_assert_eq(ros_point_field_get_datatype(field), 0);
-    cr_assert_eq(ros_point_field_get_count(field), 0);
+    cr_assert_eq(ros_point_field_get_count(field), 1);  // ROS2 default: 1 element per field
 
     ros_point_field_free(field);
 }
@@ -196,7 +196,8 @@ Test(sensor_msgs, navsatstatus_create_and_destroy) {
     RosNavSatStatus *status = ros_nav_sat_status_new();
     cr_assert_not_null(status);
 
-    cr_assert_eq(ros_nav_sat_status_get_status(status), 0);
+    // ROS2 default: STATUS_NO_FIX (-1) indicates no GPS fix
+    cr_assert_eq(ros_nav_sat_status_get_status(status), ROS_NAV_SAT_STATUS_STATUS_NO_FIX);
     cr_assert_eq(ros_nav_sat_status_get_service(status), 0);
 
     ros_nav_sat_status_free(status);
