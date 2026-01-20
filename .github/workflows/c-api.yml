@@ -49,8 +49,9 @@ jobs:
           make test-c-xml
 
       - name: Test Summary
-        uses: test-summary/action@8e33c5c5ae978074eb910c94d7fcc8b2190db416 # v2
+        uses: EnricoMi/publish-unit-test-result-action@27d65e188ec43221b20d26de30f4892fad91df2f # v2.22.0
         with:
-          paths: "build/test-results/*.xml"
-          show: "all"
+          files: "build/test-results/*.xml"
+          check_name: "C API Test Results"
+          comment_mode: "off"
         if: always()
