@@ -207,6 +207,9 @@ jobs:
       - name: Parse and format benchmark results
         id: bench
         run: |
+          # Combine text output for the summary (needed for full output display)
+          cat benchmark-results/*.txt > benchmark-output.txt
+
           # Extract Criterion JSON data if available
           if [ -f benchmark-results/criterion-data.tar.gz ]; then
             echo "Extracting Criterion JSON data..."
