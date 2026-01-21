@@ -249,8 +249,10 @@ jobs:
                           continue
 
                       # Get median time in nanoseconds from estimates.json
-                      # Use 'slope' if available (more accurate), else 'median'
-                      time_data = estimates.get('slope', estimates.get('median', {}))
+                      # Use 'slope' if available and not null (more accurate), else 'median'
+                      time_data = estimates.get('slope')
+                      if time_data is None:
+                          time_data = estimates.get('median', {})
                       point_estimate = time_data.get('point_estimate')
 
                       if point_estimate is not None:
