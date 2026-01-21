@@ -156,6 +156,9 @@ jobs:
         run: |
           mkdir -p benchmark-results
 
+          # Clean old cached Criterion data to avoid stale benchmark results
+          rm -rf target/criterion
+
           # Run each benchmark binary with Criterion options
           # Use --sample-size 10 for quick CI runs (default is 100)
           # Use --nresamples 1000 for faster bootstrap (default is 100000)
