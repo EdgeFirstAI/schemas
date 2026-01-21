@@ -448,43 +448,36 @@ jobs:
                   'benchmarks': [],
                   'desc': 'Zero-copy DMA buffer reference (metadata only)',
                   'size_axis': 'Resolution',
-                  'max_time': 0.01,  # Very fast - just metadata
               },
               'Image': {
                   'benchmarks': [],
                   'desc': 'Camera frame serialization (RGB/YUYV/NV12)',
                   'size_axis': 'Format',
-                  'max_time': 80,
               },
               'PointCloud2': {
                   'benchmarks': [],
                   'desc': 'LiDAR point cloud data',
                   'size_axis': 'Point Count',
-                  'max_time': 20,
               },
               'Mask': {
                   'benchmarks': [],
                   'desc': 'Segmentation mask data (uncompressed)',
                   'size_axis': 'Size',
-                  'max_time': 80,
               },
               'CompressedMask': {
                   'benchmarks': [],
                   'desc': 'Segmentation mask data (zstd compressed)',
                   'size_axis': 'Size',
-                  'max_time': 80,
               },
               'RadarCube': {
                   'benchmarks': [],
-                  'desc': 'Radar FFT cube tensors',
+                  'desc': 'SmartMicro DRVEGRD radar cube tensors',
                   'size_axis': 'Mode',
-                  'max_time': 20,
               },
               'FoxgloveCompressedVideo': {
                   'benchmarks': [],
                   'desc': 'Compressed video frames',
                   'size_axis': 'Payload Size',
-                  'max_time': 10,
               },
           }
 
@@ -542,23 +535,62 @@ jobs:
                       ser_ms = parse_time_to_ms(data['serialize'])
                       deser_ms = parse_time_to_ms(data['deserialize'])
 
-                      chart_labels.append(f'"{label}"')
-                      ser_times.append(f"{ser_ms:.2f}" if ser_ms else "0")
-                      deser_times.append(f"{deser_ms:.2f}" if deser_ms else "0")
+                      chart_labels.append(label)
+                      ser_times.append(ser_ms if ser_ms else 0)
+                      deser_times.append(deser_ms if deser_ms else 0)
 
                   f.write("\n")
 
-                  # Horizontal bar chart with size labels on Y-axis, time on X-axis
-                  # Reverse order so smaller sizes at bottom, larger at top
-                  max_time = cat_info['max_time']
-                  f.write("```mermaid\n")
-                  f.write("xychart-beta horizontal\n")
-                  f.write(f"    title \"{cat_name} Latency (ms)\"\n")
-                  f.write(f"    x-axis [{', '.join(reversed(chart_labels))}]\n")
-                  f.write(f"    y-axis \"Time (ms)\" 0 --> {max_time}\n")
-                  f.write(f"    bar \"Serialize\" [{', '.join(reversed(ser_times))}]\n")
-                  f.write(f"    bar \"Deserialize\" [{', '.join(reversed(deser_times))}]\n")
-                  f.write("```\n\n")
+                  # Generate QuickChart URL for grouped horizontal bar chart
+                  # Using Chart.js config via QuickChart API
+                  import urllib.parse
+
+                  chart_config = {
+                      "type": "horizontalBar",
+                      "data": {
+                          "labels": chart_labels,
+                          "datasets": [
+                              {
+                                  "label": "Serialize",
+                                  "data": ser_times,
+                                  "backgroundColor": "rgba(54, 162, 235, 0.8)",
+                                  "borderColor": "rgba(54, 162, 235, 1)",
+                                  "borderWidth": 1
+                              },
+                              {
+                                  "label": "Deserialize",
+                                  "data": deser_times,
+                                  "backgroundColor": "rgba(255, 99, 132, 0.8)",
+                                  "borderColor": "rgba(255, 99, 132, 1)",
+                                  "borderWidth": 1
+                              }
+                          ]
+                      },
+                      "options": {
+                          "title": {
+                              "display": True,
+                              "text": f"{cat_name} Latency (ms)"
+                          },
+                          "scales": {
+                              "xAxes": [{
+                                  "ticks": {"beginAtZero": True},
+                                  "scaleLabel": {"display": True, "labelString": "Time (ms)"}
+                              }]
+                          },
+                          "plugins": {
+                              "datalabels": {
+                                  "display": True,
+                                  "anchor": "end",
+                                  "align": "end",
+                                  "formatter": "(value) => value > 0 ? value.toFixed(1) : ''"
+                              }
+                          }
+                      }
+                  }
+
+                  chart_json = json.dumps(chart_config, separators=(',', ':'))
+                  chart_url = f"https://quickchart.io/chart?c={urllib.parse.quote(chart_json)}&w=600&h={max(200, len(chart_labels) * 50)}"
+                  f.write(f"![{cat_name} Chart]({chart_url})\n\n")
 
               # Basic message types summary (collapsed)
               f.write("<details>\n")
