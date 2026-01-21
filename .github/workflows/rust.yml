@@ -373,13 +373,13 @@ jobs:
               'medium_10K': '10K points',
               'dense_65K': '65K points',
               'very_dense_131K': '131K points',
-              # Mask: resolution x channels
-              '320x320_8ch': '320x320 8ch',
-              '320x320_32ch': '320x320 32ch',
-              '640x640_8ch': '640x640 8ch',
-              '640x640_32ch': '640x640 32ch',
-              '1280x1280_8ch': '1280x1280 8ch',
-              '1280x1280_32ch': '1280x1280 32ch',
+              # Mask: resolution x classes
+              '320x320_8class': '320x320 8 classes',
+              '320x320_32class': '320x320 32 classes',
+              '640x640_8class': '640x640 8 classes',
+              '640x640_32class': '640x640 32 classes',
+              '1280x1280_8class': '1280x1280 8 classes',
+              '1280x1280_32class': '1280x1280 32 classes',
               # RadarCube: range mode
               'short_range': 'Short Range',
               'medium_range': 'Medium Range',
@@ -400,9 +400,9 @@ jobs:
               # PointCloud2
               'sparse_1K': 1, 'medium_10K': 2, 'dense_65K': 3, 'very_dense_131K': 4,
               # Mask
-              '320x320_8ch': 1, '320x320_32ch': 2,
-              '640x640_8ch': 3, '640x640_32ch': 4,
-              '1280x1280_8ch': 5, '1280x1280_32ch': 6,
+              '320x320_8class': 1, '320x320_32class': 2,
+              '640x640_8class': 3, '640x640_32class': 4,
+              '1280x1280_8class': 5, '1280x1280_32class': 6,
               # RadarCube
               'short_range': 1, 'medium_range': 2, 'long_range': 3,
               # CompressedVideo

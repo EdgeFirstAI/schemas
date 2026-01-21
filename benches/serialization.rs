@@ -497,12 +497,12 @@ fn bench_mask(c: &mut Criterion) {
     // 640x640: Standard YOLO/detection input size
     // 1280x1280: High-resolution segmentation
     let mask_sizes = [
-        ((320, 320, 8), "320x320_8ch"),
-        ((320, 320, 32), "320x320_32ch"),
-        ((640, 640, 8), "640x640_8ch"),
-        ((640, 640, 32), "640x640_32ch"),
-        ((1280, 1280, 8), "1280x1280_8ch"),
-        ((1280, 1280, 32), "1280x1280_32ch"),
+        ((320, 320, 8), "320x320_8class"),
+        ((320, 320, 32), "320x320_32class"),
+        ((640, 640, 8), "640x640_8class"),
+        ((640, 640, 32), "640x640_32class"),
+        ((1280, 1280, 8), "1280x1280_8class"),
+        ((1280, 1280, 32), "1280x1280_32class"),
     ];
 
     for ((width, height, channels), name) in mask_sizes {
@@ -533,9 +533,12 @@ fn bench_compressed_mask(c: &mut Criterion) {
 
     // Same sizes as Mask but with zstd compression
     let mask_sizes = [
-        ((320, 320, 8), "320x320_8ch"),
-        ((640, 640, 8), "640x640_8ch"),
-        ((1280, 1280, 8), "1280x1280_8ch"),
+        ((320, 320, 8), "320x320_8class"),
+        ((320, 320, 32), "320x320_32class"),
+        ((640, 640, 8), "640x640_8class"),
+        ((640, 640, 32), "640x640_32class"),
+        ((1280, 1280, 8), "1280x1280_8class"),
+        ((1280, 1280, 32), "1280x1280_32class"),
     ];
 
     for ((width, height, channels), name) in mask_sizes {
