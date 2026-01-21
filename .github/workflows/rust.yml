@@ -380,10 +380,16 @@ jobs:
               '640x640_32class': '640x640 32 classes',
               '1280x1280_8class': '1280x1280 8 classes',
               '1280x1280_32class': '1280x1280 32 classes',
-              # RadarCube: range mode
-              'short_range': 'Short Range',
-              'medium_range': 'Medium Range',
-              'long_range': 'Long Range',
+              # RadarCube: SmartMicro DRVEGRD configurations
+              # DRVEGRD-169: 4D/UHD Corner Radar (77-81 GHz)
+              'DRVEGRD169_ultra_short': 'DRVEGRD-169 Ultra-Short',
+              'DRVEGRD169_short': 'DRVEGRD-169 Short',
+              'DRVEGRD169_medium': 'DRVEGRD-169 Medium',
+              'DRVEGRD169_long': 'DRVEGRD-169 Long',
+              # DRVEGRD-171: 4D/PXHD Front Radar (76-77 GHz)
+              'DRVEGRD171_short': 'DRVEGRD-171 Short',
+              'DRVEGRD171_medium': 'DRVEGRD-171 Medium',
+              'DRVEGRD171_long': 'DRVEGRD-171 Long',
               # CompressedVideo: payload size
               '10KB': '10 KB',
               '100KB': '100 KB',
@@ -403,8 +409,10 @@ jobs:
               '320x320_8class': 1, '320x320_32class': 2,
               '640x640_8class': 3, '640x640_32class': 4,
               '1280x1280_8class': 5, '1280x1280_32class': 6,
-              # RadarCube
-              'short_range': 1, 'medium_range': 2, 'long_range': 3,
+              # RadarCube: by range mode (DRVEGRD-169 corner, then DRVEGRD-171 front)
+              'DRVEGRD169_ultra_short': 1, 'DRVEGRD169_short': 2,
+              'DRVEGRD169_medium': 3, 'DRVEGRD169_long': 4,
+              'DRVEGRD171_short': 5, 'DRVEGRD171_medium': 6, 'DRVEGRD171_long': 7,
               # CompressedVideo
               '10KB': 1, '100KB': 2, '500KB': 3, '1MB': 4,
           }

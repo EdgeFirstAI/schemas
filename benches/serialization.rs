@@ -416,16 +416,39 @@ fn bench_compressed_video(c: &mut Criterion) {
 fn bench_radar_cube(c: &mut Criterion) {
     let mut group = c.benchmark_group("RadarCube");
 
-    // Shapes from Raivin radar: [chirp_types, range_gates, rx_channels, doppler_bins]
-    // Typical production: [4, 256, 12, 64] = 786,432 complex values (~3 MB)
-    // Complex data doubles the last dimension for real+imag interleaved
-    let shapes: [([u16; 4], &str, bool); 3] = [
-        // Short range mode: fewer range gates, more doppler resolution
-        ([4, 128, 12, 128], "short_range", true),
-        // Medium range mode: typical Raivin configuration
-        ([4, 256, 12, 64], "medium_range", true),
-        // Long range mode: more range gates, fewer doppler bins
-        ([4, 512, 12, 32], "long_range", true),
+    // SmartMicro DRVEGRD radar cube configurations
+    // Shape: [chirp_types, range_gates, rx_channels, doppler_bins]
+    // All cubes use complex i16 data (real+imag interleaved)
+    //
+    // DRVEGRD-169: 4D/UHD Corner Radar (77-81 GHz, 79 GHz typical)
+    //   Designed for side/corner monitoring with wide FoV (±70° azimuth)
+    //   - Ultra-Short: 0.1-9.5m, ≤0.15m resolution, ±60 km/h
+    //   - Short: 0.2-19m, ≤0.3m resolution, ±340/+140 km/h
+    //   - Medium: 0.6-56m, ≤0.6m resolution
+    //   - Long: 1.3-130m, ≤1.3m resolution
+    //
+    // DRVEGRD-171: 4D/PXHD Front Radar (76-77 GHz)
+    //   Designed for front long-range detection (±50° azimuth, 6TX/8RX)
+    //   - Short: 0.2-40m, ≤0.4m resolution, ±400/+200 km/h
+    //   - Medium: 0.5-100m, ≤1.0m resolution
+    //   - Long: 1.2-240m, ≤2.4m resolution
+    let shapes: [([u16; 4], &str, bool); 7] = [
+        // DRVEGRD-169 Corner Radar configurations
+        // Ultra-Short: high doppler for close-range maneuvering (parking, blind spot)
+        ([4, 64, 12, 256], "DRVEGRD169_ultra_short", true),
+        // Short: side monitoring, parking assist
+        ([4, 128, 12, 128], "DRVEGRD169_short", true),
+        // Medium: lane change assist, cross-traffic alert
+        ([4, 192, 12, 96], "DRVEGRD169_medium", true),
+        // Long: extended corner coverage
+        ([4, 256, 12, 64], "DRVEGRD169_long", true),
+        // DRVEGRD-171 Front Radar configurations
+        // Short: emergency braking, pedestrian detection
+        ([4, 160, 12, 128], "DRVEGRD171_short", true),
+        // Medium: adaptive cruise control, typical front radar (~3 MB)
+        ([4, 256, 12, 64], "DRVEGRD171_medium", true),
+        // Long: highway ACC, long-range vehicle detection
+        ([4, 512, 12, 32], "DRVEGRD171_long", true),
     ];
 
     for (shape, name, is_complex) in shapes {
