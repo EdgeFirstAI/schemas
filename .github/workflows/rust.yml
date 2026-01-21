@@ -351,28 +351,28 @@ jobs:
           with open('benchmarks.json', 'r') as f:
               benchmarks = json.load(f)
 
-          # Human-readable size labels for chart y-axis (the main parameter affecting size)
+          # Human-readable size labels (use ASCII 'x' to avoid UTF-8 encoding issues in Mermaid)
           SIZE_LABELS = {
               # Image: resolution
-              'VGA_rgb8': '640×480',
-              'HD_rgb8': '1280×720',
-              'FHD_rgb8': '1920×1080',
-              'FHD_yuyv': '1920×1080 (YUYV)',
+              'VGA_rgb8': '640x480',
+              'HD_rgb8': '1280x720',
+              'FHD_rgb8': '1920x1080',
+              'FHD_yuyv': '1920x1080 YUYV',
               # PointCloud2: point count
               'sparse_1K': '1K points',
               'medium_10K': '10K points',
               'dense_65K': '65K points',
               'very_dense_131K': '131K points',
               # Mask: resolution
-              'small_256x256': '256×256',
-              'medium_640x480': '640×480',
-              'large_1920x1080': '1920×1080',
-              'multiclass_640x480x20': '640×480×20ch',
+              'small_256x256': '256x256',
+              'medium_640x480': '640x480',
+              'large_1920x1080': '1920x1080',
+              'multiclass_640x480x20': '640x480x20ch',
               # RadarCube: cube size
               'small_128KB': '128 KB',
               'medium_2MB': '2 MB',
               'large_24MB': '24 MB',
-              'small_complex': '128 KB (complex)',
+              'small_complex': '128 KB complex',
               # CompressedVideo: payload size
               '10KB': '10 KB',
               '100KB': '100 KB',
@@ -505,7 +505,7 @@ jobs:
 
                   f.write("\n")
 
-                  # Chart: horizontal orientation puts size labels on Y-axis, time on X-axis
+                  # Horizontal bar chart with size labels on Y-axis, time on X-axis
                   # Reverse order so smaller sizes at bottom, larger at top
                   max_time = cat_info['max_time']
                   f.write("```mermaid\n")
@@ -513,8 +513,8 @@ jobs:
                   f.write(f"    title \"{cat_name} Latency (ms)\"\n")
                   f.write(f"    x-axis [{', '.join(reversed(chart_labels))}]\n")
                   f.write(f"    y-axis \"Time (ms)\" 0 --> {max_time}\n")
-                  f.write(f"    line \"Serialize\" [{', '.join(reversed(ser_times))}]\n")
-                  f.write(f"    line \"Deserialize\" [{', '.join(reversed(deser_times))}]\n")
+                  f.write(f"    bar \"Serialize\" [{', '.join(reversed(ser_times))}]\n")
+                  f.write(f"    bar \"Deserialize\" [{', '.join(reversed(deser_times))}]\n")
                   f.write("```\n\n")
 
               # Basic message types summary (collapsed)
