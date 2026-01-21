@@ -431,6 +431,17 @@ jobs:
               multipliers = {'ns': 0.000001, 'µs': 0.001, 'us': 0.001, 'ms': 1, 's': 1000}
               return val * multipliers.get(unit, 1)
 
+          def parse_time_to_ns(time_str):
+              """Convert time string to nanoseconds."""
+              if time_str == 'N/A':
+                  return None
+              match = re.match(r'([\d.]+)\s*(\w+)', time_str)
+              if not match:
+                  return None
+              val, unit = float(match.group(1)), match.group(2)
+              multipliers = {'ns': 1, 'µs': 1000, 'us': 1000, 'ms': 1000000, 's': 1000000000}
+              return val * multipliers.get(unit, 1)
+
           # Categorize benchmarks
           basic_msgs = []
           heavy_msgs = []
@@ -448,36 +459,43 @@ jobs:
                   'benchmarks': [],
                   'desc': 'Zero-copy DMA buffer reference (metadata only)',
                   'size_axis': 'Resolution',
+                  'unit': 'ns',  # Nanoseconds - very fast
               },
               'Image': {
                   'benchmarks': [],
                   'desc': 'Camera frame serialization (RGB/YUYV/NV12)',
                   'size_axis': 'Format',
+                  'unit': 'ms',
               },
               'PointCloud2': {
                   'benchmarks': [],
                   'desc': 'LiDAR point cloud data',
                   'size_axis': 'Point Count',
+                  'unit': 'ms',
               },
               'Mask': {
                   'benchmarks': [],
                   'desc': 'Segmentation mask data (uncompressed)',
                   'size_axis': 'Size',
+                  'unit': 'ms',
               },
               'CompressedMask': {
                   'benchmarks': [],
                   'desc': 'Segmentation mask data (zstd compressed)',
                   'size_axis': 'Size',
+                  'unit': 'ms',
               },
               'RadarCube': {
                   'benchmarks': [],
                   'desc': 'SmartMicro DRVEGRD radar cube tensors',
                   'size_axis': 'Mode',
+                  'unit': 'ms',
               },
               'FoxgloveCompressedVideo': {
                   'benchmarks': [],
                   'desc': 'Compressed video frames',
                   'size_axis': 'Payload Size',
+                  'unit': 'ms',
               },
           }
 
@@ -527,17 +545,22 @@ jobs:
                   ser_times = []
                   deser_times = []
 
+                  # Determine unit for this category
+                  chart_unit = cat_info.get('unit', 'ms')
+                  parse_fn = parse_time_to_ns if chart_unit == 'ns' else parse_time_to_ms
+
                   for variant, data in sorted_variants:
                       label = SIZE_LABELS.get(variant, variant)
                       f.write(f"| {label} | {data['serialize']} | {data['deserialize']} |\n")
 
-                      # Collect for chart
-                      ser_ms = parse_time_to_ms(data['serialize'])
-                      deser_ms = parse_time_to_ms(data['deserialize'])
+                      # Collect for chart (in appropriate unit)
+                      ser_val = parse_fn(data['serialize'])
+                      deser_val = parse_fn(data['deserialize'])
 
                       chart_labels.append(label)
-                      ser_times.append(ser_ms if ser_ms else 0)
-                      deser_times.append(deser_ms if deser_ms else 0)
+                      # Round to 2 decimal places for chart display
+                      ser_times.append(round(ser_val, 2) if ser_val else 0)
+                      deser_times.append(round(deser_val, 2) if deser_val else 0)
 
                   f.write("\n")
 
@@ -569,12 +592,12 @@ jobs:
                       "options": {
                           "title": {
                               "display": True,
-                              "text": f"{cat_name} Latency (ms)"
+                              "text": f"{cat_name} Latency ({chart_unit})"
                           },
                           "scales": {
                               "xAxes": [{
                                   "ticks": {"beginAtZero": True},
-                                  "scaleLabel": {"display": True, "labelString": "Time (ms)"}
+                                  "scaleLabel": {"display": True, "labelString": f"Time ({chart_unit})"}
                               }]
                           },
                           "plugins": {
@@ -582,7 +605,7 @@ jobs:
                                   "display": True,
                                   "anchor": "end",
                                   "align": "end",
-                                  "formatter": "(value) => value > 0 ? value.toFixed(1) : ''"
+                                  "formatter": "(value) => value > 0 ? value.toFixed(2) : ''"
                               }
                           }
                       }
