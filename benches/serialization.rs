@@ -12,9 +12,10 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use rand::Rng;
 use std::hint::black_box;
+use std::io::Cursor;
 
 use edgefirst_schemas::builtin_interfaces::{Duration, Time};
-use edgefirst_schemas::edgefirst_msgs::{Mask, RadarCube};
+use edgefirst_schemas::edgefirst_msgs::{DmaBuf, Mask, RadarCube};
 use edgefirst_schemas::foxglove_msgs::FoxgloveCompressedVideo;
 use edgefirst_schemas::geometry_msgs::{
     Point, Point32, Pose, Pose2D, Quaternion, Transform, Twist, Vector3,
@@ -37,6 +38,25 @@ fn create_header() -> Header {
     }
 }
 
+/// Create a DmaBuf message representing a camera frame reference.
+fn create_dmabuf(width: u32, height: u32, fourcc: u32) -> DmaBuf {
+    let bytes_per_pixel = match fourcc {
+        0x56595559 => 2, // YUYV
+        0x3231564E => 1, // NV12 (1.5 bytes avg, but length is separate)
+        _ => 3,          // RGB
+    };
+    DmaBuf {
+        header: create_header(),
+        pid: 12345,
+        fd: 42,
+        width,
+        height,
+        stride: width * bytes_per_pixel,
+        fourcc,
+        length: width * height * bytes_per_pixel,
+    }
+}
+
 /// Create a FoxgloveCompressedVideo with random data simulating H.264 NAL units.
 fn create_compressed_video(data_size: usize) -> FoxgloveCompressedVideo {
     let mut rng = rand::rng();
@@ -48,17 +68,19 @@ fn create_compressed_video(data_size: usize) -> FoxgloveCompressedVideo {
 }
 
 /// Create a RadarCube with random i16 data simulating real radar returns.
-fn create_radar_cube(shape: &[u16; 4]) -> RadarCube {
+/// Shape: [chirp_types, range_gates, rx_channels, doppler_bins]
+fn create_radar_cube(shape: &[u16; 4], is_complex: bool) -> RadarCube {
     let mut rng = rand::rng();
+    // For complex data, doppler dimension is doubled (real + imag interleaved)
     let total_elements: usize = shape.iter().map(|&x| x as usize).product();
     RadarCube {
         header: create_header(),
         timestamp: 1234567890123456,
         layout: vec![6, 1, 5, 2], // SEQUENCE, RANGE, RXCHANNEL, DOPPLER
         shape: shape.to_vec(),
-        scales: vec![1.0, 2.5, 1.0, 0.5], // meters, meters, unitless, m/s
+        scales: vec![1.0, 0.117, 1.0, 0.156], // range: 0.117m/bin, speed: 0.156m/s/bin
         cube: (0..total_elements).map(|_| rng.random()).collect(),
-        is_complex: false,
+        is_complex,
     }
 }
 
@@ -118,6 +140,25 @@ fn create_mask(width: u32, height: u32, channels: u32) -> Mask {
         length: channels,
         encoding: String::new(), // No compression
         mask: (0..data_size).map(|_| rng.random()).collect(),
+        boxed: false,
+    }
+}
+
+/// Create a compressed Mask with zstd-encoded data.
+fn create_compressed_mask(width: u32, height: u32, channels: u32) -> Mask {
+    let mut rng = rand::rng();
+    let data_size = (width * height * channels) as usize;
+    let raw_data: Vec<u8> = (0..data_size).map(|_| rng.random()).collect();
+
+    // Compress with zstd (level 3 is a good balance)
+    let compressed = zstd::stream::encode_all(Cursor::new(&raw_data), 3).unwrap();
+
+    Mask {
+        height,
+        width,
+        length: channels,
+        encoding: "zstd".to_string(),
+        mask: compressed,
         boxed: false,
     }
 }
@@ -375,18 +416,20 @@ fn bench_compressed_video(c: &mut Criterion) {
 fn bench_radar_cube(c: &mut Criterion) {
     let mut group = c.benchmark_group("RadarCube");
 
-    // Shapes from Raivin radar: [SEQ, RANGE, RXCHANNEL, DOPPLER]
-    // Small: 65,536 elements (128 KB)
-    // Medium: 1,048,576 elements (2 MB)
-    // Large: 12,582,912 elements (24 MB)
-    let shapes: [([u16; 4], &str); 3] = [
-        ([8, 64, 4, 32], "small_128KB"),
-        ([16, 128, 8, 64], "medium_2MB"),
-        ([32, 256, 12, 128], "large_24MB"),
+    // Shapes from Raivin radar: [chirp_types, range_gates, rx_channels, doppler_bins]
+    // Typical production: [4, 256, 12, 64] = 786,432 complex values (~3 MB)
+    // Complex data doubles the last dimension for real+imag interleaved
+    let shapes: [([u16; 4], &str, bool); 3] = [
+        // Short range mode: fewer range gates, more doppler resolution
+        ([4, 128, 12, 128], "short_range", true),
+        // Medium range mode: typical Raivin configuration
+        ([4, 256, 12, 64], "medium_range", true),
+        // Long range mode: more range gates, fewer doppler bins
+        ([4, 512, 12, 32], "long_range", true),
     ];
 
-    for (shape, name) in shapes {
-        let cube = create_radar_cube(&shape);
+    for (shape, name, is_complex) in shapes {
+        let cube = create_radar_cube(&shape, is_complex);
         let data_size = cube.cube.len() * 2; // i16 = 2 bytes
         let bytes = serialize(&cube).unwrap();
 
@@ -400,23 +443,6 @@ fn bench_radar_cube(c: &mut Criterion) {
             b.iter(|| deserialize::<RadarCube>(black_box(data)))
         });
     }
-
-    // Also test complex radar cubes (is_complex: true)
-    let mut complex_cube = create_radar_cube(&[8, 64, 4, 32]);
-    complex_cube.is_complex = true;
-    let complex_bytes = serialize(&complex_cube).unwrap();
-
-    group.bench_with_input(
-        BenchmarkId::new("serialize", "small_complex"),
-        &complex_cube,
-        |b, c| b.iter(|| serialize(black_box(c))),
-    );
-
-    group.bench_with_input(
-        BenchmarkId::new("deserialize", "small_complex"),
-        &complex_bytes,
-        |b, data| b.iter(|| deserialize::<RadarCube>(black_box(data))),
-    );
 
     group.finish();
 }
@@ -466,21 +492,55 @@ fn bench_point_cloud(c: &mut Criterion) {
 fn bench_mask(c: &mut Criterion) {
     let mut group = c.benchmark_group("Mask");
 
-    // Segmentation mask sizes
-    // Small: 256x256x1 (64 KB)
-    // Medium: 640x480x1 (300 KB)
-    // Large: 1920x1080x1 (2 MB)
-    // Multi-class: 640x480x20 (6 MB)
+    // Segmentation mask sizes: square resolutions with 8 or 32 classes
+    // 320x320: Common for lightweight models (MobileNet-based)
+    // 640x640: Standard YOLO/detection input size
+    // 1280x1280: High-resolution segmentation
     let mask_sizes = [
-        ((256, 256, 1), "small_256x256"),
-        ((640, 480, 1), "medium_640x480"),
-        ((1920, 1080, 1), "large_1920x1080"),
-        ((640, 480, 20), "multiclass_640x480x20"),
+        ((320, 320, 8), "320x320_8ch"),
+        ((320, 320, 32), "320x320_32ch"),
+        ((640, 640, 8), "640x640_8ch"),
+        ((640, 640, 32), "640x640_32ch"),
+        ((1280, 1280, 8), "1280x1280_8ch"),
+        ((1280, 1280, 32), "1280x1280_32ch"),
     ];
 
     for ((width, height, channels), name) in mask_sizes {
         let mask = create_mask(width, height, channels);
         let data_size = mask.mask.len();
+        let bytes = serialize(&mask).unwrap();
+
+        group.throughput(Throughput::Bytes(data_size as u64));
+
+        group.bench_with_input(BenchmarkId::new("serialize", name), &mask, |b, m| {
+            b.iter(|| serialize(black_box(m)))
+        });
+
+        group.bench_with_input(BenchmarkId::new("deserialize", name), &bytes, |b, data| {
+            b.iter(|| deserialize::<Mask>(black_box(data)))
+        });
+    }
+
+    group.finish();
+}
+
+// ============================================================================
+// BENCHMARK: CompressedMask (Heavy) - zstd compressed segmentation masks
+// ============================================================================
+
+fn bench_compressed_mask(c: &mut Criterion) {
+    let mut group = c.benchmark_group("CompressedMask");
+
+    // Same sizes as Mask but with zstd compression
+    let mask_sizes = [
+        ((320, 320, 8), "320x320_8ch"),
+        ((640, 640, 8), "640x640_8ch"),
+        ((1280, 1280, 8), "1280x1280_8ch"),
+    ];
+
+    for ((width, height, channels), name) in mask_sizes {
+        let mask = create_compressed_mask(width, height, channels);
+        let data_size = mask.mask.len(); // Compressed size
         let bytes = serialize(&mask).unwrap();
 
         group.throughput(Throughput::Bytes(data_size as u64));
@@ -504,20 +564,35 @@ fn bench_mask(c: &mut Criterion) {
 fn bench_image(c: &mut Criterion) {
     let mut group = c.benchmark_group("Image");
 
-    // Standard image resolutions
-    // VGA RGB: 640x480x3 (900 KB)
-    // HD RGB: 1280x720x3 (2.7 MB)
-    // FHD RGB: 1920x1080x3 (6.2 MB)
-    // YUV422: 1920x1080x2 (4.1 MB)
+    // Standard image resolutions with various encodings
+    // RGB8: 3 bytes per pixel
+    // YUYV: 2 bytes per pixel (YUV422 packed)
+    // NV12: 1.5 bytes per pixel (YUV420 semi-planar, stored as 1 byte luma + 0.5 chroma)
     let image_sizes = [
+        // VGA resolution
         ((640, 480, "rgb8", 3), "VGA_rgb8"),
+        ((640, 480, "yuyv", 2), "VGA_yuyv"),
+        ((640, 480, "nv12", 3), "VGA_nv12"), // NV12 uses 1.5 bpp but we round to height*1.5
+        // HD resolution
         ((1280, 720, "rgb8", 3), "HD_rgb8"),
+        ((1280, 720, "yuyv", 2), "HD_yuyv"),
+        ((1280, 720, "nv12", 3), "HD_nv12"),
+        // FHD resolution
         ((1920, 1080, "rgb8", 3), "FHD_rgb8"),
         ((1920, 1080, "yuyv", 2), "FHD_yuyv"),
+        ((1920, 1080, "nv12", 3), "FHD_nv12"),
     ];
 
     for ((width, height, encoding, bpp), name) in image_sizes {
-        let image = create_image(width, height, encoding, bpp);
+        // NV12 is special: Y plane + UV plane at half resolution
+        let data_height = if encoding == "nv12" {
+            height + height / 2
+        } else {
+            height
+        };
+        let actual_bpp_for_step = if encoding == "nv12" { 1 } else { bpp };
+
+        let image = create_image(width, data_height, encoding, actual_bpp_for_step);
         let data_size = image.data.len();
         let bytes = serialize(&image).unwrap();
 
@@ -536,6 +611,41 @@ fn bench_image(c: &mut Criterion) {
 }
 
 // ============================================================================
+// BENCHMARK: DmaBuf (Lightweight reference)
+// ============================================================================
+
+fn bench_dmabuf(c: &mut Criterion) {
+    let mut group = c.benchmark_group("DmaBuf");
+
+    // DmaBuf is a lightweight message - just metadata, no pixel data
+    // Used as a reference to show overhead of heavy messages vs zero-copy
+    let dmabuf_sizes = [
+        ((640, 480, 0x56595559), "VGA_yuyv"),   // YUYV fourcc
+        ((1280, 720, 0x56595559), "HD_yuyv"),   // YUYV fourcc
+        ((1920, 1080, 0x56595559), "FHD_yuyv"), // YUYV fourcc
+    ];
+
+    for ((width, height, fourcc), name) in dmabuf_sizes {
+        let dmabuf = create_dmabuf(width, height, fourcc);
+        let bytes = serialize(&dmabuf).unwrap();
+
+        // Throughput based on the referenced frame size, not message size
+        let frame_size = (width * height * 2) as u64; // YUYV = 2 bpp
+        group.throughput(Throughput::Bytes(frame_size));
+
+        group.bench_with_input(BenchmarkId::new("serialize", name), &dmabuf, |b, d| {
+            b.iter(|| serialize(black_box(d)))
+        });
+
+        group.bench_with_input(BenchmarkId::new("deserialize", name), &bytes, |b, data| {
+            b.iter(|| deserialize::<DmaBuf>(black_box(data)))
+        });
+    }
+
+    group.finish();
+}
+
+// ============================================================================
 // CRITERION GROUPS
 // ============================================================================
 
@@ -544,10 +654,12 @@ criterion_group!(
     bench_builtin_interfaces,
     bench_std_msgs,
     bench_geometry_msgs,
+    bench_dmabuf,
     bench_compressed_video,
     bench_radar_cube,
     bench_point_cloud,
     bench_mask,
+    bench_compressed_mask,
     bench_image,
 );
 
