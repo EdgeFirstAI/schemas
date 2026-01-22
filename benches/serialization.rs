@@ -675,18 +675,27 @@ fn bench_dmabuf(c: &mut Criterion) {
 // CRITERION GROUPS
 // ============================================================================
 
-criterion_group!(
-    benches,
-    bench_builtin_interfaces,
-    bench_std_msgs,
-    bench_geometry_msgs,
-    bench_dmabuf,
-    bench_compressed_video,
-    bench_radar_cube,
-    bench_point_cloud,
-    bench_mask,
-    bench_compressed_mask,
-    bench_image,
-);
+criterion_group! {
+    name = benches;
+    // Reduce iterations for faster CI runs (~5 min instead of ~50 min)
+    // - sample_size: 10 (default 100) - fewer iterations per benchmark
+    // - measurement_time: 1s (default 5s) - shorter measurement window
+    // - warm_up_time: 500ms (default 3s) - shorter warm-up
+    config = Criterion::default()
+        .sample_size(10)
+        .measurement_time(std::time::Duration::from_secs(1))
+        .warm_up_time(std::time::Duration::from_millis(500));
+    targets =
+        bench_builtin_interfaces,
+        bench_std_msgs,
+        bench_geometry_msgs,
+        bench_dmabuf,
+        bench_compressed_video,
+        bench_radar_cube,
+        bench_point_cloud,
+        bench_mask,
+        bench_compressed_mask,
+        bench_image,
+}
 
 criterion_main!(benches);
