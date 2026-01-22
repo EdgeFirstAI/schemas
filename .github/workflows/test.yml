@@ -94,8 +94,11 @@ jobs:
           retention-days: 7
 
   # ============================================================================
-  # C API Tests (with Rust coverage via instrumented library)
+  # C API Tests (with Rust FFI coverage via instrumented library)
   # ============================================================================
+  # C tests call into libedgefirst_schemas.so which is built with LLVM coverage
+  # instrumentation. When C code calls Rust FFI functions, profraw files are
+  # generated capturing FFI code paths that Rust unit tests don't exercise.
   c-test:
     name: C API Tests
     runs-on: ubuntu-latest
@@ -117,21 +120,32 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcriterion-dev
 
-      - name: Build instrumented library for coverage
+      - name: Build instrumented library and run C tests
         run: |
-          # Build with coverage instrumentation
+          # Set up LLVM coverage environment
+          # This exports RUSTFLAGS for instrumentation and LLVM_PROFILE_FILE for profraw output
           source <(cargo llvm-cov show-env --export-prefix)
-          cargo llvm-cov build --release --no-report
-
-      - name: Run C tests with coverage
-        run: |
-          source <(cargo llvm-cov show-env --export-prefix)
+          
+          # Build the Rust library with coverage instrumentation
+          # The library will be in target/release/libedgefirst_schemas.so
+          cargo build --release
+          
+          # Build and run C tests against the instrumented library
+          # When C code calls Rust FFI functions, profraw files are generated
           export LD_LIBRARY_PATH=$PWD/target/release:$LD_LIBRARY_PATH
           make test-c-xml
-
-      - name: Generate C API coverage report
-        run: |
+          
+          # Generate LCOV coverage report from the profraw files
+          # This captures all FFI code paths exercised by C tests
           cargo llvm-cov report --lcov --output-path c-api-lcov.info
+          
+          echo "=== C API Coverage Summary ==="
+          if [ -f c-api-lcov.info ]; then
+            LINES=$(grep -c "^SF:" c-api-lcov.info || echo "0")
+            echo "Source files with coverage data: $LINES"
+          else
+            echo "WARNING: No coverage data generated"
+          fi
 
       - name: Upload C API coverage artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -139,6 +153,7 @@ jobs:
           name: c-api-coverage
           path: c-api-lcov.info
           retention-days: 7
+        if: always()
 
       - name: Test Summary
         uses: EnricoMi/publish-unit-test-result-action@27d65e188ec43221b20d26de30f4892fad91df2f # v2.22.0
@@ -219,6 +234,7 @@ jobs:
         with:
           name: c-api-coverage
           path: .
+        continue-on-error: true  # C API coverage is optional (may fail if no FFI paths exercised)
 
       - name: Download Python coverage
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
@@ -229,19 +245,25 @@ jobs:
       - name: Merge Rust coverage reports
         run: |
           # Merge Rust unit test coverage and C API FFI coverage
-          cat lcov.info c-api-lcov.info > merged-rust-lcov.info
-          mv merged-rust-lcov.info lcov.info
-          echo "=== Merged Rust Coverage ==="
-          RUST_FILES=$(grep -c "^SF:" lcov.info || echo "0")
-          echo "Total Rust source files: $RUST_FILES"
+          if [ -f c-api-lcov.info ]; then
+            echo "Merging Rust unit test and C API FFI coverage..."
+            cat lcov.info c-api-lcov.info > merged-rust-lcov.info
+            mv merged-rust-lcov.info lcov.info
+          else
+            echo "No C API coverage to merge (c-api-lcov.info not found)"
+          fi
 
       - name: Verify coverage files
         run: |
           echo "=== Coverage Files ==="
-          ls -la lcov.info coverage.xml 2>/dev/null || echo "Some coverage files missing"
+          ls -la lcov.info coverage.xml c-api-lcov.info 2>/dev/null || echo "Some coverage files missing"
           echo ""
           if [ -f lcov.info ]; then
-            echo "=== Rust LCOV (first 30 lines) ==="
+            echo "=== Rust LCOV Summary ==="
+            RUST_FILES=$(grep -c "^SF:" lcov.info || echo "0")
+            echo "Source files with coverage: $RUST_FILES"
+            echo ""
+            echo "=== First 30 lines ==="
             head -30 lcov.info
           fi
           if [ -f coverage.xml ]; then

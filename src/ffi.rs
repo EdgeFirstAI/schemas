@@ -8,6 +8,10 @@
 
 #![allow(non_camel_case_types)]
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
+// Explicit borrows on raw pointer dereferences (e.g., `(&(*ptr).field).get()`) are intentional
+// in FFI code to make reference creation visible when working with unsafe raw pointers.
+// Rust 1.93+ flags these as needless_borrow but removing them triggers implicit autoref errors.
+#![allow(clippy::needless_borrow)]
 
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
