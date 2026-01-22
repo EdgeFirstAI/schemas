@@ -122,18 +122,13 @@ jobs:
 
       - name: Build instrumented library and run C tests
         run: |
-          # Set up LLVM coverage environment
+          # Set up LLVM coverage environment for debug builds
           # This exports RUSTFLAGS for instrumentation and LLVM_PROFILE_FILE for profraw output
           source <(cargo llvm-cov show-env --export-prefix)
           
-          # Build the Rust library with coverage instrumentation
-          # The library will be in target/release/libedgefirst_schemas.so
-          cargo build --release
-          
-          # Build and run C tests against the instrumented library
-          # When C code calls Rust FFI functions, profraw files are generated
-          export LD_LIBRARY_PATH=$PWD/target/release:$LD_LIBRARY_PATH
-          make test-c-xml
+          # Build and run C tests with debug library (RELEASE=0)
+          # The Makefile will build to target/debug and link tests accordingly
+          make test-c-xml RELEASE=0
           
           # Generate LCOV coverage report from the profraw files
           # This captures all FFI code paths exercised by C tests

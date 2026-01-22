@@ -2,13 +2,24 @@
 #
 # Targets:
 #   all       - Build library and C tests
-#   lib       - Build Rust library (release)
+#   lib       - Build Rust library (release by default)
 #   test-c    - Build and run C tests
 #   clean     - Remove build artifacts
+#
+# Variables:
+#   RELEASE=1 - Build release library (default)
+#   RELEASE=0 - Build debug library (for coverage testing)
 
-# Rust library output
+# Rust library output - configurable between debug and release
+RELEASE ?= 1
+ifeq ($(RELEASE),1)
+  LIB_DIR = target/release
+  CARGO_FLAGS = --release
+else
+  LIB_DIR = target/debug
+  CARGO_FLAGS =
+endif
 LIB_NAME = libedgefirst_schemas
-LIB_DIR = target/release
 
 # C test configuration
 CC = gcc
@@ -31,7 +42,7 @@ all: lib $(TEST_BINARIES)
 # Build Rust library
 lib:
 	@echo "Building Rust library..."
-	@cargo build --release
+	@cargo build $(CARGO_FLAGS)
 
 # Ensure build directory exists
 $(BUILD_DIR):
@@ -78,9 +89,13 @@ help:
 	@echo ""
 	@echo "Targets:"
 	@echo "  all        - Build library and C tests"
-	@echo "  lib        - Build Rust library (release)"
+	@echo "  lib        - Build Rust library"
 	@echo "  test-c     - Build and run C tests"
 	@echo "  test-c-xml - Build and run C tests with XML output (for CI)"
 	@echo "  clean      - Remove all build artifacts"
+	@echo ""
+	@echo "Variables:"
+	@echo "  RELEASE=1  - Build release library (default)"
+	@echo "  RELEASE=0  - Build debug library (for coverage testing)"
 	@echo ""
 	@echo "C test binaries are built to: $(BUILD_DIR)/"

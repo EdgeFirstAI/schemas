@@ -33,7 +33,14 @@ harness = false
 [build-dependencies]
 cbindgen = "0.29.2"
 
-# Profile for coverage instrumentation (strip=false, debug=true required for LLVM coverage)
+# Release profile: optimized, stripped, no debug info
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
+debug = false
+
+# Profiling profile: release build with debug symbols for benchmarking
 [profile.profiling]
 inherits = "release"
 strip = false
