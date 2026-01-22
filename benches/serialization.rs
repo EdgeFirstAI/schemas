@@ -399,7 +399,11 @@ fn bench_compressed_video(c: &mut Criterion) {
         (1_000_000, "1MB"),
     ];
     let fast_sizes: &[(usize, &str)] = &[(100_000, "100KB"), (500_000, "500KB")];
-    let sizes = if is_fast_mode() { fast_sizes } else { all_sizes };
+    let sizes = if is_fast_mode() {
+        fast_sizes
+    } else {
+        all_sizes
+    };
 
     for &(size, name) in sizes {
         let video = create_compressed_video(size);
@@ -460,7 +464,11 @@ fn bench_radar_cube(c: &mut Criterion) {
         ([4, 256, 12, 64], "DRVEGRD171_medium", true),
         ([4, 512, 12, 32], "DRVEGRD171_long", true),
     ];
-    let shapes = if is_fast_mode() { fast_shapes } else { all_shapes };
+    let shapes = if is_fast_mode() {
+        fast_shapes
+    } else {
+        all_shapes
+    };
 
     for &(shape, name, is_complex) in shapes {
         let cube = create_radar_cube(&shape, is_complex);
@@ -501,7 +509,11 @@ fn bench_point_cloud(c: &mut Criterion) {
         (131_072, "very_dense_131K"),
     ];
     let fast_counts: &[(usize, &str)] = &[(10_000, "medium_10K"), (65_536, "dense_65K")];
-    let point_counts = if is_fast_mode() { fast_counts } else { all_counts };
+    let point_counts = if is_fast_mode() {
+        fast_counts
+    } else {
+        all_counts
+    };
 
     for &(num_points, name) in point_counts {
         let cloud = create_point_cloud(num_points);
@@ -546,7 +558,11 @@ fn bench_mask(c: &mut Criterion) {
         ((640, 640, 8), "640x640_8class"),
         ((1280, 1280, 32), "1280x1280_32class"),
     ];
-    let mask_sizes = if is_fast_mode() { fast_sizes } else { all_sizes };
+    let mask_sizes = if is_fast_mode() {
+        fast_sizes
+    } else {
+        all_sizes
+    };
 
     for &((width, height, channels), name) in mask_sizes {
         let mask = create_mask(width, height, channels);
@@ -588,7 +604,11 @@ fn bench_compressed_mask(c: &mut Criterion) {
         ((640, 640, 8), "640x640_8class"),
         ((1280, 1280, 32), "1280x1280_32class"),
     ];
-    let mask_sizes = if is_fast_mode() { fast_sizes } else { all_sizes };
+    let mask_sizes = if is_fast_mode() {
+        fast_sizes
+    } else {
+        all_sizes
+    };
 
     for &((width, height, channels), name) in mask_sizes {
         let mask = create_compressed_mask(width, height, channels);
@@ -640,7 +660,11 @@ fn bench_image(c: &mut Criterion) {
         ((1280, 720, "nv12", 3), "HD_nv12"),
         ((1920, 1080, "yuyv", 2), "FHD_yuyv"),
     ];
-    let image_sizes = if is_fast_mode() { fast_sizes } else { all_sizes };
+    let image_sizes = if is_fast_mode() {
+        fast_sizes
+    } else {
+        all_sizes
+    };
 
     for &((width, height, encoding, bpp), name) in image_sizes {
         // NV12 is special: Y plane + UV plane at half resolution
@@ -685,7 +709,11 @@ fn bench_dmabuf(c: &mut Criterion) {
         ((1920, 1080, 0x56595559), "FHD_yuyv"),
     ];
     let fast_sizes: &[((u32, u32, u32), &str)] = &[((1280, 720, 0x56595559), "HD_yuyv")];
-    let dmabuf_sizes = if is_fast_mode() { fast_sizes } else { all_sizes };
+    let dmabuf_sizes = if is_fast_mode() {
+        fast_sizes
+    } else {
+        all_sizes
+    };
 
     for &((width, height, fourcc), name) in dmabuf_sizes {
         let dmabuf = create_dmabuf(width, height, fourcc);
