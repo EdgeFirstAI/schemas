@@ -34,6 +34,9 @@ pub mod service;
 /// CDR serialization/deserialization support
 pub mod serde_cdr;
 
+/// C FFI bindings
+mod ffi;
+
 use sensor_msgs::{point_field, PointCloud2, PointField};
 use std::collections::HashMap;
 

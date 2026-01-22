@@ -6,6 +6,7 @@
 #include <criterion/criterion.h>
 #include <errno.h>
 #include <string.h>
+#include <stdlib.h>
 #include "edgefirst/schemas.h"
 
 // ============================================================================
@@ -13,126 +14,139 @@
 // ============================================================================
 
 Test(std_msgs, header_create_and_destroy) {
-    Header *header = edgefirst_header_create();
+    RosHeader *header = ros_header_new();
     cr_assert_not_null(header, "Header creation should succeed");
-    
-    // Default values
-    Time *stamp = edgefirst_header_get_stamp(header);
+
+    // Default stamp
+    const RosTime *stamp = ros_header_get_stamp(header);
     cr_assert_not_null(stamp);
-    
-    const char *frame_id = edgefirst_header_get_frame_id(header);
+
+    // Default frame_id (empty)
+    char *frame_id = ros_header_get_frame_id(header);
     cr_assert_not_null(frame_id);
     cr_assert_str_eq(frame_id, "", "Default frame_id should be empty");
-    
-    edgefirst_header_destroy(header);
+    free(frame_id);
+
+    ros_header_free(header);
 }
 
 Test(std_msgs, header_set_frame_id) {
-    Header *header = edgefirst_header_create();
+    RosHeader *header = ros_header_new();
     cr_assert_not_null(header);
-    
-    int ret = edgefirst_header_set_frame_id(header, "camera_frame");
+
+    int ret = ros_header_set_frame_id(header, "camera_frame");
     cr_assert_eq(ret, 0, "Setting frame_id should succeed");
-    
-    const char *frame_id = edgefirst_header_get_frame_id(header);
+
+    char *frame_id = ros_header_get_frame_id(header);
     cr_assert_str_eq(frame_id, "camera_frame");
-    
-    edgefirst_header_destroy(header);
+    free(frame_id);
+
+    ros_header_free(header);
 }
 
 Test(std_msgs, header_set_frame_id_long) {
-    Header *header = edgefirst_header_create();
+    RosHeader *header = ros_header_new();
     cr_assert_not_null(header);
-    
+
     char long_string[1001];
     memset(long_string, 'A', 1000);
     long_string[1000] = '\0';
-    
-    int ret = edgefirst_header_set_frame_id(header, long_string);
+
+    int ret = ros_header_set_frame_id(header, long_string);
     cr_assert_eq(ret, 0);
-    
-    const char *frame_id = edgefirst_header_get_frame_id(header);
+
+    char *frame_id = ros_header_get_frame_id(header);
     cr_assert_str_eq(frame_id, long_string);
-    
-    edgefirst_header_destroy(header);
+    free(frame_id);
+
+    ros_header_free(header);
 }
 
 Test(std_msgs, header_set_frame_id_special_chars) {
-    Header *header = edgefirst_header_create();
+    RosHeader *header = ros_header_new();
     cr_assert_not_null(header);
-    
+
     const char *special = "frame/with-special_chars.123";
-    int ret = edgefirst_header_set_frame_id(header, special);
+    int ret = ros_header_set_frame_id(header, special);
     cr_assert_eq(ret, 0);
-    
-    const char *frame_id = edgefirst_header_get_frame_id(header);
+
+    char *frame_id = ros_header_get_frame_id(header);
     cr_assert_str_eq(frame_id, special);
-    
-    edgefirst_header_destroy(header);
+    free(frame_id);
+
+    ros_header_free(header);
 }
 
 Test(std_msgs, header_set_stamp) {
-    Header *header = edgefirst_header_create();
+    RosHeader *header = ros_header_new();
     cr_assert_not_null(header);
-    
-    Time *new_stamp = edgefirst_time_create(100, 200);
-    edgefirst_header_set_stamp(header, new_stamp);
-    
-    Time *stamp = edgefirst_header_get_stamp(header);
-    cr_assert_eq(edgefirst_time_get_sec(stamp), 100);
-    cr_assert_eq(edgefirst_time_get_nanosec(stamp), 200);
-    
-    edgefirst_time_destroy(new_stamp);
-    edgefirst_header_destroy(header);
+
+    // Get mutable stamp and set values
+    RosTime *stamp = ros_header_get_stamp_mut(header);
+    ros_time_set_sec(stamp, 100);
+    ros_time_set_nanosec(stamp, 200);
+
+    // Verify via const getter
+    const RosTime *const_stamp = ros_header_get_stamp(header);
+    cr_assert_eq(ros_time_get_sec(const_stamp), 100);
+    cr_assert_eq(ros_time_get_nanosec(const_stamp), 200);
+
+    ros_header_free(header);
 }
 
 Test(std_msgs, header_serialize_deserialize) {
-    Header *original = edgefirst_header_create();
+    RosHeader *original = ros_header_new();
     cr_assert_not_null(original);
-    
-    Time *stamp = edgefirst_time_create(42, 999);
-    edgefirst_header_set_stamp(original, stamp);
-    edgefirst_header_set_frame_id(original, "test_frame");
-    
+
+    RosTime *stamp = ros_header_get_stamp_mut(original);
+    ros_time_set_sec(stamp, 42);
+    ros_time_set_nanosec(stamp, 999);
+    ros_header_set_frame_id(original, "test_frame");
+
     uint8_t *buffer = NULL;
     size_t len = 0;
-    
-    int ret = edgefirst_header_serialize(original, &buffer, &len);
+
+    int ret = ros_header_serialize(original, &buffer, &len);
     cr_assert_eq(ret, 0);
     cr_assert_not_null(buffer);
     cr_assert_gt(len, 0);
-    
-    Header *deserialized = edgefirst_header_deserialize(buffer, len);
+
+    RosHeader *deserialized = ros_header_deserialize(buffer, len);
     cr_assert_not_null(deserialized);
-    
-    Time *deser_stamp = edgefirst_header_get_stamp(deserialized);
-    cr_assert_eq(edgefirst_time_get_sec(deser_stamp), 42);
-    cr_assert_eq(edgefirst_time_get_nanosec(deser_stamp), 999);
-    
-    const char *frame_id = edgefirst_header_get_frame_id(deserialized);
+
+    const RosTime *deser_stamp = ros_header_get_stamp(deserialized);
+    cr_assert_eq(ros_time_get_sec(deser_stamp), 42);
+    cr_assert_eq(ros_time_get_nanosec(deser_stamp), 999);
+
+    char *frame_id = ros_header_get_frame_id(deserialized);
     cr_assert_str_eq(frame_id, "test_frame");
-    
-    edgefirst_time_destroy(stamp);
-    edgefirst_header_destroy(original);
-    edgefirst_header_destroy(deserialized);
-    edgefirst_buffer_destroy(buffer);
+    free(frame_id);
+
+    ros_header_free(original);
+    ros_header_free(deserialized);
+    free(buffer);
 }
 
 Test(std_msgs, header_serialize_null) {
     uint8_t *buffer = NULL;
     size_t len = 0;
-    
+
     errno = 0;
-    int ret = edgefirst_header_serialize(NULL, &buffer, &len);
+    int ret = ros_header_serialize(NULL, &buffer, &len);
     cr_assert_eq(ret, -1);
     cr_assert_eq(errno, EINVAL);
 }
 
 Test(std_msgs, header_deserialize_null) {
     errno = 0;
-    Header *header = edgefirst_header_deserialize(NULL, 100);
+    RosHeader *header = ros_header_deserialize(NULL, 100);
     cr_assert_null(header);
     cr_assert_eq(errno, EINVAL);
+}
+
+Test(std_msgs, header_free_null) {
+    // Should not crash when freeing NULL
+    ros_header_free(NULL);
 }
 
 // ============================================================================
@@ -140,65 +154,83 @@ Test(std_msgs, header_deserialize_null) {
 // ============================================================================
 
 Test(std_msgs, colorrgba_create_and_destroy) {
-    ColorRGBA *color = edgefirst_colorrgba_create(1.0f, 0.5f, 0.25f, 0.75f);
+    RosColorRGBA *color = ros_color_rgba_new();
     cr_assert_not_null(color);
-    
-    cr_assert_float_eq(edgefirst_colorrgba_get_r(color), 1.0f, 0.0001f);
-    cr_assert_float_eq(edgefirst_colorrgba_get_g(color), 0.5f, 0.0001f);
-    cr_assert_float_eq(edgefirst_colorrgba_get_b(color), 0.25f, 0.0001f);
-    cr_assert_float_eq(edgefirst_colorrgba_get_a(color), 0.75f, 0.0001f);
-    
-    edgefirst_colorrgba_destroy(color);
+
+    ros_color_rgba_set_r(color, 1.0f);
+    ros_color_rgba_set_g(color, 0.5f);
+    ros_color_rgba_set_b(color, 0.25f);
+    ros_color_rgba_set_a(color, 0.75f);
+
+    cr_assert_float_eq(ros_color_rgba_get_r(color), 1.0f, 0.0001f);
+    cr_assert_float_eq(ros_color_rgba_get_g(color), 0.5f, 0.0001f);
+    cr_assert_float_eq(ros_color_rgba_get_b(color), 0.25f, 0.0001f);
+    cr_assert_float_eq(ros_color_rgba_get_a(color), 0.75f, 0.0001f);
+
+    ros_color_rgba_free(color);
 }
 
 Test(std_msgs, colorrgba_create_zero) {
-    ColorRGBA *color = edgefirst_colorrgba_create(0.0f, 0.0f, 0.0f, 0.0f);
+    RosColorRGBA *color = ros_color_rgba_new();
     cr_assert_not_null(color);
-    
-    cr_assert_float_eq(edgefirst_colorrgba_get_r(color), 0.0f, 0.0001f);
-    cr_assert_float_eq(edgefirst_colorrgba_get_a(color), 0.0f, 0.0001f);
-    
-    edgefirst_colorrgba_destroy(color);
+
+    // Default: RGB = 0.0 (black), Alpha = 1.0 (fully opaque)
+    cr_assert_float_eq(ros_color_rgba_get_r(color), 0.0f, 0.0001f);
+    cr_assert_float_eq(ros_color_rgba_get_g(color), 0.0f, 0.0001f);
+    cr_assert_float_eq(ros_color_rgba_get_b(color), 0.0f, 0.0001f);
+    cr_assert_float_eq(ros_color_rgba_get_a(color), 1.0f, 0.0001f);
+
+    ros_color_rgba_free(color);
 }
 
 Test(std_msgs, colorrgba_set_values) {
-    ColorRGBA *color = edgefirst_colorrgba_create(0.0f, 0.0f, 0.0f, 0.0f);
+    RosColorRGBA *color = ros_color_rgba_new();
     cr_assert_not_null(color);
-    
-    edgefirst_colorrgba_set_r(color, 0.2f);
-    edgefirst_colorrgba_set_g(color, 0.4f);
-    edgefirst_colorrgba_set_b(color, 0.6f);
-    edgefirst_colorrgba_set_a(color, 0.8f);
-    
-    cr_assert_float_eq(edgefirst_colorrgba_get_r(color), 0.2f, 0.0001f);
-    cr_assert_float_eq(edgefirst_colorrgba_get_g(color), 0.4f, 0.0001f);
-    cr_assert_float_eq(edgefirst_colorrgba_get_b(color), 0.6f, 0.0001f);
-    cr_assert_float_eq(edgefirst_colorrgba_get_a(color), 0.8f, 0.0001f);
-    
-    edgefirst_colorrgba_destroy(color);
+
+    ros_color_rgba_set_r(color, 0.2f);
+    ros_color_rgba_set_g(color, 0.4f);
+    ros_color_rgba_set_b(color, 0.6f);
+    ros_color_rgba_set_a(color, 0.8f);
+
+    cr_assert_float_eq(ros_color_rgba_get_r(color), 0.2f, 0.0001f);
+    cr_assert_float_eq(ros_color_rgba_get_g(color), 0.4f, 0.0001f);
+    cr_assert_float_eq(ros_color_rgba_get_b(color), 0.6f, 0.0001f);
+    cr_assert_float_eq(ros_color_rgba_get_a(color), 0.8f, 0.0001f);
+
+    ros_color_rgba_free(color);
 }
 
 Test(std_msgs, colorrgba_serialize_deserialize) {
-    ColorRGBA *original = edgefirst_colorrgba_create(0.1f, 0.2f, 0.3f, 0.4f);
+    RosColorRGBA *original = ros_color_rgba_new();
     cr_assert_not_null(original);
-    
+
+    ros_color_rgba_set_r(original, 0.1f);
+    ros_color_rgba_set_g(original, 0.2f);
+    ros_color_rgba_set_b(original, 0.3f);
+    ros_color_rgba_set_a(original, 0.4f);
+
     uint8_t *buffer = NULL;
     size_t len = 0;
-    
-    int ret = edgefirst_colorrgba_serialize(original, &buffer, &len);
+
+    int ret = ros_color_rgba_serialize(original, &buffer, &len);
     cr_assert_eq(ret, 0);
     cr_assert_not_null(buffer);
     cr_assert_gt(len, 0);
-    
-    ColorRGBA *deserialized = edgefirst_colorrgba_deserialize(buffer, len);
+
+    RosColorRGBA *deserialized = ros_color_rgba_deserialize(buffer, len);
     cr_assert_not_null(deserialized);
-    
-    cr_assert_float_eq(edgefirst_colorrgba_get_r(deserialized), 0.1f, 0.0001f);
-    cr_assert_float_eq(edgefirst_colorrgba_get_g(deserialized), 0.2f, 0.0001f);
-    cr_assert_float_eq(edgefirst_colorrgba_get_b(deserialized), 0.3f, 0.0001f);
-    cr_assert_float_eq(edgefirst_colorrgba_get_a(deserialized), 0.4f, 0.0001f);
-    
-    edgefirst_colorrgba_destroy(original);
-    edgefirst_colorrgba_destroy(deserialized);
-    edgefirst_buffer_destroy(buffer);
+
+    cr_assert_float_eq(ros_color_rgba_get_r(deserialized), 0.1f, 0.0001f);
+    cr_assert_float_eq(ros_color_rgba_get_g(deserialized), 0.2f, 0.0001f);
+    cr_assert_float_eq(ros_color_rgba_get_b(deserialized), 0.3f, 0.0001f);
+    cr_assert_float_eq(ros_color_rgba_get_a(deserialized), 0.4f, 0.0001f);
+
+    ros_color_rgba_free(original);
+    ros_color_rgba_free(deserialized);
+    free(buffer);
+}
+
+Test(std_msgs, colorrgba_free_null) {
+    // Should not crash when freeing NULL
+    ros_color_rgba_free(NULL);
 }

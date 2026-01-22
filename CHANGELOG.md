@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+**C API Expansion:**
+- Comprehensive C FFI bindings for all message types via `libedgefirst_schemas.so`
+- New C header `include/edgefirst/schemas.h` with full Doxygen documentation
+- Support for 60+ message types across all namespaces:
+  - `builtin_interfaces`: Time, Duration
+  - `std_msgs`: Header, ColorRGBA
+  - `geometry_msgs`: Vector3, Point, Point32, Quaternion, Pose, Pose2D, PoseStamped, Transform, TransformStamped, Twist, TwistStamped, Accel, AccelStamped, Wrench, WrenchStamped, Inertia, InertiaStamped, Polygon, PolygonStamped, PoseArray, PoseWithCovariance, PoseWithCovarianceStamped, TwistWithCovariance, TwistWithCovarianceStamped, AccelWithCovariance, AccelWithCovarianceStamped
+  - `sensor_msgs`: Image, PointCloud2, PointField, CompressedImage, CameraInfo, RegionOfInterest, Imu, NavSatFix, NavSatStatus, Range, Temperature, RelativeHumidity, Illuminance, FluidPressure, BatteryState, JointState, Joy, JoyFeedback, JoyFeedbackArray, TimeReference, LaserScan, MultiEchoLaserScan, LaserEcho, MagneticField
+  - `nav_msgs`: Odometry, Path, OccupancyGrid, MapMetaData, GridCells
+  - `rosgraph_msgs`: Log, Clock
+  - `foxglove_msgs`: CompressedVideo
+  - `edgefirst_msgs`: DmaBuf, RadarCube, RadarInfo, Mask, Model, ModelInfo, Detect, Box, Track
+- Service message types: SetBool, Trigger, Empty
+- Complete unit tests for C API using Criterion test framework
+
+**Benchmark Suite:**
+- Comprehensive CDR serialization benchmarks for all heavy message types
+- On-target benchmark execution on NXP i.MX 8M Plus (Cortex-A53)
+- SmartMicro DRVEGRD radar configurations:
+  - DRVEGRD-169 (Corner Radar): Ultra-Short, Short, Medium, Long modes
+  - DRVEGRD-171 (Front Radar): Short, Medium, Long modes
+- Image benchmarks with RGB8, YUYV, NV12 encodings at VGA/HD/FHD
+- Mask benchmarks at 320/640/1280 with 8 and 32 classes
+- CompressedMask benchmarks with zstd compression
+- DmaBuf zero-copy reference benchmarks (nanosecond scale)
+- PointCloud2 benchmarks from sparse (1K) to very dense (131K points)
+
+**CI/CD Improvements:**
+- QuickChart integration for grouped bar charts in GitHub Actions Summary
+- Criterion JSON parsing for reliable benchmark data extraction  
+- EnricoMi/publish-unit-test-result-action for C API test reporting
+- SonarCloud integration with Rust and C coverage reporting via llvm-cov
+- On-target ARM64 benchmark execution via self-hosted runner
+
+### Changed
+- Benchmark charts now auto-scale Y-axis to actual data
+- DmaBuf benchmarks display in nanoseconds for precision
+- All chart values show 2 decimal places for readability
+- Updated `sonar-project.properties` to include C API sources and tests
+
+### Fixed
+- Criterion `slope: null` handling for benchmarks without linear fit
+- UTF-8 encoding issues in Mermaid charts (switched to QuickChart)
+- Stale benchmark cache causing legacy names to appear
+
 ## [1.4.1] - 2025-11-18
 
 ### Changed

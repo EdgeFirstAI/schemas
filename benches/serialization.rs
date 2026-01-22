@@ -8,13 +8,15 @@
 //!
 //! Run all benchmarks: `cargo bench`
 //! Run specific group: `cargo bench -- "RadarCube"`
+//! Fast mode for CI: `BENCH_FAST=1 cargo bench`
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use rand::Rng;
 use std::hint::black_box;
+use std::io::Cursor;
 
 use edgefirst_schemas::builtin_interfaces::{Duration, Time};
-use edgefirst_schemas::edgefirst_msgs::{Mask, RadarCube};
+use edgefirst_schemas::edgefirst_msgs::{DmaBuf, Mask, RadarCube};
 use edgefirst_schemas::foxglove_msgs::FoxgloveCompressedVideo;
 use edgefirst_schemas::geometry_msgs::{
     Point, Point32, Pose, Pose2D, Quaternion, Transform, Twist, Vector3,
@@ -22,6 +24,15 @@ use edgefirst_schemas::geometry_msgs::{
 use edgefirst_schemas::sensor_msgs::{point_field, Image, PointCloud2, PointField};
 use edgefirst_schemas::serde_cdr::{deserialize, serialize};
 use edgefirst_schemas::std_msgs::{ColorRGBA, Header};
+
+/// Check if fast benchmark mode is enabled via BENCH_FAST=1 environment variable.
+/// Fast mode runs fewer benchmark variants for quicker CI feedback (~5-10 min vs ~20 min).
+fn is_fast_mode() -> bool {
+    std::env::var("BENCH_FAST").is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+}
+
+// Image benchmark configuration type alias to avoid complex type warnings
+type ImageConfig<'a> = ((u32, u32, &'a str, u32), &'a str);
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -37,6 +48,25 @@ fn create_header() -> Header {
     }
 }
 
+/// Create a DmaBuf message representing a camera frame reference.
+fn create_dmabuf(width: u32, height: u32, fourcc: u32) -> DmaBuf {
+    let bytes_per_pixel = match fourcc {
+        0x56595559 => 2, // YUYV
+        0x3231564E => 1, // NV12 (1.5 bytes avg, but length is separate)
+        _ => 3,          // RGB
+    };
+    DmaBuf {
+        header: create_header(),
+        pid: 12345,
+        fd: 42,
+        width,
+        height,
+        stride: width * bytes_per_pixel,
+        fourcc,
+        length: width * height * bytes_per_pixel,
+    }
+}
+
 /// Create a FoxgloveCompressedVideo with random data simulating H.264 NAL units.
 fn create_compressed_video(data_size: usize) -> FoxgloveCompressedVideo {
     let mut rng = rand::rng();
@@ -48,17 +78,19 @@ fn create_compressed_video(data_size: usize) -> FoxgloveCompressedVideo {
 }
 
 /// Create a RadarCube with random i16 data simulating real radar returns.
-fn create_radar_cube(shape: &[u16; 4]) -> RadarCube {
+/// Shape: [chirp_types, range_gates, rx_channels, doppler_bins]
+fn create_radar_cube(shape: &[u16; 4], is_complex: bool) -> RadarCube {
     let mut rng = rand::rng();
+    // For complex data, doppler dimension is doubled (real + imag interleaved)
     let total_elements: usize = shape.iter().map(|&x| x as usize).product();
     RadarCube {
         header: create_header(),
         timestamp: 1234567890123456,
         layout: vec![6, 1, 5, 2], // SEQUENCE, RANGE, RXCHANNEL, DOPPLER
         shape: shape.to_vec(),
-        scales: vec![1.0, 2.5, 1.0, 0.5], // meters, meters, unitless, m/s
+        scales: vec![1.0, 0.117, 1.0, 0.156], // range: 0.117m/bin, speed: 0.156m/s/bin
         cube: (0..total_elements).map(|_| rng.random()).collect(),
-        is_complex: false,
+        is_complex,
     }
 }
 
@@ -118,6 +150,25 @@ fn create_mask(width: u32, height: u32, channels: u32) -> Mask {
         length: channels,
         encoding: String::new(), // No compression
         mask: (0..data_size).map(|_| rng.random()).collect(),
+        boxed: false,
+    }
+}
+
+/// Create a compressed Mask with zstd-encoded data.
+fn create_compressed_mask(width: u32, height: u32, channels: u32) -> Mask {
+    let mut rng = rand::rng();
+    let data_size = (width * height * channels) as usize;
+    let raw_data: Vec<u8> = (0..data_size).map(|_| rng.random()).collect();
+
+    // Compress with zstd (level 3 is a good balance)
+    let compressed = zstd::stream::encode_all(Cursor::new(&raw_data), 3).unwrap();
+
+    Mask {
+        height,
+        width,
+        length: channels,
+        encoding: "zstd".to_string(),
+        mask: compressed,
         boxed: false,
     }
 }
@@ -343,14 +394,21 @@ fn bench_compressed_video(c: &mut Criterion) {
     let mut group = c.benchmark_group("FoxgloveCompressedVideo");
 
     // Test sizes: 10KB, 100KB, 500KB, 1MB (simulating H.264 frame sizes)
-    let sizes = [
+    // Fast mode: 100KB and 500KB only (representative sizes)
+    let all_sizes: &[(usize, &str)] = &[
         (10_000, "10KB"),
         (100_000, "100KB"),
         (500_000, "500KB"),
         (1_000_000, "1MB"),
     ];
+    let fast_sizes: &[(usize, &str)] = &[(100_000, "100KB"), (500_000, "500KB")];
+    let sizes = if is_fast_mode() {
+        fast_sizes
+    } else {
+        all_sizes
+    };
 
-    for (size, name) in sizes {
+    for &(size, name) in sizes {
         let video = create_compressed_video(size);
         let bytes = serialize(&video).unwrap();
 
@@ -375,18 +433,48 @@ fn bench_compressed_video(c: &mut Criterion) {
 fn bench_radar_cube(c: &mut Criterion) {
     let mut group = c.benchmark_group("RadarCube");
 
-    // Shapes from Raivin radar: [SEQ, RANGE, RXCHANNEL, DOPPLER]
-    // Small: 65,536 elements (128 KB)
-    // Medium: 1,048,576 elements (2 MB)
-    // Large: 12,582,912 elements (24 MB)
-    let shapes: [([u16; 4], &str); 3] = [
-        ([8, 64, 4, 32], "small_128KB"),
-        ([16, 128, 8, 64], "medium_2MB"),
-        ([32, 256, 12, 128], "large_24MB"),
+    // SmartMicro DRVEGRD radar cube configurations
+    // Shape: [chirp_types, range_gates, rx_channels, doppler_bins]
+    // All cubes use complex i16 data (real+imag interleaved)
+    //
+    // DRVEGRD-169: 4D/UHD Corner Radar (77-81 GHz, 79 GHz typical)
+    //   Designed for side/corner monitoring with wide FoV (±70° azimuth)
+    //   - Ultra-Short: 0.1-9.5m, ≤0.15m resolution, ±60 km/h
+    //   - Short: 0.2-19m, ≤0.3m resolution, ±340/+140 km/h
+    //   - Medium: 0.6-56m, ≤0.6m resolution
+    //   - Long: 1.3-130m, ≤1.3m resolution
+    //
+    // DRVEGRD-171: 4D/PXHD Front Radar (76-77 GHz)
+    //   Designed for front long-range detection (±50° azimuth, 6TX/8RX)
+    //   - Short: 0.2-40m, ≤0.4m resolution, ±400/+200 km/h
+    //   - Medium: 0.5-100m, ≤1.0m resolution
+    //   - Long: 1.2-240m, ≤2.4m resolution
+    //
+    // Fast mode: 3 representative configurations (short, medium, long)
+    let all_shapes: &[([u16; 4], &str, bool)] = &[
+        // DRVEGRD-169 Corner Radar configurations
+        ([4, 64, 12, 256], "DRVEGRD169_ultra_short", true),
+        ([4, 128, 12, 128], "DRVEGRD169_short", true),
+        ([4, 192, 12, 96], "DRVEGRD169_medium", true),
+        ([4, 256, 12, 64], "DRVEGRD169_long", true),
+        // DRVEGRD-171 Front Radar configurations
+        ([4, 160, 12, 128], "DRVEGRD171_short", true),
+        ([4, 256, 12, 64], "DRVEGRD171_medium", true),
+        ([4, 512, 12, 32], "DRVEGRD171_long", true),
     ];
+    let fast_shapes: &[([u16; 4], &str, bool)] = &[
+        ([4, 128, 12, 128], "DRVEGRD169_short", true),
+        ([4, 256, 12, 64], "DRVEGRD171_medium", true),
+        ([4, 512, 12, 32], "DRVEGRD171_long", true),
+    ];
+    let shapes = if is_fast_mode() {
+        fast_shapes
+    } else {
+        all_shapes
+    };
 
-    for (shape, name) in shapes {
-        let cube = create_radar_cube(&shape);
+    for &(shape, name, is_complex) in shapes {
+        let cube = create_radar_cube(&shape, is_complex);
         let data_size = cube.cube.len() * 2; // i16 = 2 bytes
         let bytes = serialize(&cube).unwrap();
 
@@ -400,23 +488,6 @@ fn bench_radar_cube(c: &mut Criterion) {
             b.iter(|| deserialize::<RadarCube>(black_box(data)))
         });
     }
-
-    // Also test complex radar cubes (is_complex: true)
-    let mut complex_cube = create_radar_cube(&[8, 64, 4, 32]);
-    complex_cube.is_complex = true;
-    let complex_bytes = serialize(&complex_cube).unwrap();
-
-    group.bench_with_input(
-        BenchmarkId::new("serialize", "small_complex"),
-        &complex_cube,
-        |b, c| b.iter(|| serialize(black_box(c))),
-    );
-
-    group.bench_with_input(
-        BenchmarkId::new("deserialize", "small_complex"),
-        &complex_bytes,
-        |b, data| b.iter(|| deserialize::<RadarCube>(black_box(data))),
-    );
 
     group.finish();
 }
@@ -433,14 +504,21 @@ fn bench_point_cloud(c: &mut Criterion) {
     // Medium: 10,000 points (160 KB)
     // Dense: 65,536 points (1 MB)
     // Very Dense: 131,072 points (2 MB)
-    let point_counts = [
+    // Fast mode: medium and dense only
+    let all_counts: &[(usize, &str)] = &[
         (1_000, "sparse_1K"),
         (10_000, "medium_10K"),
         (65_536, "dense_65K"),
         (131_072, "very_dense_131K"),
     ];
+    let fast_counts: &[(usize, &str)] = &[(10_000, "medium_10K"), (65_536, "dense_65K")];
+    let point_counts = if is_fast_mode() {
+        fast_counts
+    } else {
+        all_counts
+    };
 
-    for (num_points, name) in point_counts {
+    for &(num_points, name) in point_counts {
         let cloud = create_point_cloud(num_points);
         let data_size = cloud.data.len();
         let bytes = serialize(&cloud).unwrap();
@@ -466,21 +544,78 @@ fn bench_point_cloud(c: &mut Criterion) {
 fn bench_mask(c: &mut Criterion) {
     let mut group = c.benchmark_group("Mask");
 
-    // Segmentation mask sizes
-    // Small: 256x256x1 (64 KB)
-    // Medium: 640x480x1 (300 KB)
-    // Large: 1920x1080x1 (2 MB)
-    // Multi-class: 640x480x20 (6 MB)
-    let mask_sizes = [
-        ((256, 256, 1), "small_256x256"),
-        ((640, 480, 1), "medium_640x480"),
-        ((1920, 1080, 1), "large_1920x1080"),
-        ((640, 480, 20), "multiclass_640x480x20"),
+    // Segmentation mask sizes: square resolutions with 8 or 32 classes
+    // 320x320: Common for lightweight models (MobileNet-based)
+    // 640x640: Standard YOLO/detection input size
+    // 1280x1280: High-resolution segmentation
+    // Fast mode: 640x640 and 1280x1280 with 32 classes only
+    let all_sizes: &[((u32, u32, u32), &str)] = &[
+        ((320, 320, 8), "320x320_8class"),
+        ((320, 320, 32), "320x320_32class"),
+        ((640, 640, 8), "640x640_8class"),
+        ((640, 640, 32), "640x640_32class"),
+        ((1280, 1280, 8), "1280x1280_8class"),
+        ((1280, 1280, 32), "1280x1280_32class"),
     ];
+    let fast_sizes: &[((u32, u32, u32), &str)] = &[
+        ((640, 640, 8), "640x640_8class"),
+        ((1280, 1280, 32), "1280x1280_32class"),
+    ];
+    let mask_sizes = if is_fast_mode() {
+        fast_sizes
+    } else {
+        all_sizes
+    };
 
-    for ((width, height, channels), name) in mask_sizes {
+    for &((width, height, channels), name) in mask_sizes {
         let mask = create_mask(width, height, channels);
         let data_size = mask.mask.len();
+        let bytes = serialize(&mask).unwrap();
+
+        group.throughput(Throughput::Bytes(data_size as u64));
+
+        group.bench_with_input(BenchmarkId::new("serialize", name), &mask, |b, m| {
+            b.iter(|| serialize(black_box(m)))
+        });
+
+        group.bench_with_input(BenchmarkId::new("deserialize", name), &bytes, |b, data| {
+            b.iter(|| deserialize::<Mask>(black_box(data)))
+        });
+    }
+
+    group.finish();
+}
+
+// ============================================================================
+// BENCHMARK: CompressedMask (Heavy) - zstd compressed segmentation masks
+// ============================================================================
+
+fn bench_compressed_mask(c: &mut Criterion) {
+    let mut group = c.benchmark_group("CompressedMask");
+
+    // Same sizes as Mask but with zstd compression
+    // Fast mode: 640x640 and 1280x1280 with 32 classes only
+    let all_sizes: &[((u32, u32, u32), &str)] = &[
+        ((320, 320, 8), "320x320_8class"),
+        ((320, 320, 32), "320x320_32class"),
+        ((640, 640, 8), "640x640_8class"),
+        ((640, 640, 32), "640x640_32class"),
+        ((1280, 1280, 8), "1280x1280_8class"),
+        ((1280, 1280, 32), "1280x1280_32class"),
+    ];
+    let fast_sizes: &[((u32, u32, u32), &str)] = &[
+        ((640, 640, 8), "640x640_8class"),
+        ((1280, 1280, 32), "1280x1280_32class"),
+    ];
+    let mask_sizes = if is_fast_mode() {
+        fast_sizes
+    } else {
+        all_sizes
+    };
+
+    for &((width, height, channels), name) in mask_sizes {
+        let mask = create_compressed_mask(width, height, channels);
+        let data_size = mask.mask.len(); // Compressed size
         let bytes = serialize(&mask).unwrap();
 
         group.throughput(Throughput::Bytes(data_size as u64));
@@ -504,20 +639,46 @@ fn bench_mask(c: &mut Criterion) {
 fn bench_image(c: &mut Criterion) {
     let mut group = c.benchmark_group("Image");
 
-    // Standard image resolutions
-    // VGA RGB: 640x480x3 (900 KB)
-    // HD RGB: 1280x720x3 (2.7 MB)
-    // FHD RGB: 1920x1080x3 (6.2 MB)
-    // YUV422: 1920x1080x2 (4.1 MB)
-    let image_sizes = [
+    // Standard image resolutions with various encodings
+    // RGB8: 3 bytes per pixel
+    // YUYV: 2 bytes per pixel (YUV422 packed)
+    // NV12: 1.5 bytes per pixel (YUV420 semi-planar, stored as 1 byte luma + 0.5 chroma)
+    // Fast mode: HD resolution only with one encoding per type
+    let all_sizes: &[ImageConfig<'_>] = &[
+        // VGA resolution
         ((640, 480, "rgb8", 3), "VGA_rgb8"),
+        ((640, 480, "yuyv", 2), "VGA_yuyv"),
+        ((640, 480, "nv12", 3), "VGA_nv12"),
+        // HD resolution
         ((1280, 720, "rgb8", 3), "HD_rgb8"),
+        ((1280, 720, "yuyv", 2), "HD_yuyv"),
+        ((1280, 720, "nv12", 3), "HD_nv12"),
+        // FHD resolution
         ((1920, 1080, "rgb8", 3), "FHD_rgb8"),
         ((1920, 1080, "yuyv", 2), "FHD_yuyv"),
+        ((1920, 1080, "nv12", 3), "FHD_nv12"),
     ];
+    let fast_sizes: &[ImageConfig<'_>] = &[
+        ((1280, 720, "rgb8", 3), "HD_rgb8"),
+        ((1280, 720, "nv12", 3), "HD_nv12"),
+        ((1920, 1080, "yuyv", 2), "FHD_yuyv"),
+    ];
+    let image_sizes = if is_fast_mode() {
+        fast_sizes
+    } else {
+        all_sizes
+    };
 
-    for ((width, height, encoding, bpp), name) in image_sizes {
-        let image = create_image(width, height, encoding, bpp);
+    for &((width, height, encoding, bpp), name) in image_sizes {
+        // NV12 is special: Y plane + UV plane at half resolution
+        let data_height = if encoding == "nv12" {
+            height + height / 2
+        } else {
+            height
+        };
+        let actual_bpp_for_step = if encoding == "nv12" { 1 } else { bpp };
+
+        let image = create_image(width, data_height, encoding, actual_bpp_for_step);
         let data_size = image.data.len();
         let bytes = serialize(&image).unwrap();
 
@@ -536,19 +697,73 @@ fn bench_image(c: &mut Criterion) {
 }
 
 // ============================================================================
+// BENCHMARK: DmaBuf (Lightweight reference)
+// ============================================================================
+
+fn bench_dmabuf(c: &mut Criterion) {
+    let mut group = c.benchmark_group("DmaBuf");
+
+    // DmaBuf is a lightweight message - just metadata, no pixel data
+    // Used as a reference to show overhead of heavy messages vs zero-copy
+    // Fast mode: single representative size only
+    let all_sizes: &[((u32, u32, u32), &str)] = &[
+        ((640, 480, 0x56595559), "VGA_yuyv"),
+        ((1280, 720, 0x56595559), "HD_yuyv"),
+        ((1920, 1080, 0x56595559), "FHD_yuyv"),
+    ];
+    let fast_sizes: &[((u32, u32, u32), &str)] = &[((1280, 720, 0x56595559), "HD_yuyv")];
+    let dmabuf_sizes = if is_fast_mode() {
+        fast_sizes
+    } else {
+        all_sizes
+    };
+
+    for &((width, height, fourcc), name) in dmabuf_sizes {
+        let dmabuf = create_dmabuf(width, height, fourcc);
+        let bytes = serialize(&dmabuf).unwrap();
+
+        // Throughput based on the referenced frame size, not message size
+        let frame_size = (width * height * 2) as u64; // YUYV = 2 bpp
+        group.throughput(Throughput::Bytes(frame_size));
+
+        group.bench_with_input(BenchmarkId::new("serialize", name), &dmabuf, |b, d| {
+            b.iter(|| serialize(black_box(d)))
+        });
+
+        group.bench_with_input(BenchmarkId::new("deserialize", name), &bytes, |b, data| {
+            b.iter(|| deserialize::<DmaBuf>(black_box(data)))
+        });
+    }
+
+    group.finish();
+}
+
+// ============================================================================
 // CRITERION GROUPS
 // ============================================================================
 
-criterion_group!(
-    benches,
-    bench_builtin_interfaces,
-    bench_std_msgs,
-    bench_geometry_msgs,
-    bench_compressed_video,
-    bench_radar_cube,
-    bench_point_cloud,
-    bench_mask,
-    bench_image,
-);
+criterion_group! {
+    name = benches;
+    // Reduce iterations for faster CI runs (~5-10 min instead of ~20 min)
+    // - sample_size: 10 (default 100) - fewer iterations per benchmark
+    // - measurement_time: 1s (default 5s) - shorter measurement window
+    // - warm_up_time: 500ms (default 3s) - shorter warm-up
+    // For even faster runs, set BENCH_FAST=1 to also reduce benchmark variants
+    config = Criterion::default()
+        .sample_size(10)
+        .measurement_time(std::time::Duration::from_secs(1))
+        .warm_up_time(std::time::Duration::from_millis(500));
+    targets =
+        bench_builtin_interfaces,
+        bench_std_msgs,
+        bench_geometry_msgs,
+        bench_dmabuf,
+        bench_compressed_video,
+        bench_radar_cube,
+        bench_point_cloud,
+        bench_mask,
+        bench_compressed_mask,
+        bench_image,
+}
 
 criterion_main!(benches);

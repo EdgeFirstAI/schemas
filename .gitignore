@@ -32,6 +32,8 @@ log/
 
 .vscode-ctags
 
+*.profraw
+
 # SBOM generation artifacts
 *.cdx.json
 sbom.json
