@@ -28,8 +28,11 @@ use edgefirst_schemas::std_msgs::{ColorRGBA, Header};
 /// Check if fast benchmark mode is enabled via BENCH_FAST=1 environment variable.
 /// Fast mode runs fewer benchmark variants for quicker CI feedback (~5-10 min vs ~20 min).
 fn is_fast_mode() -> bool {
-    std::env::var("BENCH_FAST").map_or(false, |v| v == "1" || v.eq_ignore_ascii_case("true"))
+    std::env::var("BENCH_FAST").is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
 }
+
+// Image benchmark configuration type alias to avoid complex type warnings
+type ImageConfig<'a> = ((u32, u32, &'a str, u32), &'a str);
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -641,7 +644,7 @@ fn bench_image(c: &mut Criterion) {
     // YUYV: 2 bytes per pixel (YUV422 packed)
     // NV12: 1.5 bytes per pixel (YUV420 semi-planar, stored as 1 byte luma + 0.5 chroma)
     // Fast mode: HD resolution only with one encoding per type
-    let all_sizes: &[((u32, u32, &str, u32), &str)] = &[
+    let all_sizes: &[ImageConfig<'_>] = &[
         // VGA resolution
         ((640, 480, "rgb8", 3), "VGA_rgb8"),
         ((640, 480, "yuyv", 2), "VGA_yuyv"),
@@ -655,7 +658,7 @@ fn bench_image(c: &mut Criterion) {
         ((1920, 1080, "yuyv", 2), "FHD_yuyv"),
         ((1920, 1080, "nv12", 3), "FHD_nv12"),
     ];
-    let fast_sizes: &[((u32, u32, &str, u32), &str)] = &[
+    let fast_sizes: &[ImageConfig<'_>] = &[
         ((1280, 720, "rgb8", 3), "HD_rgb8"),
         ((1280, 720, "nv12", 3), "HD_nv12"),
         ((1920, 1080, "yuyv", 2), "FHD_yuyv"),
