@@ -70,6 +70,10 @@ jobs:
         run: |
           cargo llvm-cov test --all-features --workspace \
             --lcov --output-path lcov.info
+          
+          # Convert absolute paths to relative for SonarCloud compatibility
+          # SonarCloud expects paths relative to the repository root
+          sed -i "s|SF:$PWD/|SF:|g" lcov.info
 
       - name: Generate coverage summary
         id: coverage
@@ -134,6 +138,9 @@ jobs:
           # This captures all FFI code paths exercised by C tests
           cargo llvm-cov report --lcov --output-path c-api-lcov.info
           
+          # Convert absolute paths to relative for SonarCloud compatibility
+          sed -i "s|SF:$PWD/|SF:|g" c-api-lcov.info
+          
           echo "=== C API Coverage Summary ==="
           if [ -f c-api-lcov.info ]; then
             LINES=$(grep -c "^SF:" c-api-lcov.info || echo "0")
@@ -188,21 +195,14 @@ jobs:
               --cov-report=term \
               -v
           else
-            echo "No Python tests found, generating empty coverage"
-            # Generate minimal coverage by importing the package
-            python -c "import edgefirst.schemas"
-            # Create a minimal coverage file
-            pip install coverage
-            coverage run --source=edgefirst -m pytest --collect-only 2>/dev/null || true
-            coverage xml -o coverage.xml || echo '<?xml version="1.0"?><coverage version="1.0"></coverage>' > coverage.xml
+            echo "No Python tests found - skipping coverage generation"
+            echo "Add tests to tests/python/test_*.py to enable Python coverage"
           fi
 
-      - name: Upload Python coverage artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: python-coverage
-          path: coverage.xml
-          retention-days: 7
+      - name: Verify package import
+        run: |
+          # Verify the package can be imported successfully
+          python -c "import edgefirst.schemas; print('Package import OK')"
 
   # ============================================================================
   # SonarCloud Analysis (runs after all tests complete)
@@ -231,12 +231,6 @@ jobs:
           path: .
         continue-on-error: true  # C API coverage is optional (may fail if no FFI paths exercised)
 
-      - name: Download Python coverage
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
-        with:
-          name: python-coverage
-          path: .
-
       - name: Merge Rust coverage reports
         run: |
           # Merge Rust unit test coverage and C API FFI coverage
@@ -251,7 +245,7 @@ jobs:
       - name: Verify coverage files
         run: |
           echo "=== Coverage Files ==="
-          ls -la lcov.info coverage.xml c-api-lcov.info 2>/dev/null || echo "Some coverage files missing"
+          ls -la lcov.info c-api-lcov.info 2>/dev/null || echo "Some coverage files missing"
           echo ""
           if [ -f lcov.info ]; then
             echo "=== Rust LCOV Summary ==="
@@ -260,11 +254,6 @@ jobs:
             echo ""
             echo "=== First 30 lines ==="
             head -30 lcov.info
-          fi
-          if [ -f coverage.xml ]; then
-            echo ""
-            echo "=== Python Coverage XML ==="
-            head -20 coverage.xml
           fi
 
       - name: SonarCloud Scan
