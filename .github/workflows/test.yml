@@ -66,6 +66,12 @@ jobs:
       - name: Run Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
+      - name: Generate Clippy report for SonarCloud
+        run: |
+          # Generate JSON report for SonarCloud Rust analysis
+          cargo clippy --all-targets --all-features --message-format=json > clippy-report.json 2>&1 || true
+          echo "Clippy report generated: $(wc -l < clippy-report.json) lines"
+
       - name: Run tests with coverage
         run: |
           cargo llvm-cov test --all-features --workspace \
@@ -95,6 +101,13 @@ jobs:
         with:
           name: rust-coverage
           path: lcov.info
+          retention-days: 7
+
+      - name: Upload Clippy report artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: clippy-report
+          path: clippy-report.json
           retention-days: 7
 
   # ============================================================================
@@ -229,7 +242,13 @@ jobs:
         with:
           name: c-api-coverage
           path: .
-        continue-on-error: true  # C API coverage is optional (may fail if no FFI paths exercised)
+        continue-on-error: true  # C API coverage is optional
+
+      - name: Download Clippy report
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: clippy-report
+          path: .
 
       - name: Merge Rust coverage reports
         run: |
@@ -245,7 +264,7 @@ jobs:
       - name: Verify coverage files
         run: |
           echo "=== Coverage Files ==="
-          ls -la lcov.info c-api-lcov.info 2>/dev/null || echo "Some coverage files missing"
+          ls -la lcov.info c-api-lcov.info clippy-report.json 2>/dev/null || echo "Some files missing"
           echo ""
           if [ -f lcov.info ]; then
             echo "=== Rust LCOV Summary ==="
@@ -261,3 +280,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.rust.lcov.reportPaths=lcov.info
+            -Dsonar.rust.clippy.reportPaths=clippy-report.json
