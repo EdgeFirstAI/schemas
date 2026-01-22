@@ -67,10 +67,13 @@ jobs:
         run: chmod +x benchmark-binaries/*
 
       - name: Run benchmarks
+        env:
+          BENCH_FAST: "1"
         run: |
           mkdir -p benchmark-results
 
           echo "=== Running benchmarks on $(hostname) ==="
+          echo "BENCH_FAST=$BENCH_FAST (reduced benchmark variants for CI)"
           uname -a
           cat /proc/cpuinfo | head -30
 
