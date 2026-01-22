@@ -121,4 +121,29 @@ mod tests {
         let err = result.unwrap_err();
         assert!(err.to_string().contains("Deserialization error"));
     }
+
+    #[test]
+    fn error_source() {
+        // Verify Error::source() returns the underlying CDR error
+        use std::error::Error as StdError;
+
+        let bad_bytes = &[0u8; 1];
+        let result: Result<Header, _> = deserialize(bad_bytes);
+        let err = result.unwrap_err();
+
+        // source() should return Some pointing to the underlying cdr::Error
+        let source = err.source();
+        assert!(
+            source.is_some(),
+            "Error::source() should return the underlying error"
+        );
+
+        // The source should be a cdr::Error (we can't match on it directly, but
+        // we can verify it exists and has a description)
+        let source_str = source.unwrap().to_string();
+        assert!(
+            !source_str.is_empty(),
+            "Source error should have a description"
+        );
+    }
 }
