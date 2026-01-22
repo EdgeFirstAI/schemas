@@ -14,18 +14,17 @@ jobs:
     name: SonarCloud
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-action@ed94b1a593da83a5b3a2a89e04091b58a39298b6 # v1
-        with:
-          toolchain: stable
-          components: llvm-tools-preview
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup component add llvm-tools-preview
 
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@5651179b8c803289743f5a90f532973351de3dee # v2.52.7
+        uses: taiki-e/install-action@0bc4cd8a3e21db4cb9519857377b0c8c5e150de5 # v2.67.2
         with:
           tool: cargo-llvm-cov
 
@@ -38,30 +37,15 @@ jobs:
           cargo llvm-cov --lcov --output-path rust-lcov.info
 
           # Build C API library with coverage instrumentation
-          RUSTFLAGS="-C instrument-coverage" cargo build --release
+          eval "$(cargo llvm-cov show-env --export-prefix)"
+          cargo build --release
 
           # Run C API tests
-          mkdir -p build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release
-          make
-          
-          # Run C tests and generate coverage
-          LLVM_PROFILE_FILE="c-api-%p-%m.profraw" ./tests/test_c_api || true
-          
-          # Merge coverage data
-          cd ..
-          llvm-profdata merge -sparse build/c-api-*.profraw -o c-api.profdata
-          
-          # Generate LCOV for C API (covers the Rust library called from C)
-          llvm-cov export target/release/libedgefirst_schemas.so \
-            -instr-profile=c-api.profdata \
-            -format=lcov > c-api-lcov.info || true
+          export LD_LIBRARY_PATH=$PWD/target/release:$LD_LIBRARY_PATH
+          make test-c || true
 
           # Combine coverage reports
           cat rust-lcov.info > lcov.info
-          if [ -f c-api-lcov.info ]; then
-            cat c-api-lcov.info >> lcov.info
-          fi
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
