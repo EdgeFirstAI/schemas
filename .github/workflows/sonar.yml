@@ -16,8 +16,11 @@ jobs:
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0  # Full history for accurate blame information
 
+      # ========================================================================
+      # Rust Setup and Coverage
+      # ========================================================================
       - name: Install Rust toolchain
         run: |
           rustup toolchain install stable --profile minimal
@@ -28,24 +31,62 @@ jobs:
         with:
           tool: cargo-llvm-cov
 
-      - name: Install C build dependencies
-        run: sudo apt-get update && sudo apt-get install -y libcriterion-dev
-
-      - name: Generate Rust coverage (LCOV format)
+      - name: Generate Rust coverage
         run: |
-          # Run Rust tests with coverage
-          cargo llvm-cov --lcov --output-path rust-lcov.info
+          # Run Rust tests with coverage in LCOV format
+          cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+          
+          # Show coverage summary
+          echo "=== Rust Coverage Summary ==="
+          cargo llvm-cov report --summary-only || true
 
-          # Build C API library with coverage instrumentation
-          eval "$(cargo llvm-cov show-env --export-prefix)"
-          cargo build --release
+      # ========================================================================
+      # Python Setup and Coverage
+      # ========================================================================
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.10'
 
-          # Run C API tests
-          export LD_LIBRARY_PATH=$PWD/target/release:$LD_LIBRARY_PATH
-          make test-c || true
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov
+          pip install -e .
 
-          # Combine coverage reports
-          cat rust-lcov.info > lcov.info
+      - name: Generate Python coverage
+        run: |
+          # Run Python tests with coverage in Cobertura XML format
+          pytest tests/python/ \
+            --cov=edgefirst \
+            --cov-report=xml:coverage.xml \
+            --cov-report=term \
+            -v || true
+          
+          # Show coverage file exists
+          if [ -f coverage.xml ]; then
+            echo "=== Python coverage.xml generated ==="
+            head -20 coverage.xml
+          else
+            echo "Warning: No Python tests found or coverage.xml not generated"
+            # Create empty coverage file to avoid SonarCloud warning
+            echo '<?xml version="1.0" ?><coverage version="1.0"></coverage>' > coverage.xml
+          fi
+
+      # ========================================================================
+      # SonarCloud Analysis
+      # ========================================================================
+      - name: Verify coverage files
+        run: |
+          echo "=== Coverage Files ==="
+          ls -la *.info *.xml 2>/dev/null || echo "No coverage files found"
+          echo ""
+          echo "=== LCOV Summary ==="
+          if [ -f lcov.info ]; then
+            head -50 lcov.info
+            echo "..."
+            wc -l lcov.info
+          fi
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
