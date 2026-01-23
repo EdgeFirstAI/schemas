@@ -43,10 +43,13 @@ jobs:
         run: cargo +$RUSTV fmt -- --check
 
   # ============================================================================
-  # Rust Tests with Coverage
+  # Rust and C Tests with Combined Coverage
   # ============================================================================
-  rust-test:
-    name: Rust Tests
+  # Both Rust unit tests and C API tests run in the same job to properly merge
+  # coverage data. When tests run in separate jobs, profraw files are generated
+  # separately and cannot be merged by cargo-llvm-cov.
+  rust-and-c-test:
+    name: Rust & C Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -63,6 +66,16 @@ jobs:
         with:
           tool: cargo-llvm-cov
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@0bc4cd8a3e21db4cb9519857377b0c8c5e150de5 # v2.67.2
+        with:
+          tool: nextest
+
+      - name: Install Criterion test framework
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcriterion-dev
+
       - name: Run Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
@@ -72,14 +85,81 @@ jobs:
           cargo clippy --all-targets --all-features --message-format=json > clippy-report.json 2>&1 || true
           echo "Clippy report generated: $(wc -l < clippy-report.json) lines"
 
-      - name: Run tests with coverage
+      - name: Run Rust unit tests with coverage
         run: |
-          cargo llvm-cov test --all-features --workspace \
-            --lcov --output-path lcov.info
+          # Run Rust tests with coverage instrumentation using cargo-llvm-cov
+          # The --no-report flag delays report generation so we can add C test coverage
+          cargo llvm-cov nextest --all-features --workspace --profile ci --no-report
+          echo "=== Rust unit tests completed ==="
+
+      - name: Run Rust doc tests
+        run: |
+          # Run doc tests separately (nextest doesn't support doc tests)
+          # Note: doc tests don't contribute to llvm-cov coverage
+          cargo test --doc
+
+      - name: Set up C test coverage environment
+        run: |
+          # Get the coverage environment from llvm-cov to run C tests with same profraw location
+          # This ensures C test coverage is accumulated with Rust test coverage
+          source <(cargo llvm-cov show-env --export-prefix)
+          # Update profile path to write to llvm-cov-target directory
+          export LLVM_PROFILE_FILE="${PWD}/target/llvm-cov-target/schemas-c-%p-%m.profraw"
+          echo "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE" >> $GITHUB_ENV
+          echo "C tests will write profraw to: $LLVM_PROFILE_FILE"
+
+      - name: Run C API tests
+        run: |
+          # Copy instrumented library to where Makefile/gcc expect it
+          # This overwrites any non-instrumented library that might exist
+          mkdir -p target/debug/deps
+          cp -f target/llvm-cov-target/debug/deps/libedgefirst_schemas.* target/debug/deps/ 2>/dev/null || true
+          cp -f target/llvm-cov-target/debug/deps/libedgefirst_schemas.* target/debug/ 2>/dev/null || true
+          
+          # Verify we have the instrumented library (check for profile symbols)
+          echo "Verifying instrumented library:"
+          nm target/debug/deps/libedgefirst_schemas.so 2>/dev/null | grep -c "__llvm_profile" || \
+          nm target/debug/deps/libedgefirst_schemas.dylib 2>/dev/null | grep -c "__llvm_profile" || \
+          echo "Warning: Library may not be instrumented"
+          
+          # Build C tests without rebuilding the library (lib target would overwrite instrumented library)
+          # Build test binaries directly
+          mkdir -p build build/test-results
+          for src in tests/c/test_*.c; do
+            name=$(basename $src .c)
+            echo "Compiling $name..."
+            gcc -Wall -Wextra -Werror -std=c11 -I./include -I/usr/include/criterion \
+                -o build/$name $src \
+                -L./target/debug/deps -ledgefirst_schemas -lcriterion -lm \
+                -Wl,-rpath,./target/debug/deps
+          done
+          
+          # Run C tests
+          echo "Running C test suite..."
+          for test in build/test_*; do
+            name=$(basename $test)
+            echo "Running $name..."
+            ./$test --output=xml:build/test-results/$name.xml || exit 1
+          done
+          
+          echo "=== C API tests completed ==="
+          echo "Profraw files in coverage directory:"
+          find target/llvm-cov-target -name "*.profraw" | wc -l
+
+      - name: Generate combined coverage report
+        run: |
+          # Generate single LCOV report from all accumulated profraw files
+          # This includes coverage from both Rust unit tests and C API tests
+          cargo llvm-cov report --lcov --output-path lcov.info
           
           # Convert absolute paths to relative for SonarCloud compatibility
-          # SonarCloud expects paths relative to the repository root
           sed -i "s|SF:$PWD/|SF:|g" lcov.info
+          
+          echo "=== Combined Coverage Summary ==="
+          if [ -f lcov.info ]; then
+            RUST_FILES=$(grep -c "^SF:" lcov.info || echo "0")
+            echo "Source files with coverage data: $RUST_FILES"
+          fi
 
       - name: Generate coverage summary
         id: coverage
@@ -94,9 +174,9 @@ jobs:
             COVERAGE="0"
           fi
           echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
-          echo "Rust coverage: $COVERAGE% ($COVERED_LINES/$TOTAL_LINES lines)"
+          echo "Combined coverage: $COVERAGE% ($COVERED_LINES/$TOTAL_LINES lines)"
 
-      - name: Upload Rust coverage artifact
+      - name: Upload combined coverage artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: rust-coverage
@@ -110,71 +190,13 @@ jobs:
           path: clippy-report.json
           retention-days: 7
 
-  # ============================================================================
-  # C API Tests (with Rust FFI coverage via instrumented library)
-  # ============================================================================
-  # C tests call into libedgefirst_schemas.so which is built with LLVM coverage
-  # instrumentation. When C code calls Rust FFI functions, profraw files are
-  # generated capturing FFI code paths that Rust unit tests don't exercise.
-  c-test:
-    name: C API Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-
-      - name: Install Rust toolchain
-        run: |
-          rustup toolchain install stable --profile minimal
-          rustup component add llvm-tools-preview
-
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@0bc4cd8a3e21db4cb9519857377b0c8c5e150de5 # v2.67.2
-        with:
-          tool: cargo-llvm-cov
-
-      - name: Install Criterion test framework
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libcriterion-dev
-
-      - name: Build instrumented library and run C tests
-        run: |
-          # Set up LLVM coverage environment for debug builds
-          # This exports RUSTFLAGS for instrumentation and LLVM_PROFILE_FILE for profraw output
-          source <(cargo llvm-cov show-env --export-prefix)
-          
-          # Build and run C tests with debug library (RELEASE=0)
-          # The Makefile will build to target/debug and link tests accordingly
-          make test-c-xml RELEASE=0
-          
-          # Generate LCOV coverage report from the profraw files
-          # This captures all FFI code paths exercised by C tests
-          cargo llvm-cov report --lcov --output-path c-api-lcov.info
-          
-          # Convert absolute paths to relative for SonarCloud compatibility
-          sed -i "s|SF:$PWD/|SF:|g" c-api-lcov.info
-          
-          echo "=== C API Coverage Summary ==="
-          if [ -f c-api-lcov.info ]; then
-            LINES=$(grep -c "^SF:" c-api-lcov.info || echo "0")
-            echo "Source files with coverage data: $LINES"
-          else
-            echo "WARNING: No coverage data generated"
-          fi
-
-      - name: Upload C API coverage artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: c-api-coverage
-          path: c-api-lcov.info
-          retention-days: 7
-        if: always()
-
       - name: Test Summary
         uses: EnricoMi/publish-unit-test-result-action@27d65e188ec43221b20d26de30f4892fad91df2f # v2.22.0
         with:
-          files: "build/test-results/*.xml"
-          check_name: "C API Test Results"
+          files: |
+            target/nextest/ci/junit.xml
+            build/test-results/*.xml
+          check_name: "Test Results (Rust + C API)"
           comment_mode: "off"
         if: always()
 
@@ -223,7 +245,7 @@ jobs:
   sonarcloud:
     name: SonarCloud
     runs-on: ubuntu-latest
-    needs: [rust-test, c-test, python-test]
+    needs: [rust-and-c-test, python-test]
     # Only run on main repo (not forks) due to secrets
     if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push'
     steps:
@@ -231,18 +253,11 @@ jobs:
         with:
           fetch-depth: 0  # Full history for accurate blame
 
-      - name: Download Rust coverage
+      - name: Download combined coverage
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: rust-coverage
           path: .
-
-      - name: Download C API coverage
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
-        with:
-          name: c-api-coverage
-          path: .
-        continue-on-error: true  # C API coverage is optional
 
       - name: Download Clippy report
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
@@ -250,24 +265,13 @@ jobs:
           name: clippy-report
           path: .
 
-      - name: Merge Rust coverage reports
-        run: |
-          # Merge Rust unit test coverage and C API FFI coverage
-          if [ -f c-api-lcov.info ]; then
-            echo "Merging Rust unit test and C API FFI coverage..."
-            cat lcov.info c-api-lcov.info > merged-rust-lcov.info
-            mv merged-rust-lcov.info lcov.info
-          else
-            echo "No C API coverage to merge (c-api-lcov.info not found)"
-          fi
-
       - name: Verify coverage files
         run: |
           echo "=== Coverage Files ==="
-          ls -la lcov.info c-api-lcov.info clippy-report.json 2>/dev/null || echo "Some files missing"
+          ls -la lcov.info clippy-report.json 2>/dev/null || echo "Some files missing"
           echo ""
           if [ -f lcov.info ]; then
-            echo "=== Rust LCOV Summary ==="
+            echo "=== Combined LCOV Summary (Rust + C API) ==="
             RUST_FILES=$(grep -c "^SF:" lcov.info || echo "0")
             echo "Source files with coverage: $RUST_FILES"
             echo ""
