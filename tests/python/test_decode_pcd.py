@@ -4,9 +4,15 @@ These tests verify real-world usage patterns from the samples project.
 """
 
 import struct
+
 import pytest
-from edgefirst.schemas import decode_pcd
-from edgefirst.schemas import sensor_msgs, std_msgs, builtin_interfaces
+
+from edgefirst.schemas import (
+    builtin_interfaces,
+    decode_pcd,
+    sensor_msgs,
+    std_msgs,
+)
 
 
 @pytest.fixture
@@ -14,7 +20,7 @@ def sample_header():
     """Create a sample Header."""
     return std_msgs.Header(
         stamp=builtin_interfaces.Time(sec=1234567890, nanosec=0),
-        frame_id="lidar_frame"
+        frame_id="lidar_frame",
     )
 
 
@@ -32,7 +38,11 @@ def xyz_point_cloud(sample_header):
     # Create point data: (1,2,3), (4,5,6), (7,8,9), (10,11,12), (13,14,15)
     data = bytearray()
     for i in range(num_points):
-        data.extend(struct.pack("<fff", float(i*3+1), float(i*3+2), float(i*3+3)))
+        data.extend(
+            struct.pack(
+                "<fff", float(i * 3 + 1), float(i * 3 + 2), float(i * 3 + 3)
+            )
+        )
 
     return sensor_msgs.PointCloud2(
         header=sample_header,
@@ -141,7 +151,11 @@ class TestDecodePcd:
 
         # Access pattern from samples/python/radar/targets.py
         pos = [[p.x, p.y, p.z] for p in points]
-        assert pos[0] == [pytest.approx(1.0), pytest.approx(2.0), pytest.approx(0.5)]
+        assert pos[0] == [
+            pytest.approx(1.0),
+            pytest.approx(2.0),
+            pytest.approx(0.5),
+        ]
 
         # Filter by cluster_id (used in mega_sample.py)
         clusters = [p for p in points if p.cluster_id > 0]
@@ -350,7 +364,11 @@ class TestDecodePcdEdgeCases:
         point_step = 12
 
         # Pack with padding
-        data = struct.pack("<f", 1.0) + b'\x00\x00\x00\x00' + struct.pack("<f", 2.0)
+        data = (
+            struct.pack("<f", 1.0)
+            + b"\x00\x00\x00\x00"
+            + struct.pack("<f", 2.0)
+        )
         cloud = sensor_msgs.PointCloud2(
             header=sample_header,
             height=1,

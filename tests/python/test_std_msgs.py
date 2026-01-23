@@ -1,7 +1,8 @@
 """Tests for std_msgs module."""
 
 import pytest
-from edgefirst.schemas import std_msgs, builtin_interfaces
+
+from edgefirst.schemas import std_msgs
 
 
 class TestHeader:

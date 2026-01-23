@@ -23,9 +23,13 @@ from edgefirst.schemas.builtin_interfaces import (
     Duration,
     Time,
 )
-from edgefirst.schemas.std_msgs import (
-    ColorRGBA,
-    Header,
+from edgefirst.schemas.edgefirst_msgs import (
+    DmaBuffer,
+    Mask,
+    RadarCube,
+)
+from edgefirst.schemas.foxglove_msgs import (
+    CompressedVideo as FoxgloveCompressedVideo,
 )
 from edgefirst.schemas.geometry_msgs import (
     Point,
@@ -42,20 +46,16 @@ from edgefirst.schemas.sensor_msgs import (
     PointCloud2,
     PointField,
 )
-from edgefirst.schemas.edgefirst_msgs import (
-    DmaBuffer,
-    Mask,
-    RadarCube,
-)
-from edgefirst.schemas.foxglove_msgs import (
-    CompressedVideo as FoxgloveCompressedVideo,
+from edgefirst.schemas.std_msgs import (
+    ColorRGBA,
+    Header,
 )
 
 
 def is_fast_mode() -> bool:
-    """Check if fast benchmark mode is enabled via BENCH_FAST=1 environment variable.
+    """Check if fast benchmark mode is enabled via BENCH_FAST=1.
 
-    Fast mode runs fewer benchmark variants for quicker CI feedback (~5-10 min vs ~20 min).
+    Fast mode runs fewer benchmark variants for quicker CI feedback.
     """
     value = os.environ.get("BENCH_FAST", "")
     return value == "1" or value.lower() == "true"
@@ -106,7 +106,9 @@ def create_compressed_video(data_size: int) -> FoxgloveCompressedVideo:
     )
 
 
-def create_radar_cube(shape: tuple[int, int, int, int], is_complex: bool) -> RadarCube:
+def create_radar_cube(
+    shape: tuple[int, int, int, int], is_complex: bool
+) -> RadarCube:
     """Create a RadarCube with random i16 data simulating real radar returns.
 
     Shape: [chirp_types, range_gates, rx_channels, doppler_bins]
@@ -117,7 +119,12 @@ def create_radar_cube(shape: tuple[int, int, int, int], is_complex: bool) -> Rad
         timestamp=1234567890123456,
         layout=[6, 1, 5, 2],  # SEQUENCE, RANGE, RXCHANNEL, DOPPLER
         shape=list(shape),
-        scales=[1.0, 0.117, 1.0, 0.156],  # range: 0.117m/bin, speed: 0.156m/s/bin
+        scales=[
+            1.0,
+            0.117,
+            1.0,
+            0.156,
+        ],  # range: 0.117m/bin, speed: 0.156m/s/bin
         cube=[random.randint(-32768, 32767) for _ in range(total_elements)],
         is_complex=is_complex,
     )
@@ -141,7 +148,9 @@ def create_point_cloud(num_points: int) -> PointCloud2:
         is_bigendian=False,
         point_step=point_step,
         row_step=point_step * num_points,
-        data=bytes(random.getrandbits(8) for _ in range(point_step * num_points)),
+        data=bytes(
+            random.getrandbits(8) for _ in range(point_step * num_points)
+        ),
         is_dense=True,
     )
 
@@ -181,7 +190,9 @@ def create_compressed_mask(width: int, height: int, channels: int) -> Mask:
     )
 
 
-def create_image(width: int, height: int, encoding: str, bytes_per_pixel: int) -> Image:
+def create_image(
+    width: int, height: int, encoding: str, bytes_per_pixel: int
+) -> Image:
     """Create an Image with random pixel data."""
     step = width * bytes_per_pixel
     data_size = step * height
@@ -893,7 +904,9 @@ class TestImageBenchmarks:
         if is_fast_mode():
             pytest.skip("Skipped in fast mode")
         # NV12: Y plane (640x480) + UV plane (640x240)
-        image = create_image(640, 720, "nv12", 1)  # 480 + 240 = 720 effective height
+        image = create_image(
+            640, 720, "nv12", 1
+        )  # 480 + 240 = 720 effective height
         benchmark(image.serialize)
 
     def test_image_vga_nv12_deserialize(self, benchmark):
@@ -933,7 +946,9 @@ class TestImageBenchmarks:
     def test_image_hd_nv12_serialize(self, benchmark):
         """Benchmark Image HD NV12 serialization."""
         # NV12: Y plane (1280x720) + UV plane (1280x360)
-        image = create_image(1280, 1080, "nv12", 1)  # 720 + 360 = 1080 effective height
+        image = create_image(
+            1280, 1080, "nv12", 1
+        )  # 720 + 360 = 1080 effective height
         benchmark(image.serialize)
 
     def test_image_hd_nv12_deserialize(self, benchmark):
@@ -973,7 +988,9 @@ class TestImageBenchmarks:
         if is_fast_mode():
             pytest.skip("Skipped in fast mode")
         # NV12: Y plane (1920x1080) + UV plane (1920x540)
-        image = create_image(1920, 1620, "nv12", 1)  # 1080 + 540 = 1620 effective height
+        image = create_image(
+            1920, 1620, "nv12", 1
+        )  # 1080 + 540 = 1620 effective height
         benchmark(image.serialize)
 
     def test_image_fhd_nv12_deserialize(self, benchmark):

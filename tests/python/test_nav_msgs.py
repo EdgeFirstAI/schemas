@@ -1,8 +1,8 @@
 """Tests for nav_msgs module."""
 
 import pytest
-from edgefirst.schemas import nav_msgs, std_msgs, geometry_msgs
-from edgefirst.schemas import builtin_interfaces
+
+from edgefirst.schemas import builtin_interfaces, geometry_msgs, nav_msgs
 
 
 class TestOdometry:

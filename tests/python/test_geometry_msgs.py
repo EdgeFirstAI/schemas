@@ -1,7 +1,8 @@
 """Tests for geometry_msgs module."""
 
 import pytest
-from edgefirst.schemas import geometry_msgs, std_msgs, builtin_interfaces
+
+from edgefirst.schemas import geometry_msgs
 
 
 class TestVector3:
@@ -90,9 +91,7 @@ class TestQuaternion:
     def test_quaternion_rotation(self):
         """Test quaternion with rotation values."""
         # 90 degree rotation around Z axis
-        quat = geometry_msgs.Quaternion(
-            x=0.0, y=0.0, z=0.7071068, w=0.7071068
-        )
+        quat = geometry_msgs.Quaternion(x=0.0, y=0.0, z=0.7071068, w=0.7071068)
         data = quat.serialize()
         restored = geometry_msgs.Quaternion.deserialize(data)
         assert restored.z == pytest.approx(0.7071068, rel=1e-6)
@@ -127,10 +126,7 @@ class TestPoseStamped:
         self, sample_header, sample_pose
     ):
         """Test CDR serialization roundtrip."""
-        msg = geometry_msgs.PoseStamped(
-            header=sample_header,
-            pose=sample_pose
-        )
+        msg = geometry_msgs.PoseStamped(header=sample_header, pose=sample_pose)
         data = msg.serialize()
         restored = geometry_msgs.PoseStamped.deserialize(data)
         assert restored.header.frame_id == sample_header.frame_id
@@ -190,7 +186,7 @@ class TestTransformStamped:
         msg = geometry_msgs.TransformStamped(
             header=sample_header,
             child_frame_id="child_frame",
-            transform=sample_transform
+            transform=sample_transform,
         )
         data = msg.serialize()
         restored = geometry_msgs.TransformStamped.deserialize(data)
@@ -223,8 +219,7 @@ class TestTwistStamped:
     ):
         """Test CDR serialization roundtrip."""
         msg = geometry_msgs.TwistStamped(
-            header=sample_header,
-            twist=sample_twist
+            header=sample_header, twist=sample_twist
         )
         data = msg.serialize()
         restored = geometry_msgs.TwistStamped.deserialize(data)
@@ -245,7 +240,7 @@ class TestAccel:
         """Test CDR serialization roundtrip."""
         accel = geometry_msgs.Accel(
             linear=sample_vector3,
-            angular=geometry_msgs.Vector3(x=0.1, y=0.2, z=0.3)
+            angular=geometry_msgs.Vector3(x=0.1, y=0.2, z=0.3),
         )
         data = accel.serialize()
         restored = geometry_msgs.Accel.deserialize(data)
@@ -265,7 +260,7 @@ class TestWrench:
         """Test CDR serialization roundtrip."""
         wrench = geometry_msgs.Wrench(
             force=sample_vector3,
-            torque=geometry_msgs.Vector3(x=0.1, y=0.2, z=0.3)
+            torque=geometry_msgs.Vector3(x=0.1, y=0.2, z=0.3),
         )
         data = wrench.serialize()
         restored = geometry_msgs.Wrench.deserialize(data)
@@ -286,9 +281,12 @@ class TestInertia:
         inertia = geometry_msgs.Inertia(
             m=10.0,
             com=geometry_msgs.Vector3(x=0.0, y=0.0, z=0.5),
-            ixx=1.0, ixy=0.0, ixz=0.0,
-            iyy=1.0, iyz=0.0,
-            izz=1.0
+            ixx=1.0,
+            ixy=0.0,
+            ixz=0.0,
+            iyy=1.0,
+            iyz=0.0,
+            izz=1.0,
         )
         data = inertia.serialize()
         restored = geometry_msgs.Inertia.deserialize(data)
@@ -302,8 +300,7 @@ class TestPoseWithCovariance:
     def test_pose_with_covariance_serialize_deserialize(self, sample_pose):
         """Test CDR serialization roundtrip."""
         msg = geometry_msgs.PoseWithCovariance(
-            pose=sample_pose,
-            covariance=[0.1 * i for i in range(36)]
+            pose=sample_pose, covariance=[0.1 * i for i in range(36)]
         )
         data = msg.serialize()
         restored = geometry_msgs.PoseWithCovariance.deserialize(data)
@@ -321,8 +318,7 @@ class TestTwistWithCovariance:
     def test_twist_with_covariance_serialize_deserialize(self, sample_twist):
         """Test CDR serialization roundtrip."""
         msg = geometry_msgs.TwistWithCovariance(
-            twist=sample_twist,
-            covariance=[0.0] * 36
+            twist=sample_twist, covariance=[0.0] * 36
         )
         data = msg.serialize()
         restored = geometry_msgs.TwistWithCovariance.deserialize(data)

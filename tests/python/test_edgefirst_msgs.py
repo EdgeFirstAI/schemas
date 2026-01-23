@@ -1,10 +1,10 @@
 """Tests for edgefirst_msgs module."""
 
 import pytest
+
 from edgefirst.schemas import (
-    edgefirst_msgs,
-    std_msgs,
     builtin_interfaces,
+    edgefirst_msgs,
 )
 
 
@@ -177,7 +177,8 @@ class TestMask:
         width, height = 8, 8
         mask_data = [
             0xFF if (i + j) % 2 == 0 else 0x00
-            for j in range(height) for i in range(width)
+            for j in range(height)
+            for i in range(width)
         ]
         mask = edgefirst_msgs.Mask(
             width=width,
@@ -204,8 +205,12 @@ class TestModel:
             decode_time=builtin_interfaces.Duration(sec=0, nanosec=200000),
             boxes=[
                 edgefirst_msgs.Box(
-                    center_x=0.5, center_y=0.5, width=0.2, height=0.3,
-                    label="person", score=0.95
+                    center_x=0.5,
+                    center_y=0.5,
+                    width=0.2,
+                    height=0.3,
+                    label="person",
+                    score=0.95,
                 )
             ],
         )
@@ -283,9 +288,12 @@ class TestDetect:
         """Test Detect with multiple detections."""
         boxes = [
             edgefirst_msgs.Box(
-                center_x=0.2 * i, center_y=0.3,
-                width=0.1, height=0.15,
-                label=f"obj_{i}", score=0.9 - 0.1 * i,
+                center_x=0.2 * i,
+                center_y=0.3,
+                width=0.1,
+                height=0.15,
+                label=f"obj_{i}",
+                score=0.9 - 0.1 * i,
                 track=edgefirst_msgs.Track(),
             )
             for i in range(5)

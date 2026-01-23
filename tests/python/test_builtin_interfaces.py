@@ -1,6 +1,5 @@
 """Tests for builtin_interfaces module."""
 
-import pytest
 from edgefirst.schemas import builtin_interfaces
 
 

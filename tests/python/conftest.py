@@ -1,16 +1,16 @@
 """Shared pytest fixtures for EdgeFirst Schemas tests."""
 
 import pytest
+
 from edgefirst.schemas import (
     builtin_interfaces,
-    std_msgs,
-    geometry_msgs,
-    sensor_msgs,
     edgefirst_msgs,
     foxglove_msgs,
+    geometry_msgs,
     nav_msgs,
+    sensor_msgs,
+    std_msgs,
 )
-
 
 # ============================================================================
 # BUILTIN INTERFACES FIXTURES
@@ -73,8 +73,7 @@ def sample_quaternion():
 def sample_pose(sample_point, sample_quaternion):
     """Create a sample Pose message."""
     return geometry_msgs.Pose(
-        position=sample_point,
-        orientation=sample_quaternion
+        position=sample_point, orientation=sample_quaternion
     )
 
 
@@ -82,8 +81,7 @@ def sample_pose(sample_point, sample_quaternion):
 def sample_transform(sample_vector3, sample_quaternion):
     """Create a sample Transform message."""
     return geometry_msgs.Transform(
-        translation=sample_vector3,
-        rotation=sample_quaternion
+        translation=sample_vector3, rotation=sample_quaternion
     )
 
 
@@ -92,7 +90,7 @@ def sample_twist(sample_vector3):
     """Create a sample Twist message."""
     return geometry_msgs.Twist(
         linear=sample_vector3,
-        angular=geometry_msgs.Vector3(x=0.1, y=0.2, z=0.3)
+        angular=geometry_msgs.Vector3(x=0.1, y=0.2, z=0.3),
     )
 
 
@@ -164,17 +162,20 @@ def sample_navsatfix(sample_header):
     """Create a sample NavSatFix (Montreal coords - matches Rust test)."""
     return sensor_msgs.NavSatFix(
         header=sample_header,
-        status=sensor_msgs.NavSatStatus(
-            status=0,
-            service=1
-        ),
+        status=sensor_msgs.NavSatStatus(status=0, service=1),
         latitude=45.5017,
         longitude=-73.5673,
         altitude=100.0,  # Matches Rust
         position_covariance=[
-            1.0, 0.0, 0.0,
-            0.0, 1.0, 0.0,
-            0.0, 0.0, 1.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
         ],  # Matches Rust identity matrix
         position_covariance_type=2,  # Matches Rust
     )
@@ -291,12 +292,10 @@ def sample_foxglove_color():
 def sample_odometry(sample_header, sample_pose, sample_twist):
     """Create a sample Odometry message."""
     pose_cov = geometry_msgs.PoseWithCovariance(
-        pose=sample_pose,
-        covariance=[0.0] * 36
+        pose=sample_pose, covariance=[0.0] * 36
     )
     twist_cov = geometry_msgs.TwistWithCovariance(
-        twist=sample_twist,
-        covariance=[0.0] * 36
+        twist=sample_twist, covariance=[0.0] * 36
     )
     return nav_msgs.Odometry(
         header=sample_header,

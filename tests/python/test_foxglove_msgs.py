@@ -1,8 +1,8 @@
 """Tests for foxglove_msgs module."""
 
 import pytest
+
 from edgefirst.schemas import foxglove_msgs, geometry_msgs
-from edgefirst.schemas import builtin_interfaces
 
 
 class TestVector2:
@@ -85,7 +85,9 @@ class TestPackedElementField:
     def test_packed_element_field_creation(self):
         """Test PackedElementField structure."""
         field = foxglove_msgs.PackedElementField(
-            name="x", offset=0, type=7  # FLOAT32
+            name="x",
+            offset=0,
+            type=7,  # FLOAT32
         )
         assert field.name == "x"
         assert field.offset == 0
@@ -94,7 +96,9 @@ class TestPackedElementField:
     def test_packed_element_field_serialize_deserialize(self):
         """Test CDR serialization roundtrip."""
         field = foxglove_msgs.PackedElementField(
-            name="intensity", offset=12, type=1  # UINT8
+            name="intensity",
+            offset=12,
+            type=1,  # UINT8
         )
         data = field.serialize()
         restored = foxglove_msgs.PackedElementField.deserialize(data)
@@ -449,9 +453,7 @@ class TestGrid:
             row_stride=100,
             cell_stride=1,
             fields=[
-                foxglove_msgs.PackedElementField(
-                    name="cost", offset=0, type=1
-                )
+                foxglove_msgs.PackedElementField(name="cost", offset=0, type=1)
             ],
             data=255,  # data is uint8, not sequence
         )

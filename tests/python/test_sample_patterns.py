@@ -4,15 +4,15 @@ These tests mirror the exact usage patterns from EdgeFirst/samples/python
 to ensure the schemas work correctly in production scenarios.
 """
 
-import pytest
 import numpy as np
+import pytest
+
 from edgefirst.schemas import (
-    decode_pcd,
     builtin_interfaces,
-    std_msgs,
-    sensor_msgs,
-    geometry_msgs,
     edgefirst_msgs,
+    geometry_msgs,
+    sensor_msgs,
+    std_msgs,
 )
 
 
@@ -21,7 +21,7 @@ def sample_header():
     """Create a sample Header."""
     return std_msgs.Header(
         stamp=builtin_interfaces.Time(sec=1234567890, nanosec=123456789),
-        frame_id="camera_frame"
+        frame_id="camera_frame",
     )
 
 
@@ -33,15 +33,21 @@ class TestDetectBoxesUsage:
         # Create detection with boxes
         boxes = [
             edgefirst_msgs.Box(
-                center_x=0.5, center_y=0.3,
-                width=0.2, height=0.3,
-                label="person", score=0.95,
+                center_x=0.5,
+                center_y=0.3,
+                width=0.2,
+                height=0.3,
+                label="person",
+                score=0.95,
                 track=edgefirst_msgs.Track(id="", lifetime=0),
             ),
             edgefirst_msgs.Box(
-                center_x=0.7, center_y=0.6,
-                width=0.15, height=0.25,
-                label="car", score=0.88,
+                center_x=0.7,
+                center_y=0.6,
+                width=0.15,
+                height=0.25,
+                label="car",
+                score=0.88,
                 track=edgefirst_msgs.Track(id="", lifetime=0),
             ),
         ]
@@ -72,15 +78,21 @@ class TestDetectBoxesUsage:
         """Test tracked boxes pattern from boxes2d_tracked.py."""
         boxes = [
             edgefirst_msgs.Box(
-                center_x=0.5, center_y=0.3,
-                width=0.2, height=0.3,
-                label="person", score=0.95,
+                center_x=0.5,
+                center_y=0.3,
+                width=0.2,
+                height=0.3,
+                label="person",
+                score=0.95,
                 track=edgefirst_msgs.Track(id="abc123def456", lifetime=10),
             ),
             edgefirst_msgs.Box(
-                center_x=0.7, center_y=0.6,
-                width=0.15, height=0.25,
-                label="car", score=0.88,
+                center_x=0.7,
+                center_y=0.6,
+                width=0.15,
+                height=0.25,
+                label="car",
+                score=0.88,
                 track=edgefirst_msgs.Track(id="", lifetime=0),  # untracked
             ),
         ]
@@ -118,9 +130,8 @@ class TestDetectBoxesUsage:
         detection = edgefirst_msgs.Detect.deserialize(data)
 
         # Pattern from mega_sample.py lines 194-199
-        inference_time = (
-            float(detection.model_time.sec) +
-            float(detection.model_time.nanosec / 1e9)
+        inference_time = float(detection.model_time.sec) + float(
+            detection.model_time.nanosec / 1e9
         )
         assert inference_time == pytest.approx(0.005)
 
@@ -194,9 +205,7 @@ class TestImuUsage:
         """Test IMU orientation access pattern from imu.py."""
         imu = sensor_msgs.Imu(
             header=sample_header,
-            orientation=geometry_msgs.Quaternion(
-                x=0.1, y=0.2, z=0.3, w=0.9
-            ),
+            orientation=geometry_msgs.Quaternion(x=0.1, y=0.2, z=0.3, w=0.9),
             angular_velocity=geometry_msgs.Vector3(x=0.0, y=0.0, z=0.0),
             linear_acceleration=geometry_msgs.Vector3(x=0.0, y=0.0, z=9.8),
         )
@@ -275,7 +284,20 @@ class TestCameraInfoUsage:
             d=[0.0, 0.0, 0.0, 0.0, 0.0],
             k=[1000.0, 0.0, 960.0, 0.0, 1000.0, 540.0, 0.0, 0.0, 1.0],
             r=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
-            p=[1000.0, 0.0, 960.0, 0.0, 0.0, 1000.0, 540.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+            p=[
+                1000.0,
+                0.0,
+                960.0,
+                0.0,
+                0.0,
+                1000.0,
+                540.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+            ],
         )
 
         data = info.serialize()
@@ -357,9 +379,12 @@ class TestDetect3DBoxesUsage:
         """Test 3D box coordinate conversion from mega_sample.py."""
         boxes = [
             edgefirst_msgs.Box(
-                center_x=1.0, center_y=0.5,
-                width=2.0, height=1.5,
-                label="person", score=0.9,
+                center_x=1.0,
+                center_y=0.5,
+                width=2.0,
+                height=1.5,
+                label="person",
+                score=0.9,
                 distance=5.0,
                 track=edgefirst_msgs.Track(),
             ),
@@ -376,21 +401,17 @@ class TestDetect3DBoxesUsage:
         # Pattern from mega_sample.py lines 278-282
         # Convert from optical frame to normal frame
         centers = [
-            (x.distance, -x.center_x, -x.center_y)
-            for x in detection.boxes
+            (x.distance, -x.center_x, -x.center_y) for x in detection.boxes
         ]
-        sizes = [
-            (x.width, x.width, x.height)
-            for x in detection.boxes
-        ]
+        sizes = [(x.width, x.width, x.height) for x in detection.boxes]
 
         assert centers[0] == (
             pytest.approx(5.0),
             pytest.approx(-1.0),
-            pytest.approx(-0.5)
+            pytest.approx(-0.5),
         )
         assert sizes[0] == (
             pytest.approx(2.0),
             pytest.approx(2.0),
-            pytest.approx(1.5)
+            pytest.approx(1.5),
         )

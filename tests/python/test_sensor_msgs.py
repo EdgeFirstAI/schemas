@@ -1,8 +1,8 @@
 """Tests for sensor_msgs module."""
 
-import struct
 import pytest
-from edgefirst.schemas import sensor_msgs, std_msgs, geometry_msgs
+
+from edgefirst.schemas import geometry_msgs, sensor_msgs
 
 
 class TestPointField:
@@ -10,9 +10,7 @@ class TestPointField:
 
     def test_point_field_creation(self):
         """Test creating a PointField."""
-        field = sensor_msgs.PointField(
-            name="x", offset=0, datatype=7, count=1
-        )
+        field = sensor_msgs.PointField(name="x", offset=0, datatype=7, count=1)
         assert field.name == "x"
         assert field.offset == 0
         assert field.datatype == 7  # FLOAT32
@@ -219,7 +217,9 @@ class TestNavSatFix:
         """Test NavSatFix structure (matches Rust Montreal coords)."""
         assert sample_navsatfix.latitude == pytest.approx(45.5017)
         assert sample_navsatfix.longitude == pytest.approx(-73.5673)
-        assert sample_navsatfix.altitude == pytest.approx(100.0)  # Matches Rust
+        assert sample_navsatfix.altitude == pytest.approx(
+            100.0
+        )  # Matches Rust
         assert sample_navsatfix.position_covariance_type == 2  # Matches Rust
 
     def test_navsatfix_serialize_deserialize(self, sample_navsatfix):
