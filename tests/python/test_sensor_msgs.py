@@ -32,11 +32,12 @@ class TestPointCloud2:
     """Tests for PointCloud2 message."""
 
     def test_point_cloud2_creation(self, sample_point_cloud2):
-        """Test PointCloud2 structure."""
+        """Test PointCloud2 structure (matches Rust 1024 points)."""
         assert sample_point_cloud2.height == 1
-        assert sample_point_cloud2.width == 100
+        assert sample_point_cloud2.width == 1024
         assert len(sample_point_cloud2.fields) == 3
         assert sample_point_cloud2.is_dense is True
+        assert sample_point_cloud2.row_step == 12288
 
     def test_point_cloud2_serialize_deserialize(self, sample_point_cloud2):
         """Test CDR serialization roundtrip."""
@@ -215,10 +216,11 @@ class TestNavSatFix:
     """Tests for NavSatFix message."""
 
     def test_navsatfix_creation(self, sample_navsatfix):
-        """Test NavSatFix structure."""
+        """Test NavSatFix structure (matches Rust Montreal coords)."""
         assert sample_navsatfix.latitude == pytest.approx(45.5017)
         assert sample_navsatfix.longitude == pytest.approx(-73.5673)
-        assert sample_navsatfix.altitude == pytest.approx(50.0)
+        assert sample_navsatfix.altitude == pytest.approx(100.0)  # Matches Rust
+        assert sample_navsatfix.position_covariance_type == 2  # Matches Rust
 
     def test_navsatfix_serialize_deserialize(self, sample_navsatfix):
         """Test CDR serialization roundtrip."""
@@ -228,6 +230,10 @@ class TestNavSatFix:
         assert restored.longitude == pytest.approx(sample_navsatfix.longitude)
         assert restored.altitude == pytest.approx(sample_navsatfix.altitude)
         assert len(restored.position_covariance) == 9
+        # Verify identity matrix covariance (matches Rust)
+        assert restored.position_covariance[0] == pytest.approx(1.0)
+        assert restored.position_covariance[4] == pytest.approx(1.0)
+        assert restored.position_covariance[8] == pytest.approx(1.0)
 
 
 class TestNavSatStatus:

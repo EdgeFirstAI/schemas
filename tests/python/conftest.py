@@ -109,13 +109,13 @@ def sample_point_field():
 
 @pytest.fixture
 def sample_point_cloud2(sample_header):
-    """Create a sample PointCloud2 with 100 points."""
+    """Create a sample PointCloud2 with 1024 points (matches Rust test)."""
     fields = [
         sensor_msgs.PointField(name="x", offset=0, datatype=7, count=1),
         sensor_msgs.PointField(name="y", offset=4, datatype=7, count=1),
         sensor_msgs.PointField(name="z", offset=8, datatype=7, count=1),
     ]
-    num_points = 100
+    num_points = 1024
     point_step = 12
     return sensor_msgs.PointCloud2(
         header=sample_header,
@@ -124,15 +124,15 @@ def sample_point_cloud2(sample_header):
         fields=fields,
         is_bigendian=False,
         point_step=point_step,
-        row_step=point_step * num_points,
-        data=bytes(point_step * num_points),
+        row_step=12288,  # 12 * 1024 (matches Rust)
+        data=bytes(12288),
         is_dense=True,
     )
 
 
 @pytest.fixture
 def sample_image(sample_header):
-    """Create a sample 640x480 RGB8 Image."""
+    """Create a sample VGA RGB8 Image (matches Rust test)."""
     width, height = 640, 480
     return sensor_msgs.Image(
         header=sample_header,
@@ -140,8 +140,8 @@ def sample_image(sample_header):
         width=width,
         encoding="rgb8",
         is_bigendian=0,
-        step=width * 3,
-        data=bytes(width * height * 3),
+        step=1920,  # 640 * 3 (matches Rust)
+        data=bytes([128] * (1920 * 480)),  # Gray image (128u8)
     )
 
 
@@ -161,7 +161,7 @@ def sample_imu(sample_header, sample_quaternion, sample_vector3):
 
 @pytest.fixture
 def sample_navsatfix(sample_header):
-    """Create a sample NavSatFix message."""
+    """Create a sample NavSatFix (Montreal coords - matches Rust test)."""
     return sensor_msgs.NavSatFix(
         header=sample_header,
         status=sensor_msgs.NavSatStatus(
@@ -170,9 +170,13 @@ def sample_navsatfix(sample_header):
         ),
         latitude=45.5017,
         longitude=-73.5673,
-        altitude=50.0,
-        position_covariance=[0.0] * 9,
-        position_covariance_type=0,
+        altitude=100.0,  # Matches Rust
+        position_covariance=[
+            1.0, 0.0, 0.0,
+            0.0, 1.0, 0.0,
+            0.0, 0.0, 1.0,
+        ],  # Matches Rust identity matrix
+        position_covariance_type=2,  # Matches Rust
     )
 
 
@@ -183,50 +187,51 @@ def sample_navsatfix(sample_header):
 
 @pytest.fixture
 def sample_radar_cube(sample_header):
-    """Create a sample RadarCube."""
-    shape = [8, 64, 4, 32]  # seq, range, rx, doppler
-    total_elements = 8 * 64 * 4 * 32
+    """Create a sample RadarCube (matches Rust test dimensions)."""
+    shape = [16, 256, 4, 64]  # seq, range, rx, doppler (matches Rust)
+    total_elements = 16 * 256 * 4 * 64
     return edgefirst_msgs.RadarCube(
         header=sample_header,
         timestamp=1234567890123456,
         layout=[6, 1, 5, 2],  # SEQUENCE, RANGE, RXCHANNEL, DOPPLER
         shape=shape,
         scales=[1.0, 2.5, 1.0, 0.5],
-        cube=[0] * total_elements,
+        cube=[i % 32768 for i in range(total_elements)],  # i16 range
         is_complex=False,
     )
 
 
 @pytest.fixture
 def sample_dmabuf(sample_header):
-    """Create a sample DmaBuffer message."""
+    """Create a sample DmaBuffer message (matches Rust FHD)."""
     return edgefirst_msgs.DmaBuffer(
         header=sample_header,
         pid=12345,
-        fd=10,
+        fd=42,  # Matches Rust
         width=1920,
         height=1080,
-        stride=3840,
-        fourcc=0x56595559,  # YUYV
-        length=1920 * 1080 * 2,
+        stride=5760,  # 1920 * 3 (matches Rust RG24)
+        fourcc=0x34325247,  # RG24 (matches Rust)
+        length=1920 * 1080 * 3,
     )
 
 
 @pytest.fixture
 def sample_detect_box2d():
-    """Create a sample detection box."""
+    """Create a sample detection box (matches Rust normalized coords)."""
     return edgefirst_msgs.Box(
-        center_x=320.0,
-        center_y=240.0,
-        width=100.0,
-        height=80.0,
-        label="person",
-        score=0.95,
-        distance=5.0,
-        speed=0.0,
+        center_x=0.5,  # Normalized (matches Rust)
+        center_y=0.5,
+        width=0.1,
+        height=0.2,
+        label="car",  # Matches Rust
+        score=0.98,  # Matches Rust
+        distance=10.0,  # Matches Rust
+        speed=5.0,  # Matches Rust
         track=edgefirst_msgs.Track(
-            id="track_1", lifetime=10,
-            created=builtin_interfaces.Time(sec=0, nanosec=0),
+            id="t1",  # Matches Rust
+            lifetime=5,  # Matches Rust
+            created=builtin_interfaces.Time(sec=95, nanosec=0),  # Matches Rust
         ),
     )
 
@@ -243,14 +248,14 @@ def sample_detect(sample_header, sample_time, sample_detect_box2d):
 
 @pytest.fixture
 def sample_mask():
-    """Create a sample Mask message."""
+    """Create a sample Mask message (matches Rust VGA)."""
     width, height = 640, 480
     return edgefirst_msgs.Mask(
         height=height,
         width=width,
-        length=1,
+        length=0,  # Uncompressed (matches Rust)
         encoding="",
-        mask=bytes(width * height),
+        mask=bytes(width * height),  # Matches Rust vec![0u8; 480*640]
         boxed=False,
     )
 

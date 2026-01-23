@@ -86,12 +86,17 @@ class TestBox:
     """Tests for Box message (detection bounding box)."""
 
     def test_box_creation(self, sample_detect_box2d):
-        """Test Box structure."""
-        assert sample_detect_box2d.center_x == pytest.approx(320.0)
-        assert sample_detect_box2d.center_y == pytest.approx(240.0)
-        assert sample_detect_box2d.width == pytest.approx(100.0)
-        assert sample_detect_box2d.label == "person"
-        assert sample_detect_box2d.score == pytest.approx(0.95)
+        """Test Box structure (matches Rust normalized coords)."""
+        assert sample_detect_box2d.center_x == pytest.approx(0.5)
+        assert sample_detect_box2d.center_y == pytest.approx(0.5)
+        assert sample_detect_box2d.width == pytest.approx(0.1)
+        assert sample_detect_box2d.height == pytest.approx(0.2)
+        assert sample_detect_box2d.label == "car"
+        assert sample_detect_box2d.score == pytest.approx(0.98)
+        assert sample_detect_box2d.distance == pytest.approx(10.0)
+        assert sample_detect_box2d.speed == pytest.approx(5.0)
+        assert sample_detect_box2d.track.id == "t1"
+        assert sample_detect_box2d.track.lifetime == 5
 
     def test_box_serialize_deserialize(self):
         """Test CDR serialization roundtrip."""
@@ -134,9 +139,11 @@ class TestMask:
     """Tests for Mask message."""
 
     def test_mask_creation(self, sample_mask):
-        """Test Mask structure."""
+        """Test Mask structure (matches Rust VGA uncompressed)."""
         assert sample_mask.width == 640
         assert sample_mask.height == 480
+        assert sample_mask.length == 0  # Uncompressed
+        assert sample_mask.boxed is False
 
     def test_mask_serialize_deserialize(self, sample_mask):
         """Test CDR serialization roundtrip."""
@@ -145,6 +152,25 @@ class TestMask:
         assert restored.width == sample_mask.width
         assert restored.height == sample_mask.height
         assert len(restored.mask) == len(sample_mask.mask)
+
+    def test_mask_compressed(self):
+        """Test Mask FHD compressed (matches Rust compressed test)."""
+        mask = edgefirst_msgs.Mask(
+            width=1920,
+            height=1080,
+            length=5,  # Compressed data length
+            encoding="zstd",  # Matches Rust
+            mask=[1, 2, 3, 4, 5],  # Matches Rust compressed data
+            boxed=True,  # Matches Rust
+        )
+        data = mask.serialize()
+        restored = edgefirst_msgs.Mask.deserialize(data)
+        assert restored.width == 1920
+        assert restored.height == 1080
+        assert restored.length == 5
+        assert restored.encoding == "zstd"
+        assert list(restored.mask) == [1, 2, 3, 4, 5]
+        assert restored.boxed is True
 
     def test_mask_binary_pattern(self):
         """Test Mask with binary pattern."""
@@ -156,27 +182,13 @@ class TestMask:
         mask = edgefirst_msgs.Mask(
             width=width,
             height=height,
-            length=1,
+            length=0,  # Uncompressed
             mask=mask_data,
             boxed=True,
         )
         serialized = mask.serialize()
         restored = edgefirst_msgs.Mask.deserialize(serialized)
         assert list(restored.mask) == mask_data
-
-    def test_mask_3d(self):
-        """Test Mask with 3D dimensions (length > 1)."""
-        mask = edgefirst_msgs.Mask(
-            width=10,
-            height=10,
-            length=5,
-            mask=[0] * (10 * 10 * 5),
-            boxed=False,
-        )
-        data = mask.serialize()
-        restored = edgefirst_msgs.Mask.deserialize(data)
-        assert restored.length == 5
-        assert len(restored.mask) == 500
 
 
 class TestModel:
@@ -293,11 +305,13 @@ class TestDmaBuffer:
     """Tests for DmaBuffer message."""
 
     def test_dma_buffer_creation(self, sample_dmabuf):
-        """Test DmaBuffer structure."""
-        assert sample_dmabuf.fd == 10
+        """Test DmaBuffer structure (matches Rust FHD RG24)."""
+        assert sample_dmabuf.fd == 42  # Matches Rust
         assert sample_dmabuf.width == 1920
         assert sample_dmabuf.height == 1080
-        assert sample_dmabuf.length == 1920 * 1080 * 2
+        assert sample_dmabuf.stride == 5760  # 1920 * 3 (matches Rust)
+        assert sample_dmabuf.fourcc == 0x34325247  # RG24 (matches Rust)
+        assert sample_dmabuf.length == 1920 * 1080 * 3
 
     def test_dma_buffer_serialize_deserialize(self, sample_dmabuf):
         """Test CDR serialization roundtrip."""
@@ -335,30 +349,35 @@ class TestRadarCube:
     """Tests for RadarCube message."""
 
     def test_radar_cube_creation(self, sample_radar_cube):
-        """Test RadarCube structure."""
+        """Test RadarCube structure (matches Rust dimensions)."""
         assert len(sample_radar_cube.shape) == 4
+        assert list(sample_radar_cube.shape) == [16, 256, 4, 64]
         assert sample_radar_cube.is_complex is False
+        assert len(sample_radar_cube.cube) == 16 * 256 * 4 * 64
 
     def test_radar_cube_serialize_deserialize(self, sample_radar_cube):
-        """Test CDR serialization roundtrip."""
+        """Test CDR serialization roundtrip (matches Rust)."""
         data = sample_radar_cube.serialize()
         restored = edgefirst_msgs.RadarCube.deserialize(data)
         assert list(restored.shape) == list(sample_radar_cube.shape)
         assert list(restored.layout) == list(sample_radar_cube.layout)
         assert len(restored.cube) == len(sample_radar_cube.cube)
+        # Verify some values survived roundtrip
+        assert restored.cube[0] == sample_radar_cube.cube[0]
+        assert restored.cube[1000] == sample_radar_cube.cube[1000]
 
     def test_radar_cube_layout(self, sample_header):
-        """Test RadarCube with different layouts."""
-        # Range-Doppler cube
+        """Test RadarCube with Range-Doppler layout (matches Rust complex)."""
+        # Range-Doppler cube (matches Rust complex_cube shape)
         cube = edgefirst_msgs.RadarCube(
             header=sample_header,
-            timestamp=123456789,
+            timestamp=0,
             layout=[
                 edgefirst_msgs.RadarChannel.RANGE.value,
                 edgefirst_msgs.RadarChannel.DOPPLER.value,
             ],
             shape=[64, 32],
-            scales=[0.1, 0.5],
+            scales=[1.0, 0.1],  # Matches Rust
             cube=[0] * (64 * 32),
             is_complex=False,
         )
@@ -368,22 +387,23 @@ class TestRadarCube:
         assert restored.layout[1] == edgefirst_msgs.RadarChannel.DOPPLER.value
 
     def test_radar_cube_complex(self, sample_header):
-        """Test RadarCube with complex data (IQ)."""
+        """Test RadarCube with complex data (matches Rust complex_cube)."""
         cube = edgefirst_msgs.RadarCube(
             header=sample_header,
-            timestamp=987654321,
+            timestamp=0,
             layout=[
                 edgefirst_msgs.RadarChannel.RANGE.value,
-                edgefirst_msgs.RadarChannel.RXCHANNEL.value,
+                edgefirst_msgs.RadarChannel.DOPPLER.value,
             ],
-            shape=[128, 4],
-            scales=[0.05, 1.0],
-            cube=[0] * (128 * 4 * 2),  # *2 for complex
+            shape=[64, 32],
+            scales=[1.0, 0.1],
+            cube=[100, 200, -100, -200],  # Matches Rust test values
             is_complex=True,
         )
         data = cube.serialize()
         restored = edgefirst_msgs.RadarCube.deserialize(data)
         assert restored.is_complex is True
+        assert list(restored.cube) == [100, 200, -100, -200]
 
 
 class TestRadarInfo:

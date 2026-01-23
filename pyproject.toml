@@ -28,6 +28,7 @@ dynamic = ["dependencies", "version"]
 test = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
+    "numpy>=1.21",
 ]
 dev = [
     "edgefirst-schemas[test]",
