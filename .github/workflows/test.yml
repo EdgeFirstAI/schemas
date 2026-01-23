@@ -212,32 +212,49 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: '3.10'
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-cov
-          pip install -e .
+          pip install -e ".[test]"
 
       - name: Run tests with coverage
         run: |
-          # Run Python tests if they exist
-          if [ -d "tests/python" ] && [ -n "$(find tests/python -name 'test_*.py' 2>/dev/null)" ]; then
-            pytest tests/python/ \
-              --cov=edgefirst \
-              --cov-report=xml:coverage.xml \
-              --cov-report=term \
-              -v
-          else
-            echo "No Python tests found - skipping coverage generation"
-            echo "Add tests to tests/python/test_*.py to enable Python coverage"
-          fi
+          pytest tests/python/ \
+            --cov=edgefirst \
+            --cov-report=xml:coverage-python.xml \
+            --cov-report=term-missing \
+            --junitxml=pytest-results.xml \
+            -v
 
       - name: Verify package import
         run: |
           # Verify the package can be imported successfully
           python -c "import edgefirst.schemas; print('Package import OK')"
+
+      - name: Upload Python coverage artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: python-coverage
+          path: coverage-python.xml
+          retention-days: 7
+
+      - name: Upload test results
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: python-test-results
+          path: pytest-results.xml
+          retention-days: 7
+        if: always()
+
+      - name: Test Summary
+        uses: EnricoMi/publish-unit-test-result-action@27d65e188ec43221b20d26de30f4892fad91df2f # v2.22.0
+        with:
+          files: pytest-results.xml
+          check_name: "Test Results (Python)"
+          comment_mode: "off"
+        if: always()
 
   # ============================================================================
   # SonarCloud Analysis (runs after all tests complete)
@@ -253,10 +270,16 @@ jobs:
         with:
           fetch-depth: 0  # Full history for accurate blame
 
-      - name: Download combined coverage
+      - name: Download combined Rust/C coverage
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: rust-coverage
+          path: .
+
+      - name: Download Python coverage
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: python-coverage
           path: .
 
       - name: Download Clippy report
@@ -268,15 +291,20 @@ jobs:
       - name: Verify coverage files
         run: |
           echo "=== Coverage Files ==="
-          ls -la lcov.info clippy-report.json 2>/dev/null || echo "Some files missing"
+          ls -la lcov.info coverage-python.xml clippy-report.json 2>/dev/null || echo "Some files missing"
           echo ""
           if [ -f lcov.info ]; then
             echo "=== Combined LCOV Summary (Rust + C API) ==="
             RUST_FILES=$(grep -c "^SF:" lcov.info || echo "0")
             echo "Source files with coverage: $RUST_FILES"
+          fi
+          if [ -f coverage-python.xml ]; then
             echo ""
-            echo "=== First 30 lines ==="
-            head -30 lcov.info
+            echo "=== Python Coverage Summary ==="
+            # Extract line rate from XML
+            LINE_RATE=$(grep -oP 'line-rate="\K[^"]+' coverage-python.xml | head -1 || echo "0")
+            COVERAGE_PCT=$(echo "$LINE_RATE * 100" | bc 2>/dev/null || echo "N/A")
+            echo "Python line coverage: ${COVERAGE_PCT}%"
           fi
 
       - name: SonarCloud Scan
@@ -288,3 +316,4 @@ jobs:
           args: >
             -Dsonar.rust.lcov.reportPaths=lcov.info
             -Dsonar.rust.clippy.reportPaths=clippy-report.json
+            -Dsonar.python.coverage.reportPaths=coverage-python.xml
