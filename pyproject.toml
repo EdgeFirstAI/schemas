@@ -24,6 +24,16 @@ classifiers = [
 
 dynamic = ["dependencies", "version"]
 
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+dev = [
+    "edgefirst-schemas[test]",
+    "ruff",
+]
+
 [project.urls]
 Homepage = "https://doc.edgefirst.ai"
 Documentation = "https://doc.edgefirst.ai/latest/perception/"
@@ -43,3 +53,37 @@ dependencies = { file = "requirements.txt" }
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests/python"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+
+[tool.coverage.run]
+source = ["edgefirst"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
+show_missing = true
+
+[tool.coverage.xml]
+output = "coverage-python.xml"
