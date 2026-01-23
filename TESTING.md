@@ -652,8 +652,18 @@ SCHEMA_MAP: dict[str, type] = {
 MCAP tests should be implemented for each language that provides its own CDR parser:
 
 - **Python**: `tests/python/test_mcap.py` ✅
-- **Rust**: `tests/mcap_test.rs` (planned)
+- **Rust**: `tests/mcap_test.rs` ✅
 - **C**: Not needed (uses Rust parser via FFI)
+
+### Running Rust MCAP Tests
+
+```bash
+# Run all MCAP tests
+cargo test --test mcap_test
+
+# Run with output showing message counts
+cargo test --test mcap_test -- --nocapture
+```
 
 Future language bindings should implement equivalent MCAP tests to validate their
 parsers produce identical results.
