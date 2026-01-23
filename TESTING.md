@@ -16,6 +16,7 @@ This document describes the comprehensive testing strategy for EdgeFirst Percept
 - [Rust Testing](#rust-testing)
 - [C Testing](#c-testing)
 - [Python Testing](#python-testing)
+- [MCAP Testing](#mcap-testing)
 - [Benchmarks](#benchmarks)
 - [Coverage and CI/CD](#coverage-and-cicd)
 - [Test Data](#test-data)
@@ -565,6 +566,97 @@ pytest tests/python/ -s
 # Type checking
 mypy edgefirst/
 ```
+
+---
+
+## MCAP Testing
+
+### Overview
+
+MCAP tests validate that EdgeFirst Schemas can correctly parse real-world CDR-encoded
+messages from MCAP recordings captured on hardware devices. This ensures the schemas
+work correctly with actual production data from Maivin, Raivin, and other EdgeFirst
+platforms.
+
+### How It Works
+
+1. **Discovery**: Tests scan `testdata/` for all `.mcap` files
+2. **Schema Validation**: Verifies all message types in each MCAP are supported
+3. **Deserialization**: Parses every message using the schemas library
+4. **Round-Trip**: Re-serializes each message and verifies identical CDR bytes
+
+### Test Data Location
+
+Place MCAP files in the `testdata/` directory at the repository root:
+
+```
+schemas/
+└── testdata/
+    ├── device1_recording.mcap
+    └── device2_recording.mcap
+```
+
+MCAP files are not committed to git. They should be:
+- Recorded on EdgeFirst hardware with real sensor data
+- Contain CDR-encoded messages (standard Zenoh/ROS2 encoding)
+- Managed externally (Git LFS, cloud storage, etc.)
+
+### Running MCAP Tests
+
+```bash
+# Run all MCAP tests
+pytest tests/python/test_mcap.py -v
+
+# Run with detailed message counts
+pytest tests/python/test_mcap.py -v -s
+
+# Run specific test class
+pytest tests/python/test_mcap.py::TestMcapDeserialization -v -s
+```
+
+### Test Classes
+
+| Class | Purpose |
+|-------|---------|
+| `TestMcapSchemaSupport` | Fails if MCAP contains unsupported schema types |
+| `TestMcapDeserialization` | Deserializes every message, fails on any error |
+| `TestMcapRoundTrip` | Verifies serialize/deserialize produces identical bytes |
+| `TestMcapFieldValidation` | Validates timestamps and dimensions are reasonable |
+
+### Supported Schema Types
+
+Tests require all schemas in an MCAP file to be supported. Currently supported:
+
+**sensor_msgs**: CameraInfo, CompressedImage, Image, Imu, NavSatFix, PointCloud2
+
+**geometry_msgs**: Transform, TransformStamped, Vector3, Quaternion, Pose, PoseStamped, Point, Twist, TwistStamped
+
+**foxglove_msgs**: CompressedVideo, CompressedImage, FrameTransform, LocationFix, Log, PointCloud, RawImage
+
+**edgefirst_msgs**: Box, Detect, DmaBuffer, Mask, ModelInfo, RadarCube, RadarInfo, Track
+
+### Adding Schema Support
+
+If tests fail due to unsupported schemas, add the mapping to `SCHEMA_MAP` in
+`tests/python/test_mcap.py`:
+
+```python
+SCHEMA_MAP: dict[str, type] = {
+    "sensor_msgs/msg/NewType": sensor_msgs.NewType,
+    # ...
+}
+```
+
+### Multi-Language Support
+
+MCAP tests should be implemented for each language that provides its own CDR parser:
+
+- **Python**: `tests/python/test_mcap.py` ✅
+- **Rust**: `tests/mcap_test.rs` (planned)
+- **C**: Not needed (uses Rust parser via FFI)
+
+Future language bindings should implement equivalent MCAP tests to validate their
+parsers produce identical results.
 
 ---
 

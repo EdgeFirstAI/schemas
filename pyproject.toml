@@ -29,6 +29,7 @@ test = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "numpy>=1.21",
+    "mcap>=1.0",
 ]
 bench = [
     "pytest>=7.0",
