@@ -30,8 +30,13 @@ test = [
     "pytest-cov>=4.0",
     "numpy>=1.21",
 ]
+bench = [
+    "pytest>=7.0",
+    "pytest-benchmark>=4.0",
+    "numpy>=1.21",
+]
 dev = [
-    "edgefirst-schemas[test]",
+    "edgefirst-schemas[test,bench]",
     "ruff",
 ]
 
@@ -88,3 +93,11 @@ show_missing = true
 
 [tool.coverage.xml]
 output = "coverage-python.xml"
+
+[tool.pytest-benchmark]
+# Default benchmark settings (can be overridden via CLI)
+# --benchmark-disable to skip benchmarks in normal test runs
+# --benchmark-only to run only benchmarks
+min_rounds = 5
+warmup = true
+warmup_iterations = 3

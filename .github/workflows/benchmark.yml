@@ -13,10 +13,10 @@ env:
 
 jobs:
   # ==========================================================================
-  # Phase 1: Build Benchmark Binaries on ARM Runner
+  # Phase 1: Build Rust Benchmark Binaries on ARM Runner
   # ==========================================================================
-  build-benchmarks:
-    name: Build Benchmarks
+  build-rust-benchmarks:
+    name: Build Rust Benchmarks
     runs-on: ubuntu-22.04-arm
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
@@ -47,11 +47,11 @@ jobs:
           retention-days: 7
 
   # ==========================================================================
-  # Phase 2: Run Benchmarks on Target Hardware (NXP i.MX 8M Plus)
+  # Phase 2: Run Rust Benchmarks on Target Hardware (NXP i.MX 8M Plus)
   # ==========================================================================
-  run-benchmarks:
-    name: Run on i.MX 8M Plus
-    needs: build-benchmarks
+  run-rust-benchmarks:
+    name: Run Rust on i.MX 8M Plus
+    needs: build-rust-benchmarks
     runs-on: nxp-imx8mp-latest
     timeout-minutes: 60
     steps:
@@ -96,39 +96,101 @@ jobs:
             tar -czf benchmark-results/criterion-data.tar.gz -C target criterion
           fi
 
-      - name: Upload raw benchmark results
+      - name: Upload raw Rust benchmark results
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: benchmark-results-raw
+          name: rust-benchmark-results-raw
           path: benchmark-results/
           retention-days: 7
 
   # ==========================================================================
-  # Phase 3: Process and Publish Results
+  # Phase 3: Run Python Benchmarks on Target Hardware (NXP i.MX 8M Plus)
+  # ==========================================================================
+  run-python-benchmarks:
+    name: Run Python on i.MX 8M Plus
+    runs-on: nxp-imx8mp-latest
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Set up Python virtual environment
+        run: |
+          # Create venv and install dependencies
+          python3 -m venv venv
+          source venv/bin/activate
+          pip install --upgrade pip
+          pip install -e ".[bench]"
+
+      - name: Run Python benchmarks
+        env:
+          BENCH_FAST: "1"
+        run: |
+          source venv/bin/activate
+          mkdir -p python-benchmark-results
+
+          echo "=== Running Python benchmarks on $(hostname) ==="
+          echo "BENCH_FAST=$BENCH_FAST (reduced benchmark variants for CI)"
+          uname -a
+          python3 --version
+
+          # Run benchmarks with JSON output
+          pytest benches/python/bench_serialization.py \
+            --benchmark-only \
+            --benchmark-json=python-benchmark-results/benchmark.json \
+            --benchmark-columns=min,max,mean,stddev \
+            --benchmark-disable-gc \
+            -v 2>&1 | tee python-benchmark-results/benchmark.txt
+
+      - name: Upload Python benchmark results
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: python-benchmark-results-raw
+          path: python-benchmark-results/
+          retention-days: 7
+
+  # ==========================================================================
+  # Phase 4: Process and Publish Results
   # ==========================================================================
   process-benchmarks:
     name: Process Benchmark Results
-    needs: run-benchmarks
+    needs: [run-rust-benchmarks, run-python-benchmarks]
     runs-on: ubuntu-22.04-arm
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
-      - name: Download benchmark results
+      - name: Download Rust benchmark results
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          name: benchmark-results-raw
-          path: benchmark-results/
+          name: rust-benchmark-results-raw
+          path: rust-benchmark-results/
+
+      - name: Download Python benchmark results
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: python-benchmark-results-raw
+          path: python-benchmark-results/
 
       - name: Parse and format benchmark results
         id: bench
         run: |
-          # Combine text output for the summary (needed for full output display)
-          cat benchmark-results/*.txt > benchmark-output.txt
+          # Combine Rust text output for the summary
+          cat rust-benchmark-results/*.txt > rust-benchmark-output.txt 2>/dev/null || true
+
+          # Copy Python benchmark output
+          cp python-benchmark-results/benchmark.txt python-benchmark-output.txt 2>/dev/null || true
+
+          # Combine both for full output
+          echo "=== Rust Benchmarks ===" > benchmark-output.txt
+          cat rust-benchmark-output.txt >> benchmark-output.txt 2>/dev/null || echo "No Rust benchmarks" >> benchmark-output.txt
+          echo "" >> benchmark-output.txt
+          echo "=== Python Benchmarks ===" >> benchmark-output.txt
+          cat python-benchmark-output.txt >> benchmark-output.txt 2>/dev/null || echo "No Python benchmarks" >> benchmark-output.txt
 
           # Extract Criterion JSON data if available
-          if [ -f benchmark-results/criterion-data.tar.gz ]; then
+          if [ -f rust-benchmark-results/criterion-data.tar.gz ]; then
             echo "Extracting Criterion JSON data..."
-            tar -xzf benchmark-results/criterion-data.tar.gz
+            tar -xzf rust-benchmark-results/criterion-data.tar.gz
           fi
 
           # Parse Criterion JSON for reliable benchmark data
@@ -137,12 +199,13 @@ jobs:
           import os
           import glob
 
-          benchmarks = []
+          rust_benchmarks = []
+          python_benchmarks = []
 
-          # Parse Criterion JSON files (more reliable than text output)
+          # Parse Criterion JSON files for Rust benchmarks
           criterion_dir = 'criterion'
           if os.path.isdir(criterion_dir):
-              print("Using Criterion JSON data for parsing")
+              print("Using Criterion JSON data for Rust benchmarks")
 
               # Find all benchmark.json files in 'new' directories
               for bench_json in glob.glob(f'{criterion_dir}/**/new/benchmark.json', recursive=True):
@@ -197,7 +260,7 @@ jobs:
                                   else:
                                       thrpt_str = f"{bytes_per_sec/1e3:.2f} KiB/s"
 
-                          benchmarks.append({
+                          rust_benchmarks.append({
                               'name': full_id,
                               'time': time_str,
                               'throughput': thrpt_str
@@ -205,57 +268,44 @@ jobs:
                   except Exception as e:
                       print(f"Warning: Failed to parse {bench_json}: {e}")
 
-          # Fallback to text parsing if no JSON or not enough results
-          if len(benchmarks) == 0:
-              print("Falling back to text parsing")
-              import re
-              import subprocess
+          # Parse Python benchmark JSON
+          python_json = 'python-benchmark-results/benchmark.json'
+          if os.path.exists(python_json):
+              print("Parsing Python benchmark JSON")
+              try:
+                  with open(python_json) as f:
+                      py_data = json.load(f)
 
-              result = subprocess.run(
-                  f"cat benchmark-results/*.txt 2>/dev/null",
-                  shell=True, capture_output=True, text=True
-              )
-              lines = result.stdout.splitlines()
+                  for bench in py_data.get('benchmarks', []):
+                      name = bench.get('name', '')
+                      stats = bench.get('stats', {})
+                      mean_ns = stats.get('mean', 0) * 1e9  # Convert seconds to nanoseconds
 
-              current_name = None
-              for line in lines:
-                  line = line.rstrip()
-
-                  # Look for benchmark name lines (not indented, contains /)
-                  if line and not line.startswith(' ') and '/' in line and 'Benchmarking' not in line:
-                      # Handle name+time on same line
-                      if 'time:' in line and '%' not in line:
-                          name_part = line.split('time:')[0].strip()
-                          match = re.search(r'\[([\d.]+)\s*(\w+)\s+([\d.]+)\s*(\w+)\s+([\d.]+)\s*(\w+)\]', line)
-                          if match:
-                              benchmarks.append({
-                                  'name': name_part,
-                                  'time': f"{match.group(3)} {match.group(4)}",
-                                  'throughput': 'N/A'
-                              })
+                      if mean_ns >= 1e9:
+                          time_str = f"{mean_ns/1e9:.4f} s"
+                      elif mean_ns >= 1e6:
+                          time_str = f"{mean_ns/1e6:.4f} ms"
+                      elif mean_ns >= 1e3:
+                          time_str = f"{mean_ns/1e3:.4f} µs"
                       else:
-                          current_name = line.strip()
+                          time_str = f"{mean_ns:.4f} ns"
 
-                  # Look for time: on separate line
-                  elif 'time:' in line and current_name and '%' not in line:
-                      match = re.search(r'\[([\d.]+)\s*(\w+)\s+([\d.]+)\s*(\w+)\s+([\d.]+)\s*(\w+)\]', line)
-                      if match:
-                          benchmarks.append({
-                              'name': current_name,
-                              'time': f"{match.group(3)} {match.group(4)}",
-                              'throughput': 'N/A'
-                          })
-                          current_name = None
+                      python_benchmarks.append({
+                          'name': name,
+                          'time': time_str,
+                          'throughput': 'N/A'
+                      })
+              except Exception as e:
+                  print(f"Warning: Failed to parse Python benchmarks: {e}")
 
-          # Write JSON for markdown generation
+          # Write combined JSON
           with open('benchmarks.json', 'w') as f:
-              json.dump(benchmarks, f, indent=2)
+              json.dump({
+                  'rust': rust_benchmarks,
+                  'python': python_benchmarks
+              }, f, indent=2)
 
-          print(f"Parsed {len(benchmarks)} benchmarks")
-          for b in sorted(benchmarks, key=lambda x: x['name'])[:10]:
-              print(f"  {b['name']}: {b['time']}")
-          if len(benchmarks) > 10:
-              print(f"  ... and {len(benchmarks) - 10} more")
+          print(f"Parsed {len(rust_benchmarks)} Rust benchmarks, {len(python_benchmarks)} Python benchmarks")
           PARSE_SCRIPT
 
           # Generate markdown summary from JSON
@@ -264,7 +314,15 @@ jobs:
           import re
 
           with open('benchmarks.json', 'r') as f:
-              benchmarks = json.load(f)
+              data = json.load(f)
+
+          # Support both old format (list) and new format (dict with rust/python)
+          if isinstance(data, dict):
+              rust_benchmarks = data.get('rust', [])
+              python_benchmarks = data.get('python', [])
+          else:
+              rust_benchmarks = data
+              python_benchmarks = []
 
           # Human-readable size labels (use ASCII 'x' to avoid UTF-8 encoding issues in Mermaid)
           SIZE_LABELS = {
@@ -350,11 +408,11 @@ jobs:
               multipliers = {'ns': 1, 'µs': 1000, 'us': 1000, 'ms': 1000000, 's': 1000000000}
               return val * multipliers.get(unit, 1)
 
-          # Categorize benchmarks
+          # Categorize Rust benchmarks
           basic_msgs = []
           heavy_msgs = []
 
-          for b in benchmarks:
+          for b in rust_benchmarks:
               name = b['name']
               if any(cat in name for cat in ['builtin_interfaces', 'std_msgs', 'geometry_msgs']):
                   basic_msgs.append(b)
@@ -417,7 +475,12 @@ jobs:
               f.write("## 📊 On-Target Benchmark Results\n\n")
               f.write("**Target Hardware:** NXP i.MX 8M Plus (Cortex-A53 @ 1.8GHz)\n")
               f.write("**Architecture:** aarch64\n")
-              f.write(f"**Total Benchmarks:** {len(benchmarks)}\n\n")
+              total = len(rust_benchmarks) + len(python_benchmarks)
+              f.write(f"**Total Benchmarks:** {total} (Rust: {len(rust_benchmarks)}, Python: {len(python_benchmarks)})\n\n")
+
+              # Rust Heavy Message Benchmarks
+              if rust_benchmarks:
+                  f.write("## 🦀 Rust Benchmarks\n\n")
 
               for cat_name, cat_info in heavy_categories.items():
                   cat_benchmarks = cat_info['benchmarks']
@@ -525,7 +588,7 @@ jobs:
 
               # Basic message types summary (collapsed)
               f.write("<details>\n")
-              f.write("<summary>Basic Message Types (click to expand)</summary>\n\n")
+              f.write("<summary>Rust Basic Message Types (click to expand)</summary>\n\n")
               f.write("| Message | Serialize | Deserialize |\n")
               f.write("|---------|-----------|-------------|\n")
 
@@ -545,17 +608,55 @@ jobs:
 
               f.write("\n</details>\n\n")
 
-              # Summary statistics
-              f.write("### Summary\n\n")
+              # Rust Summary statistics
+              f.write("### Rust Summary\n\n")
               f.write(f"- **Heavy message benchmarks:** {len(heavy_msgs)}\n")
               f.write(f"- **Basic message benchmarks:** {len(basic_msgs)}\n")
-              f.write(f"- **Total:** {len(benchmarks)}\n")
+              f.write(f"- **Total Rust:** {len(rust_benchmarks)}\n\n")
+
+              # Python Benchmarks Section
+              if python_benchmarks:
+                  f.write("## 🐍 Python Benchmarks\n\n")
+
+                  # Group Python benchmarks by category
+                  py_basic = []
+                  py_heavy = []
+                  for b in python_benchmarks:
+                      name = b['name'].lower()
+                      if any(cat in name for cat in ['time', 'duration', 'header', 'color', 'vector', 'point', 'quaternion', 'pose', 'transform', 'twist']):
+                          py_basic.append(b)
+                      else:
+                          py_heavy.append(b)
+
+                  # Heavy benchmarks table
+                  if py_heavy:
+                      f.write("### Heavy Message Types\n\n")
+                      f.write("| Benchmark | Time |\n")
+                      f.write("|-----------|------|\n")
+                      for b in sorted(py_heavy, key=lambda x: x['name']):
+                          f.write(f"| {b['name']} | {b['time']} |\n")
+                      f.write("\n")
+
+                  # Basic benchmarks (collapsed)
+                  if py_basic:
+                      f.write("<details>\n")
+                      f.write("<summary>Python Basic Message Types (click to expand)</summary>\n\n")
+                      f.write("| Benchmark | Time |\n")
+                      f.write("|-----------|------|\n")
+                      for b in sorted(py_basic, key=lambda x: x['name']):
+                          f.write(f"| {b['name']} | {b['time']} |\n")
+                      f.write("\n</details>\n\n")
+
+                  f.write("### Python Summary\n\n")
+                  f.write(f"- **Heavy message benchmarks:** {len(py_heavy)}\n")
+                  f.write(f"- **Basic message benchmarks:** {len(py_basic)}\n")
+                  f.write(f"- **Total Python:** {len(python_benchmarks)}\n")
 
           print("Generated benchmark-summary.md")
           GENERATE_SCRIPT
 
           # Count benchmarks for output
-          BENCH_COUNT=$(grep -c "Benchmarking" benchmark-output.txt 2>/dev/null || echo "0")
+          BENCH_COUNT=$(grep -c "Benchmarking\|PASSED" benchmark-output.txt 2>/dev/null || echo "0")
           echo "bench_count=$BENCH_COUNT" >> $GITHUB_OUTPUT
 
       - name: Write job summary
@@ -579,4 +680,5 @@ jobs:
           path: |
             benchmark-output.txt
             benchmark-summary.md
+            benchmarks.json
           retention-days: 30
