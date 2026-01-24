@@ -16,7 +16,7 @@ use std::hint::black_box;
 use std::io::Cursor;
 
 use edgefirst_schemas::builtin_interfaces::{Duration, Time};
-use edgefirst_schemas::edgefirst_msgs::{DmaBuf, Mask, RadarCube};
+use edgefirst_schemas::edgefirst_msgs::{DmaBuffer, Mask, RadarCube};
 use edgefirst_schemas::foxglove_msgs::FoxgloveCompressedVideo;
 use edgefirst_schemas::geometry_msgs::{
     Point, Point32, Pose, Pose2D, Quaternion, Transform, Twist, Vector3,
@@ -48,14 +48,14 @@ fn create_header() -> Header {
     }
 }
 
-/// Create a DmaBuf message representing a camera frame reference.
-fn create_dmabuf(width: u32, height: u32, fourcc: u32) -> DmaBuf {
+/// Create a DmaBuffer message representing a camera frame reference.
+fn create_dmabuf(width: u32, height: u32, fourcc: u32) -> DmaBuffer {
     let bytes_per_pixel = match fourcc {
         0x56595559 => 2, // YUYV
         0x3231564E => 1, // NV12 (1.5 bytes avg, but length is separate)
         _ => 3,          // RGB
     };
-    DmaBuf {
+    DmaBuffer {
         header: create_header(),
         pid: 12345,
         fd: 42,
@@ -697,13 +697,13 @@ fn bench_image(c: &mut Criterion) {
 }
 
 // ============================================================================
-// BENCHMARK: DmaBuf (Lightweight reference)
+// BENCHMARK: DmaBuffer (Lightweight reference)
 // ============================================================================
 
 fn bench_dmabuf(c: &mut Criterion) {
-    let mut group = c.benchmark_group("DmaBuf");
+    let mut group = c.benchmark_group("DmaBuffer");
 
-    // DmaBuf is a lightweight message - just metadata, no pixel data
+    // DmaBuffer is a lightweight message - just metadata, no pixel data
     // Used as a reference to show overhead of heavy messages vs zero-copy
     // Fast mode: single representative size only
     let all_sizes: &[((u32, u32, u32), &str)] = &[
@@ -731,7 +731,7 @@ fn bench_dmabuf(c: &mut Criterion) {
         });
 
         group.bench_with_input(BenchmarkId::new("deserialize", name), &bytes, |b, data| {
-            b.iter(|| deserialize::<DmaBuf>(black_box(data)))
+            b.iter(|| deserialize::<DmaBuffer>(black_box(data)))
         });
     }
 

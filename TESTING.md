@@ -625,25 +625,73 @@ pytest tests/python/test_mcap.py::TestMcapDeserialization -v -s
 
 ### Supported Schema Types
 
-Tests require all schemas in an MCAP file to be supported. Currently supported:
+Tests require all schemas in an MCAP file to be supported. The table below shows
+cross-language support status:
 
-**sensor_msgs**: CameraInfo, CompressedImage, Image, Imu, NavSatFix, PointCloud2
-
-**geometry_msgs**: Transform, TransformStamped, Vector3, Quaternion, Pose, PoseStamped, Point, Twist, TwistStamped
-
-**foxglove_msgs**: CompressedVideo, CompressedImage, FrameTransform, LocationFix, Log, PointCloud, RawImage
-
-**edgefirst_msgs**: Box, Detect, DmaBuffer, Mask, ModelInfo, RadarCube, RadarInfo, Track
+| Schema | Python | Rust | Notes |
+|--------|--------|------|-------|
+| **sensor_msgs** |
+| CameraInfo | ✅ | ✅ | |
+| CompressedImage | ✅ | ✅ | |
+| Image | ✅ | ✅ | |
+| Imu | ✅ | ✅ | |
+| NavSatFix | ✅ | ✅ | |
+| PointCloud2 | ✅ | ✅ | |
+| PointField | ✅ | ✅ | Nested struct in PointCloud2 |
+| **geometry_msgs** |
+| Transform | ✅ | ✅ | |
+| TransformStamped | ✅ | ✅ | |
+| Vector3 | ✅ | ✅ | |
+| Quaternion | ✅ | ✅ | |
+| Pose | ✅ | ✅ | |
+| PoseStamped | ✅ | - | Not in Rust |
+| Point | ✅ | ✅ | |
+| Twist | ✅ | ✅ | |
+| TwistStamped | ✅ | ✅ | |
+| **foxglove_msgs** |
+| CompressedVideo | ✅ | ✅ | |
+| CompressedImage | ✅ | - | Not in Rust |
+| FrameTransform | ✅ | - | Not in Rust |
+| LocationFix | ✅ | - | Not in Rust |
+| Log | ✅ | - | Not in Rust |
+| PointCloud | ✅ | - | Not in Rust |
+| RawImage | ✅ | - | Not in Rust |
+| **edgefirst_msgs** |
+| Box | ✅ | ✅ | |
+| Detect | ✅ | ✅ | |
+| DmaBuffer | ✅ | ✅ | |
+| Mask | ✅ | ✅ | |
+| ModelInfo | ✅ | ✅ | |
+| RadarCube | ✅ | ✅ | |
+| RadarInfo | ✅ | ✅ | |
+| Track | ✅ | ✅ | |
 
 ### Adding Schema Support
 
-If tests fail due to unsupported schemas, add the mapping to `SCHEMA_MAP` in
-`tests/python/test_mcap.py`:
+If tests fail due to unsupported schemas, add the mapping in **both** files:
 
+**Python** (`tests/python/test_mcap.py`):
 ```python
 SCHEMA_MAP: dict[str, type] = {
     "sensor_msgs/msg/NewType": sensor_msgs.NewType,
     # ...
+}
+```
+
+**Rust** (`tests/mcap_test.rs`):
+```rust
+fn deserialize_message(schema_name: &str, data: &[u8]) -> Result<Vec<u8>, String> {
+    match schema_name {
+        "sensor_msgs/msg/NewType" => {
+            let msg: sensor_msgs::NewType = cdr::deserialize(data)?;
+            cdr::serialize::<_, _, cdr::CdrLe>(&msg, cdr::Infinite)
+        }
+        // ...
+    }
+}
+
+fn is_schema_supported(schema_name: &str) -> bool {
+    matches!(schema_name, "sensor_msgs/msg/NewType" | /* ... */)
 }
 ```
 

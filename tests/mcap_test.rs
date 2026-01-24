@@ -127,7 +127,8 @@ fn deserialize_message(schema_name: &str, data: &[u8]) -> Result<Vec<u8>, String
             cdr::serialize::<_, _, cdr::CdrLe>(&msg, cdr::Infinite).map_err(|e| format!("{e}"))
         }
         "edgefirst_msgs/msg/DmaBuffer" => {
-            let msg: edgefirst_msgs::DmaBuf = cdr::deserialize(data).map_err(|e| format!("{e}"))?;
+            let msg: edgefirst_msgs::DmaBuffer =
+                cdr::deserialize(data).map_err(|e| format!("{e}"))?;
             cdr::serialize::<_, _, cdr::CdrLe>(&msg, cdr::Infinite).map_err(|e| format!("{e}"))
         }
         "edgefirst_msgs/msg/Mask" => {
@@ -147,6 +148,14 @@ fn deserialize_message(schema_name: &str, data: &[u8]) -> Result<Vec<u8>, String
         "edgefirst_msgs/msg/RadarInfo" => {
             let msg: edgefirst_msgs::RadarInfo =
                 cdr::deserialize(data).map_err(|e| format!("{e}"))?;
+            cdr::serialize::<_, _, cdr::CdrLe>(&msg, cdr::Infinite).map_err(|e| format!("{e}"))
+        }
+        "edgefirst_msgs/msg/Box" => {
+            let msg: edgefirst_msgs::Box = cdr::deserialize(data).map_err(|e| format!("{e}"))?;
+            cdr::serialize::<_, _, cdr::CdrLe>(&msg, cdr::Infinite).map_err(|e| format!("{e}"))
+        }
+        "edgefirst_msgs/msg/Track" => {
+            let msg: edgefirst_msgs::Track = cdr::deserialize(data).map_err(|e| format!("{e}"))?;
             cdr::serialize::<_, _, cdr::CdrLe>(&msg, cdr::Infinite).map_err(|e| format!("{e}"))
         }
 
@@ -173,12 +182,14 @@ fn is_schema_supported(schema_name: &str) -> bool {
             | "geometry_msgs/msg/Twist"
             | "geometry_msgs/msg/TwistStamped"
             | "foxglove_msgs/msg/CompressedVideo"
+            | "edgefirst_msgs/msg/Box"
             | "edgefirst_msgs/msg/Detect"
             | "edgefirst_msgs/msg/DmaBuffer"
             | "edgefirst_msgs/msg/Mask"
             | "edgefirst_msgs/msg/ModelInfo"
             | "edgefirst_msgs/msg/RadarCube"
             | "edgefirst_msgs/msg/RadarInfo"
+            | "edgefirst_msgs/msg/Track"
     )
 }
 
@@ -193,6 +204,8 @@ fn test_all_schemas_supported() {
 
     for mcap_path in &mcap_files {
         let file = fs::File::open(mcap_path).expect("Failed to open MCAP file");
+        // SAFETY: The file is kept alive for the duration of the mmap's lifetime
+        // and the data won't be modified during the test.
         let mapped = unsafe { memmap2::Mmap::map(&file) }.expect("Failed to mmap MCAP file");
 
         let summary = mcap::Summary::read(&mapped)
@@ -232,6 +245,8 @@ fn test_deserialize_all_messages() {
 
     for mcap_path in &mcap_files {
         let file = fs::File::open(mcap_path).expect("Failed to open MCAP file");
+        // SAFETY: The file is kept alive for the duration of the mmap's lifetime
+        // and the data won't be modified during the test.
         let mapped = unsafe { memmap2::Mmap::map(&file) }.expect("Failed to mmap MCAP file");
 
         let mut errors = Vec::new();
@@ -294,6 +309,8 @@ fn test_roundtrip_all_messages() {
 
     for mcap_path in &mcap_files {
         let file = fs::File::open(mcap_path).expect("Failed to open MCAP file");
+        // SAFETY: The file is kept alive for the duration of the mmap's lifetime
+        // and the data won't be modified during the test.
         let mapped = unsafe { memmap2::Mmap::map(&file) }.expect("Failed to mmap MCAP file");
 
         let mut errors = Vec::new();

@@ -26,9 +26,17 @@ from edgefirst.schemas import (
 )
 
 # Schema name to Python class mapping
-# This must include ALL schema types that may appear in test MCAP files
+# This must include ALL schema types that may appear in test MCAP files.
+#
+# Cross-language status:
+# - Types marked [Rust: ✓] have equivalent Rust implementations
+# - Types marked [Rust: -] are Python-only (Rust support pending)
+# - Types marked [Rust: name] have Rust equivalent with different name
+#
+# Note: sensor_msgs/PointField is a nested struct used within PointCloud2,
+# not typically a standalone top-level schema in MCAP recordings.
 SCHEMA_MAP: dict[str, type] = {
-    # sensor_msgs
+    # sensor_msgs [Rust: ✓ all]
     "sensor_msgs/msg/CameraInfo": sensor_msgs.CameraInfo,
     "sensor_msgs/msg/CompressedImage": sensor_msgs.CompressedImage,
     "sensor_msgs/msg/Image": sensor_msgs.Image,
@@ -36,25 +44,25 @@ SCHEMA_MAP: dict[str, type] = {
     "sensor_msgs/msg/NavSatFix": sensor_msgs.NavSatFix,
     "sensor_msgs/msg/PointCloud2": sensor_msgs.PointCloud2,
     "sensor_msgs/msg/PointField": sensor_msgs.PointField,
-    # geometry_msgs
+    # geometry_msgs [Rust: ✓ except PoseStamped]
     "geometry_msgs/msg/Transform": geometry_msgs.Transform,
     "geometry_msgs/msg/TransformStamped": geometry_msgs.TransformStamped,
     "geometry_msgs/msg/Vector3": geometry_msgs.Vector3,
     "geometry_msgs/msg/Quaternion": geometry_msgs.Quaternion,
     "geometry_msgs/msg/Pose": geometry_msgs.Pose,
-    "geometry_msgs/msg/PoseStamped": geometry_msgs.PoseStamped,
+    "geometry_msgs/msg/PoseStamped": geometry_msgs.PoseStamped,  # [Rust: -]
     "geometry_msgs/msg/Point": geometry_msgs.Point,
     "geometry_msgs/msg/Twist": geometry_msgs.Twist,
     "geometry_msgs/msg/TwistStamped": geometry_msgs.TwistStamped,
-    # foxglove_msgs
+    # foxglove_msgs [Rust: only CompressedVideo]
     "foxglove_msgs/msg/CompressedVideo": foxglove_msgs.CompressedVideo,
-    "foxglove_msgs/msg/CompressedImage": foxglove_msgs.CompressedImage,
-    "foxglove_msgs/msg/FrameTransform": foxglove_msgs.FrameTransform,
-    "foxglove_msgs/msg/LocationFix": foxglove_msgs.LocationFix,
-    "foxglove_msgs/msg/Log": foxglove_msgs.Log,
-    "foxglove_msgs/msg/PointCloud": foxglove_msgs.PointCloud,
-    "foxglove_msgs/msg/RawImage": foxglove_msgs.RawImage,
-    # edgefirst_msgs
+    "foxglove_msgs/msg/CompressedImage": foxglove_msgs.CompressedImage,  # [Rust: -]
+    "foxglove_msgs/msg/FrameTransform": foxglove_msgs.FrameTransform,  # [Rust: -]
+    "foxglove_msgs/msg/LocationFix": foxglove_msgs.LocationFix,  # [Rust: -]
+    "foxglove_msgs/msg/Log": foxglove_msgs.Log,  # [Rust: -]
+    "foxglove_msgs/msg/PointCloud": foxglove_msgs.PointCloud,  # [Rust: -]
+    "foxglove_msgs/msg/RawImage": foxglove_msgs.RawImage,  # [Rust: -]
+    # edgefirst_msgs [Rust: ✓ all]
     "edgefirst_msgs/msg/Box": edgefirst_msgs.Box,
     "edgefirst_msgs/msg/Detect": edgefirst_msgs.Detect,
     "edgefirst_msgs/msg/DmaBuffer": edgefirst_msgs.DmaBuffer,
@@ -104,7 +112,7 @@ class TestMcapSchemaSupport:
 
         assert not unsupported, (
             f"Unsupported schema types in {mcap_file.name}: {unsupported}\n"
-            f"Add these to SCHEMA_MAP in test_mcap_decode.py"
+            f"Add these to SCHEMA_MAP in test_mcap.py"
         )
 
 
@@ -122,8 +130,7 @@ class TestMcapDeserialization:
 
             if schema_name not in SCHEMA_MAP:
                 errors.append(
-                    f"Unsupported schema: {schema_name} "
-                    f"(topic: {channel.topic})"
+                    f"Unsupported schema: {schema_name} (topic: {channel.topic})"
                 )
                 continue
 
@@ -135,8 +142,7 @@ class TestMcapDeserialization:
                 )
             except Exception as e:
                 errors.append(
-                    f"Failed to deserialize {schema_name} "
-                    f"(topic: {channel.topic}): {e}"
+                    f"Failed to deserialize {schema_name} (topic: {channel.topic}): {e}"
                 )
 
         # Report stats
@@ -148,11 +154,7 @@ class TestMcapDeserialization:
         assert not errors, (
             f"Deserialization errors in {mcap_file.name}:\n"
             + "\n".join(f"  - {e}" for e in errors[:10])
-            + (
-                f"\n  ... and {len(errors) - 10} more"
-                if len(errors) > 10
-                else ""
-            )
+            + (f"\n  ... and {len(errors) - 10} more" if len(errors) > 10 else "")
         )
 
 
@@ -160,7 +162,14 @@ class TestMcapRoundTrip:
     """Test round-trip serialization of MCAP messages."""
 
     def test_roundtrip_all_messages(self, mcap_file: Path):
-        """Verify messages survive serialize/deserialize round-trip."""
+        """Verify messages survive serialize/deserialize round-trip.
+
+        This test validates byte-perfect round-trip serialization:
+        1. Deserialize original CDR bytes from MCAP
+        2. Serialize back to CDR
+        3. Compare serialized bytes to original (must be identical)
+        4. Deserialize again and verify field equality
+        """
         errors = []
         success_count = 0
 
@@ -178,17 +187,24 @@ class TestMcapRoundTrip:
                 # Serialize back to CDR
                 cdr_bytes = msg1.serialize()
 
-                # Deserialize again
-                msg2 = cls.deserialize(cdr_bytes)
+                # Byte-level comparison (like Rust test does)
+                if cdr_bytes != message.data:
+                    errors.append(
+                        f"Byte mismatch for {schema_name} "
+                        f"(topic: {channel.topic}): "
+                        f"original {len(message.data)} bytes, "
+                        f"reserialized {len(cdr_bytes)} bytes"
+                    )
+                    continue
 
-                # Compare key fields
+                # Deserialize again and verify field equality
+                msg2 = cls.deserialize(cdr_bytes)
                 self._compare_messages(msg1, msg2, schema_name, channel.topic)
                 success_count += 1
 
             except Exception as e:
                 errors.append(
-                    f"Round-trip failed for {schema_name} "
-                    f"(topic: {channel.topic}): {e}"
+                    f"Round-trip failed for {schema_name} (topic: {channel.topic}): {e}"
                 )
 
         print(f"\nRound-trip validated {success_count} messages")
@@ -196,11 +212,7 @@ class TestMcapRoundTrip:
         assert not errors, (
             f"Round-trip errors in {mcap_file.name}:\n"
             + "\n".join(f"  - {e}" for e in errors[:10])
-            + (
-                f"\n  ... and {len(errors) - 10} more"
-                if len(errors) > 10
-                else ""
-            )
+            + (f"\n  ... and {len(errors) - 10} more" if len(errors) > 10 else "")
         )
 
     def _compare_messages(
@@ -229,8 +241,7 @@ class TestMcapRoundTrip:
         if hasattr(msg1, "data"):
             if isinstance(msg1.data, (bytes, list)):
                 assert len(msg1.data) == len(msg2.data), (
-                    f"Data length mismatch: {len(msg1.data)} "
-                    f"!= {len(msg2.data)}"
+                    f"Data length mismatch: {len(msg1.data)} != {len(msg2.data)}"
                 )
 
         # Compare specific fields for known types
@@ -311,21 +322,16 @@ class TestMcapFieldValidation:
                 # Check image dimensions
                 if hasattr(msg, "width"):
                     if msg.width < 0:
-                        errors.append(
-                            f"Negative width in {schema_name}: {msg.width}"
-                        )
+                        errors.append(f"Negative width in {schema_name}: {msg.width}")
                 if hasattr(msg, "height"):
                     if msg.height < 0:
-                        errors.append(
-                            f"Negative height in {schema_name}: {msg.height}"
-                        )
+                        errors.append(f"Negative height in {schema_name}: {msg.height}")
 
                 # Check PointCloud2 dimensions
                 if hasattr(msg, "point_step"):
                     if msg.point_step <= 0:
                         errors.append(
-                            f"Invalid point_step in {schema_name}: "
-                            f"{msg.point_step}"
+                            f"Invalid point_step in {schema_name}: {msg.point_step}"
                         )
 
             except Exception as e:

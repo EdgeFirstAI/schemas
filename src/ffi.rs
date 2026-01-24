@@ -1166,12 +1166,12 @@ pub extern "C" fn ros_image_deserialize(bytes: *const u8, len: usize) -> *mut se
 }
 
 // =============================================================================
-// edgefirst_msgs::DmaBuf
+// edgefirst_msgs::DmaBuffer
 // =============================================================================
 
 #[no_mangle]
-pub extern "C" fn edgefirst_dmabuf_new() -> *mut edgefirst_msgs::DmaBuf {
-    Box::into_raw(Box::new(edgefirst_msgs::DmaBuf {
+pub extern "C" fn edgefirst_dmabuf_new() -> *mut edgefirst_msgs::DmaBuffer {
+    Box::into_raw(Box::new(edgefirst_msgs::DmaBuffer {
         header: std_msgs::Header {
             stamp: builtin_interfaces::Time { sec: 0, nanosec: 0 },
             frame_id: String::new(),
@@ -1187,7 +1187,7 @@ pub extern "C" fn edgefirst_dmabuf_new() -> *mut edgefirst_msgs::DmaBuf {
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_dmabuf_free(dmabuf: *mut edgefirst_msgs::DmaBuf) {
+pub extern "C" fn edgefirst_dmabuf_free(dmabuf: *mut edgefirst_msgs::DmaBuffer) {
     if !dmabuf.is_null() {
         unsafe {
             drop(Box::from_raw(dmabuf));
@@ -1197,7 +1197,7 @@ pub extern "C" fn edgefirst_dmabuf_free(dmabuf: *mut edgefirst_msgs::DmaBuf) {
 
 #[no_mangle]
 pub extern "C" fn edgefirst_dmabuf_get_header(
-    dmabuf: *const edgefirst_msgs::DmaBuf,
+    dmabuf: *const edgefirst_msgs::DmaBuffer,
 ) -> *const std_msgs::Header {
     unsafe {
         assert!(!dmabuf.is_null());
@@ -1207,7 +1207,7 @@ pub extern "C" fn edgefirst_dmabuf_get_header(
 
 #[no_mangle]
 pub extern "C" fn edgefirst_dmabuf_get_header_mut(
-    dmabuf: *mut edgefirst_msgs::DmaBuf,
+    dmabuf: *mut edgefirst_msgs::DmaBuffer,
 ) -> *mut std_msgs::Header {
     unsafe {
         assert!(!dmabuf.is_null());
@@ -1216,7 +1216,7 @@ pub extern "C" fn edgefirst_dmabuf_get_header_mut(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_dmabuf_get_pid(dmabuf: *const edgefirst_msgs::DmaBuf) -> u32 {
+pub extern "C" fn edgefirst_dmabuf_get_pid(dmabuf: *const edgefirst_msgs::DmaBuffer) -> u32 {
     unsafe {
         assert!(!dmabuf.is_null());
         (*dmabuf).pid
@@ -1224,7 +1224,7 @@ pub extern "C" fn edgefirst_dmabuf_get_pid(dmabuf: *const edgefirst_msgs::DmaBuf
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_dmabuf_get_fd(dmabuf: *const edgefirst_msgs::DmaBuf) -> i32 {
+pub extern "C" fn edgefirst_dmabuf_get_fd(dmabuf: *const edgefirst_msgs::DmaBuffer) -> i32 {
     unsafe {
         assert!(!dmabuf.is_null());
         (*dmabuf).fd
@@ -1232,7 +1232,7 @@ pub extern "C" fn edgefirst_dmabuf_get_fd(dmabuf: *const edgefirst_msgs::DmaBuf)
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_dmabuf_get_width(dmabuf: *const edgefirst_msgs::DmaBuf) -> u32 {
+pub extern "C" fn edgefirst_dmabuf_get_width(dmabuf: *const edgefirst_msgs::DmaBuffer) -> u32 {
     unsafe {
         assert!(!dmabuf.is_null());
         (*dmabuf).width
@@ -1240,7 +1240,7 @@ pub extern "C" fn edgefirst_dmabuf_get_width(dmabuf: *const edgefirst_msgs::DmaB
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_dmabuf_get_height(dmabuf: *const edgefirst_msgs::DmaBuf) -> u32 {
+pub extern "C" fn edgefirst_dmabuf_get_height(dmabuf: *const edgefirst_msgs::DmaBuffer) -> u32 {
     unsafe {
         assert!(!dmabuf.is_null());
         (*dmabuf).height
@@ -1248,7 +1248,7 @@ pub extern "C" fn edgefirst_dmabuf_get_height(dmabuf: *const edgefirst_msgs::Dma
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_dmabuf_get_stride(dmabuf: *const edgefirst_msgs::DmaBuf) -> u32 {
+pub extern "C" fn edgefirst_dmabuf_get_stride(dmabuf: *const edgefirst_msgs::DmaBuffer) -> u32 {
     unsafe {
         assert!(!dmabuf.is_null());
         (*dmabuf).stride
@@ -1256,7 +1256,7 @@ pub extern "C" fn edgefirst_dmabuf_get_stride(dmabuf: *const edgefirst_msgs::Dma
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_dmabuf_get_fourcc(dmabuf: *const edgefirst_msgs::DmaBuf) -> u32 {
+pub extern "C" fn edgefirst_dmabuf_get_fourcc(dmabuf: *const edgefirst_msgs::DmaBuffer) -> u32 {
     unsafe {
         assert!(!dmabuf.is_null());
         (*dmabuf).fourcc
@@ -1264,7 +1264,7 @@ pub extern "C" fn edgefirst_dmabuf_get_fourcc(dmabuf: *const edgefirst_msgs::Dma
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_dmabuf_get_length(dmabuf: *const edgefirst_msgs::DmaBuf) -> u32 {
+pub extern "C" fn edgefirst_dmabuf_get_length(dmabuf: *const edgefirst_msgs::DmaBuffer) -> u32 {
     unsafe {
         assert!(!dmabuf.is_null());
         (*dmabuf).length
@@ -1272,7 +1272,7 @@ pub extern "C" fn edgefirst_dmabuf_get_length(dmabuf: *const edgefirst_msgs::Dma
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_dmabuf_set_pid(dmabuf: *mut edgefirst_msgs::DmaBuf, pid: u32) {
+pub extern "C" fn edgefirst_dmabuf_set_pid(dmabuf: *mut edgefirst_msgs::DmaBuffer, pid: u32) {
     unsafe {
         assert!(!dmabuf.is_null());
         (*dmabuf).pid = pid;
@@ -1280,7 +1280,7 @@ pub extern "C" fn edgefirst_dmabuf_set_pid(dmabuf: *mut edgefirst_msgs::DmaBuf, 
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_dmabuf_set_fd(dmabuf: *mut edgefirst_msgs::DmaBuf, fd: i32) {
+pub extern "C" fn edgefirst_dmabuf_set_fd(dmabuf: *mut edgefirst_msgs::DmaBuffer, fd: i32) {
     unsafe {
         assert!(!dmabuf.is_null());
         (*dmabuf).fd = fd;
@@ -1288,7 +1288,7 @@ pub extern "C" fn edgefirst_dmabuf_set_fd(dmabuf: *mut edgefirst_msgs::DmaBuf, f
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_dmabuf_set_width(dmabuf: *mut edgefirst_msgs::DmaBuf, width: u32) {
+pub extern "C" fn edgefirst_dmabuf_set_width(dmabuf: *mut edgefirst_msgs::DmaBuffer, width: u32) {
     unsafe {
         assert!(!dmabuf.is_null());
         (*dmabuf).width = width;
@@ -1296,7 +1296,7 @@ pub extern "C" fn edgefirst_dmabuf_set_width(dmabuf: *mut edgefirst_msgs::DmaBuf
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_dmabuf_set_height(dmabuf: *mut edgefirst_msgs::DmaBuf, height: u32) {
+pub extern "C" fn edgefirst_dmabuf_set_height(dmabuf: *mut edgefirst_msgs::DmaBuffer, height: u32) {
     unsafe {
         assert!(!dmabuf.is_null());
         (*dmabuf).height = height;
@@ -1304,7 +1304,7 @@ pub extern "C" fn edgefirst_dmabuf_set_height(dmabuf: *mut edgefirst_msgs::DmaBu
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_dmabuf_set_stride(dmabuf: *mut edgefirst_msgs::DmaBuf, stride: u32) {
+pub extern "C" fn edgefirst_dmabuf_set_stride(dmabuf: *mut edgefirst_msgs::DmaBuffer, stride: u32) {
     unsafe {
         assert!(!dmabuf.is_null());
         (*dmabuf).stride = stride;
@@ -1312,7 +1312,7 @@ pub extern "C" fn edgefirst_dmabuf_set_stride(dmabuf: *mut edgefirst_msgs::DmaBu
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_dmabuf_set_fourcc(dmabuf: *mut edgefirst_msgs::DmaBuf, fourcc: u32) {
+pub extern "C" fn edgefirst_dmabuf_set_fourcc(dmabuf: *mut edgefirst_msgs::DmaBuffer, fourcc: u32) {
     unsafe {
         assert!(!dmabuf.is_null());
         (*dmabuf).fourcc = fourcc;
@@ -1320,7 +1320,7 @@ pub extern "C" fn edgefirst_dmabuf_set_fourcc(dmabuf: *mut edgefirst_msgs::DmaBu
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_dmabuf_set_length(dmabuf: *mut edgefirst_msgs::DmaBuf, length: u32) {
+pub extern "C" fn edgefirst_dmabuf_set_length(dmabuf: *mut edgefirst_msgs::DmaBuffer, length: u32) {
     unsafe {
         assert!(!dmabuf.is_null());
         (*dmabuf).length = length;
@@ -1329,7 +1329,7 @@ pub extern "C" fn edgefirst_dmabuf_set_length(dmabuf: *mut edgefirst_msgs::DmaBu
 
 #[no_mangle]
 pub extern "C" fn edgefirst_dmabuf_serialize(
-    dmabuf: *const edgefirst_msgs::DmaBuf,
+    dmabuf: *const edgefirst_msgs::DmaBuffer,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -1358,7 +1358,7 @@ pub extern "C" fn edgefirst_dmabuf_serialize(
 pub extern "C" fn edgefirst_dmabuf_deserialize(
     bytes: *const u8,
     len: usize,
-) -> *mut edgefirst_msgs::DmaBuf {
+) -> *mut edgefirst_msgs::DmaBuffer {
     check_null_ret_null!(bytes);
 
     if len == 0 {
@@ -1368,7 +1368,7 @@ pub extern "C" fn edgefirst_dmabuf_deserialize(
 
     unsafe {
         let slice = slice::from_raw_parts(bytes, len);
-        match serde_cdr::deserialize::<edgefirst_msgs::DmaBuf>(slice) {
+        match serde_cdr::deserialize::<edgefirst_msgs::DmaBuffer>(slice) {
             Ok(dmabuf) => Box::into_raw(Box::new(dmabuf)),
             Err(_) => {
                 set_errno(EBADMSG);
@@ -1863,16 +1863,16 @@ pub extern "C" fn edgefirst_radarcube_deserialize(
 // =============================================================================
 // Tier 1 C API Implementation
 // =============================================================================
-// DetectTrack, DetectBox2D, Detect, Mask, PointField, PointCloud2,
+// Track, Box, Detect, Mask, PointField, PointCloud2,
 // NavSatStatus, NavSatFix
 
 // =============================================================================
-// edgefirst_msgs::DetectTrack
+// edgefirst_msgs::Track
 // =============================================================================
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detecttrack_new() -> *mut edgefirst_msgs::DetectTrack {
-    Box::into_raw(Box::new(edgefirst_msgs::DetectTrack {
+pub extern "C" fn edgefirst_track_new() -> *mut edgefirst_msgs::Track {
+    Box::into_raw(Box::new(edgefirst_msgs::Track {
         id: String::new(),
         lifetime: 0,
         created: builtin_interfaces::Time { sec: 0, nanosec: 0 },
@@ -1880,7 +1880,7 @@ pub extern "C" fn edgefirst_detecttrack_new() -> *mut edgefirst_msgs::DetectTrac
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detecttrack_free(track: *mut edgefirst_msgs::DetectTrack) {
+pub extern "C" fn edgefirst_track_free(track: *mut edgefirst_msgs::Track) {
     if !track.is_null() {
         unsafe {
             drop(Box::from_raw(track));
@@ -1889,9 +1889,7 @@ pub extern "C" fn edgefirst_detecttrack_free(track: *mut edgefirst_msgs::DetectT
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detecttrack_get_id(
-    track: *const edgefirst_msgs::DetectTrack,
-) -> *mut c_char {
+pub extern "C" fn edgefirst_track_get_id(track: *const edgefirst_msgs::Track) -> *mut c_char {
     unsafe {
         assert!(!track.is_null());
         string_to_c_char(&(*track).id)
@@ -1899,9 +1897,7 @@ pub extern "C" fn edgefirst_detecttrack_get_id(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detecttrack_get_lifetime(
-    track: *const edgefirst_msgs::DetectTrack,
-) -> i32 {
+pub extern "C" fn edgefirst_track_get_lifetime(track: *const edgefirst_msgs::Track) -> i32 {
     unsafe {
         assert!(!track.is_null());
         (*track).lifetime
@@ -1909,8 +1905,8 @@ pub extern "C" fn edgefirst_detecttrack_get_lifetime(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detecttrack_get_created_mut(
-    track: *mut edgefirst_msgs::DetectTrack,
+pub extern "C" fn edgefirst_track_get_created_mut(
+    track: *mut edgefirst_msgs::Track,
 ) -> *mut builtin_interfaces::Time {
     unsafe {
         assert!(!track.is_null());
@@ -1919,8 +1915,8 @@ pub extern "C" fn edgefirst_detecttrack_get_created_mut(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detecttrack_set_id(
-    track: *mut edgefirst_msgs::DetectTrack,
+pub extern "C" fn edgefirst_track_set_id(
+    track: *mut edgefirst_msgs::Track,
     id: *const c_char,
 ) -> i32 {
     check_null!(track);
@@ -1941,10 +1937,7 @@ pub extern "C" fn edgefirst_detecttrack_set_id(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detecttrack_set_lifetime(
-    track: *mut edgefirst_msgs::DetectTrack,
-    lifetime: i32,
-) {
+pub extern "C" fn edgefirst_track_set_lifetime(track: *mut edgefirst_msgs::Track, lifetime: i32) {
     unsafe {
         assert!(!track.is_null());
         (*track).lifetime = lifetime;
@@ -1952,8 +1945,8 @@ pub extern "C" fn edgefirst_detecttrack_set_lifetime(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detecttrack_serialize(
-    track: *const edgefirst_msgs::DetectTrack,
+pub extern "C" fn edgefirst_track_serialize(
+    track: *const edgefirst_msgs::Track,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -1979,10 +1972,10 @@ pub extern "C" fn edgefirst_detecttrack_serialize(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detecttrack_deserialize(
+pub extern "C" fn edgefirst_track_deserialize(
     bytes: *const u8,
     len: usize,
-) -> *mut edgefirst_msgs::DetectTrack {
+) -> *mut edgefirst_msgs::Track {
     check_null_ret_null!(bytes);
 
     if len == 0 {
@@ -1992,7 +1985,7 @@ pub extern "C" fn edgefirst_detecttrack_deserialize(
 
     unsafe {
         let slice = slice::from_raw_parts(bytes, len);
-        match serde_cdr::deserialize::<edgefirst_msgs::DetectTrack>(slice) {
+        match serde_cdr::deserialize::<edgefirst_msgs::Track>(slice) {
             Ok(track) => Box::into_raw(Box::new(track)),
             Err(_) => {
                 set_errno(EBADMSG);
@@ -2003,12 +1996,12 @@ pub extern "C" fn edgefirst_detecttrack_deserialize(
 }
 
 // =============================================================================
-// edgefirst_msgs::DetectBox2D
+// edgefirst_msgs::Box
 // =============================================================================
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detectbox2d_new() -> *mut edgefirst_msgs::DetectBox2D {
-    Box::into_raw(Box::new(edgefirst_msgs::DetectBox2D {
+pub extern "C" fn edgefirst_box_new() -> *mut edgefirst_msgs::Box {
+    Box::into_raw(Box::new(edgefirst_msgs::Box {
         center_x: 0.0,
         center_y: 0.0,
         width: 0.0,
@@ -2017,7 +2010,7 @@ pub extern "C" fn edgefirst_detectbox2d_new() -> *mut edgefirst_msgs::DetectBox2
         score: 0.0,
         distance: 0.0,
         speed: 0.0,
-        track: edgefirst_msgs::DetectTrack {
+        track: edgefirst_msgs::Track {
             id: String::new(),
             lifetime: 0,
             created: builtin_interfaces::Time { sec: 0, nanosec: 0 },
@@ -2026,7 +2019,7 @@ pub extern "C" fn edgefirst_detectbox2d_new() -> *mut edgefirst_msgs::DetectBox2
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detectbox2d_free(box2d: *mut edgefirst_msgs::DetectBox2D) {
+pub extern "C" fn edgefirst_box_free(box2d: *mut edgefirst_msgs::Box) {
     if !box2d.is_null() {
         unsafe {
             drop(Box::from_raw(box2d));
@@ -2035,9 +2028,7 @@ pub extern "C" fn edgefirst_detectbox2d_free(box2d: *mut edgefirst_msgs::DetectB
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detectbox2d_get_center_x(
-    box2d: *const edgefirst_msgs::DetectBox2D,
-) -> f32 {
+pub extern "C" fn edgefirst_box_get_center_x(box2d: *const edgefirst_msgs::Box) -> f32 {
     unsafe {
         assert!(!box2d.is_null());
         (*box2d).center_x
@@ -2045,9 +2036,7 @@ pub extern "C" fn edgefirst_detectbox2d_get_center_x(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detectbox2d_get_center_y(
-    box2d: *const edgefirst_msgs::DetectBox2D,
-) -> f32 {
+pub extern "C" fn edgefirst_box_get_center_y(box2d: *const edgefirst_msgs::Box) -> f32 {
     unsafe {
         assert!(!box2d.is_null());
         (*box2d).center_y
@@ -2055,9 +2044,7 @@ pub extern "C" fn edgefirst_detectbox2d_get_center_y(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detectbox2d_get_width(
-    box2d: *const edgefirst_msgs::DetectBox2D,
-) -> f32 {
+pub extern "C" fn edgefirst_box_get_width(box2d: *const edgefirst_msgs::Box) -> f32 {
     unsafe {
         assert!(!box2d.is_null());
         (*box2d).width
@@ -2065,9 +2052,7 @@ pub extern "C" fn edgefirst_detectbox2d_get_width(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detectbox2d_get_height(
-    box2d: *const edgefirst_msgs::DetectBox2D,
-) -> f32 {
+pub extern "C" fn edgefirst_box_get_height(box2d: *const edgefirst_msgs::Box) -> f32 {
     unsafe {
         assert!(!box2d.is_null());
         (*box2d).height
@@ -2075,9 +2060,7 @@ pub extern "C" fn edgefirst_detectbox2d_get_height(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detectbox2d_get_label(
-    box2d: *const edgefirst_msgs::DetectBox2D,
-) -> *mut c_char {
+pub extern "C" fn edgefirst_box_get_label(box2d: *const edgefirst_msgs::Box) -> *mut c_char {
     unsafe {
         assert!(!box2d.is_null());
         string_to_c_char(&(*box2d).label)
@@ -2085,9 +2068,7 @@ pub extern "C" fn edgefirst_detectbox2d_get_label(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detectbox2d_get_score(
-    box2d: *const edgefirst_msgs::DetectBox2D,
-) -> f32 {
+pub extern "C" fn edgefirst_box_get_score(box2d: *const edgefirst_msgs::Box) -> f32 {
     unsafe {
         assert!(!box2d.is_null());
         (*box2d).score
@@ -2095,9 +2076,7 @@ pub extern "C" fn edgefirst_detectbox2d_get_score(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detectbox2d_get_distance(
-    box2d: *const edgefirst_msgs::DetectBox2D,
-) -> f32 {
+pub extern "C" fn edgefirst_box_get_distance(box2d: *const edgefirst_msgs::Box) -> f32 {
     unsafe {
         assert!(!box2d.is_null());
         (*box2d).distance
@@ -2105,9 +2084,7 @@ pub extern "C" fn edgefirst_detectbox2d_get_distance(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detectbox2d_get_speed(
-    box2d: *const edgefirst_msgs::DetectBox2D,
-) -> f32 {
+pub extern "C" fn edgefirst_box_get_speed(box2d: *const edgefirst_msgs::Box) -> f32 {
     unsafe {
         assert!(!box2d.is_null());
         (*box2d).speed
@@ -2115,9 +2092,9 @@ pub extern "C" fn edgefirst_detectbox2d_get_speed(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detectbox2d_get_track_mut(
-    box2d: *mut edgefirst_msgs::DetectBox2D,
-) -> *mut edgefirst_msgs::DetectTrack {
+pub extern "C" fn edgefirst_box_get_track_mut(
+    box2d: *mut edgefirst_msgs::Box,
+) -> *mut edgefirst_msgs::Track {
     unsafe {
         assert!(!box2d.is_null());
         &mut (*box2d).track
@@ -2125,10 +2102,7 @@ pub extern "C" fn edgefirst_detectbox2d_get_track_mut(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detectbox2d_set_center_x(
-    box2d: *mut edgefirst_msgs::DetectBox2D,
-    center_x: f32,
-) {
+pub extern "C" fn edgefirst_box_set_center_x(box2d: *mut edgefirst_msgs::Box, center_x: f32) {
     unsafe {
         assert!(!box2d.is_null());
         (*box2d).center_x = center_x;
@@ -2136,10 +2110,7 @@ pub extern "C" fn edgefirst_detectbox2d_set_center_x(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detectbox2d_set_center_y(
-    box2d: *mut edgefirst_msgs::DetectBox2D,
-    center_y: f32,
-) {
+pub extern "C" fn edgefirst_box_set_center_y(box2d: *mut edgefirst_msgs::Box, center_y: f32) {
     unsafe {
         assert!(!box2d.is_null());
         (*box2d).center_y = center_y;
@@ -2147,10 +2118,7 @@ pub extern "C" fn edgefirst_detectbox2d_set_center_y(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detectbox2d_set_width(
-    box2d: *mut edgefirst_msgs::DetectBox2D,
-    width: f32,
-) {
+pub extern "C" fn edgefirst_box_set_width(box2d: *mut edgefirst_msgs::Box, width: f32) {
     unsafe {
         assert!(!box2d.is_null());
         (*box2d).width = width;
@@ -2158,10 +2126,7 @@ pub extern "C" fn edgefirst_detectbox2d_set_width(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detectbox2d_set_height(
-    box2d: *mut edgefirst_msgs::DetectBox2D,
-    height: f32,
-) {
+pub extern "C" fn edgefirst_box_set_height(box2d: *mut edgefirst_msgs::Box, height: f32) {
     unsafe {
         assert!(!box2d.is_null());
         (*box2d).height = height;
@@ -2169,8 +2134,8 @@ pub extern "C" fn edgefirst_detectbox2d_set_height(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detectbox2d_set_label(
-    box2d: *mut edgefirst_msgs::DetectBox2D,
+pub extern "C" fn edgefirst_box_set_label(
+    box2d: *mut edgefirst_msgs::Box,
     label: *const c_char,
 ) -> i32 {
     check_null!(box2d);
@@ -2191,10 +2156,7 @@ pub extern "C" fn edgefirst_detectbox2d_set_label(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detectbox2d_set_score(
-    box2d: *mut edgefirst_msgs::DetectBox2D,
-    score: f32,
-) {
+pub extern "C" fn edgefirst_box_set_score(box2d: *mut edgefirst_msgs::Box, score: f32) {
     unsafe {
         assert!(!box2d.is_null());
         (*box2d).score = score;
@@ -2202,10 +2164,7 @@ pub extern "C" fn edgefirst_detectbox2d_set_score(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detectbox2d_set_distance(
-    box2d: *mut edgefirst_msgs::DetectBox2D,
-    distance: f32,
-) {
+pub extern "C" fn edgefirst_box_set_distance(box2d: *mut edgefirst_msgs::Box, distance: f32) {
     unsafe {
         assert!(!box2d.is_null());
         (*box2d).distance = distance;
@@ -2213,10 +2172,7 @@ pub extern "C" fn edgefirst_detectbox2d_set_distance(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detectbox2d_set_speed(
-    box2d: *mut edgefirst_msgs::DetectBox2D,
-    speed: f32,
-) {
+pub extern "C" fn edgefirst_box_set_speed(box2d: *mut edgefirst_msgs::Box, speed: f32) {
     unsafe {
         assert!(!box2d.is_null());
         (*box2d).speed = speed;
@@ -2224,8 +2180,8 @@ pub extern "C" fn edgefirst_detectbox2d_set_speed(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detectbox2d_serialize(
-    box2d: *const edgefirst_msgs::DetectBox2D,
+pub extern "C" fn edgefirst_box_serialize(
+    box2d: *const edgefirst_msgs::Box,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -2251,10 +2207,10 @@ pub extern "C" fn edgefirst_detectbox2d_serialize(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detectbox2d_deserialize(
+pub extern "C" fn edgefirst_box_deserialize(
     bytes: *const u8,
     len: usize,
-) -> *mut edgefirst_msgs::DetectBox2D {
+) -> *mut edgefirst_msgs::Box {
     check_null_ret_null!(bytes);
 
     if len == 0 {
@@ -2264,7 +2220,7 @@ pub extern "C" fn edgefirst_detectbox2d_deserialize(
 
     unsafe {
         let slice = slice::from_raw_parts(bytes, len);
-        match serde_cdr::deserialize::<edgefirst_msgs::DetectBox2D>(slice) {
+        match serde_cdr::deserialize::<edgefirst_msgs::Box>(slice) {
             Ok(box2d) => Box::into_raw(Box::new(box2d)),
             Err(_) => {
                 set_errno(EBADMSG);
@@ -2345,7 +2301,7 @@ pub extern "C" fn edgefirst_detect_get_output_time_mut(
 pub extern "C" fn edgefirst_detect_get_boxes(
     detect: *const edgefirst_msgs::Detect,
     out_len: *mut usize,
-) -> *const edgefirst_msgs::DetectBox2D {
+) -> *const edgefirst_msgs::Box {
     unsafe {
         assert!(!detect.is_null());
         assert!(!out_len.is_null());
@@ -2357,7 +2313,7 @@ pub extern "C" fn edgefirst_detect_get_boxes(
 #[no_mangle]
 pub extern "C" fn edgefirst_detect_add_box(
     detect: *mut edgefirst_msgs::Detect,
-    box2d: *const edgefirst_msgs::DetectBox2D,
+    box2d: *const edgefirst_msgs::Box,
 ) -> i32 {
     check_null!(detect);
     check_null!(box2d);
@@ -5904,7 +5860,7 @@ pub extern "C" fn edgefirst_model_get_decode_time_mut(
 pub extern "C" fn edgefirst_model_get_box(
     model: *const edgefirst_msgs::Model,
     index: usize,
-) -> *const edgefirst_msgs::DetectBox2D {
+) -> *const edgefirst_msgs::Box {
     unsafe {
         assert!(!model.is_null());
         match (&(*model).boxes).get(index) {
@@ -5927,7 +5883,7 @@ pub extern "C" fn edgefirst_model_get_boxes_count(model: *const edgefirst_msgs::
 #[no_mangle]
 pub extern "C" fn edgefirst_model_add_box(
     model: *mut edgefirst_msgs::Model,
-    box2d: *const edgefirst_msgs::DetectBox2D,
+    box2d: *const edgefirst_msgs::Box,
 ) -> i32 {
     check_null!(model);
     check_null!(box2d);

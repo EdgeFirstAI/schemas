@@ -7,11 +7,11 @@ use crate::{
 };
 use serde_derive::{Deserialize, Serialize};
 
-/// The DmaBuf message is used to transfer a DMA buffer file descriptor between
+/// The DmaBuffer message is used to transfer a DMA buffer file descriptor between
 /// processes. It is mainly used to transfer the camera image data from the
 /// camera driver to the image processing nodes.
 ///
-/// The DmaBuf message works by publishing the service's pid and the file
+/// The DmaBuffer message works by publishing the service's pid and the file
 /// descriptor of the DMA buffer.  The receiving node can then use the file
 /// descriptor to map the DMA buffer into its own memory space using the
 /// [pidfd_open(2)](https://man7.org/linux/man-pages/man2/pidfd_open.2.html)
@@ -22,7 +22,7 @@ use serde_derive::{Deserialize, Serialize};
 /// field is the size of the DMA buffer in bytes and used to
 /// [mmap(3p)](https://man7.org/linux/man-pages/man3/mmap.3p.html) the buffer.
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
-pub struct DmaBuf {
+pub struct DmaBuffer {
     /// Message header containing the timestamp and frame id.
     pub header: std_msgs::Header,
     /// The process id of the service that created the DMA buffer.
@@ -131,11 +131,11 @@ pub struct Detect {
     pub input_timestamp: Time,
     pub model_time: Time,
     pub output_time: Time,
-    pub boxes: Vec<DetectBox2D>,
+    pub boxes: Vec<Box>,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
-pub struct DetectBox2D {
+pub struct Box {
     pub center_x: f32,
     pub center_y: f32,
     pub width: f32,
@@ -144,11 +144,11 @@ pub struct DetectBox2D {
     pub score: f32,
     pub distance: f32,
     pub speed: f32,
-    pub track: DetectTrack,
+    pub track: Track,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
-pub struct DetectTrack {
+pub struct Track {
     pub id: String,
     pub lifetime: i32,
     pub created: Time,
@@ -187,7 +187,7 @@ pub struct Model {
     pub decode_time: Duration,
     /// Box detections from the model.  Empty if none detected or if model does
     /// not support detection.
-    pub boxes: Vec<DetectBox2D>,
+    pub boxes: Vec<Box>,
     /// Segmentation masks from the model.  Empty array if model does not generate
     /// masks.  Generally models will only generate a single mask if they do.
     pub masks: Vec<Mask>,
@@ -284,7 +284,7 @@ mod tests {
             input_timestamp: Time::new(100, 400_000_000),
             model_time: Time::new(0, 50_000_000),
             output_time: Time::new(100, 500_000_000),
-            boxes: vec![DetectBox2D {
+            boxes: vec![Box {
                 center_x: 0.5,
                 center_y: 0.5,
                 width: 0.1,
@@ -293,7 +293,7 @@ mod tests {
                 score: 0.98,
                 distance: 10.0,
                 speed: 5.0,
-                track: DetectTrack {
+                track: Track {
                     id: "t1".to_string(),
                     lifetime: 5,
                     created: Time::new(95, 0),
@@ -333,7 +333,7 @@ mod tests {
 
     #[test]
     fn dmabuf_roundtrip() {
-        let dmabuf = DmaBuf {
+        let dmabuf = DmaBuffer {
             header: Header {
                 stamp: Time::new(100, 0),
                 frame_id: "camera".to_string(),
@@ -347,7 +347,7 @@ mod tests {
             length: 1920 * 1080 * 3,
         };
         let bytes = serialize(&dmabuf).unwrap();
-        assert_eq!(dmabuf, deserialize::<DmaBuf>(&bytes).unwrap());
+        assert_eq!(dmabuf, deserialize::<DmaBuffer>(&bytes).unwrap());
     }
 
     #[test]

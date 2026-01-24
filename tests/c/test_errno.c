@@ -128,7 +128,7 @@ Test(errno_handling, set_frame_id_null_string) {
 
 Test(errno_handling, set_label_null_detectbox2d) {
     errno = 0;
-    int ret = edgefirst_detectbox2d_set_label(NULL, "person");
+    int ret = edgefirst_box_set_label(NULL, "person");
     cr_assert_eq(ret, -1, "Should return -1 for NULL detectbox2d");
     cr_assert_eq(errno, EINVAL, "errno should be EINVAL");
 }
@@ -273,8 +273,8 @@ Test(errno_handling, destroy_null_pointer) {
     ros_point_free(NULL);
     ros_quaternion_free(NULL);
     ros_color_rgba_free(NULL);
-    edgefirst_detecttrack_free(NULL);
-    edgefirst_detectbox2d_free(NULL);
+    edgefirst_track_free(NULL);
+    edgefirst_box_free(NULL);
     edgefirst_detect_free(NULL);
     edgefirst_mask_free(NULL);
     edgefirst_dmabuf_free(NULL);

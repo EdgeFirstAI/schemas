@@ -11,158 +11,158 @@
 #include "edgefirst/schemas.h"
 
 // ============================================================================
-// DetectTrack Tests
+// Track Tests
 // ============================================================================
 
-Test(edgefirst_msgs, detecttrack_create_and_destroy) {
-    EdgeFirstDetectTrack *track = edgefirst_detecttrack_new();
+Test(edgefirst_msgs, track_create_and_destroy) {
+    EdgeFirstTrack *track = edgefirst_track_new();
     cr_assert_not_null(track);
 
-    edgefirst_detecttrack_set_id(track, "42");
-    edgefirst_detecttrack_set_lifetime(track, 10);
+    edgefirst_track_set_id(track, "42");
+    edgefirst_track_set_lifetime(track, 10);
 
-    char *id = edgefirst_detecttrack_get_id(track);
+    char *id = edgefirst_track_get_id(track);
     cr_assert_str_eq(id, "42");
     free(id);
 
-    cr_assert_eq(edgefirst_detecttrack_get_lifetime(track), 10);
+    cr_assert_eq(edgefirst_track_get_lifetime(track), 10);
 
-    edgefirst_detecttrack_free(track);
+    edgefirst_track_free(track);
 }
 
-Test(edgefirst_msgs, detecttrack_set_values) {
-    EdgeFirstDetectTrack *track = edgefirst_detecttrack_new();
+Test(edgefirst_msgs, track_set_values) {
+    EdgeFirstTrack *track = edgefirst_track_new();
     cr_assert_not_null(track);
 
-    edgefirst_detecttrack_set_id(track, "test-track-999");
-    edgefirst_detecttrack_set_lifetime(track, 5);
+    edgefirst_track_set_id(track, "test-track-999");
+    edgefirst_track_set_lifetime(track, 5);
 
-    char *id = edgefirst_detecttrack_get_id(track);
+    char *id = edgefirst_track_get_id(track);
     cr_assert_str_eq(id, "test-track-999");
     free(id);
 
-    cr_assert_eq(edgefirst_detecttrack_get_lifetime(track), 5);
+    cr_assert_eq(edgefirst_track_get_lifetime(track), 5);
 
-    edgefirst_detecttrack_free(track);
+    edgefirst_track_free(track);
 }
 
-Test(edgefirst_msgs, detecttrack_serialize_deserialize) {
-    EdgeFirstDetectTrack *original = edgefirst_detecttrack_new();
+Test(edgefirst_msgs, track_serialize_deserialize) {
+    EdgeFirstTrack *original = edgefirst_track_new();
     cr_assert_not_null(original);
 
-    edgefirst_detecttrack_set_id(original, "track-42");
-    edgefirst_detecttrack_set_lifetime(original, 100);
+    edgefirst_track_set_id(original, "track-42");
+    edgefirst_track_set_lifetime(original, 100);
 
     uint8_t *buffer = NULL;
     size_t len = 0;
 
-    int ret = edgefirst_detecttrack_serialize(original, &buffer, &len);
+    int ret = edgefirst_track_serialize(original, &buffer, &len);
     cr_assert_eq(ret, 0);
     cr_assert_not_null(buffer);
     cr_assert_gt(len, 0);
 
-    EdgeFirstDetectTrack *deserialized = edgefirst_detecttrack_deserialize(buffer, len);
+    EdgeFirstTrack *deserialized = edgefirst_track_deserialize(buffer, len);
     cr_assert_not_null(deserialized);
 
-    char *id = edgefirst_detecttrack_get_id(deserialized);
+    char *id = edgefirst_track_get_id(deserialized);
     cr_assert_str_eq(id, "track-42");
     free(id);
 
-    cr_assert_eq(edgefirst_detecttrack_get_lifetime(deserialized), 100);
+    cr_assert_eq(edgefirst_track_get_lifetime(deserialized), 100);
 
-    edgefirst_detecttrack_free(original);
-    edgefirst_detecttrack_free(deserialized);
+    edgefirst_track_free(original);
+    edgefirst_track_free(deserialized);
     free(buffer);
 }
 
-Test(edgefirst_msgs, detecttrack_free_null) {
-    edgefirst_detecttrack_free(NULL);
+Test(edgefirst_msgs, track_free_null) {
+    edgefirst_track_free(NULL);
 }
 
 // ============================================================================
-// DetectBox2D Tests
+// Box Tests
 // ============================================================================
 
-Test(edgefirst_msgs, detectbox2d_create_and_destroy) {
-    EdgeFirstDetectBox2D *box = edgefirst_detectbox2d_new();
+Test(edgefirst_msgs, box_create_and_destroy) {
+    EdgeFirstBox *box = edgefirst_box_new();
     cr_assert_not_null(box);
 
-    edgefirst_detectbox2d_set_center_x(box, 0.5f);
-    edgefirst_detectbox2d_set_center_y(box, 0.5f);
-    edgefirst_detectbox2d_set_width(box, 0.1f);
-    edgefirst_detectbox2d_set_height(box, 0.2f);
+    edgefirst_box_set_center_x(box, 0.5f);
+    edgefirst_box_set_center_y(box, 0.5f);
+    edgefirst_box_set_width(box, 0.1f);
+    edgefirst_box_set_height(box, 0.2f);
 
-    cr_assert_float_eq(edgefirst_detectbox2d_get_center_x(box), 0.5f, 0.0001f);
-    cr_assert_float_eq(edgefirst_detectbox2d_get_center_y(box), 0.5f, 0.0001f);
-    cr_assert_float_eq(edgefirst_detectbox2d_get_width(box), 0.1f, 0.0001f);
-    cr_assert_float_eq(edgefirst_detectbox2d_get_height(box), 0.2f, 0.0001f);
+    cr_assert_float_eq(edgefirst_box_get_center_x(box), 0.5f, 0.0001f);
+    cr_assert_float_eq(edgefirst_box_get_center_y(box), 0.5f, 0.0001f);
+    cr_assert_float_eq(edgefirst_box_get_width(box), 0.1f, 0.0001f);
+    cr_assert_float_eq(edgefirst_box_get_height(box), 0.2f, 0.0001f);
 
-    edgefirst_detectbox2d_free(box);
+    edgefirst_box_free(box);
 }
 
-Test(edgefirst_msgs, detectbox2d_label_and_score) {
-    EdgeFirstDetectBox2D *box = edgefirst_detectbox2d_new();
+Test(edgefirst_msgs, box_label_and_score) {
+    EdgeFirstBox *box = edgefirst_box_new();
     cr_assert_not_null(box);
 
-    edgefirst_detectbox2d_set_label(box, "person");
-    edgefirst_detectbox2d_set_score(box, 0.95f);
+    edgefirst_box_set_label(box, "person");
+    edgefirst_box_set_score(box, 0.95f);
 
-    char *label = edgefirst_detectbox2d_get_label(box);
+    char *label = edgefirst_box_get_label(box);
     cr_assert_str_eq(label, "person");
     free(label);
 
-    cr_assert_float_eq(edgefirst_detectbox2d_get_score(box), 0.95f, 0.0001f);
+    cr_assert_float_eq(edgefirst_box_get_score(box), 0.95f, 0.0001f);
 
-    edgefirst_detectbox2d_free(box);
+    edgefirst_box_free(box);
 }
 
-Test(edgefirst_msgs, detectbox2d_distance_and_speed) {
-    EdgeFirstDetectBox2D *box = edgefirst_detectbox2d_new();
+Test(edgefirst_msgs, box_distance_and_speed) {
+    EdgeFirstBox *box = edgefirst_box_new();
     cr_assert_not_null(box);
 
-    edgefirst_detectbox2d_set_distance(box, 15.5f);
-    edgefirst_detectbox2d_set_speed(box, 5.2f);
+    edgefirst_box_set_distance(box, 15.5f);
+    edgefirst_box_set_speed(box, 5.2f);
 
-    cr_assert_float_eq(edgefirst_detectbox2d_get_distance(box), 15.5f, 0.0001f);
-    cr_assert_float_eq(edgefirst_detectbox2d_get_speed(box), 5.2f, 0.0001f);
+    cr_assert_float_eq(edgefirst_box_get_distance(box), 15.5f, 0.0001f);
+    cr_assert_float_eq(edgefirst_box_get_speed(box), 5.2f, 0.0001f);
 
-    edgefirst_detectbox2d_free(box);
+    edgefirst_box_free(box);
 }
 
-Test(edgefirst_msgs, detectbox2d_serialize_deserialize) {
-    EdgeFirstDetectBox2D *original = edgefirst_detectbox2d_new();
+Test(edgefirst_msgs, box_serialize_deserialize) {
+    EdgeFirstBox *original = edgefirst_box_new();
     cr_assert_not_null(original);
 
-    edgefirst_detectbox2d_set_center_x(original, 0.25f);
-    edgefirst_detectbox2d_set_center_y(original, 0.75f);
-    edgefirst_detectbox2d_set_width(original, 0.15f);
-    edgefirst_detectbox2d_set_height(original, 0.35f);
-    edgefirst_detectbox2d_set_label(original, "car");
-    edgefirst_detectbox2d_set_score(original, 0.87f);
+    edgefirst_box_set_center_x(original, 0.25f);
+    edgefirst_box_set_center_y(original, 0.75f);
+    edgefirst_box_set_width(original, 0.15f);
+    edgefirst_box_set_height(original, 0.35f);
+    edgefirst_box_set_label(original, "car");
+    edgefirst_box_set_score(original, 0.87f);
 
     uint8_t *buffer = NULL;
     size_t len = 0;
 
-    int ret = edgefirst_detectbox2d_serialize(original, &buffer, &len);
+    int ret = edgefirst_box_serialize(original, &buffer, &len);
     cr_assert_eq(ret, 0);
 
-    EdgeFirstDetectBox2D *deserialized = edgefirst_detectbox2d_deserialize(buffer, len);
+    EdgeFirstBox *deserialized = edgefirst_box_deserialize(buffer, len);
     cr_assert_not_null(deserialized);
 
-    cr_assert_float_eq(edgefirst_detectbox2d_get_center_x(deserialized), 0.25f, 0.0001f);
-    cr_assert_float_eq(edgefirst_detectbox2d_get_center_y(deserialized), 0.75f, 0.0001f);
+    cr_assert_float_eq(edgefirst_box_get_center_x(deserialized), 0.25f, 0.0001f);
+    cr_assert_float_eq(edgefirst_box_get_center_y(deserialized), 0.75f, 0.0001f);
 
-    char *label = edgefirst_detectbox2d_get_label(deserialized);
+    char *label = edgefirst_box_get_label(deserialized);
     cr_assert_str_eq(label, "car");
     free(label);
 
-    edgefirst_detectbox2d_free(original);
-    edgefirst_detectbox2d_free(deserialized);
+    edgefirst_box_free(original);
+    edgefirst_box_free(deserialized);
     free(buffer);
 }
 
-Test(edgefirst_msgs, detectbox2d_free_null) {
-    edgefirst_detectbox2d_free(NULL);
+Test(edgefirst_msgs, box_free_null) {
+    edgefirst_box_free(NULL);
 }
 
 // ============================================================================
@@ -183,19 +183,19 @@ Test(edgefirst_msgs, detect_add_box) {
     EdgeFirstDetect *detect = edgefirst_detect_new();
     cr_assert_not_null(detect);
 
-    EdgeFirstDetectBox2D *box = edgefirst_detectbox2d_new();
-    edgefirst_detectbox2d_set_label(box, "pedestrian");
-    edgefirst_detectbox2d_set_score(box, 0.9f);
+    EdgeFirstBox *box = edgefirst_box_new();
+    edgefirst_box_set_label(box, "pedestrian");
+    edgefirst_box_set_score(box, 0.9f);
 
     int ret = edgefirst_detect_add_box(detect, box);
     cr_assert_eq(ret, 0);
 
     size_t box_count = 0;
-    const EdgeFirstDetectBox2D *boxes = edgefirst_detect_get_boxes(detect, &box_count);
+    const EdgeFirstBox *boxes = edgefirst_detect_get_boxes(detect, &box_count);
     cr_assert_eq(box_count, 1);
     cr_assert_not_null(boxes);
 
-    edgefirst_detectbox2d_free(box);
+    edgefirst_box_free(box);
     edgefirst_detect_free(detect);
 }
 
@@ -206,9 +206,9 @@ Test(edgefirst_msgs, detect_serialize_deserialize) {
     RosHeader *header = edgefirst_detect_get_header_mut(original);
     ros_header_set_frame_id(header, "camera_front");
 
-    EdgeFirstDetectBox2D *box = edgefirst_detectbox2d_new();
-    edgefirst_detectbox2d_set_label(box, "bicycle");
-    edgefirst_detectbox2d_set_score(box, 0.75f);
+    EdgeFirstBox *box = edgefirst_box_new();
+    edgefirst_box_set_label(box, "bicycle");
+    edgefirst_box_set_score(box, 0.75f);
     edgefirst_detect_add_box(original, box);
 
     uint8_t *buffer = NULL;
@@ -224,7 +224,7 @@ Test(edgefirst_msgs, detect_serialize_deserialize) {
     edgefirst_detect_get_boxes(deserialized, &box_count);
     cr_assert_eq(box_count, 1);
 
-    edgefirst_detectbox2d_free(box);
+    edgefirst_box_free(box);
     edgefirst_detect_free(original);
     edgefirst_detect_free(deserialized);
     free(buffer);
@@ -319,11 +319,11 @@ Test(edgefirst_msgs, mask_free_null) {
 }
 
 // ============================================================================
-// DmaBuf Tests
+// DmaBuffer Tests
 // ============================================================================
 
 Test(edgefirst_msgs, dmabuf_create_and_destroy) {
-    EdgeFirstDmaBuf *dmabuf = edgefirst_dmabuf_new();
+    EdgeFirstDmaBuffer *dmabuf = edgefirst_dmabuf_new();
     cr_assert_not_null(dmabuf);
 
     edgefirst_dmabuf_set_pid(dmabuf, 1234);
@@ -340,7 +340,7 @@ Test(edgefirst_msgs, dmabuf_create_and_destroy) {
 }
 
 Test(edgefirst_msgs, dmabuf_stride_and_fourcc) {
-    EdgeFirstDmaBuf *dmabuf = edgefirst_dmabuf_new();
+    EdgeFirstDmaBuffer *dmabuf = edgefirst_dmabuf_new();
     cr_assert_not_null(dmabuf);
 
     edgefirst_dmabuf_set_stride(dmabuf, 7680);
@@ -353,7 +353,7 @@ Test(edgefirst_msgs, dmabuf_stride_and_fourcc) {
 }
 
 Test(edgefirst_msgs, dmabuf_serialize_deserialize) {
-    EdgeFirstDmaBuf *original = edgefirst_dmabuf_new();
+    EdgeFirstDmaBuffer *original = edgefirst_dmabuf_new();
     cr_assert_not_null(original);
 
     edgefirst_dmabuf_set_pid(original, 5678);
@@ -369,7 +369,7 @@ Test(edgefirst_msgs, dmabuf_serialize_deserialize) {
     int ret = edgefirst_dmabuf_serialize(original, &buffer, &len);
     cr_assert_eq(ret, 0);
 
-    EdgeFirstDmaBuf *deserialized = edgefirst_dmabuf_deserialize(buffer, len);
+    EdgeFirstDmaBuffer *deserialized = edgefirst_dmabuf_deserialize(buffer, len);
     cr_assert_not_null(deserialized);
 
     cr_assert_eq(edgefirst_dmabuf_get_pid(deserialized), 5678);
@@ -775,26 +775,26 @@ Test(edgefirst_msgs, model_add_boxes) {
     cr_assert_not_null(model);
 
     // Add a detection box
-    EdgeFirstDetectBox2D *box = edgefirst_detectbox2d_new();
-    edgefirst_detectbox2d_set_label(box, "person");
-    edgefirst_detectbox2d_set_score(box, 0.95f);
-    edgefirst_detectbox2d_set_center_x(box, 0.5f);
-    edgefirst_detectbox2d_set_center_y(box, 0.5f);
+    EdgeFirstBox *box = edgefirst_box_new();
+    edgefirst_box_set_label(box, "person");
+    edgefirst_box_set_score(box, 0.95f);
+    edgefirst_box_set_center_x(box, 0.5f);
+    edgefirst_box_set_center_y(box, 0.5f);
 
     int ret = edgefirst_model_add_box(model, box);
     cr_assert_eq(ret, 0);
 
     cr_assert_eq(edgefirst_model_get_boxes_count(model), 1);
 
-    const EdgeFirstDetectBox2D *got_box = edgefirst_model_get_box(model, 0);
+    const EdgeFirstBox *got_box = edgefirst_model_get_box(model, 0);
     cr_assert_not_null(got_box);
-    cr_assert_float_eq(edgefirst_detectbox2d_get_score(got_box), 0.95f, 0.0001f);
+    cr_assert_float_eq(edgefirst_box_get_score(got_box), 0.95f, 0.0001f);
 
     // Clear boxes
     edgefirst_model_clear_boxes(model);
     cr_assert_eq(edgefirst_model_get_boxes_count(model), 0);
 
-    edgefirst_detectbox2d_free(box);
+    edgefirst_box_free(box);
     edgefirst_model_free(model);
 }
 
@@ -833,9 +833,9 @@ Test(edgefirst_msgs, model_serialize_deserialize) {
     ros_header_set_frame_id(header, "yolov8");
 
     // Add a box
-    EdgeFirstDetectBox2D *box = edgefirst_detectbox2d_new();
-    edgefirst_detectbox2d_set_label(box, "car");
-    edgefirst_detectbox2d_set_score(box, 0.87f);
+    EdgeFirstBox *box = edgefirst_box_new();
+    edgefirst_box_set_label(box, "car");
+    edgefirst_box_set_score(box, 0.87f);
     edgefirst_model_add_box(original, box);
 
     uint8_t *buffer = NULL;
@@ -849,10 +849,10 @@ Test(edgefirst_msgs, model_serialize_deserialize) {
 
     cr_assert_eq(edgefirst_model_get_boxes_count(deserialized), 1);
 
-    const EdgeFirstDetectBox2D *deser_box = edgefirst_model_get_box(deserialized, 0);
-    cr_assert_float_eq(edgefirst_detectbox2d_get_score(deser_box), 0.87f, 0.0001f);
+    const EdgeFirstBox *deser_box = edgefirst_model_get_box(deserialized, 0);
+    cr_assert_float_eq(edgefirst_box_get_score(deser_box), 0.87f, 0.0001f);
 
-    edgefirst_detectbox2d_free(box);
+    edgefirst_box_free(box);
     edgefirst_model_free(original);
     edgefirst_model_free(deserialized);
     free(buffer);
