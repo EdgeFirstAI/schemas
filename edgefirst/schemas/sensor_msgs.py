@@ -1142,3 +1142,50 @@ class TimeReference(IdlStruct, typename='sensor_msgs/TimeReference'):
     """
     (optional) name of time source
     """
+
+
+# Schema registry support
+_TYPES = {
+    "BatteryState": BatteryState,
+    "CameraInfo": CameraInfo,
+    "ChannelFloat32": ChannelFloat32,
+    "CompressedImage": CompressedImage,
+    "FluidPressure": FluidPressure,
+    "Illuminance": Illuminance,
+    "Image": Image,
+    "Imu": Imu,
+    "JointState": JointState,
+    "Joy": Joy,
+    "JoyFeedback": JoyFeedback,
+    "JoyFeedbackArray": JoyFeedbackArray,
+    "LaserEcho": LaserEcho,
+    "LaserScan": LaserScan,
+    "MagneticField": MagneticField,
+    "MultiDOFJointState": MultiDOFJointState,
+    "MultiEchoLaserScan": MultiEchoLaserScan,
+    "NavSatFix": NavSatFix,
+    "NavSatStatus": NavSatStatus,
+    "PointCloud": PointCloud,
+    "PointCloud2": PointCloud2,
+    "PointField": PointField,
+    "Range": Range,
+    "RegionOfInterest": RegionOfInterest,
+    "RelativeHumidity": RelativeHumidity,
+    "Temperature": Temperature,
+    "TimeReference": TimeReference,
+}
+
+
+def is_type_supported(type_name: str) -> bool:
+    """Check if a type name is supported by this module."""
+    return type_name in _TYPES
+
+
+def list_types() -> list[str]:
+    """List all type schema names in this module."""
+    return [f"sensor_msgs/msg/{name}" for name in sorted(_TYPES.keys())]
+
+
+def get_type(type_name: str) -> type:
+    """Get the type class by name. Returns None if not found."""
+    return _TYPES.get(type_name)

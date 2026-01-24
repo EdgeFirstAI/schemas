@@ -2726,6 +2726,70 @@ int ros_service_header_serialize(const RosServiceHeader* header, uint8_t** out_b
 RosServiceHeader* ros_service_header_deserialize(const uint8_t* bytes, size_t len);
 
 /* ============================================================================
+ * Schema Registry
+ * ========================================================================= */
+
+/**
+ * @defgroup SchemaRegistry Schema Registry
+ * @brief Runtime schema lookup and validation functions.
+ *
+ * The schema registry provides functions to work with ROS2-style schema names
+ * (e.g., "sensor_msgs/msg/Image", "geometry_msgs/msg/Pose").
+ *
+ * These functions are useful for:
+ * - MCAP file processing where schema names are known at runtime
+ * - Dynamic message validation
+ * - Introspection of supported message types
+ * @{
+ */
+
+/**
+ * Check if a schema name is supported by this library.
+ *
+ * @param schema The schema name to check (e.g., "sensor_msgs/msg/Image")
+ * @return 1 if the schema is supported, 0 if not supported or NULL input
+ *
+ * @code
+ * if (edgefirst_schema_is_supported("sensor_msgs/msg/Image")) {
+ *     // Schema is supported, safe to deserialize
+ * }
+ * @endcode
+ */
+int edgefirst_schema_is_supported(const char* schema);
+
+/**
+ * Get the number of supported schemas.
+ *
+ * @return Total number of supported schema types
+ *
+ * @code
+ * size_t count = edgefirst_schema_count();
+ * printf("Library supports %zu schema types\n", count);
+ * @endcode
+ */
+size_t edgefirst_schema_count(void);
+
+/**
+ * Get a schema name by index.
+ *
+ * @param index The index of the schema (0 to count-1)
+ * @return Pointer to the schema name string (static, do NOT free), or NULL if out of bounds
+ *
+ * @note The returned string is statically allocated and must NOT be freed.
+ *
+ * @code
+ * size_t count = edgefirst_schema_count();
+ * for (size_t i = 0; i < count; i++) {
+ *     const char* name = edgefirst_schema_get(i);
+ *     printf("Schema %zu: %s\n", i, name);
+ * }
+ * @endcode
+ */
+const char* edgefirst_schema_get(size_t index);
+
+/** @} */ /* end of SchemaRegistry */
+
+/* ============================================================================
  * Ownership Note
  * ========================================================================= */
 

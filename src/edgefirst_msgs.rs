@@ -253,6 +253,88 @@ pub struct Date {
     pub day: u8,
 }
 
+/// Check if a type name is supported by this module.
+pub fn is_type_supported(type_name: &str) -> bool {
+    matches!(
+        type_name,
+        "Box"
+            | "Date"
+            | "Detect"
+            | "DmaBuffer"
+            | "LocalTime"
+            | "Mask"
+            | "Model"
+            | "ModelInfo"
+            | "RadarCube"
+            | "RadarInfo"
+            | "Track"
+    )
+}
+
+/// List all type schema names in this module.
+pub fn list_types() -> &'static [&'static str] {
+    &[
+        "edgefirst_msgs/msg/Box",
+        "edgefirst_msgs/msg/Date",
+        "edgefirst_msgs/msg/Detect",
+        "edgefirst_msgs/msg/DmaBuffer",
+        "edgefirst_msgs/msg/LocalTime",
+        "edgefirst_msgs/msg/Mask",
+        "edgefirst_msgs/msg/Model",
+        "edgefirst_msgs/msg/ModelInfo",
+        "edgefirst_msgs/msg/RadarCube",
+        "edgefirst_msgs/msg/RadarInfo",
+        "edgefirst_msgs/msg/Track",
+    ]
+}
+
+// SchemaType implementations
+use crate::schema_registry::SchemaType;
+
+impl SchemaType for Box {
+    const SCHEMA_NAME: &'static str = "edgefirst_msgs/msg/Box";
+}
+
+impl SchemaType for Date {
+    const SCHEMA_NAME: &'static str = "edgefirst_msgs/msg/Date";
+}
+
+impl SchemaType for Detect {
+    const SCHEMA_NAME: &'static str = "edgefirst_msgs/msg/Detect";
+}
+
+impl SchemaType for DmaBuffer {
+    const SCHEMA_NAME: &'static str = "edgefirst_msgs/msg/DmaBuffer";
+}
+
+impl SchemaType for LocalTime {
+    const SCHEMA_NAME: &'static str = "edgefirst_msgs/msg/LocalTime";
+}
+
+impl SchemaType for Mask {
+    const SCHEMA_NAME: &'static str = "edgefirst_msgs/msg/Mask";
+}
+
+impl SchemaType for Model {
+    const SCHEMA_NAME: &'static str = "edgefirst_msgs/msg/Model";
+}
+
+impl SchemaType for ModelInfo {
+    const SCHEMA_NAME: &'static str = "edgefirst_msgs/msg/ModelInfo";
+}
+
+impl SchemaType for RadarCube {
+    const SCHEMA_NAME: &'static str = "edgefirst_msgs/msg/RadarCube";
+}
+
+impl SchemaType for RadarInfo {
+    const SCHEMA_NAME: &'static str = "edgefirst_msgs/msg/RadarInfo";
+}
+
+impl SchemaType for Track {
+    const SCHEMA_NAME: &'static str = "edgefirst_msgs/msg/Track";
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

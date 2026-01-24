@@ -389,3 +389,34 @@ class RadarInfo(IdlStruct, typename='edgefirst_msgs/RadarInfo'):
 
     cube: bool = False
     """True if the radar is configured to output radar cubes."""
+
+
+# Schema registry support
+_TYPES = {
+    "Box": Box,
+    "Date": Date,
+    "Detect": Detect,
+    "DmaBuffer": DmaBuffer,
+    "LocalTime": LocalTime,
+    "Mask": Mask,
+    "Model": Model,
+    "ModelInfo": ModelInfo,
+    "RadarCube": RadarCube,
+    "RadarInfo": RadarInfo,
+    "Track": Track,
+}
+
+
+def is_type_supported(type_name: str) -> bool:
+    """Check if a type name is supported by this module."""
+    return type_name in _TYPES
+
+
+def list_types() -> list[str]:
+    """List all type schema names in this module."""
+    return [f"edgefirst_msgs/msg/{name}" for name in sorted(_TYPES.keys())]
+
+
+def get_type(type_name: str) -> type:
+    """Get the type class by name. Returns None if not found."""
+    return _TYPES.get(type_name)

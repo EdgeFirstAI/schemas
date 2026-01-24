@@ -8269,3 +8269,80 @@ pub extern "C" fn ros_service_header_deserialize(
         }
     }
 }
+
+// =============================================================================
+// Schema Registry
+// =============================================================================
+
+use crate::schema_registry;
+
+/// Check if a schema name is supported by this library.
+///
+/// # Arguments
+/// * `schema` - The schema name to check (e.g., "sensor_msgs/msg/Image")
+///
+/// # Returns
+/// * 1 if the schema is supported
+/// * 0 if the schema is not supported or the input is NULL
+///
+/// # Example
+/// ```c
+/// if (edgefirst_schema_is_supported("sensor_msgs/msg/Image")) {
+///     // Schema is supported
+/// }
+/// ```
+#[no_mangle]
+pub extern "C" fn edgefirst_schema_is_supported(schema: *const c_char) -> i32 {
+    if schema.is_null() {
+        return 0;
+    }
+
+    unsafe {
+        match CStr::from_ptr(schema).to_str() {
+            Ok(s) => {
+                if schema_registry::is_supported(s) {
+                    1
+                } else {
+                    0
+                }
+            }
+            Err(_) => 0,
+        }
+    }
+}
+
+/// Get the number of supported schemas.
+///
+/// # Returns
+/// The total number of supported schema types.
+#[no_mangle]
+pub extern "C" fn edgefirst_schema_count() -> usize {
+    schema_registry::list_schemas().len()
+}
+
+/// Get a schema name by index.
+///
+/// # Arguments
+/// * `index` - The index of the schema (0 to count-1)
+///
+/// # Returns
+/// * Pointer to the schema name string (static lifetime, do not free)
+/// * NULL if index is out of bounds
+///
+/// # Example
+/// ```c
+/// size_t count = edgefirst_schema_count();
+/// for (size_t i = 0; i < count; i++) {
+///     const char* name = edgefirst_schema_get(i);
+///     printf("Schema %zu: %s\n", i, name);
+/// }
+/// ```
+#[no_mangle]
+pub extern "C" fn edgefirst_schema_get(index: usize) -> *const c_char {
+    let schemas = schema_registry::list_schemas();
+    if index >= schemas.len() {
+        return ptr::null();
+    }
+    // Schema names are &'static str so we can return them directly
+    schemas[index].as_ptr() as *const c_char
+}

@@ -2095,3 +2095,42 @@ class TrianglesMarker(IdlStruct, typename='foxglove_msgs/TrianglesMarker'):
     
     If omitted or empty, indexing will not be used. This default behavior is equivalent to specifying [0, 1, ..., N-1] for the indices (where N is the number of `points` provided).
     """
+
+
+# Schema registry support
+_TYPES = {
+    "ArrowMarker": ArrowMarker,
+    "CircleAnnotation": CircleAnnotation,
+    "Color": Color,
+    "CompressedVideo": CompressedVideo,
+    "CubeMarker": CubeMarker,
+    "CylinderMarker": CylinderMarker,
+    "ImageAnnotations": ImageAnnotations,
+    "KeyValuePair": KeyValuePair,
+    "LineMarker": LineMarker,
+    "ModelMarker": ModelMarker,
+    "Point2": Point2,
+    "PointsAnnotation": PointsAnnotation,
+    "SceneEntity": SceneEntity,
+    "SceneEntityDeletion": SceneEntityDeletion,
+    "SceneUpdate": SceneUpdate,
+    "SphereMarker": SphereMarker,
+    "TextAnnotation": TextAnnotation,
+    "TextMarker": TextMarker,
+    "TriangleListMarker": TriangleListMarker,
+}
+
+
+def is_type_supported(type_name: str) -> bool:
+    """Check if a type name is supported by this module."""
+    return type_name in _TYPES
+
+
+def list_types() -> list[str]:
+    """List all type schema names in this module."""
+    return [f"foxglove_msgs/msg/{name}" for name in sorted(_TYPES.keys())]
+
+
+def get_type(type_name: str) -> type:
+    """Get the type class by name. Returns None if not found."""
+    return _TYPES.get(type_name)

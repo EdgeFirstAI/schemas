@@ -121,6 +121,76 @@ pub struct RegionOfInterest {
     pub do_rectify: bool,
 }
 
+/// Check if a type name is supported by this module.
+pub fn is_type_supported(type_name: &str) -> bool {
+    matches!(
+        type_name,
+        "CameraInfo"
+            | "CompressedImage"
+            | "Image"
+            | "Imu"
+            | "NavSatFix"
+            | "NavSatStatus"
+            | "PointCloud2"
+            | "PointField"
+            | "RegionOfInterest"
+    )
+}
+
+/// List all type schema names in this module.
+pub fn list_types() -> &'static [&'static str] {
+    &[
+        "sensor_msgs/msg/CameraInfo",
+        "sensor_msgs/msg/CompressedImage",
+        "sensor_msgs/msg/Image",
+        "sensor_msgs/msg/Imu",
+        "sensor_msgs/msg/NavSatFix",
+        "sensor_msgs/msg/NavSatStatus",
+        "sensor_msgs/msg/PointCloud2",
+        "sensor_msgs/msg/PointField",
+        "sensor_msgs/msg/RegionOfInterest",
+    ]
+}
+
+// SchemaType implementations
+use crate::schema_registry::SchemaType;
+
+impl SchemaType for CameraInfo {
+    const SCHEMA_NAME: &'static str = "sensor_msgs/msg/CameraInfo";
+}
+
+impl SchemaType for CompressedImage {
+    const SCHEMA_NAME: &'static str = "sensor_msgs/msg/CompressedImage";
+}
+
+impl SchemaType for Image {
+    const SCHEMA_NAME: &'static str = "sensor_msgs/msg/Image";
+}
+
+impl SchemaType for IMU {
+    const SCHEMA_NAME: &'static str = "sensor_msgs/msg/Imu";
+}
+
+impl SchemaType for NavSatFix {
+    const SCHEMA_NAME: &'static str = "sensor_msgs/msg/NavSatFix";
+}
+
+impl SchemaType for NavSatStatus {
+    const SCHEMA_NAME: &'static str = "sensor_msgs/msg/NavSatStatus";
+}
+
+impl SchemaType for PointCloud2 {
+    const SCHEMA_NAME: &'static str = "sensor_msgs/msg/PointCloud2";
+}
+
+impl SchemaType for PointField {
+    const SCHEMA_NAME: &'static str = "sensor_msgs/msg/PointField";
+}
+
+impl SchemaType for RegionOfInterest {
+    const SCHEMA_NAME: &'static str = "sensor_msgs/msg/RegionOfInterest";
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

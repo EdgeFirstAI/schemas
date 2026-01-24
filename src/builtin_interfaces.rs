@@ -51,6 +51,30 @@ impl From<Dur> for Duration {
     }
 }
 
+/// Check if a type name is supported by this module.
+pub fn is_type_supported(type_name: &str) -> bool {
+    matches!(type_name, "Duration" | "Time")
+}
+
+/// List all type schema names in this module.
+pub fn list_types() -> &'static [&'static str] {
+    &[
+        "builtin_interfaces/msg/Duration",
+        "builtin_interfaces/msg/Time",
+    ]
+}
+
+// SchemaType implementations
+use crate::schema_registry::SchemaType;
+
+impl SchemaType for Duration {
+    const SCHEMA_NAME: &'static str = "builtin_interfaces/msg/Duration";
+}
+
+impl SchemaType for Time {
+    const SCHEMA_NAME: &'static str = "builtin_interfaces/msg/Time";
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

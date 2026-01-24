@@ -1,19 +1,31 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright © 2025 Au-Zone Technologies. All Rights Reserved.
 
+import copy
+import struct
 from collections import namedtuple
 from dataclasses import field
-import copy
 from typing import NamedTuple
 
 
 def default_field(obj):
     return field(default_factory=lambda: copy.copy(obj))
 
-import struct
+
+from .registry import from_schema, is_supported, list_schemas, schema_name
 from .sensor_msgs import PointCloud2, PointField
 
 __version__ = "1.4.1"
+
+__all__ = [
+    "from_schema",
+    "schema_name",
+    "list_schemas",
+    "is_supported",
+    "decode_pcd",
+    "colormap",
+    "default_field",
+]
 
 
 def decode_pcd(pcd: PointCloud2) -> list[NamedTuple]:
