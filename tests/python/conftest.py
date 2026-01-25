@@ -1,5 +1,7 @@
 """Shared pytest fixtures for EdgeFirst Schemas tests."""
 
+from pathlib import Path
+
 import pytest
 
 from edgefirst.schemas import (
@@ -11,6 +13,29 @@ from edgefirst.schemas import (
     sensor_msgs,
     std_msgs,
 )
+
+# Path to test data directory
+TESTDATA_DIR = Path(__file__).parent.parent.parent / "testdata"
+
+
+def pytest_generate_tests(metafunc):
+    """Dynamically generate test parameters for all MCAP files."""
+    if "mcap_file" in metafunc.fixturenames:
+        mcap_files = sorted(TESTDATA_DIR.glob("*.mcap"))
+        if not mcap_files:
+            pytest.skip("No MCAP files found in testdata/")
+        metafunc.parametrize(
+            "mcap_file",
+            mcap_files,
+            ids=[f.name for f in mcap_files],
+        )
+
+
+@pytest.fixture
+def testdata_dir():
+    """Return the testdata directory path."""
+    return TESTDATA_DIR
+
 
 # ============================================================================
 # BUILTIN INTERFACES FIXTURES

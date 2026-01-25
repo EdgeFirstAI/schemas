@@ -18,6 +18,27 @@ pub struct ColorRGBA {
     pub a: f32,
 }
 
+/// Check if a type name is supported by this module.
+pub fn is_type_supported(type_name: &str) -> bool {
+    matches!(type_name, "Header" | "ColorRGBA")
+}
+
+/// List all type schema names in this module.
+pub fn list_types() -> &'static [&'static str] {
+    &["std_msgs/msg/Header", "std_msgs/msg/ColorRGBA"]
+}
+
+// SchemaType implementations
+use crate::schema_registry::SchemaType;
+
+impl SchemaType for Header {
+    const SCHEMA_NAME: &'static str = "std_msgs/msg/Header";
+}
+
+impl SchemaType for ColorRGBA {
+    const SCHEMA_NAME: &'static str = "std_msgs/msg/ColorRGBA";
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

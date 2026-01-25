@@ -483,3 +483,52 @@ class Uint64MultiArray(IdlStruct, typename='std_msgs/Uint64MultiArray'):
     """
     array of data
     """
+
+
+# Schema registry support
+_TYPES = {
+    "Bool": Bool,
+    "Byte": Byte,
+    "ByteMultiArray": ByteMultiArray,
+    "Char": Char,
+    "ColorRGBA": ColorRGBA,
+    "Float32": Float32,
+    "Float32MultiArray": Float32MultiArray,
+    "Float64": Float64,
+    "Float64MultiArray": Float64MultiArray,
+    "Header": Header,
+    "Int8": Int8,
+    "Int8MultiArray": Int8MultiArray,
+    "Int16": Int16,
+    "Int16MultiArray": Int16MultiArray,
+    "Int32": Int32,
+    "Int32MultiArray": Int32MultiArray,
+    "Int64": Int64,
+    "Int64MultiArray": Int64MultiArray,
+    "MultiArrayDimension": MultiArrayDimension,
+    "MultiArrayLayout": MultiArrayLayout,
+    "String": String,
+    "Uint8": Uint8,
+    "Uint8MultiArray": Uint8MultiArray,
+    "Uint16": Uint16,
+    "Uint16MultiArray": Uint16MultiArray,
+    "Uint32": Uint32,
+    "Uint32MultiArray": Uint32MultiArray,
+    "Uint64": Uint64,
+    "Uint64MultiArray": Uint64MultiArray,
+}
+
+
+def is_type_supported(type_name: str) -> bool:
+    """Check if a type name is supported by this module."""
+    return type_name in _TYPES
+
+
+def list_types() -> list[str]:
+    """List all type schema names in this module."""
+    return [f"std_msgs/msg/{name}" for name in sorted(_TYPES.keys())]
+
+
+def get_type(type_name: str) -> type:
+    """Get the type class by name. Returns None if not found."""
+    return _TYPES.get(type_name)

@@ -357,3 +357,52 @@ class WrenchStamped(IdlStruct, typename='geometry_msgs/WrenchStamped'):
     """
     header: Header = default_field(Header)
     wrench: Wrench = default_field(Wrench)
+
+
+# Schema registry support
+_TYPES = {
+    "Accel": Accel,
+    "AccelStamped": AccelStamped,
+    "AccelWithCovariance": AccelWithCovariance,
+    "AccelWithCovarianceStamped": AccelWithCovarianceStamped,
+    "Inertia": Inertia,
+    "InertiaStamped": InertiaStamped,
+    "Point": Point,
+    "Point32": Point32,
+    "PointStamped": PointStamped,
+    "Polygon": Polygon,
+    "PolygonStamped": PolygonStamped,
+    "Pose": Pose,
+    "Pose2D": Pose2D,
+    "PoseArray": PoseArray,
+    "PoseStamped": PoseStamped,
+    "PoseWithCovariance": PoseWithCovariance,
+    "PoseWithCovarianceStamped": PoseWithCovarianceStamped,
+    "Quaternion": Quaternion,
+    "QuaternionStamped": QuaternionStamped,
+    "Transform": Transform,
+    "TransformStamped": TransformStamped,
+    "Twist": Twist,
+    "TwistStamped": TwistStamped,
+    "TwistWithCovariance": TwistWithCovariance,
+    "TwistWithCovarianceStamped": TwistWithCovarianceStamped,
+    "Vector3": Vector3,
+    "Vector3Stamped": Vector3Stamped,
+    "Wrench": Wrench,
+    "WrenchStamped": WrenchStamped,
+}
+
+
+def is_type_supported(type_name: str) -> bool:
+    """Check if a type name is supported by this module."""
+    return type_name in _TYPES
+
+
+def list_types() -> list[str]:
+    """List all type schema names in this module."""
+    return [f"geometry_msgs/msg/{name}" for name in sorted(_TYPES.keys())]
+
+
+def get_type(type_name: str) -> type:
+    """Get the type class by name. Returns None if not found."""
+    return _TYPES.get(type_name)

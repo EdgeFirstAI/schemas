@@ -150,12 +150,12 @@ typedef struct RosPointField RosPointField;
 typedef struct RosRegionOfInterest RosRegionOfInterest;
 
 /* edgefirst_msgs */
-typedef struct EdgeFirstDmaBuf EdgeFirstDmaBuf;
+typedef struct EdgeFirstDmaBuffer EdgeFirstDmaBuffer;
 typedef struct EdgeFirstRadarCube EdgeFirstRadarCube;
 typedef struct EdgeFirstRadarInfo EdgeFirstRadarInfo;
 typedef struct EdgeFirstDetect EdgeFirstDetect;
-typedef struct EdgeFirstDetectBox2D EdgeFirstDetectBox2D;
-typedef struct EdgeFirstDetectTrack EdgeFirstDetectTrack;
+typedef struct EdgeFirstBox EdgeFirstBox;
+typedef struct EdgeFirstTrack EdgeFirstTrack;
 typedef struct EdgeFirstMask EdgeFirstMask;
 typedef struct EdgeFirstModel EdgeFirstModel;
 typedef struct EdgeFirstModelInfo EdgeFirstModelInfo;
@@ -767,139 +767,139 @@ int ros_image_serialize(const RosImage* image, uint8_t** out_bytes, size_t* out_
 RosImage* ros_image_deserialize(const uint8_t* bytes, size_t len);
 
 /* ============================================================================
- * edgefirst_msgs - DmaBuf
+ * edgefirst_msgs - DmaBuffer
  * ========================================================================= */
 
 /**
- * @brief Create a new DmaBuf message
- * @return Pointer to new DmaBuf or NULL on allocation failure
+ * @brief Create a new DmaBuffer message
+ * @return Pointer to new DmaBuffer or NULL on allocation failure
  *
  * @par Errors (errno):
  * - ENOMEM: Memory allocation failed
  */
-EdgeFirstDmaBuf* edgefirst_dmabuf_new(void);
+EdgeFirstDmaBuffer* edgefirst_dmabuf_new(void);
 
 /**
- * @brief Free a DmaBuf message
- * @param dmabuf Pointer to DmaBuf to free (can be NULL)
+ * @brief Free a DmaBuffer message
+ * @param dmabuf Pointer to DmaBuffer to free (can be NULL)
  */
-void edgefirst_dmabuf_free(EdgeFirstDmaBuf* dmabuf);
+void edgefirst_dmabuf_free(EdgeFirstDmaBuffer* dmabuf);
 
 /**
  * @brief Get header field (borrowed pointer)
- * @param dmabuf DmaBuf message
+ * @param dmabuf DmaBuffer message
  * @return Pointer to Header
  */
-const RosHeader* edgefirst_dmabuf_get_header(const EdgeFirstDmaBuf* dmabuf);
+const RosHeader* edgefirst_dmabuf_get_header(const EdgeFirstDmaBuffer* dmabuf);
 
 /**
  * @brief Get mutable header field
- * @param dmabuf DmaBuf message
+ * @param dmabuf DmaBuffer message
  * @return Mutable pointer to Header
  */
-RosHeader* edgefirst_dmabuf_get_header_mut(EdgeFirstDmaBuf* dmabuf);
+RosHeader* edgefirst_dmabuf_get_header_mut(EdgeFirstDmaBuffer* dmabuf);
 
 /**
  * @brief Get pid field
- * @param dmabuf DmaBuf message
+ * @param dmabuf DmaBuffer message
  * @return Process ID
  */
-uint32_t edgefirst_dmabuf_get_pid(const EdgeFirstDmaBuf* dmabuf);
+uint32_t edgefirst_dmabuf_get_pid(const EdgeFirstDmaBuffer* dmabuf);
 
 /**
  * @brief Get fd field
- * @param dmabuf DmaBuf message
+ * @param dmabuf DmaBuffer message
  * @return File descriptor
  */
-int32_t edgefirst_dmabuf_get_fd(const EdgeFirstDmaBuf* dmabuf);
+int32_t edgefirst_dmabuf_get_fd(const EdgeFirstDmaBuffer* dmabuf);
 
 /**
  * @brief Get width field
- * @param dmabuf DmaBuf message
+ * @param dmabuf DmaBuffer message
  * @return Image width in pixels
  */
-uint32_t edgefirst_dmabuf_get_width(const EdgeFirstDmaBuf* dmabuf);
+uint32_t edgefirst_dmabuf_get_width(const EdgeFirstDmaBuffer* dmabuf);
 
 /**
  * @brief Get height field
- * @param dmabuf DmaBuf message
+ * @param dmabuf DmaBuffer message
  * @return Image height in pixels
  */
-uint32_t edgefirst_dmabuf_get_height(const EdgeFirstDmaBuf* dmabuf);
+uint32_t edgefirst_dmabuf_get_height(const EdgeFirstDmaBuffer* dmabuf);
 
 /**
  * @brief Get stride field
- * @param dmabuf DmaBuf message
+ * @param dmabuf DmaBuffer message
  * @return Row stride in bytes
  */
-uint32_t edgefirst_dmabuf_get_stride(const EdgeFirstDmaBuf* dmabuf);
+uint32_t edgefirst_dmabuf_get_stride(const EdgeFirstDmaBuffer* dmabuf);
 
 /**
  * @brief Get fourcc field
- * @param dmabuf DmaBuf message
+ * @param dmabuf DmaBuffer message
  * @return FOURCC pixel format code
  */
-uint32_t edgefirst_dmabuf_get_fourcc(const EdgeFirstDmaBuf* dmabuf);
+uint32_t edgefirst_dmabuf_get_fourcc(const EdgeFirstDmaBuffer* dmabuf);
 
 /**
  * @brief Get length field
- * @param dmabuf DmaBuf message
+ * @param dmabuf DmaBuffer message
  * @return Buffer length in bytes
  */
-uint32_t edgefirst_dmabuf_get_length(const EdgeFirstDmaBuf* dmabuf);
+uint32_t edgefirst_dmabuf_get_length(const EdgeFirstDmaBuffer* dmabuf);
 
 /**
  * @brief Set pid field
- * @param dmabuf DmaBuf message
+ * @param dmabuf DmaBuffer message
  * @param pid Process ID
  */
-void edgefirst_dmabuf_set_pid(EdgeFirstDmaBuf* dmabuf, uint32_t pid);
+void edgefirst_dmabuf_set_pid(EdgeFirstDmaBuffer* dmabuf, uint32_t pid);
 
 /**
  * @brief Set fd field
- * @param dmabuf DmaBuf message
+ * @param dmabuf DmaBuffer message
  * @param fd File descriptor
  */
-void edgefirst_dmabuf_set_fd(EdgeFirstDmaBuf* dmabuf, int32_t fd);
+void edgefirst_dmabuf_set_fd(EdgeFirstDmaBuffer* dmabuf, int32_t fd);
 
 /**
  * @brief Set width field
- * @param dmabuf DmaBuf message
+ * @param dmabuf DmaBuffer message
  * @param width Image width
  */
-void edgefirst_dmabuf_set_width(EdgeFirstDmaBuf* dmabuf, uint32_t width);
+void edgefirst_dmabuf_set_width(EdgeFirstDmaBuffer* dmabuf, uint32_t width);
 
 /**
  * @brief Set height field
- * @param dmabuf DmaBuf message
+ * @param dmabuf DmaBuffer message
  * @param height Image height
  */
-void edgefirst_dmabuf_set_height(EdgeFirstDmaBuf* dmabuf, uint32_t height);
+void edgefirst_dmabuf_set_height(EdgeFirstDmaBuffer* dmabuf, uint32_t height);
 
 /**
  * @brief Set stride field
- * @param dmabuf DmaBuf message
+ * @param dmabuf DmaBuffer message
  * @param stride Row stride
  */
-void edgefirst_dmabuf_set_stride(EdgeFirstDmaBuf* dmabuf, uint32_t stride);
+void edgefirst_dmabuf_set_stride(EdgeFirstDmaBuffer* dmabuf, uint32_t stride);
 
 /**
  * @brief Set fourcc field
- * @param dmabuf DmaBuf message
+ * @param dmabuf DmaBuffer message
  * @param fourcc FOURCC code
  */
-void edgefirst_dmabuf_set_fourcc(EdgeFirstDmaBuf* dmabuf, uint32_t fourcc);
+void edgefirst_dmabuf_set_fourcc(EdgeFirstDmaBuffer* dmabuf, uint32_t fourcc);
 
 /**
  * @brief Set length field
- * @param dmabuf DmaBuf message
+ * @param dmabuf DmaBuffer message
  * @param length Buffer length
  */
-void edgefirst_dmabuf_set_length(EdgeFirstDmaBuf* dmabuf, uint32_t length);
+void edgefirst_dmabuf_set_length(EdgeFirstDmaBuffer* dmabuf, uint32_t length);
 
 /**
- * @brief Serialize DmaBuf to CDR format
- * @param dmabuf DmaBuf message to serialize
+ * @brief Serialize DmaBuffer to CDR format
+ * @param dmabuf DmaBuffer message to serialize
  * @param out_bytes Output buffer pointer (allocated by function, caller must free)
  * @param out_len Output buffer length
  * @return 0 on success, -1 on error
@@ -908,20 +908,20 @@ void edgefirst_dmabuf_set_length(EdgeFirstDmaBuf* dmabuf, uint32_t length);
  * - EINVAL: Invalid parameter (NULL pointer)
  * - ENOMEM: Memory allocation failed
  */
-int edgefirst_dmabuf_serialize(const EdgeFirstDmaBuf* dmabuf, uint8_t** out_bytes, size_t* out_len);
+int edgefirst_dmabuf_serialize(const EdgeFirstDmaBuffer* dmabuf, uint8_t** out_bytes, size_t* out_len);
 
 /**
- * @brief Deserialize DmaBuf from CDR format
+ * @brief Deserialize DmaBuffer from CDR format
  * @param bytes CDR encoded bytes
  * @param len Length of bytes
- * @return Pointer to deserialized DmaBuf or NULL on error
+ * @return Pointer to deserialized DmaBuffer or NULL on error
  *
  * @par Errors (errno):
  * - EINVAL: bytes is NULL or len is 0
  * - EBADMSG: CDR decoding failed (malformed data)
  * - ENOMEM: Memory allocation failed
  */
-EdgeFirstDmaBuf* edgefirst_dmabuf_deserialize(const uint8_t* bytes, size_t len);
+EdgeFirstDmaBuffer* edgefirst_dmabuf_deserialize(const uint8_t* bytes, size_t len);
 
 /* ============================================================================
  * Constants
@@ -1301,48 +1301,48 @@ EdgeFirstRadarCube* edgefirst_radarcube_deserialize(const uint8_t* bytes, size_t
  * ========================================================================= */
 
 /* ============================================================================
- * edgefirst_msgs - DetectTrack
+ * edgefirst_msgs - Track
  * ========================================================================= */
 
 /**
- * @brief Create a new DetectTrack
- * @return Pointer to new DetectTrack or NULL on allocation failure
+ * @brief Create a new Track
+ * @return Pointer to new Track or NULL on allocation failure
  *
  * @par Errors (errno):
  * - ENOMEM: Memory allocation failed
  */
-EdgeFirstDetectTrack* edgefirst_detecttrack_new(void);
+EdgeFirstTrack* edgefirst_track_new(void);
 
 /**
- * @brief Free a DetectTrack
- * @param track Pointer to DetectTrack to free (can be NULL)
+ * @brief Free a Track
+ * @param track Pointer to Track to free (can be NULL)
  */
-void edgefirst_detecttrack_free(EdgeFirstDetectTrack* track);
+void edgefirst_track_free(EdgeFirstTrack* track);
 
 /**
  * @brief Get track ID (caller must free returned string)
- * @param track DetectTrack
+ * @param track Track
  * @return Newly allocated C string or NULL on error
  */
-char* edgefirst_detecttrack_get_id(const EdgeFirstDetectTrack* track);
+char* edgefirst_track_get_id(const EdgeFirstTrack* track);
 
 /**
  * @brief Get track lifetime in frames
- * @param track DetectTrack
+ * @param track Track
  * @return Lifetime in frames
  */
-int32_t edgefirst_detecttrack_get_lifetime(const EdgeFirstDetectTrack* track);
+int32_t edgefirst_track_get_lifetime(const EdgeFirstTrack* track);
 
 /**
  * @brief Get mutable created timestamp
- * @param track DetectTrack
+ * @param track Track
  * @return Mutable pointer to created Time
  */
-RosTime* edgefirst_detecttrack_get_created_mut(EdgeFirstDetectTrack* track);
+RosTime* edgefirst_track_get_created_mut(EdgeFirstTrack* track);
 
 /**
  * @brief Set track ID
- * @param track DetectTrack
+ * @param track Track
  * @param id Track ID string
  * @return 0 on success, -1 on error
  *
@@ -1350,18 +1350,18 @@ RosTime* edgefirst_detecttrack_get_created_mut(EdgeFirstDetectTrack* track);
  * - EINVAL: Invalid parameter (NULL pointer or invalid UTF-8)
  * - ENOMEM: Memory allocation failed
  */
-int edgefirst_detecttrack_set_id(EdgeFirstDetectTrack* track, const char* id);
+int edgefirst_track_set_id(EdgeFirstTrack* track, const char* id);
 
 /**
  * @brief Set track lifetime
- * @param track DetectTrack
+ * @param track Track
  * @param lifetime Lifetime in frames
  */
-void edgefirst_detecttrack_set_lifetime(EdgeFirstDetectTrack* track, int32_t lifetime);
+void edgefirst_track_set_lifetime(EdgeFirstTrack* track, int32_t lifetime);
 
 /**
- * @brief Serialize DetectTrack to CDR format
- * @param track DetectTrack to serialize
+ * @brief Serialize Track to CDR format
+ * @param track Track to serialize
  * @param out_bytes Output buffer pointer (allocated by function, caller must free)
  * @param out_len Output buffer length
  * @return 0 on success, -1 on error
@@ -1370,111 +1370,111 @@ void edgefirst_detecttrack_set_lifetime(EdgeFirstDetectTrack* track, int32_t lif
  * - EINVAL: Invalid parameter (NULL pointer)
  * - ENOMEM: Memory allocation failed
  */
-int edgefirst_detecttrack_serialize(const EdgeFirstDetectTrack* track, uint8_t** out_bytes, size_t* out_len);
+int edgefirst_track_serialize(const EdgeFirstTrack* track, uint8_t** out_bytes, size_t* out_len);
 
 /**
- * @brief Deserialize DetectTrack from CDR format
+ * @brief Deserialize Track from CDR format
  * @param bytes CDR encoded bytes
  * @param len Length of bytes
- * @return Pointer to deserialized DetectTrack or NULL on error
+ * @return Pointer to deserialized Track or NULL on error
  *
  * @par Errors (errno):
  * - EINVAL: bytes is NULL or len is 0
  * - EBADMSG: CDR decoding failed (malformed data)
  * - ENOMEM: Memory allocation failed
  */
-EdgeFirstDetectTrack* edgefirst_detecttrack_deserialize(const uint8_t* bytes, size_t len);
+EdgeFirstTrack* edgefirst_track_deserialize(const uint8_t* bytes, size_t len);
 
 /* ============================================================================
- * edgefirst_msgs - DetectBox2D
+ * edgefirst_msgs - Box
  * ========================================================================= */
 
 /**
- * @brief Create a new DetectBox2D
- * @return Pointer to new DetectBox2D or NULL on allocation failure
+ * @brief Create a new Box
+ * @return Pointer to new Box or NULL on allocation failure
  *
  * @par Errors (errno):
  * - ENOMEM: Memory allocation failed
  */
-EdgeFirstDetectBox2D* edgefirst_detectbox2d_new(void);
+EdgeFirstBox* edgefirst_box_new(void);
 
 /**
- * @brief Free a DetectBox2D
- * @param box DetectBox2D to free (can be NULL)
+ * @brief Free a Box
+ * @param box Box to free (can be NULL)
  */
-void edgefirst_detectbox2d_free(EdgeFirstDetectBox2D* box);
+void edgefirst_box_free(EdgeFirstBox* box);
 
 /**
  * @brief Get center X coordinate
- * @param box DetectBox2D
+ * @param box Box
  * @return Center X coordinate (normalized 0.0-1.0)
  */
-float edgefirst_detectbox2d_get_center_x(const EdgeFirstDetectBox2D* box);
+float edgefirst_box_get_center_x(const EdgeFirstBox* box);
 
 /**
  * @brief Get center Y coordinate
- * @param box DetectBox2D
+ * @param box Box
  * @return Center Y coordinate (normalized 0.0-1.0)
  */
-float edgefirst_detectbox2d_get_center_y(const EdgeFirstDetectBox2D* box);
+float edgefirst_box_get_center_y(const EdgeFirstBox* box);
 
 /**
  * @brief Get box width
- * @param box DetectBox2D
+ * @param box Box
  * @return Box width (normalized 0.0-1.0)
  */
-float edgefirst_detectbox2d_get_width(const EdgeFirstDetectBox2D* box);
+float edgefirst_box_get_width(const EdgeFirstBox* box);
 
 /**
  * @brief Get box height
- * @param box DetectBox2D
+ * @param box Box
  * @return Box height (normalized 0.0-1.0)
  */
-float edgefirst_detectbox2d_get_height(const EdgeFirstDetectBox2D* box);
+float edgefirst_box_get_height(const EdgeFirstBox* box);
 
 /**
  * @brief Get object label (caller must free returned string)
- * @param box DetectBox2D
+ * @param box Box
  * @return Newly allocated label string or NULL on error
  */
-char* edgefirst_detectbox2d_get_label(const EdgeFirstDetectBox2D* box);
+char* edgefirst_box_get_label(const EdgeFirstBox* box);
 
 /**
  * @brief Get detection confidence score
- * @param box DetectBox2D
+ * @param box Box
  * @return Confidence score (0.0-1.0)
  */
-float edgefirst_detectbox2d_get_score(const EdgeFirstDetectBox2D* box);
+float edgefirst_box_get_score(const EdgeFirstBox* box);
 
 /**
  * @brief Get object distance
- * @param box DetectBox2D
+ * @param box Box
  * @return Distance in meters
  */
-float edgefirst_detectbox2d_get_distance(const EdgeFirstDetectBox2D* box);
+float edgefirst_box_get_distance(const EdgeFirstBox* box);
 
 /**
  * @brief Get object speed
- * @param box DetectBox2D
+ * @param box Box
  * @return Speed in m/s
  */
-float edgefirst_detectbox2d_get_speed(const EdgeFirstDetectBox2D* box);
+float edgefirst_box_get_speed(const EdgeFirstBox* box);
 
 /**
  * @brief Get mutable tracking information
- * @param box DetectBox2D
- * @return Mutable pointer to DetectTrack
+ * @param box Box
+ * @return Mutable pointer to Track
  */
-EdgeFirstDetectTrack* edgefirst_detectbox2d_get_track_mut(EdgeFirstDetectBox2D* box);
+EdgeFirstTrack* edgefirst_box_get_track_mut(EdgeFirstBox* box);
 
-void edgefirst_detectbox2d_set_center_x(EdgeFirstDetectBox2D* box, float center_x);
-void edgefirst_detectbox2d_set_center_y(EdgeFirstDetectBox2D* box, float center_y);
-void edgefirst_detectbox2d_set_width(EdgeFirstDetectBox2D* box, float width);
-void edgefirst_detectbox2d_set_height(EdgeFirstDetectBox2D* box, float height);
+void edgefirst_box_set_center_x(EdgeFirstBox* box, float center_x);
+void edgefirst_box_set_center_y(EdgeFirstBox* box, float center_y);
+void edgefirst_box_set_width(EdgeFirstBox* box, float width);
+void edgefirst_box_set_height(EdgeFirstBox* box, float height);
 
 /**
  * @brief Set object label
- * @param box DetectBox2D
+ * @param box Box
  * @param label Label string
  * @return 0 on success, -1 on error
  *
@@ -1482,15 +1482,15 @@ void edgefirst_detectbox2d_set_height(EdgeFirstDetectBox2D* box, float height);
  * - EINVAL: Invalid parameter (NULL pointer or invalid UTF-8)
  * - ENOMEM: Memory allocation failed
  */
-int edgefirst_detectbox2d_set_label(EdgeFirstDetectBox2D* box, const char* label);
+int edgefirst_box_set_label(EdgeFirstBox* box, const char* label);
 
-void edgefirst_detectbox2d_set_score(EdgeFirstDetectBox2D* box, float score);
-void edgefirst_detectbox2d_set_distance(EdgeFirstDetectBox2D* box, float distance);
-void edgefirst_detectbox2d_set_speed(EdgeFirstDetectBox2D* box, float speed);
+void edgefirst_box_set_score(EdgeFirstBox* box, float score);
+void edgefirst_box_set_distance(EdgeFirstBox* box, float distance);
+void edgefirst_box_set_speed(EdgeFirstBox* box, float speed);
 
 /**
- * @brief Serialize DetectBox2D to CDR format
- * @param box DetectBox2D to serialize
+ * @brief Serialize Box to CDR format
+ * @param box Box to serialize
  * @param out_bytes Output buffer pointer (allocated by function, caller must free)
  * @param out_len Output buffer length
  * @return 0 on success, -1 on error
@@ -1499,20 +1499,20 @@ void edgefirst_detectbox2d_set_speed(EdgeFirstDetectBox2D* box, float speed);
  * - EINVAL: Invalid parameter (NULL pointer)
  * - ENOMEM: Memory allocation failed
  */
-int edgefirst_detectbox2d_serialize(const EdgeFirstDetectBox2D* box, uint8_t** out_bytes, size_t* out_len);
+int edgefirst_box_serialize(const EdgeFirstBox* box, uint8_t** out_bytes, size_t* out_len);
 
 /**
- * @brief Deserialize DetectBox2D from CDR format
+ * @brief Deserialize Box from CDR format
  * @param bytes CDR encoded bytes
  * @param len Length of bytes
- * @return Pointer to deserialized DetectBox2D or NULL on error
+ * @return Pointer to deserialized Box or NULL on error
  *
  * @par Errors (errno):
  * - EINVAL: bytes is NULL or len is 0
  * - EBADMSG: CDR decoding failed (malformed data)
  * - ENOMEM: Memory allocation failed
  */
-EdgeFirstDetectBox2D* edgefirst_detectbox2d_deserialize(const uint8_t* bytes, size_t len);
+EdgeFirstBox* edgefirst_box_deserialize(const uint8_t* bytes, size_t len);
 
 /* ============================================================================
  * edgefirst_msgs - Detect
@@ -1567,7 +1567,7 @@ RosTime* edgefirst_detect_get_output_time_mut(EdgeFirstDetect* detect);
  * @param out_len Output: number of boxes in array
  * @return Borrowed pointer to boxes array (valid during detect lifetime)
  */
-const EdgeFirstDetectBox2D* edgefirst_detect_get_boxes(const EdgeFirstDetect* detect, size_t* out_len);
+const EdgeFirstBox* edgefirst_detect_get_boxes(const EdgeFirstDetect* detect, size_t* out_len);
 
 /**
  * @brief Add a detection box (copies box data)
@@ -1579,7 +1579,7 @@ const EdgeFirstDetectBox2D* edgefirst_detect_get_boxes(const EdgeFirstDetect* de
  * - EINVAL: Invalid parameter (NULL pointer)
  * - ENOMEM: Memory allocation failed
  */
-int edgefirst_detect_add_box(EdgeFirstDetect* detect, const EdgeFirstDetectBox2D* box);
+int edgefirst_detect_add_box(EdgeFirstDetect* detect, const EdgeFirstBox* box);
 
 /**
  * @brief Serialize Detect to CDR format
@@ -2537,9 +2537,9 @@ RosDuration* edgefirst_model_get_output_time_mut(EdgeFirstModel* model);
 const RosDuration* edgefirst_model_get_decode_time(const EdgeFirstModel* model);
 RosDuration* edgefirst_model_get_decode_time_mut(EdgeFirstModel* model);
 /** @brief Get detection box (borrowed pointer, owned by parent - do NOT free) */
-const EdgeFirstDetectBox2D* edgefirst_model_get_box(const EdgeFirstModel* model, size_t index);
+const EdgeFirstBox* edgefirst_model_get_box(const EdgeFirstModel* model, size_t index);
 size_t edgefirst_model_get_boxes_count(const EdgeFirstModel* model);
-int edgefirst_model_add_box(EdgeFirstModel* model, const EdgeFirstDetectBox2D* box);
+int edgefirst_model_add_box(EdgeFirstModel* model, const EdgeFirstBox* box);
 void edgefirst_model_clear_boxes(EdgeFirstModel* model);
 /** @brief Get mask (borrowed pointer, owned by parent - do NOT free) */
 const EdgeFirstMask* edgefirst_model_get_mask(const EdgeFirstModel* model, size_t index);
@@ -2724,6 +2724,70 @@ void ros_service_header_set_guid(RosServiceHeader* header, int64_t guid);
 void ros_service_header_set_seq(RosServiceHeader* header, uint64_t seq);
 int ros_service_header_serialize(const RosServiceHeader* header, uint8_t** out_bytes, size_t* out_len);
 RosServiceHeader* ros_service_header_deserialize(const uint8_t* bytes, size_t len);
+
+/* ============================================================================
+ * Schema Registry
+ * ========================================================================= */
+
+/**
+ * @defgroup SchemaRegistry Schema Registry
+ * @brief Runtime schema lookup and validation functions.
+ *
+ * The schema registry provides functions to work with ROS2-style schema names
+ * (e.g., "sensor_msgs/msg/Image", "geometry_msgs/msg/Pose").
+ *
+ * These functions are useful for:
+ * - MCAP file processing where schema names are known at runtime
+ * - Dynamic message validation
+ * - Introspection of supported message types
+ * @{
+ */
+
+/**
+ * Check if a schema name is supported by this library.
+ *
+ * @param schema The schema name to check (e.g., "sensor_msgs/msg/Image")
+ * @return 1 if the schema is supported, 0 if not supported or NULL input
+ *
+ * @code
+ * if (edgefirst_schema_is_supported("sensor_msgs/msg/Image")) {
+ *     // Schema is supported, safe to deserialize
+ * }
+ * @endcode
+ */
+int edgefirst_schema_is_supported(const char* schema);
+
+/**
+ * Get the number of supported schemas.
+ *
+ * @return Total number of supported schema types
+ *
+ * @code
+ * size_t count = edgefirst_schema_count();
+ * printf("Library supports %zu schema types\n", count);
+ * @endcode
+ */
+size_t edgefirst_schema_count(void);
+
+/**
+ * Get a schema name by index.
+ *
+ * @param index The index of the schema (0 to count-1)
+ * @return Pointer to the schema name string (static, do NOT free), or NULL if out of bounds
+ *
+ * @note The returned string is statically allocated and must NOT be freed.
+ *
+ * @code
+ * size_t count = edgefirst_schema_count();
+ * for (size_t i = 0; i < count; i++) {
+ *     const char* name = edgefirst_schema_get(i);
+ *     printf("Schema %zu: %s\n", i, name);
+ * }
+ * @endcode
+ */
+const char* edgefirst_schema_get(size_t index);
+
+/** @} */ /* end of SchemaRegistry */
 
 /* ============================================================================
  * Ownership Note

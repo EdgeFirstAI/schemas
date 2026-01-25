@@ -82,6 +82,23 @@ pub struct FoxgloveColor {
     pub a: f64,
 }
 
+/// Check if a type name is supported by this module.
+pub fn is_type_supported(type_name: &str) -> bool {
+    matches!(type_name, "CompressedVideo")
+}
+
+/// List all type schema names in this module.
+pub fn list_types() -> &'static [&'static str] {
+    &["foxglove_msgs/msg/CompressedVideo"]
+}
+
+// SchemaType implementations
+use crate::schema_registry::SchemaType;
+
+impl SchemaType for FoxgloveCompressedVideo {
+    const SCHEMA_NAME: &'static str = "foxglove_msgs/msg/CompressedVideo";
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -34,6 +34,9 @@ pub mod service;
 /// CDR serialization/deserialization support
 pub mod serde_cdr;
 
+/// Schema registry for runtime schema lookup
+pub mod schema_registry;
+
 /// C FFI bindings
 mod ffi;
 

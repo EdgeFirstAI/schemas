@@ -107,6 +107,112 @@ pub struct Vector3 {
     pub z: f64,
 }
 
+/// Check if a type name is supported by this module.
+pub fn is_type_supported(type_name: &str) -> bool {
+    matches!(
+        type_name,
+        "Accel"
+            | "AccelStamped"
+            | "Inertia"
+            | "InertiaStamped"
+            | "Point"
+            | "Point32"
+            | "PointStamped"
+            | "Pose"
+            | "Pose2D"
+            | "Quaternion"
+            | "Transform"
+            | "TransformStamped"
+            | "Twist"
+            | "TwistStamped"
+            | "Vector3"
+    )
+}
+
+/// List all type schema names in this module.
+pub fn list_types() -> &'static [&'static str] {
+    &[
+        "geometry_msgs/msg/Accel",
+        "geometry_msgs/msg/AccelStamped",
+        "geometry_msgs/msg/Inertia",
+        "geometry_msgs/msg/InertiaStamped",
+        "geometry_msgs/msg/Point",
+        "geometry_msgs/msg/Point32",
+        "geometry_msgs/msg/PointStamped",
+        "geometry_msgs/msg/Pose",
+        "geometry_msgs/msg/Pose2D",
+        "geometry_msgs/msg/Quaternion",
+        "geometry_msgs/msg/Transform",
+        "geometry_msgs/msg/TransformStamped",
+        "geometry_msgs/msg/Twist",
+        "geometry_msgs/msg/TwistStamped",
+        "geometry_msgs/msg/Vector3",
+    ]
+}
+
+// SchemaType implementations
+use crate::schema_registry::SchemaType;
+
+impl SchemaType for Accel {
+    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/Accel";
+}
+
+impl SchemaType for AccelStamped {
+    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/AccelStamped";
+}
+
+impl SchemaType for Inertia {
+    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/Inertia";
+}
+
+impl SchemaType for InertiaStamped {
+    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/InertiaStamped";
+}
+
+impl SchemaType for Point {
+    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/Point";
+}
+
+impl SchemaType for Point32 {
+    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/Point32";
+}
+
+impl SchemaType for PointStamped {
+    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/PointStamped";
+}
+
+impl SchemaType for Pose {
+    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/Pose";
+}
+
+impl SchemaType for Pose2D {
+    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/Pose2D";
+}
+
+impl SchemaType for Quaternion {
+    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/Quaternion";
+}
+
+impl SchemaType for Transform {
+    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/Transform";
+}
+
+impl SchemaType for TransformStamped {
+    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/TransformStamped";
+}
+
+impl SchemaType for Twist {
+    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/Twist";
+}
+
+impl SchemaType for TwistStamped {
+    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/TwistStamped";
+}
+
+impl SchemaType for Vector3 {
+    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/Vector3";
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
