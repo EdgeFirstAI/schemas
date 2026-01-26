@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-01-26
+
+### Fixed
+- Fixed PyPI trusted publisher configuration for automated releases
+- Removed redundant ROS workflow trigger on tag pushes
+- Added cross-workflow Debian package publishing to GitHub Releases
+
 ## [1.5.0] - 2026-01-26
 
 ### Added
@@ -203,7 +210,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Python build issues with wheel generation
 - Removed auxiliary files from ROS2 schemas not required for this project
 
-[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.0...v1.5.1
+[1.5.0]: https://github.com/EdgeFirstAI/schemas/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/EdgeFirstAI/schemas/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/EdgeFirstAI/schemas/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/EdgeFirstAI/schemas/compare/v1.3.0...v1.3.1

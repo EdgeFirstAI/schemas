@@ -46,3 +46,6 @@ env.sh
 
 # Local TODO tracking (mirrored in JIRA)
 TODO*.md
+
+# Test data recordings (large binary files)
+testdata/

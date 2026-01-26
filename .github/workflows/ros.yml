@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - '**'
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
-      - 'v[0-9]+.[0-9]+.[0-9]+-*'
   pull_request:
 
 jobs:
@@ -119,46 +116,3 @@ jobs:
           ls -lh artifacts/*.deb >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
-  # Combine all artifacts into a single release artifact on tags
-  release:
-    name: Combine Release Artifacts
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
-        with:
-          path: packages
-          pattern: ros-*-edgefirst-msgs_*
-
-      - name: Combine packages
-        run: |
-          mkdir -p release
-          find packages -name '*.deb' -exec cp {} release/ \;
-          ls -la release/
-
-      - name: Upload combined release artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: ros-edgefirst-msgs-all
-          path: release/*.deb
-          if-no-files-found: error
-
-      - name: Write release summary
-        run: |
-          echo "## ROS2 Release Packages" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### All Debian Packages" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          ls -lh release/*.deb >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Package Matrix" >> $GITHUB_STEP_SUMMARY
-          echo "| Package | Size |" >> $GITHUB_STEP_SUMMARY
-          echo "|---------|------|" >> $GITHUB_STEP_SUMMARY
-          for f in release/*.deb; do
-            name=$(basename "$f")
-            size=$(du -h "$f" | cut -f1)
-            echo "| $name | $size |" >> $GITHUB_STEP_SUMMARY
-          done

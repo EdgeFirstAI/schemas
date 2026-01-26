@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
   id-token: write
 
 jobs:
@@ -110,6 +111,56 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ===========================================================================
+  # Publish Debian packages from ROS workflow
+  # ===========================================================================
+  publish-debian:
+    name: Publish Debian Packages
+    runs-on: ubuntu-latest
+    needs: create-release
+    steps:
+      - name: Wait for ROS workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Waiting for ROS workflow on commit ${GITHUB_SHA}..."
+          for i in $(seq 1 30); do
+            RUN_ID=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ros.yml \
+              --commit "$GITHUB_SHA" --json databaseId --jq '.[0].databaseId')
+            if [ -n "$RUN_ID" ]; then
+              break
+            fi
+            echo "  Attempt $i/30 — ROS workflow not found yet, retrying in 10s..."
+            sleep 10
+          done
+
+          if [ -z "$RUN_ID" ]; then
+            echo "::error::ROS workflow run not found for commit ${GITHUB_SHA}"
+            exit 1
+          fi
+
+          echo "Found ROS workflow run: ${RUN_ID}"
+          gh run watch "$RUN_ID" --repo "$GITHUB_REPOSITORY" --exit-status
+
+      - name: Download Debian packages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RUN_ID=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ros.yml \
+            --commit "$GITHUB_SHA" --json databaseId --jq '.[0].databaseId')
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --pattern 'ros-*-edgefirst-msgs_*' --dir packages
+          find packages -name '*.deb' -exec mv {} . \;
+          echo "Downloaded Debian packages:"
+          ls -lh *.deb
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
+        with:
+          files: "*.deb"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ===========================================================================
   # Publish to crates.io
   # ===========================================================================
   publish-crates:
@@ -139,6 +190,7 @@ jobs:
     name: Publish to PyPI
     runs-on: ubuntu-latest
     needs: create-release
+    environment: pypi
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
