@@ -36,9 +36,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - DmaBuf zero-copy reference benchmarks (nanosecond scale)
 - PointCloud2 benchmarks from sparse (1K) to very dense (131K points)
 
+**Schema Registry:**
+- Runtime schema name registry (`schema_registry.rs`, `registry.py`) for type lookup by ROS 2 schema name
+
+**MCAP Validation:**
+- Rust MCAP integration tests for real-world CDR validation against hardware recordings
+- Python MCAP tests (`test_mcap.py`) and schema registry tests (`test_schema_registry.py`)
+
+**Release Packaging:**
+- Pre-built C API binary packages for Linux x86_64 and aarch64 attached to GitHub Releases
+- Archives include shared library (.so), static library (.a), C header, README, and LICENSE
+
 **CI/CD Improvements:**
 - QuickChart integration for grouped bar charts in GitHub Actions Summary
-- Criterion JSON parsing for reliable benchmark data extraction  
+- Criterion JSON parsing for reliable benchmark data extraction
 - EnricoMi/publish-unit-test-result-action for C API test reporting
 - SonarCloud integration with Rust and C coverage reporting via llvm-cov
 - On-target ARM64 benchmark execution via self-hosted runner

@@ -66,6 +66,50 @@ jobs:
           path: sbom.json
 
   # ===========================================================================
+  # Build C API binary packages for Linux x86_64 and aarch64
+  # ===========================================================================
+  build-c-api:
+    name: Build C API (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-22.04
+          - arch: aarch64
+            runner: ubuntu-22.04-arm
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Package C API
+        run: |
+          PKG_NAME="edgefirst-schemas-linux_${{ matrix.arch }}-${{ steps.version.outputs.version }}"
+          mkdir -p "${PKG_NAME}/lib" "${PKG_NAME}/include/edgefirst"
+          cp README.md LICENSE "${PKG_NAME}/"
+          cp include/edgefirst/schemas.h "${PKG_NAME}/include/edgefirst/"
+          cp target/release/libedgefirst_schemas.so "${PKG_NAME}/lib/"
+          cp target/release/libedgefirst_schemas.a "${PKG_NAME}/lib/"
+          zip -r "${PKG_NAME}.zip" "${PKG_NAME}"
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
+        with:
+          files: edgefirst-schemas-linux_${{ matrix.arch }}-${{ steps.version.outputs.version }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ===========================================================================
   # Publish to crates.io
   # ===========================================================================
   publish-crates:
