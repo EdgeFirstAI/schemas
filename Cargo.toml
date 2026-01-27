@@ -19,6 +19,7 @@ crate-type = ["lib", "staticlib", "cdylib"]
 serde = "1.0.228"
 serde_derive = "1.0.228"
 cdr = "0.2.4"
+errno = "0.3"
 libc = "0.2.180"
 
 [dev-dependencies]

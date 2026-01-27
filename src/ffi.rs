@@ -25,38 +25,15 @@ use crate::*;
 // errno Support
 // =============================================================================
 
-/// errno constants matching POSIX
+/// errno constants - libc crate provides these for all platforms including Windows
 const EINVAL: i32 = libc::EINVAL;
 const ENOMEM: i32 = libc::ENOMEM;
 const EBADMSG: i32 = libc::EBADMSG;
 const ENOBUFS: i32 = libc::ENOBUFS;
 
-/// Platform-specific errno setter
-#[cfg(target_os = "macos")]
+/// Set errno portably across all platforms (Linux, macOS, Windows, etc.)
 fn set_errno(code: i32) {
-    unsafe {
-        *libc::__error() = code;
-    }
-}
-
-#[cfg(target_os = "linux")]
-fn set_errno(code: i32) {
-    unsafe {
-        *libc::__errno_location() = code;
-    }
-}
-
-#[cfg(target_os = "windows")]
-fn set_errno(code: i32) {
-    unsafe {
-        *libc::_errno() = code;
-    }
-}
-
-#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
-fn set_errno(_code: i32) {
-    // Fallback for unsupported platforms - no-op
-    // errno may not be properly set on these platforms
+    errno::set_errno(errno::Errno(code));
 }
 
 /// Helper to convert Rust string to C string
