@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.2] - 2026-01-27
+
 ### Fixed
 - C API errno handling now uses portable `errno` crate for Windows and macOS support
 - Replaced platform-specific set_errno implementations with cross-platform solution
