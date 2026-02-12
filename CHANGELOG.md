@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.3] - 2026-02-12
+
 ### Fixed
 - **C API: Replaced bulk array getters with indexed accessors for opaque types**
   - `ros_point_cloud2_get_fields()` → `ros_point_cloud2_get_num_fields()` + `ros_point_cloud2_get_field_at()`
