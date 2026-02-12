@@ -1562,12 +1562,19 @@ RosTime* edgefirst_detect_get_model_time_mut(EdgeFirstDetect* detect);
 RosTime* edgefirst_detect_get_output_time_mut(EdgeFirstDetect* detect);
 
 /**
- * @brief Get detection boxes array
+ * @brief Get number of detection boxes
  * @param detect Detect message
- * @param out_len Output: number of boxes in array
- * @return Borrowed pointer to boxes array (valid during detect lifetime)
+ * @return Number of boxes
  */
-const EdgeFirstBox* edgefirst_detect_get_boxes(const EdgeFirstDetect* detect, size_t* out_len);
+size_t edgefirst_detect_get_num_boxes(const EdgeFirstDetect* detect);
+
+/**
+ * @brief Get detection box at index
+ * @param detect Detect message
+ * @param index Box index (0-based, must be < num_boxes)
+ * @return Borrowed pointer to box (valid during detect lifetime)
+ */
+const EdgeFirstBox* edgefirst_detect_get_box_at(const EdgeFirstDetect* detect, size_t index);
 
 /**
  * @brief Add a detection box (copies box data)
@@ -1580,6 +1587,12 @@ const EdgeFirstBox* edgefirst_detect_get_boxes(const EdgeFirstDetect* detect, si
  * - ENOMEM: Memory allocation failed
  */
 int edgefirst_detect_add_box(EdgeFirstDetect* detect, const EdgeFirstBox* box);
+
+/**
+ * @brief Clear all detection boxes
+ * @param detect Detect message
+ */
+void edgefirst_detect_clear_boxes(EdgeFirstDetect* detect);
 
 /**
  * @brief Serialize Detect to CDR format
@@ -1866,12 +1879,19 @@ uint32_t ros_point_cloud2_get_height(const RosPointCloud2* cloud);
 uint32_t ros_point_cloud2_get_width(const RosPointCloud2* cloud);
 
 /**
- * @brief Get point fields array
+ * @brief Get number of point fields
  * @param cloud PointCloud2
- * @param out_len Output: number of fields in array
- * @return Borrowed pointer to fields array (valid during cloud lifetime)
+ * @return Number of fields
  */
-const RosPointField* ros_point_cloud2_get_fields(const RosPointCloud2* cloud, size_t* out_len);
+size_t ros_point_cloud2_get_num_fields(const RosPointCloud2* cloud);
+
+/**
+ * @brief Get point field at index
+ * @param cloud PointCloud2
+ * @param index Field index (0-based, must be < num_fields)
+ * @return Borrowed pointer to field (valid during cloud lifetime)
+ */
+const RosPointField* ros_point_cloud2_get_field_at(const RosPointCloud2* cloud, size_t index);
 
 /**
  * @brief Get big-endian flag
@@ -2645,9 +2665,15 @@ const FoxglovePoint2* foxglove_point_annotations_get_point(const FoxglovePointAn
 size_t foxglove_point_annotations_get_points_count(const FoxglovePointAnnotations* ann);
 int foxglove_point_annotations_add_point(FoxglovePointAnnotations* ann, const FoxglovePoint2* point);
 void foxglove_point_annotations_clear_points(FoxglovePointAnnotations* ann);
-/** @brief Get colors (borrowed pointer, owned by parent - do NOT free) */
+/** @brief Get default outline color (borrowed pointer, owned by parent - do NOT free) */
 const FoxgloveColor* foxglove_point_annotations_get_outline_color(const FoxglovePointAnnotations* ann);
 FoxgloveColor* foxglove_point_annotations_get_outline_color_mut(FoxglovePointAnnotations* ann);
+/** @brief Get per-point outline color at index (borrowed pointer, owned by parent - do NOT free). Returns NULL if out of bounds. */
+const FoxgloveColor* foxglove_point_annotations_get_outline_color_at(const FoxglovePointAnnotations* ann, size_t index);
+size_t foxglove_point_annotations_get_outline_colors_count(const FoxglovePointAnnotations* ann);
+int foxglove_point_annotations_add_outline_color(FoxglovePointAnnotations* ann, const FoxgloveColor* color);
+void foxglove_point_annotations_clear_outline_colors(FoxglovePointAnnotations* ann);
+/** @brief Get fill color (borrowed pointer, owned by parent - do NOT free) */
 const FoxgloveColor* foxglove_point_annotations_get_fill_color(const FoxglovePointAnnotations* ann);
 FoxgloveColor* foxglove_point_annotations_get_fill_color_mut(FoxglovePointAnnotations* ann);
 double foxglove_point_annotations_get_thickness(const FoxglovePointAnnotations* ann);

@@ -134,7 +134,7 @@ void example_dmabuf() {
     printf("\n=== Example: DmaBuf Message ===\n");
     
     // Create a new DmaBuf
-    EdgeFirstDmaBuf* dmabuf = edgefirst_dmabuf_new();
+    EdgeFirstDmaBuffer* dmabuf = edgefirst_dmabuf_new();
     if (!dmabuf) {
         perror("edgefirst_dmabuf_new");
         exit(1);
@@ -171,7 +171,7 @@ void example_dmabuf() {
     printf("Serialized DmaBuf to %zu bytes\n", len);
     
     // Deserialize
-    EdgeFirstDmaBuf* dmabuf2 = edgefirst_dmabuf_deserialize(bytes, len);
+    EdgeFirstDmaBuffer* dmabuf2 = edgefirst_dmabuf_deserialize(bytes, len);
     if (!dmabuf2) {
         fprintf(stderr, "edgefirst_dmabuf_deserialize failed: %s\n", strerror(errno));
         free(bytes);

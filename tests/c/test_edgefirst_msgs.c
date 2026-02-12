@@ -190,10 +190,10 @@ Test(edgefirst_msgs, detect_add_box) {
     int ret = edgefirst_detect_add_box(detect, box);
     cr_assert_eq(ret, 0);
 
-    size_t box_count = 0;
-    const EdgeFirstBox *boxes = edgefirst_detect_get_boxes(detect, &box_count);
+    size_t box_count = edgefirst_detect_get_num_boxes(detect);
     cr_assert_eq(box_count, 1);
-    cr_assert_not_null(boxes);
+    const EdgeFirstBox *box0 = edgefirst_detect_get_box_at(detect, 0);
+    cr_assert_not_null(box0);
 
     edgefirst_box_free(box);
     edgefirst_detect_free(detect);
@@ -220,8 +220,7 @@ Test(edgefirst_msgs, detect_serialize_deserialize) {
     EdgeFirstDetect *deserialized = edgefirst_detect_deserialize(buffer, len);
     cr_assert_not_null(deserialized);
 
-    size_t box_count = 0;
-    edgefirst_detect_get_boxes(deserialized, &box_count);
+    size_t box_count = edgefirst_detect_get_num_boxes(deserialized);
     cr_assert_eq(box_count, 1);
 
     edgefirst_box_free(box);

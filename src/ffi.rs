@@ -2275,15 +2275,24 @@ pub extern "C" fn edgefirst_detect_get_output_time_mut(
 }
 
 #[no_mangle]
-pub extern "C" fn edgefirst_detect_get_boxes(
+pub extern "C" fn edgefirst_detect_get_num_boxes(detect: *const edgefirst_msgs::Detect) -> usize {
+    unsafe {
+        assert!(!detect.is_null());
+        (*detect).boxes.len()
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn edgefirst_detect_get_box_at(
     detect: *const edgefirst_msgs::Detect,
-    out_len: *mut usize,
+    index: usize,
 ) -> *const edgefirst_msgs::Box {
     unsafe {
         assert!(!detect.is_null());
-        assert!(!out_len.is_null());
-        *out_len = (*detect).boxes.len();
-        (*detect).boxes.as_ptr()
+        match (&(*detect).boxes).get(index) {
+            Some(box2d) => box2d,
+            None => ptr::null(),
+        }
     }
 }
 
@@ -2727,15 +2736,24 @@ pub extern "C" fn ros_point_cloud2_get_width(cloud: *const sensor_msgs::PointClo
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_get_fields(
+pub extern "C" fn ros_point_cloud2_get_num_fields(cloud: *const sensor_msgs::PointCloud2) -> usize {
+    unsafe {
+        assert!(!cloud.is_null());
+        (*cloud).fields.len()
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_get_field_at(
     cloud: *const sensor_msgs::PointCloud2,
-    out_len: *mut usize,
+    index: usize,
 ) -> *const sensor_msgs::PointField {
     unsafe {
         assert!(!cloud.is_null());
-        assert!(!out_len.is_null());
-        *out_len = (*cloud).fields.len();
-        (*cloud).fields.as_ptr()
+        match (&(*cloud).fields).get(index) {
+            Some(field) => field,
+            None => ptr::null(),
+        }
     }
 }
 

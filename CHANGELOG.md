@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **C API: Replaced bulk array getters with indexed accessors for opaque types**
+  - `ros_point_cloud2_get_fields()` → `ros_point_cloud2_get_num_fields()` + `ros_point_cloud2_get_field_at()`
+  - `edgefirst_detect_get_boxes()` → `edgefirst_detect_get_num_boxes()` + `edgefirst_detect_get_box_at()`
+  - Returning `Vec::as_ptr()` for opaque Rust-layout structs (containing `String`) was unusable from C
+    since forward-declared types have unknown `sizeof`, making `fields[i]` impossible to compile
+- C API: Fixed out-of-bounds handling in `edgefirst_detect_get_box_at()` and
+  `ros_point_cloud2_get_field_at()` — replaced `assert!` (which panics across FFI, causing UB)
+  with safe `match .get(index)` returning `NULL`
+- C API: Added 5 missing declarations to `schemas.h`:
+  - `foxglove_point_annotations_get_num_outline_colors()`
+  - `foxglove_point_annotations_get_outline_color_at()`
+  - `foxglove_point_annotations_set_outline_colors()`
+  - `foxglove_point_annotations_clear_outline_colors()`
+  - `edgefirst_detect_clear_boxes()`
+- Fixed `EdgeFirstDmaBuf` → `EdgeFirstDmaBuffer` type name in C example (`examples/c/example.c`)
+
 ## [1.5.2] - 2026-01-27
 
 ### Fixed
