@@ -1,0 +1,10 @@
+prefix=/usr
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: edgefirst-schemas
+Description: EdgeFirst schemas CDR deserialization library
+Version: @VERSION@
+Libs: -L${libdir} -ledgefirst_schemas
+Cflags: -I${includedir}

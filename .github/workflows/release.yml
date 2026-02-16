@@ -95,13 +95,25 @@ jobs:
 
       - name: Package C API
         run: |
-          PKG_NAME="edgefirst-schemas-linux_${{ matrix.arch }}-${{ steps.version.outputs.version }}"
-          mkdir -p "${PKG_NAME}/lib" "${PKG_NAME}/include/edgefirst"
+          VERSION=${{ steps.version.outputs.version }}
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          MINOR=$(echo "$VERSION" | cut -d. -f2)
+          PATCH=$(echo "$VERSION" | cut -d. -f3)
+          PKG_NAME="edgefirst-schemas-linux_${{ matrix.arch }}-${VERSION}"
+          mkdir -p "${PKG_NAME}/lib/pkgconfig" "${PKG_NAME}/include/edgefirst"
           cp README.md LICENSE "${PKG_NAME}/"
           cp include/edgefirst/schemas.h "${PKG_NAME}/include/edgefirst/"
-          cp target/release/libedgefirst_schemas.so "${PKG_NAME}/lib/"
+
+          # Versioned shared library with symlinks (GNU/Linux convention)
+          cp target/release/libedgefirst_schemas.so "${PKG_NAME}/lib/libedgefirst_schemas.so.${MAJOR}.${MINOR}.${PATCH}"
+          ln -s "libedgefirst_schemas.so.${MAJOR}.${MINOR}.${PATCH}" "${PKG_NAME}/lib/libedgefirst_schemas.so.${MAJOR}.${MINOR}"
+          ln -s "libedgefirst_schemas.so.${MAJOR}.${MINOR}.${PATCH}" "${PKG_NAME}/lib/libedgefirst_schemas.so.${MAJOR}"
+          ln -s "libedgefirst_schemas.so.${MAJOR}.${MINOR}.${PATCH}" "${PKG_NAME}/lib/libedgefirst_schemas.so"
+
           cp target/release/libedgefirst_schemas.a "${PKG_NAME}/lib/"
-          zip -r "${PKG_NAME}.zip" "${PKG_NAME}"
+          sed "s/@VERSION@/${VERSION}/" \
+            edgefirst-schemas.pc.in > "${PKG_NAME}/lib/pkgconfig/edgefirst-schemas.pc"
+          zip -r --symlinks "${PKG_NAME}.zip" "${PKG_NAME}"
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
