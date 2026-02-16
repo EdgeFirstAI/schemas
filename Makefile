@@ -39,10 +39,14 @@ TEST_BINARIES = $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/%,$(TEST_SOURCES))
 
 all: lib $(TEST_BINARIES)
 
-# Build Rust library
+# Extract major version for SONAME symlink
+VERSION_MAJOR = $(word 1,$(subst ., ,$(shell grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')))
+
+# Build Rust library and create SONAME symlink
 lib:
 	@echo "Building Rust library..."
 	@cargo build $(CARGO_FLAGS)
+	@ln -sf $(LIB_NAME).so $(LIB_DIR)/$(LIB_NAME).so.$(VERSION_MAJOR)
 
 # Ensure build directory exists
 $(BUILD_DIR):

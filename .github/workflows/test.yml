@@ -115,7 +115,13 @@ jobs:
           mkdir -p target/debug/deps
           cp -f target/llvm-cov-target/debug/deps/libedgefirst_schemas.* target/debug/deps/ 2>/dev/null || true
           cp -f target/llvm-cov-target/debug/deps/libedgefirst_schemas.* target/debug/ 2>/dev/null || true
-          
+
+          # Create SONAME symlink so the runtime linker can find the library.
+          # build.rs sets SONAME to libedgefirst_schemas.so.<major>, but cargo
+          # produces the file as libedgefirst_schemas.so — the symlink bridges this.
+          MAJOR=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\([0-9]*\).*/\1/')
+          ln -sf libedgefirst_schemas.so target/debug/deps/libedgefirst_schemas.so.${MAJOR}
+
           # Verify we have the instrumented library (check for profile symbols)
           echo "Verifying instrumented library:"
           nm target/debug/deps/libedgefirst_schemas.so 2>/dev/null | grep -c "__llvm_profile" || \
