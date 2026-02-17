@@ -1,12 +1,7 @@
 name: Benchmarks
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -18,7 +13,6 @@ jobs:
   build-rust-benchmarks:
     name: Build Rust Benchmarks
     runs-on: ubuntu-22.04-arm
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
@@ -109,7 +103,6 @@ jobs:
   run-python-benchmarks:
     name: Run Python on i.MX 8M Plus
     runs-on: nxp-imx8mp-latest
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
