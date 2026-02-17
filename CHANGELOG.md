@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.4] - 2026-02-17
+
+### Added
+- pkg-config configuration file (`edgefirst-schemas.pc`) included in C API release packages
+- SOVERSION symlinks in C API release packages (GNU/Linux `libedgefirst_schemas.so.1` convention)
+
+### Fixed
+- C API test builds failing due to missing SONAME symlink for runtime linker
+
 ## [1.5.3] - 2026-02-12
 
 ### Fixed
@@ -235,7 +244,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Python build issues with wheel generation
 - Removed auxiliary files from ROS2 schemas not required for this project
 
-[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.4...HEAD
+[1.5.4]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.3...v1.5.4
+[1.5.3]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.2...v1.5.3
+[1.5.2]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/EdgeFirstAI/schemas/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/EdgeFirstAI/schemas/compare/v1.4.0...v1.4.1
