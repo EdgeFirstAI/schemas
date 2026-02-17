@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.5] - 2026-02-17
+
+### Fixed
+- Release workflow race condition: build jobs now upload workflow artifacts
+  and a final job publishes the release in one shot
+- Changelog extraction in release workflow not matching version due to `v` prefix
+
 ## [1.5.4] - 2026-02-17
 
 ### Added
@@ -244,7 +251,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Python build issues with wheel generation
 - Removed auxiliary files from ROS2 schemas not required for this project
 
-[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.4...HEAD
+[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.5...HEAD
+[1.5.5]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.4...v1.5.5
 [1.5.4]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.3...v1.5.4
 [1.5.3]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.1...v1.5.2
