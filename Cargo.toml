@@ -18,11 +18,13 @@ crate-type = ["lib", "staticlib", "cdylib"]
 [dependencies]
 serde = "1.0.228"
 serde_derive = "1.0.228"
-cdr = "0.2.4"
+cdr-encoding = "0.10.2"
+byteorder = "1"
 errno = "0.3"
 libc = "0.2.180"
 
 [dev-dependencies]
+cdr = "0.2.4"
 criterion = { version = "0.8.1", features = ["html_reports"] }
 mcap = "0.24"
 memmap2 = "0.9"
