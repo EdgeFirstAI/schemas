@@ -24,8 +24,11 @@ from edgefirst.schemas.builtin_interfaces import (
     Time,
 )
 from edgefirst.schemas.edgefirst_msgs import (
+    Box,
     DmaBuffer,
     Mask,
+    Model,
+    Track,
     RadarCube,
 )
 from edgefirst.schemas.foxglove_msgs import (
@@ -42,6 +45,7 @@ from edgefirst.schemas.geometry_msgs import (
     Vector3,
 )
 from edgefirst.schemas.sensor_msgs import (
+    CompressedImage,
     Image,
     PointCloud2,
     PointField,
@@ -93,6 +97,61 @@ def create_dmabuf(width: int, height: int, fourcc: int) -> DmaBuffer:
         stride=width * bytes_per_pixel,
         fourcc=fourcc,
         length=width * height * bytes_per_pixel,
+    )
+
+
+def create_compressed_image(data_size: int, fmt: str) -> CompressedImage:
+    """Create a CompressedImage with random data simulating JPEG/PNG compressed frames."""
+    return CompressedImage(
+        header=create_header(),
+        format=fmt,
+        data=bytes(random.getrandbits(8) for _ in range(data_size)),
+    )
+
+
+def create_model(num_boxes: int, mask_dims: tuple[int, int] | None = None) -> Model:
+    """Create a Model message with detection boxes and optional segmentation mask."""
+    boxes = [
+        Box(
+            center_x=random.random() * 640.0,
+            center_y=random.random() * 480.0,
+            width=random.random() * 100.0,
+            height=random.random() * 100.0,
+            label=f"class_{i % 80}",
+            score=random.random(),
+            distance=random.random() * 50.0,
+            speed=random.random() * 30.0,
+            track=Track(
+                id=f"track_{i}",
+                lifetime=random.randint(0, 999),
+                created=Time(sec=1234567890, nanosec=123456789),
+            ),
+        )
+        for i in range(num_boxes)
+    ]
+
+    mask = []
+    if mask_dims is not None:
+        w, h = mask_dims
+        mask = [
+            Mask(
+                height=h,
+                width=w,
+                length=1,
+                encoding="",
+                mask=bytes(random.getrandbits(8) for _ in range(w * h)),
+                boxed=False,
+            )
+        ]
+
+    return Model(
+        header=create_header(),
+        input_time=Duration(sec=0, nanosec=2_500_000),
+        model_time=Duration(sec=0, nanosec=15_000_000),
+        output_time=Duration(sec=0, nanosec=1_000_000),
+        decode_time=Duration(sec=0, nanosec=3_000_000),
+        boxes=boxes,
+        mask=mask,
     )
 
 
@@ -513,6 +572,159 @@ class TestCompressedVideoBenchmarks:
         video = create_compressed_video(1_000_000)
         data = video.serialize()
         benchmark(FoxgloveCompressedVideo.deserialize, data)
+
+
+# ============================================================================
+# BENCHMARK: CompressedImage (Heavy)
+# ============================================================================
+
+
+class TestCompressedImageBenchmarks:
+    """Benchmarks for CompressedImage messages.
+
+    Compressed image sizes simulating JPEG at various resolutions:
+      VGA JPEG: ~30-60KB, HD JPEG: ~80-200KB, FHD JPEG: ~200-500KB
+      PNG tends to be larger: HD PNG ~500KB-2MB.
+
+    Fast mode: HD and FHD JPEG only.
+    """
+
+    def test_compressed_image_vga_jpeg_serialize(self, benchmark):
+        """Benchmark CompressedImage VGA JPEG serialization."""
+        if is_fast_mode():
+            pytest.skip("Skipped in fast mode")
+        image = create_compressed_image(50_000, "jpeg")
+        benchmark(image.serialize)
+
+    def test_compressed_image_vga_jpeg_deserialize(self, benchmark):
+        """Benchmark CompressedImage VGA JPEG deserialization."""
+        if is_fast_mode():
+            pytest.skip("Skipped in fast mode")
+        image = create_compressed_image(50_000, "jpeg")
+        data = image.serialize()
+        benchmark(CompressedImage.deserialize, data)
+
+    def test_compressed_image_hd_jpeg_serialize(self, benchmark):
+        """Benchmark CompressedImage HD JPEG serialization."""
+        image = create_compressed_image(150_000, "jpeg")
+        benchmark(image.serialize)
+
+    def test_compressed_image_hd_jpeg_deserialize(self, benchmark):
+        """Benchmark CompressedImage HD JPEG deserialization."""
+        image = create_compressed_image(150_000, "jpeg")
+        data = image.serialize()
+        benchmark(CompressedImage.deserialize, data)
+
+    def test_compressed_image_fhd_jpeg_serialize(self, benchmark):
+        """Benchmark CompressedImage FHD JPEG serialization."""
+        image = create_compressed_image(400_000, "jpeg")
+        benchmark(image.serialize)
+
+    def test_compressed_image_fhd_jpeg_deserialize(self, benchmark):
+        """Benchmark CompressedImage FHD JPEG deserialization."""
+        image = create_compressed_image(400_000, "jpeg")
+        data = image.serialize()
+        benchmark(CompressedImage.deserialize, data)
+
+    def test_compressed_image_hd_png_serialize(self, benchmark):
+        """Benchmark CompressedImage HD PNG serialization."""
+        if is_fast_mode():
+            pytest.skip("Skipped in fast mode")
+        image = create_compressed_image(1_000_000, "png")
+        benchmark(image.serialize)
+
+    def test_compressed_image_hd_png_deserialize(self, benchmark):
+        """Benchmark CompressedImage HD PNG deserialization."""
+        if is_fast_mode():
+            pytest.skip("Skipped in fast mode")
+        image = create_compressed_image(1_000_000, "png")
+        data = image.serialize()
+        benchmark(CompressedImage.deserialize, data)
+
+
+# ============================================================================
+# BENCHMARK: Model (Heavy - detection + segmentation)
+# ============================================================================
+
+
+class TestModelBenchmarks:
+    """Benchmarks for Model messages.
+
+    Realistic detection scenarios:
+      Few detections (parking lot): 5 boxes
+      Moderate (urban driving): 20 boxes
+      Dense (crowded intersection): 50 boxes
+      With segmentation mask: 20 boxes + VGA/HD mask.
+
+    Fast mode: 20 boxes and 20 boxes + VGA mask only.
+    """
+
+    def test_model_5_boxes_serialize(self, benchmark):
+        """Benchmark Model 5 boxes serialization."""
+        if is_fast_mode():
+            pytest.skip("Skipped in fast mode")
+        model = create_model(5)
+        benchmark(model.serialize)
+
+    def test_model_5_boxes_deserialize(self, benchmark):
+        """Benchmark Model 5 boxes deserialization."""
+        if is_fast_mode():
+            pytest.skip("Skipped in fast mode")
+        model = create_model(5)
+        data = model.serialize()
+        benchmark(Model.deserialize, data)
+
+    def test_model_20_boxes_serialize(self, benchmark):
+        """Benchmark Model 20 boxes serialization."""
+        model = create_model(20)
+        benchmark(model.serialize)
+
+    def test_model_20_boxes_deserialize(self, benchmark):
+        """Benchmark Model 20 boxes deserialization."""
+        model = create_model(20)
+        data = model.serialize()
+        benchmark(Model.deserialize, data)
+
+    def test_model_50_boxes_serialize(self, benchmark):
+        """Benchmark Model 50 boxes serialization."""
+        if is_fast_mode():
+            pytest.skip("Skipped in fast mode")
+        model = create_model(50)
+        benchmark(model.serialize)
+
+    def test_model_50_boxes_deserialize(self, benchmark):
+        """Benchmark Model 50 boxes deserialization."""
+        if is_fast_mode():
+            pytest.skip("Skipped in fast mode")
+        model = create_model(50)
+        data = model.serialize()
+        benchmark(Model.deserialize, data)
+
+    def test_model_20_boxes_mask_vga_serialize(self, benchmark):
+        """Benchmark Model 20 boxes + VGA mask serialization."""
+        model = create_model(20, mask_dims=(640, 480))
+        benchmark(model.serialize)
+
+    def test_model_20_boxes_mask_vga_deserialize(self, benchmark):
+        """Benchmark Model 20 boxes + VGA mask deserialization."""
+        model = create_model(20, mask_dims=(640, 480))
+        data = model.serialize()
+        benchmark(Model.deserialize, data)
+
+    def test_model_20_boxes_mask_hd_serialize(self, benchmark):
+        """Benchmark Model 20 boxes + HD mask serialization."""
+        if is_fast_mode():
+            pytest.skip("Skipped in fast mode")
+        model = create_model(20, mask_dims=(1280, 720))
+        benchmark(model.serialize)
+
+    def test_model_20_boxes_mask_hd_deserialize(self, benchmark):
+        """Benchmark Model 20 boxes + HD mask deserialization."""
+        if is_fast_mode():
+            pytest.skip("Skipped in fast mode")
+        model = create_model(20, mask_dims=(1280, 720))
+        data = model.serialize()
+        benchmark(Model.deserialize, data)
 
 
 # ============================================================================

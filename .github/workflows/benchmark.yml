@@ -456,6 +456,18 @@ jobs:
                   'size_axis': 'Payload Size',
                   'unit': 'ms',
               },
+              'CompressedImage': {
+                  'benchmarks': [],
+                  'desc': 'Compressed image frames (JPEG/PNG)',
+                  'size_axis': 'Payload Size',
+                  'unit': 'ms',
+              },
+              'Model': {
+                  'benchmarks': [],
+                  'desc': 'Detection boxes + segmentation masks',
+                  'size_axis': 'Configuration',
+                  'unit': 'ms',
+              },
           }
 
           for b in heavy_msgs:
