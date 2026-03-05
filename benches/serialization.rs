@@ -16,12 +16,12 @@ use std::hint::black_box;
 use std::io::Cursor;
 
 use edgefirst_schemas::builtin_interfaces::{Duration, Time};
-use edgefirst_schemas::edgefirst_msgs::{DmaBuffer, Mask, RadarCube};
+use edgefirst_schemas::edgefirst_msgs::{self, DmaBuffer, Mask, Model, RadarCube};
 use edgefirst_schemas::foxglove_msgs::FoxgloveCompressedVideo;
 use edgefirst_schemas::geometry_msgs::{
     Point, Point32, Pose, Pose2D, Quaternion, Transform, Twist, Vector3,
 };
-use edgefirst_schemas::sensor_msgs::{point_field, Image, PointCloud2, PointField};
+use edgefirst_schemas::sensor_msgs::{point_field, CompressedImage, Image, PointCloud2, PointField};
 use edgefirst_schemas::serde_cdr::{deserialize, serialize};
 use edgefirst_schemas::std_msgs::{ColorRGBA, Header};
 
@@ -170,6 +170,75 @@ fn create_compressed_mask(width: u32, height: u32, channels: u32) -> Mask {
         encoding: "zstd".to_string(),
         mask: compressed,
         boxed: false,
+    }
+}
+
+/// Create a CompressedImage with random data simulating JPEG/PNG compressed frames.
+fn create_compressed_image(data_size: usize, format: &str) -> CompressedImage {
+    let mut rng = rand::rng();
+    CompressedImage {
+        header: create_header(),
+        format: format.to_string(),
+        data: (0..data_size).map(|_| rng.random()).collect(),
+    }
+}
+
+/// Create a Model message with detection boxes and optional segmentation masks.
+fn create_model(num_boxes: usize, mask_dims: Option<(u32, u32)>) -> Model {
+    let mut rng = rand::rng();
+    let boxes: Vec<edgefirst_msgs::Box> = (0..num_boxes)
+        .map(|i| edgefirst_msgs::Box {
+            center_x: rng.random::<f32>() * 640.0,
+            center_y: rng.random::<f32>() * 480.0,
+            width: rng.random::<f32>() * 100.0,
+            height: rng.random::<f32>() * 100.0,
+            label: format!("class_{}", i % 80),
+            score: rng.random::<f32>(),
+            distance: rng.random::<f32>() * 50.0,
+            speed: rng.random::<f32>() * 30.0,
+            track: edgefirst_msgs::Track {
+                id: format!("track_{}", i),
+                lifetime: rng.random::<i32>() % 1000,
+                created: Time {
+                    sec: 1234567890,
+                    nanosec: 123456789,
+                },
+            },
+        })
+        .collect();
+
+    let masks = match mask_dims {
+        Some((w, h)) => vec![Mask {
+            height: h,
+            width: w,
+            length: 1,
+            encoding: String::new(),
+            mask: (0..(w * h) as usize).map(|_| rng.random()).collect(),
+            boxed: false,
+        }],
+        None => vec![],
+    };
+
+    Model {
+        header: create_header(),
+        input_time: Duration {
+            sec: 0,
+            nanosec: 2_500_000,
+        },
+        model_time: Duration {
+            sec: 0,
+            nanosec: 15_000_000,
+        },
+        output_time: Duration {
+            sec: 0,
+            nanosec: 1_000_000,
+        },
+        decode_time: Duration {
+            sec: 0,
+            nanosec: 3_000_000,
+        },
+        boxes,
+        masks,
     }
 }
 
@@ -697,6 +766,100 @@ fn bench_image(c: &mut Criterion) {
 }
 
 // ============================================================================
+// BENCHMARK: CompressedImage (Heavy)
+// ============================================================================
+
+fn bench_compressed_image(c: &mut Criterion) {
+    let mut group = c.benchmark_group("CompressedImage");
+
+    // Compressed image sizes simulating JPEG at various resolutions:
+    //   VGA JPEG: ~30-60KB, HD JPEG: ~80-200KB, FHD JPEG: ~200-500KB
+    //   PNG tends to be larger: HD PNG ~500KB-2MB
+    // Fast mode: 2 representative sizes
+    let all_sizes: &[(usize, &str, &str)] = &[
+        (50_000, "VGA_jpeg", "jpeg"),
+        (150_000, "HD_jpeg", "jpeg"),
+        (400_000, "FHD_jpeg", "jpeg"),
+        (1_000_000, "HD_png", "png"),
+    ];
+    let fast_sizes: &[(usize, &str, &str)] = &[
+        (150_000, "HD_jpeg", "jpeg"),
+        (400_000, "FHD_jpeg", "jpeg"),
+    ];
+    let sizes = if is_fast_mode() {
+        fast_sizes
+    } else {
+        all_sizes
+    };
+
+    for &(size, name, format) in sizes {
+        let image = create_compressed_image(size, format);
+        let bytes = serialize(&image).unwrap();
+
+        group.throughput(Throughput::Bytes(size as u64));
+
+        group.bench_with_input(BenchmarkId::new("serialize", name), &image, |b, img| {
+            b.iter(|| serialize(black_box(img)))
+        });
+
+        group.bench_with_input(BenchmarkId::new("deserialize", name), &bytes, |b, data| {
+            b.iter(|| deserialize::<CompressedImage>(black_box(data)))
+        });
+    }
+
+    group.finish();
+}
+
+// ============================================================================
+// BENCHMARK: Model (Heavy - detection + segmentation)
+// ============================================================================
+
+fn bench_model(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Model");
+
+    // Realistic detection scenarios:
+    //   Few detections (parking lot): 5 boxes
+    //   Moderate (urban driving): 20 boxes
+    //   Dense (crowded intersection): 50 boxes
+    //   With segmentation mask: 20 boxes + 640x480 mask
+    // Fast mode: 2 representative configs
+    let all_configs: &[(usize, Option<(u32, u32)>, &str)] = &[
+        (5, None, "5_boxes"),
+        (20, None, "20_boxes"),
+        (50, None, "50_boxes"),
+        (20, Some((640, 480)), "20_boxes_mask_VGA"),
+        (20, Some((1280, 720)), "20_boxes_mask_HD"),
+    ];
+    let fast_configs: &[(usize, Option<(u32, u32)>, &str)] = &[
+        (20, None, "20_boxes"),
+        (20, Some((640, 480)), "20_boxes_mask_VGA"),
+    ];
+    let configs = if is_fast_mode() {
+        fast_configs
+    } else {
+        all_configs
+    };
+
+    for &(num_boxes, mask_dims, name) in configs {
+        let model = create_model(num_boxes, mask_dims);
+        let bytes = serialize(&model).unwrap();
+        let data_size = bytes.len();
+
+        group.throughput(Throughput::Bytes(data_size as u64));
+
+        group.bench_with_input(BenchmarkId::new("serialize", name), &model, |b, m| {
+            b.iter(|| serialize(black_box(m)))
+        });
+
+        group.bench_with_input(BenchmarkId::new("deserialize", name), &bytes, |b, data| {
+            b.iter(|| deserialize::<Model>(black_box(data)))
+        });
+    }
+
+    group.finish();
+}
+
+// ============================================================================
 // BENCHMARK: DmaBuffer (Lightweight reference)
 // ============================================================================
 
@@ -759,11 +922,13 @@ criterion_group! {
         bench_geometry_msgs,
         bench_dmabuf,
         bench_compressed_video,
+        bench_compressed_image,
         bench_radar_cube,
         bench_point_cloud,
         bench_mask,
         bench_compressed_mask,
         bench_image,
+        bench_model,
 }
 
 criterion_main!(benches);
