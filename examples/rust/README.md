@@ -33,7 +33,7 @@ use edgefirst_schemas::builtin_interfaces::Time;
 
 // Buffer-backed zero-copy construction
 let stamp = Time { sec: 1234567890, nanosec: 123456789 };
-let header = Header::new(stamp, "camera");
+let header = Header::new(stamp, "camera").unwrap();
 ```
 
 ### CDR Serialization

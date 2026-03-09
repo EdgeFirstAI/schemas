@@ -133,7 +133,7 @@ use edgefirst_schemas::std_msgs::Header;
 let stamp = Time { sec: 1234567890, nanosec: 123456789 };
 
 // Buffer-backed zero-copy construction
-let header = Header::new(stamp, "camera_frame");
+let header = Header::new(stamp, "camera_frame").unwrap();
 let bytes = header.to_cdr();
 
 // Deserialize from CDR bytes (zero-copy)

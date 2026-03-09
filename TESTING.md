@@ -776,12 +776,12 @@ fn bench_std_msgs(c: &mut Criterion) {
     let mut group = c.benchmark_group("std_msgs");
 
     let stamp = Time { sec: 1234567890, nanosec: 123456789 };
-    let hdr = Header::new(stamp, "camera");
+    let hdr = Header::new(stamp, "camera").unwrap();
     let bytes = hdr.to_cdr();
     group.throughput(Throughput::Bytes(bytes.len() as u64));
 
     group.bench_function("Header/new", |b| {
-        b.iter(|| Header::new(black_box(stamp), "camera"))
+        b.iter(|| Header::new(black_box(stamp), "camera").unwrap())
     });
     group.bench_function("Header/from_cdr", |b| {
         b.iter(|| Header::from_cdr(black_box(bytes.clone())))

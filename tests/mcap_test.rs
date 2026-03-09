@@ -48,162 +48,82 @@ fn find_mcap_files() -> Vec<PathBuf> {
         .collect()
 }
 
-/// Validate a message can be deserialized and round-tripped using zero-copy buffer-backed types.
+/// Deserialize and re-serialize a message for round-trip validation.
+///
+/// Buffer-backed types: `from_cdr(data) → to_cdr()`.
+/// CdrFixed types: `decode_fixed(data) → encode_fixed()`.
+///
 /// Returns the re-serialized CDR bytes on success.
 fn validate_message(schema_name: &str, data: &[u8]) -> Result<Vec<u8>, String> {
-    match schema_name {
-        // Buffer-backed types — from_cdr validates structure, to_cdr re-serializes
-        "sensor_msgs/msg/Image" => {
-            let view = sensor_msgs::Image::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-            Ok(view.to_cdr())
-        }
-        "sensor_msgs/msg/CompressedImage" => {
-            let view = sensor_msgs::CompressedImage::from_cdr(data.to_vec())
-                .map_err(|e| format!("{e}"))?;
-            Ok(view.to_cdr())
-        }
-        "sensor_msgs/msg/Imu" => {
-            let view = sensor_msgs::Imu::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-            Ok(view.to_cdr())
-        }
-        "sensor_msgs/msg/NavSatFix" => {
-            let view =
-                sensor_msgs::NavSatFix::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-            Ok(view.to_cdr())
-        }
-        "sensor_msgs/msg/PointCloud2" => {
-            let view =
-                sensor_msgs::PointCloud2::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-            Ok(view.to_cdr())
-        }
-        "sensor_msgs/msg/CameraInfo" => {
-            let view =
-                sensor_msgs::CameraInfo::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-            Ok(view.to_cdr())
-        }
+    use edgefirst_schemas::cdr::{decode_fixed, encode_fixed};
 
-        // Stamped geometry types
-        "geometry_msgs/msg/TransformStamped" => {
-            let view = geometry_msgs::TransformStamped::from_cdr(data.to_vec())
-                .map_err(|e| format!("{e}"))?;
+    /// Helper: from_cdr → to_cdr for a buffer-backed type.
+    macro_rules! roundtrip_buf {
+        ($ty:ty, $data:expr) => {{
+            let view = <$ty>::from_cdr($data.to_vec()).map_err(|e| format!("{e}"))?;
             Ok(view.to_cdr())
+        }};
+    }
+    /// Helper: decode_fixed → encode_fixed for a CdrFixed type.
+    macro_rules! roundtrip_fixed {
+        ($ty:ty, $data:expr) => {{
+            let val: $ty = decode_fixed($data).map_err(|e| format!("{e}"))?;
+            encode_fixed(&val).map_err(|e| format!("{e}"))
+        }};
+    }
+
+    match schema_name {
+        // sensor_msgs — buffer-backed
+        "sensor_msgs/msg/Image" => roundtrip_buf!(sensor_msgs::Image<Vec<u8>>, data),
+        "sensor_msgs/msg/CompressedImage" => {
+            roundtrip_buf!(sensor_msgs::CompressedImage<Vec<u8>>, data)
+        }
+        "sensor_msgs/msg/Imu" => roundtrip_buf!(sensor_msgs::Imu<Vec<u8>>, data),
+        "sensor_msgs/msg/NavSatFix" => roundtrip_buf!(sensor_msgs::NavSatFix<Vec<u8>>, data),
+        "sensor_msgs/msg/PointCloud2" => roundtrip_buf!(sensor_msgs::PointCloud2<Vec<u8>>, data),
+        "sensor_msgs/msg/CameraInfo" => roundtrip_buf!(sensor_msgs::CameraInfo<Vec<u8>>, data),
+
+        // geometry_msgs — buffer-backed (stamped)
+        "geometry_msgs/msg/TransformStamped" => {
+            roundtrip_buf!(geometry_msgs::TransformStamped<Vec<u8>>, data)
         }
         "geometry_msgs/msg/TwistStamped" => {
-            let view =
-                geometry_msgs::TwistStamped::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-            Ok(view.to_cdr())
+            roundtrip_buf!(geometry_msgs::TwistStamped<Vec<u8>>, data)
         }
         "geometry_msgs/msg/AccelStamped" => {
-            let view =
-                geometry_msgs::AccelStamped::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-            Ok(view.to_cdr())
+            roundtrip_buf!(geometry_msgs::AccelStamped<Vec<u8>>, data)
         }
         "geometry_msgs/msg/InertiaStamped" => {
-            let view = geometry_msgs::InertiaStamped::from_cdr(data.to_vec())
-                .map_err(|e| format!("{e}"))?;
-            Ok(view.to_cdr())
+            roundtrip_buf!(geometry_msgs::InertiaStamped<Vec<u8>>, data)
         }
         "geometry_msgs/msg/PointStamped" => {
-            let view =
-                geometry_msgs::PointStamped::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-            Ok(view.to_cdr())
+            roundtrip_buf!(geometry_msgs::PointStamped<Vec<u8>>, data)
         }
 
-        // CdrFixed geometry types — round-trip via encode/decode
-        "geometry_msgs/msg/Transform" => {
-            use edgefirst_schemas::cdr::{decode_fixed, encode_fixed};
-            use edgefirst_schemas::geometry_msgs::Transform;
-            let val: Transform = decode_fixed(data).map_err(|e| format!("{e}"))?;
-            encode_fixed(&val).map_err(|e| format!("{e}"))
-        }
-        "geometry_msgs/msg/Vector3" => {
-            use edgefirst_schemas::cdr::{decode_fixed, encode_fixed};
-            use edgefirst_schemas::geometry_msgs::Vector3;
-            let val: Vector3 = decode_fixed(data).map_err(|e| format!("{e}"))?;
-            encode_fixed(&val).map_err(|e| format!("{e}"))
-        }
-        "geometry_msgs/msg/Quaternion" => {
-            use edgefirst_schemas::cdr::{decode_fixed, encode_fixed};
-            use edgefirst_schemas::geometry_msgs::Quaternion;
-            let val: Quaternion = decode_fixed(data).map_err(|e| format!("{e}"))?;
-            encode_fixed(&val).map_err(|e| format!("{e}"))
-        }
-        "geometry_msgs/msg/Pose" => {
-            use edgefirst_schemas::cdr::{decode_fixed, encode_fixed};
-            use edgefirst_schemas::geometry_msgs::Pose;
-            let val: Pose = decode_fixed(data).map_err(|e| format!("{e}"))?;
-            encode_fixed(&val).map_err(|e| format!("{e}"))
-        }
-        "geometry_msgs/msg/Point" => {
-            use edgefirst_schemas::cdr::{decode_fixed, encode_fixed};
-            use edgefirst_schemas::geometry_msgs::Point;
-            let val: Point = decode_fixed(data).map_err(|e| format!("{e}"))?;
-            encode_fixed(&val).map_err(|e| format!("{e}"))
-        }
-        "geometry_msgs/msg/Twist" => {
-            use edgefirst_schemas::cdr::{decode_fixed, encode_fixed};
-            use edgefirst_schemas::geometry_msgs::Twist;
-            let val: Twist = decode_fixed(data).map_err(|e| format!("{e}"))?;
-            encode_fixed(&val).map_err(|e| format!("{e}"))
-        }
+        // geometry_msgs — CdrFixed
+        "geometry_msgs/msg/Transform" => roundtrip_fixed!(geometry_msgs::Transform, data),
+        "geometry_msgs/msg/Vector3" => roundtrip_fixed!(geometry_msgs::Vector3, data),
+        "geometry_msgs/msg/Quaternion" => roundtrip_fixed!(geometry_msgs::Quaternion, data),
+        "geometry_msgs/msg/Pose" => roundtrip_fixed!(geometry_msgs::Pose, data),
+        "geometry_msgs/msg/Point" => roundtrip_fixed!(geometry_msgs::Point, data),
+        "geometry_msgs/msg/Twist" => roundtrip_fixed!(geometry_msgs::Twist, data),
 
-        // Foxglove types
+        // foxglove_msgs — buffer-backed
         "foxglove_msgs/msg/CompressedVideo" => {
-            let view = foxglove_msgs::FoxgloveCompressedVideo::from_cdr(data.to_vec())
-                .map_err(|e| format!("{e}"))?;
-            Ok(view.to_cdr())
+            roundtrip_buf!(foxglove_msgs::FoxgloveCompressedVideo<Vec<u8>>, data)
         }
 
-        // EdgeFirst types
-        "edgefirst_msgs/msg/Detect" => {
-            let view =
-                edgefirst_msgs::Detect::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-            Ok(view.to_cdr())
-        }
-        "edgefirst_msgs/msg/DmaBuffer" => {
-            let view =
-                edgefirst_msgs::DmaBuffer::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-            Ok(view.to_cdr())
-        }
-        "edgefirst_msgs/msg/Mask" => {
-            let view = edgefirst_msgs::Mask::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-            Ok(view.to_cdr())
-        }
-        "edgefirst_msgs/msg/ModelInfo" => {
-            let view =
-                edgefirst_msgs::ModelInfo::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-            Ok(view.to_cdr())
-        }
-        "edgefirst_msgs/msg/RadarCube" => {
-            let view =
-                edgefirst_msgs::RadarCube::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-            Ok(view.to_cdr())
-        }
-        "edgefirst_msgs/msg/RadarInfo" => {
-            let view =
-                edgefirst_msgs::RadarInfo::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-            Ok(view.to_cdr())
-        }
-        "edgefirst_msgs/msg/Box" => {
-            let view =
-                edgefirst_msgs::DetectBox::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-            Ok(view.to_cdr())
-        }
-        "edgefirst_msgs/msg/Track" => {
-            let view =
-                edgefirst_msgs::Track::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-            Ok(view.to_cdr())
-        }
-        "edgefirst_msgs/msg/Model" => {
-            let view =
-                edgefirst_msgs::Model::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-            Ok(view.to_cdr())
-        }
-        "edgefirst_msgs/msg/LocalTime" => {
-            let view =
-                edgefirst_msgs::LocalTime::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-            Ok(view.to_cdr())
-        }
+        // edgefirst_msgs — buffer-backed
+        "edgefirst_msgs/msg/Detect" => roundtrip_buf!(edgefirst_msgs::Detect<Vec<u8>>, data),
+        "edgefirst_msgs/msg/DmaBuffer" => roundtrip_buf!(edgefirst_msgs::DmaBuffer<Vec<u8>>, data),
+        "edgefirst_msgs/msg/Mask" => roundtrip_buf!(edgefirst_msgs::Mask<Vec<u8>>, data),
+        "edgefirst_msgs/msg/ModelInfo" => roundtrip_buf!(edgefirst_msgs::ModelInfo<Vec<u8>>, data),
+        "edgefirst_msgs/msg/RadarCube" => roundtrip_buf!(edgefirst_msgs::RadarCube<Vec<u8>>, data),
+        "edgefirst_msgs/msg/RadarInfo" => roundtrip_buf!(edgefirst_msgs::RadarInfo<Vec<u8>>, data),
+        "edgefirst_msgs/msg/Box" => roundtrip_buf!(edgefirst_msgs::DetectBox<Vec<u8>>, data),
+        "edgefirst_msgs/msg/Track" => roundtrip_buf!(edgefirst_msgs::Track<Vec<u8>>, data),
+        "edgefirst_msgs/msg/Model" => roundtrip_buf!(edgefirst_msgs::Model<Vec<u8>>, data),
+        "edgefirst_msgs/msg/LocalTime" => roundtrip_buf!(edgefirst_msgs::LocalTime<Vec<u8>>, data),
 
         _ => Err(format!("Unsupported schema: {schema_name}")),
     }
@@ -211,37 +131,9 @@ fn validate_message(schema_name: &str, data: &[u8]) -> Result<Vec<u8>, String> {
 
 /// Check if a schema name is supported
 fn is_schema_supported(schema_name: &str) -> bool {
-    matches!(
-        schema_name,
-        "sensor_msgs/msg/CameraInfo"
-            | "sensor_msgs/msg/CompressedImage"
-            | "sensor_msgs/msg/Image"
-            | "sensor_msgs/msg/Imu"
-            | "sensor_msgs/msg/NavSatFix"
-            | "sensor_msgs/msg/PointCloud2"
-            | "geometry_msgs/msg/Transform"
-            | "geometry_msgs/msg/TransformStamped"
-            | "geometry_msgs/msg/Vector3"
-            | "geometry_msgs/msg/Quaternion"
-            | "geometry_msgs/msg/Pose"
-            | "geometry_msgs/msg/Point"
-            | "geometry_msgs/msg/Twist"
-            | "geometry_msgs/msg/TwistStamped"
-            | "geometry_msgs/msg/AccelStamped"
-            | "geometry_msgs/msg/InertiaStamped"
-            | "geometry_msgs/msg/PointStamped"
-            | "foxglove_msgs/msg/CompressedVideo"
-            | "edgefirst_msgs/msg/Box"
-            | "edgefirst_msgs/msg/Detect"
-            | "edgefirst_msgs/msg/DmaBuffer"
-            | "edgefirst_msgs/msg/LocalTime"
-            | "edgefirst_msgs/msg/Mask"
-            | "edgefirst_msgs/msg/Model"
-            | "edgefirst_msgs/msg/ModelInfo"
-            | "edgefirst_msgs/msg/RadarCube"
-            | "edgefirst_msgs/msg/RadarInfo"
-            | "edgefirst_msgs/msg/Track"
-    )
+    // Leverage validate_message: if it doesn't return Unsupported, the schema is supported.
+    // Use an empty slice — CdrError is expected, "Unsupported" is not.
+    !matches!(validate_message(schema_name, &[]), Err(e) if e.starts_with("Unsupported schema"))
 }
 
 /// Test that all schema types in MCAP files are supported
@@ -423,101 +315,7 @@ fn test_roundtrip_all_messages() {
 
 /// Deserialize a message (without re-serializing). Returns Ok(()) on success.
 fn deserialize_message(schema_name: &str, data: &[u8]) -> Result<(), String> {
-    match schema_name {
-        "sensor_msgs/msg/Image" => {
-            sensor_msgs::Image::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-        }
-        "sensor_msgs/msg/CompressedImage" => {
-            sensor_msgs::CompressedImage::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-        }
-        "sensor_msgs/msg/Imu" => {
-            sensor_msgs::Imu::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-        }
-        "sensor_msgs/msg/NavSatFix" => {
-            sensor_msgs::NavSatFix::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-        }
-        "sensor_msgs/msg/PointCloud2" => {
-            sensor_msgs::PointCloud2::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-        }
-        "sensor_msgs/msg/CameraInfo" => {
-            sensor_msgs::CameraInfo::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-        }
-        "geometry_msgs/msg/TransformStamped" => {
-            geometry_msgs::TransformStamped::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-        }
-        "geometry_msgs/msg/TwistStamped" => {
-            geometry_msgs::TwistStamped::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-        }
-        "geometry_msgs/msg/AccelStamped" => {
-            geometry_msgs::AccelStamped::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-        }
-        "geometry_msgs/msg/InertiaStamped" => {
-            geometry_msgs::InertiaStamped::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-        }
-        "geometry_msgs/msg/PointStamped" => {
-            geometry_msgs::PointStamped::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-        }
-        "geometry_msgs/msg/Transform" => {
-            edgefirst_schemas::cdr::decode_fixed::<geometry_msgs::Transform>(data)
-                .map_err(|e| format!("{e}"))?;
-        }
-        "geometry_msgs/msg/Vector3" => {
-            edgefirst_schemas::cdr::decode_fixed::<geometry_msgs::Vector3>(data)
-                .map_err(|e| format!("{e}"))?;
-        }
-        "geometry_msgs/msg/Quaternion" => {
-            edgefirst_schemas::cdr::decode_fixed::<geometry_msgs::Quaternion>(data)
-                .map_err(|e| format!("{e}"))?;
-        }
-        "geometry_msgs/msg/Pose" => {
-            edgefirst_schemas::cdr::decode_fixed::<geometry_msgs::Pose>(data)
-                .map_err(|e| format!("{e}"))?;
-        }
-        "geometry_msgs/msg/Point" => {
-            edgefirst_schemas::cdr::decode_fixed::<geometry_msgs::Point>(data)
-                .map_err(|e| format!("{e}"))?;
-        }
-        "geometry_msgs/msg/Twist" => {
-            edgefirst_schemas::cdr::decode_fixed::<geometry_msgs::Twist>(data)
-                .map_err(|e| format!("{e}"))?;
-        }
-        "foxglove_msgs/msg/CompressedVideo" => {
-            foxglove_msgs::FoxgloveCompressedVideo::from_cdr(data.to_vec())
-                .map_err(|e| format!("{e}"))?;
-        }
-        "edgefirst_msgs/msg/Detect" => {
-            edgefirst_msgs::Detect::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-        }
-        "edgefirst_msgs/msg/DmaBuffer" => {
-            edgefirst_msgs::DmaBuffer::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-        }
-        "edgefirst_msgs/msg/Mask" => {
-            edgefirst_msgs::Mask::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-        }
-        "edgefirst_msgs/msg/ModelInfo" => {
-            edgefirst_msgs::ModelInfo::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-        }
-        "edgefirst_msgs/msg/RadarCube" => {
-            edgefirst_msgs::RadarCube::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-        }
-        "edgefirst_msgs/msg/RadarInfo" => {
-            edgefirst_msgs::RadarInfo::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-        }
-        "edgefirst_msgs/msg/Box" => {
-            edgefirst_msgs::DetectBox::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-        }
-        "edgefirst_msgs/msg/Track" => {
-            edgefirst_msgs::Track::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-        }
-        "edgefirst_msgs/msg/Model" => {
-            edgefirst_msgs::Model::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-        }
-        "edgefirst_msgs/msg/LocalTime" => {
-            edgefirst_msgs::LocalTime::from_cdr(data.to_vec()).map_err(|e| format!("{e}"))?;
-        }
-        _ => return Err(format!("Unsupported schema: {schema_name}")),
-    }
-    Ok(())
+    validate_message(schema_name, data).map(|_| ())
 }
 
 /// Benchmark-style timing of CDR deser + reser from MCAP (run with --nocapture)
