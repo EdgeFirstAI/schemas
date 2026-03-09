@@ -15,7 +15,7 @@ from edgefirst.schemas import (
 )
 
 # Path to test data directory
-TESTDATA_DIR = Path(__file__).parent.parent.parent / "testdata"
+TESTDATA_DIR = Path(__file__).parent.parent.parent / "testdata" / "mcap"
 
 
 def pytest_generate_tests(metafunc):

@@ -16,9 +16,6 @@ categories = ["encoding", "data-structures"]
 crate-type = ["lib", "staticlib", "cdylib"]
 
 [dependencies]
-serde = "1.0.228"
-serde_derive = "1.0.228"
-cdr = "0.2.4"
 errno = "0.3"
 libc = "0.2.180"
 
@@ -27,7 +24,6 @@ criterion = { version = "0.8.1", features = ["html_reports"] }
 mcap = "0.24"
 memmap2 = "0.9"
 rand = "0.9.2"
-zstd = "0.13"
 
 [[bench]]
 name = "serialization"

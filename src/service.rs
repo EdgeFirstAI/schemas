@@ -1,21 +1,39 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright © 2025 Au-Zone Technologies. All Rights Reserved.
 
-use serde_derive::{Deserialize, Serialize};
-
 /// The struct is used by ROS service.
 /// If you want to sent ROS service with Zenoh directly. You should include the header.
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub struct ServiceHeader {
     pub guid: i64,
     pub seq: u64,
 }
 
+use crate::cdr::{CdrCursor, CdrError, CdrFixed, CdrSizer, CdrWriter};
+
+impl CdrFixed for ServiceHeader {
+    const CDR_SIZE: usize = 16; // i64 + u64
+    fn read_cdr(cursor: &mut CdrCursor<'_>) -> Result<Self, CdrError> {
+        Ok(ServiceHeader {
+            guid: cursor.read_i64()?,
+            seq: cursor.read_u64()?,
+        })
+    }
+    fn write_cdr(&self, writer: &mut CdrWriter<'_>) {
+        writer.write_i64(self.guid);
+        writer.write_u64(self.seq);
+    }
+    fn size_cdr(sizer: &mut CdrSizer) {
+        sizer.size_i64();
+        sizer.size_u64();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::serde_cdr::{deserialize, serialize};
+    use crate::cdr::{decode_fixed, encode_fixed};
 
     #[test]
     fn service_header_roundtrip() {
@@ -28,8 +46,8 @@ mod tests {
         ];
         for (guid, seq, name) in cases {
             let header = ServiceHeader { guid, seq };
-            let bytes = serialize(&header).unwrap();
-            let decoded: ServiceHeader = deserialize(&bytes).unwrap();
+            let bytes = encode_fixed(&header).unwrap();
+            let decoded: ServiceHeader = decode_fixed(&bytes).unwrap();
             assert_eq!(header, decoded, "failed for case: {}", name);
         }
     }

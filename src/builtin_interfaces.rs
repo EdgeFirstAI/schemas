@@ -3,17 +3,15 @@
 
 use std::time::Duration as Dur;
 
-use serde_derive::{Deserialize, Serialize};
-
 const NSEC_IN_SEC: u64 = 1_000_000_000;
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub struct Time {
     pub sec: i32,
     pub nanosec: u32,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub struct Duration {
     pub sec: i32,
     pub nanosec: u32,
@@ -31,14 +29,27 @@ impl Time {
         }
     }
 
-    pub fn to_nanos(&self) -> u64 {
-        self.sec as u64 * NSEC_IN_SEC + self.nanosec as u64
+    /// Convert to nanoseconds. Returns `None` for negative (pre-epoch) timestamps
+    /// since they cannot be represented as `u64`.
+    pub fn to_nanos(&self) -> Option<u64> {
+        if self.sec >= 0 {
+            Some(self.sec as u64 * NSEC_IN_SEC + self.nanosec as u64)
+        } else {
+            None
+        }
     }
 }
 
 impl From<Time> for u64 {
+    /// Converts to nanoseconds, saturating pre-epoch timestamps to 0.
     fn from(time: Time) -> Self {
-        time.to_nanos()
+        time.to_nanos().unwrap_or(0)
+    }
+}
+
+impl Duration {
+    pub fn new(sec: i32, nanosec: u32) -> Self {
+        Duration { sec, nanosec }
     }
 }
 
@@ -64,6 +75,43 @@ pub fn list_types() -> &'static [&'static str] {
     ]
 }
 
+// CdrFixed implementations
+use crate::cdr::{CdrCursor, CdrError, CdrFixed, CdrSizer, CdrWriter};
+
+impl CdrFixed for Time {
+    const CDR_SIZE: usize = 8; // i32 + u32
+    fn read_cdr(cursor: &mut CdrCursor<'_>) -> Result<Self, CdrError> {
+        let sec = cursor.read_i32()?;
+        let nanosec = cursor.read_u32()?;
+        Ok(Time { sec, nanosec })
+    }
+    fn write_cdr(&self, writer: &mut CdrWriter<'_>) {
+        writer.write_i32(self.sec);
+        writer.write_u32(self.nanosec);
+    }
+    fn size_cdr(sizer: &mut CdrSizer) {
+        sizer.size_i32();
+        sizer.size_u32();
+    }
+}
+
+impl CdrFixed for Duration {
+    const CDR_SIZE: usize = 8; // i32 + u32
+    fn read_cdr(cursor: &mut CdrCursor<'_>) -> Result<Self, CdrError> {
+        let sec = cursor.read_i32()?;
+        let nanosec = cursor.read_u32()?;
+        Ok(Duration { sec, nanosec })
+    }
+    fn write_cdr(&self, writer: &mut CdrWriter<'_>) {
+        writer.write_i32(self.sec);
+        writer.write_u32(self.nanosec);
+    }
+    fn size_cdr(sizer: &mut CdrSizer) {
+        sizer.size_i32();
+        sizer.size_u32();
+    }
+}
+
 // SchemaType implementations
 use crate::schema_registry::SchemaType;
 
@@ -78,11 +126,10 @@ impl SchemaType for Time {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::serde_cdr::{deserialize, serialize};
+    use crate::cdr::{decode_fixed, encode_fixed};
 
     #[test]
     fn time_roundtrip() {
-        // Test various edge cases in one comprehensive test
         let cases = [
             (0, 0, "zero"),
             (1, 500_000_000, "typical"),
@@ -92,20 +139,19 @@ mod tests {
         ];
         for (sec, nanosec, name) in cases {
             let time = Time::new(sec, nanosec);
-            let bytes = serialize(&time).unwrap();
-            let decoded: Time = deserialize(&bytes).unwrap();
+            let bytes = encode_fixed(&time).unwrap();
+            let decoded: Time = decode_fixed(&bytes).unwrap();
             assert_eq!(time, decoded, "failed for case: {}", name);
         }
     }
 
     #[test]
     fn time_nanos_conversion() {
-        // Verify from_nanos/to_nanos are consistent after serialization
         let original_nanos = 123_456_789_012u64;
         let time = Time::from_nanos(original_nanos);
-        let bytes = serialize(&time).unwrap();
-        let decoded: Time = deserialize(&bytes).unwrap();
-        assert_eq!(decoded.to_nanos(), original_nanos);
+        let bytes = encode_fixed(&time).unwrap();
+        let decoded: Time = decode_fixed(&bytes).unwrap();
+        assert_eq!(decoded.to_nanos(), Some(original_nanos));
     }
 
     #[test]
@@ -118,8 +164,8 @@ mod tests {
         ];
         for (sec, nanosec, name) in cases {
             let duration = Duration { sec, nanosec };
-            let bytes = serialize(&duration).unwrap();
-            let decoded: Duration = deserialize(&bytes).unwrap();
+            let bytes = encode_fixed(&duration).unwrap();
+            let decoded: Duration = decode_fixed(&bytes).unwrap();
             assert_eq!(duration, decoded, "failed for case: {}", name);
         }
     }
@@ -128,8 +174,8 @@ mod tests {
     fn duration_from_std() {
         let std_dur = Dur::new(10, 250_000_000);
         let duration: Duration = std_dur.into();
-        let bytes = serialize(&duration).unwrap();
-        let decoded: Duration = deserialize(&bytes).unwrap();
+        let bytes = encode_fixed(&duration).unwrap();
+        let decoded: Duration = decode_fixed(&bytes).unwrap();
         assert_eq!(decoded, duration);
     }
 }

@@ -2,17 +2,33 @@
 // Copyright © 2025 Au-Zone Technologies. All Rights Reserved.
 
 use crate::builtin_interfaces::Time;
-use serde_derive::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub struct Clock {
     pub clock: Time,
+}
+
+use crate::cdr::{CdrCursor, CdrError, CdrFixed, CdrSizer, CdrWriter};
+
+impl CdrFixed for Clock {
+    const CDR_SIZE: usize = 8; // Time(8)
+    fn read_cdr(cursor: &mut CdrCursor<'_>) -> Result<Self, CdrError> {
+        Ok(Clock {
+            clock: Time::read_cdr(cursor)?,
+        })
+    }
+    fn write_cdr(&self, writer: &mut CdrWriter<'_>) {
+        self.clock.write_cdr(writer);
+    }
+    fn size_cdr(sizer: &mut CdrSizer) {
+        Time::size_cdr(sizer);
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::serde_cdr::{deserialize, serialize};
+    use crate::cdr::{decode_fixed, encode_fixed};
 
     #[test]
     fn clock_roundtrip() {
@@ -26,8 +42,8 @@ mod tests {
             let clock = Clock {
                 clock: Time::new(sec, nanosec),
             };
-            let bytes = serialize(&clock).unwrap();
-            let decoded: Clock = deserialize(&bytes).unwrap();
+            let bytes = encode_fixed(&clock).unwrap();
+            let decoded: Clock = decode_fixed(&bytes).unwrap();
             assert_eq!(clock, decoded, "failed for case: {}", name);
         }
     }

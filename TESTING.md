@@ -768,57 +768,29 @@ codegen-units = 1
 **Example (benches/serialization.rs):**
 
 ```rust
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
-use edgefirst_schemas::std_msgs::Header;
+use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
 use edgefirst_schemas::builtin_interfaces::Time;
-use edgefirst_schemas::serde_cdr::{serialize, deserialize};
+use edgefirst_schemas::std_msgs::Header;
 
 fn bench_std_msgs(c: &mut Criterion) {
     let mut group = c.benchmark_group("std_msgs");
-    
-    // Header
-    let header = Header {
-        stamp: Time { sec: 1234567890, nanosec: 123456789 },
-        frame_id: "camera".to_string(),
-    };
-    let header_bytes = serialize(&header).unwrap();
-    group.throughput(Throughput::Bytes(header_bytes.len() as u64));
-    
-    group.bench_function("Header/serialize", |b| {
-        b.iter(|| serialize(black_box(&header)))
+
+    let stamp = Time { sec: 1234567890, nanosec: 123456789 };
+    let hdr = Header::new(stamp, "camera");
+    let bytes = hdr.to_cdr();
+    group.throughput(Throughput::Bytes(bytes.len() as u64));
+
+    group.bench_function("Header/new", |b| {
+        b.iter(|| Header::new(black_box(stamp), "camera"))
     });
-    group.bench_function("Header/deserialize", |b| {
-        b.iter(|| deserialize::<Header>(black_box(&header_bytes)))
+    group.bench_function("Header/from_cdr", |b| {
+        b.iter(|| Header::from_cdr(black_box(bytes.clone())))
     });
-    
+
     group.finish();
 }
 
-fn bench_heavy_messages(c: &mut Criterion) {
-    use edgefirst_schemas::sensor_msgs::Image;
-    
-    let mut group = c.benchmark_group("Image");
-    
-    // VGA RGB
-    let image = Image {
-        header: Header::default(),
-        height: 480,
-        width: 640,
-        encoding: "rgb8".to_string(),
-        is_bigendian: 0,
-        step: 640 * 3,
-        data: vec![0u8; 640 * 480 * 3], // ~900KB
-    };
-    
-    group.throughput(Throughput::Bytes(image.data.len() as u64));
-    group.bench_function("serialize/VGA_rgb8", |b| {
-        b.iter(|| serialize(black_box(&image)))
-    });
-    
-    group.finish();
-}
-
-criterion_group!(benches, bench_std_msgs, bench_heavy_messages);
+criterion_group!(benches, bench_std_msgs);
 criterion_main!(benches);
 ```
 
