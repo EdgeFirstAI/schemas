@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright © 2025 Au-Zone Technologies. All Rights Reserved.
 
+#![allow(clippy::too_many_arguments)]
+
 //! # EdgeFirst Middleware Schemas
 //!
 //! Zero-copy CDR1 Little-Endian message types for ROS 2 / Zenoh middleware.
