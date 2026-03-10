@@ -77,7 +77,8 @@ fn validate_message(schema_name: &str, data: &[u8]) -> Result<Vec<u8>, TestError
     /// Helper: from_cdr → to_cdr for a buffer-backed type.
     macro_rules! roundtrip_buf {
         ($ty:ty, $data:expr) => {{
-            let view = <$ty>::from_cdr($data.to_vec()).map_err(|e| TestError::Cdr(format!("{e}")))?;
+            let view =
+                <$ty>::from_cdr($data.to_vec()).map_err(|e| TestError::Cdr(format!("{e}")))?;
             Ok(view.to_cdr())
         }};
     }

@@ -29,18 +29,16 @@ jobs:
   format:
     name: Format
     runs-on: ubuntu-latest
-    env:
-      RUSTV: nightly-2024-04-09
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Install Rust
         run: |
-          rustup toolchain install $RUSTV
-          rustup component add --toolchain $RUSTV rustfmt
+          rustup toolchain install stable --profile minimal
+          rustup component add rustfmt
 
       - name: Check formatting
-        run: cargo +$RUSTV fmt -- --check
+        run: cargo fmt -- --check
 
   # ============================================================================
   # Rust and C Tests with Combined Coverage
