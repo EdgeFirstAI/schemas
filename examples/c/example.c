@@ -1,16 +1,15 @@
 /**
  * @file example.c
  * @brief Example usage of EdgeFirst Schemas C API
- * 
+ *
  * SPDX-License-Identifier: Apache-2.0
- * Copyright © 2025 Au-Zone Technologies. All Rights Reserved.
- * 
+ * Copyright (c) 2025 Au-Zone Technologies. All Rights Reserved.
+ *
  * Demonstrates:
- * - Creating message structures
- * - Setting field values
- * - Serializing to CDR format
- * - Deserializing from CDR format
- * - Proper memory management
+ * - CdrFixed encode/decode (Time, Vector3) into stack buffers
+ * - Buffer-backed encode (Header, Image) with allocated output
+ * - Buffer-backed decode from CDR bytes via opaque view handles
+ * - Proper memory management (ros_bytes_free, _free, borrowed pointers)
  * - errno-based error handling
  */
 
@@ -21,322 +20,211 @@
 #include <errno.h>
 #include "../../include/edgefirst/schemas.h"
 
-void example_header() {
-    printf("\n=== Example: Header Message ===\n");
-    
-    // Create a new header
-    RosHeader* header = ros_header_new();
-    if (!header) {
-        perror("ros_header_new");
-        exit(1);
-    }
-    
-    // Set frame_id
-    if (ros_header_set_frame_id(header, "camera_frame") != 0) {
-        perror("ros_header_set_frame_id");
-        ros_header_free(header);
-        exit(1);
-    }
-    
-    // Set timestamp through the stamp field
-    RosTime* stamp = ros_header_get_stamp_mut(header);
-    ros_time_set_sec(stamp, 1234567890);
-    ros_time_set_nanosec(stamp, 123456789);
-    
-    // Serialize to CDR
-    uint8_t* bytes = NULL;
-    size_t len = 0;
-    if (ros_header_serialize(header, &bytes, &len) != 0) {
-        perror("ros_header_serialize");
-        ros_header_free(header);
-        exit(1);
-    }
-    printf("Serialized header to %zu bytes\n", len);
-    
-    // Deserialize
-    RosHeader* header2 = ros_header_deserialize(bytes, len);
-    if (!header2) {
-        fprintf(stderr, "ros_header_deserialize failed: %s\n", strerror(errno));
-        free(bytes);
-        ros_header_free(header);
-        exit(1);
-    }
-    
-    // Verify the data
-    const RosTime* stamp2 = ros_header_get_stamp(header2);
-    int32_t sec = ros_time_get_sec(stamp2);
-    uint32_t nanosec = ros_time_get_nanosec(stamp2);
-    printf("Deserialized timestamp: %d.%09u\n", sec, nanosec);
-    
-    char* frame_id = ros_header_get_frame_id(header2);
-    printf("Deserialized frame_id: %s\n", frame_id);
-    
-    // Cleanup
-    free(frame_id);
-    free(bytes);
-    ros_header_free(header);
-    ros_header_free(header2);
-    
-    printf("Header example completed successfully!\n");
+void example_time(void) {
+    printf("\n=== Example: Time (CdrFixed) ===\n");
+
+    uint8_t buf[64];
+    size_t written = 0;
+
+    // Encode Time into a stack buffer
+    int ret = ros_time_encode(buf, sizeof(buf), &written, 1234567890, 123456789);
+    assert(ret == 0);
+    printf("Encoded Time: %zu CDR bytes\n", written);
+
+    // Decode individual fields
+    int32_t sec = 0;
+    uint32_t nanosec = 0;
+    ret = ros_time_decode(buf, written, &sec, &nanosec);
+    assert(ret == 0);
+    printf("Decoded: %d.%09u\n", sec, nanosec);
+    assert(sec == 1234567890 && nanosec == 123456789);
+
+    printf("Time example completed successfully!\n");
 }
 
-void example_vector3() {
-    printf("\n=== Example: Vector3 Message ===\n");
-    
-    // Create a new vector
-    RosVector3* vec = ros_vector3_new();
-    if (!vec) {
-        perror("ros_vector3_new");
-        exit(1);
-    }
-    
-    // Set components
-    ros_vector3_set_x(vec, 1.5);
-    ros_vector3_set_y(vec, 2.5);
-    ros_vector3_set_z(vec, 3.5);
-    
-    // Serialize
-    uint8_t* bytes = NULL;
-    size_t len = 0;
-    if (ros_vector3_serialize(vec, &bytes, &len) != 0) {
-        perror("ros_vector3_serialize");
-        ros_vector3_free(vec);
-        exit(1);
-    }
-    printf("Serialized vector to %zu bytes\n", len);
-    
-    // Deserialize
-    RosVector3* vec2 = ros_vector3_deserialize(bytes, len);
-    if (!vec2) {
-        fprintf(stderr, "ros_vector3_deserialize failed: %s\n", strerror(errno));
-        free(bytes);
-        ros_vector3_free(vec);
-        exit(1);
-    }
-    
-    // Verify
-    double x = ros_vector3_get_x(vec2);
-    double y = ros_vector3_get_y(vec2);
-    double z = ros_vector3_get_z(vec2);
-    printf("Deserialized vector: (%.1f, %.1f, %.1f)\n", x, y, z);
-    
+void example_vector3(void) {
+    printf("\n=== Example: Vector3 (CdrFixed) ===\n");
+
+    uint8_t buf[64];
+    size_t written = 0;
+
+    // Encode Vector3 into a stack buffer
+    int ret = ros_vector3_encode(buf, sizeof(buf), &written, 1.5, 2.5, 3.5);
+    assert(ret == 0);
+    printf("Encoded Vector3: %zu CDR bytes\n", written);
+
+    // Decode
+    double x, y, z;
+    ret = ros_vector3_decode(buf, written, &x, &y, &z);
+    assert(ret == 0);
+    printf("Decoded: (%.1f, %.1f, %.1f)\n", x, y, z);
     assert(x == 1.5 && y == 2.5 && z == 3.5);
-    
-    // Cleanup
-    free(bytes);
-    ros_vector3_free(vec);
-    ros_vector3_free(vec2);
-    
+
     printf("Vector3 example completed successfully!\n");
 }
 
-void example_dmabuf() {
-    printf("\n=== Example: DmaBuf Message ===\n");
-    
-    // Create a new DmaBuf
-    EdgeFirstDmaBuffer* dmabuf = edgefirst_dmabuf_new();
-    if (!dmabuf) {
-        perror("edgefirst_dmabuf_new");
-        exit(1);
-    }
-    
-    // Set header
-    RosHeader* header = edgefirst_dmabuf_get_header_mut(dmabuf);
-    if (ros_header_set_frame_id(header, "camera0") != 0) {
-        perror("ros_header_set_frame_id");
-        edgefirst_dmabuf_free(dmabuf);
-        exit(1);
-    }
-    RosTime* stamp = ros_header_get_stamp_mut(header);
-    ros_time_set_sec(stamp, 1000);
-    ros_time_set_nanosec(stamp, 500000);
-    
-    // Set DmaBuf-specific fields
-    edgefirst_dmabuf_set_pid(dmabuf, 12345);
-    edgefirst_dmabuf_set_fd(dmabuf, 42);
-    edgefirst_dmabuf_set_width(dmabuf, 1920);
-    edgefirst_dmabuf_set_height(dmabuf, 1080);
-    edgefirst_dmabuf_set_stride(dmabuf, 1920 * 2); // YUYV format
-    edgefirst_dmabuf_set_fourcc(dmabuf, 0x56595559); // 'YUYV'
-    edgefirst_dmabuf_set_length(dmabuf, 1920 * 1080 * 2);
-    
-    // Serialize
+void example_header(void) {
+    printf("\n=== Example: Header (buffer-backed) ===\n");
+
+    // Encode a Header — allocates output bytes
     uint8_t* bytes = NULL;
     size_t len = 0;
-    if (edgefirst_dmabuf_serialize(dmabuf, &bytes, &len) != 0) {
-        perror("edgefirst_dmabuf_serialize");
-        edgefirst_dmabuf_free(dmabuf);
-        exit(1);
-    }
-    printf("Serialized DmaBuf to %zu bytes\n", len);
-    
-    // Deserialize
-    EdgeFirstDmaBuffer* dmabuf2 = edgefirst_dmabuf_deserialize(bytes, len);
-    if (!dmabuf2) {
-        fprintf(stderr, "edgefirst_dmabuf_deserialize failed: %s\n", strerror(errno));
-        free(bytes);
-        edgefirst_dmabuf_free(dmabuf);
-        exit(1);
-    }
-    
-    // Verify
-    uint32_t width = edgefirst_dmabuf_get_width(dmabuf2);
-    uint32_t height = edgefirst_dmabuf_get_height(dmabuf2);
-    uint32_t pid = edgefirst_dmabuf_get_pid(dmabuf2);
-    int32_t fd = edgefirst_dmabuf_get_fd(dmabuf2);
-    
-    printf("Deserialized DmaBuf: %ux%u, pid=%u, fd=%d\n", 
-           width, height, pid, fd);
-    
-    assert(width == 1920 && height == 1080);
-    assert(pid == 12345 && fd == 42);
-    
-    // Cleanup
-    free(bytes);
-    edgefirst_dmabuf_free(dmabuf);
-    edgefirst_dmabuf_free(dmabuf2);
-    
-    printf("DmaBuf example completed successfully!\n");
+    int ret = ros_header_encode(&bytes, &len, 1234567890, 123456789, "camera_frame");
+    assert(ret == 0);
+    printf("Encoded Header: %zu CDR bytes\n", len);
+
+    // Decode from CDR into an opaque view handle
+    ros_header_t* hdr = ros_header_from_cdr(bytes, len);
+    assert(hdr != NULL);
+
+    // Access fields — borrowed pointers, do NOT free
+    int32_t sec = ros_header_get_stamp_sec(hdr);
+    uint32_t nanosec = ros_header_get_stamp_nanosec(hdr);
+    const char* frame_id = ros_header_get_frame_id(hdr);
+
+    printf("Decoded: stamp=%d.%09u frame_id=\"%s\"\n", sec, nanosec, frame_id);
+    assert(sec == 1234567890);
+    assert(nanosec == 123456789);
+    assert(strcmp(frame_id, "camera_frame") == 0);
+
+    // Cleanup: free the handle, then the encoded bytes
+    ros_header_free(hdr);
+    ros_bytes_free(bytes, len);  // NOT free(bytes)
+
+    printf("Header example completed successfully!\n");
 }
 
-void example_image() {
-    printf("\n=== Example: Image Message ===\n");
-    
-    // Create a new image
-    RosImage* image = ros_image_new();
-    if (!image) {
-        perror("ros_image_new");
-        exit(1);
-    }
-    
-    // Set header
-    RosHeader* header = ros_image_get_header_mut(image);
-    if (ros_header_set_frame_id(header, "camera") != 0) {
-        perror("ros_header_set_frame_id");
-        ros_image_free(image);
-        exit(1);
-    }
-    
-    // Set image properties
-    ros_image_set_width(image, 640);
-    ros_image_set_height(image, 480);
-    if (ros_image_set_encoding(image, "rgb8") != 0) {
-        perror("ros_image_set_encoding");
-        ros_image_free(image);
-        exit(1);
-    }
-    ros_image_set_is_bigendian(image, 0);
-    ros_image_set_step(image, 640 * 3);
-    
-    // Create dummy image data (small for testing)
-    size_t data_size = 100;
-    uint8_t* image_data = (uint8_t*)malloc(data_size);
+void example_image(void) {
+    printf("\n=== Example: Image (buffer-backed) ===\n");
+
+    // Create dummy pixel data
+    size_t data_size = 640 * 480 * 3;  // VGA RGB8
+    uint8_t* pixel_data = (uint8_t*)malloc(data_size);
     for (size_t i = 0; i < data_size; i++) {
-        image_data[i] = (uint8_t)(i % 256);
+        pixel_data[i] = (uint8_t)(i % 256);
     }
-    
-    if (ros_image_set_data(image, image_data, data_size) != 0) {
-        perror("ros_image_set_data");
-        free(image_data);
-        ros_image_free(image);
-        exit(1);
-    }
-    free(image_data); // Can free after set_data copies it
-    
-    // Serialize
+
+    // Encode an Image — all fields in one call
     uint8_t* bytes = NULL;
     size_t len = 0;
-    if (ros_image_serialize(image, &bytes, &len) != 0) {
-        perror("ros_image_serialize");
-        ros_image_free(image);
-        exit(1);
-    }
-    printf("Serialized Image to %zu bytes\n", len);
-    
-    // Deserialize
-    RosImage* image2 = ros_image_deserialize(bytes, len);
-    if (!image2) {
-        fprintf(stderr, "ros_image_deserialize failed: %s\n", strerror(errno));
-        free(bytes);
-        ros_image_free(image);
-        exit(1);
-    }
-    
-    // Verify
-    uint32_t width = ros_image_get_width(image2);
-    uint32_t height = ros_image_get_height(image2);
-    char* encoding = ros_image_get_encoding(image2);
-    
+    int ret = ros_image_encode(&bytes, &len,
+        1000, 500000, "camera",
+        480, 640, "rgb8", 0, 640 * 3,
+        pixel_data, data_size);
+    assert(ret == 0);
+    free(pixel_data);  // Our source data, normal free
+    printf("Encoded Image: %zu CDR bytes\n", len);
+
+    // Decode from CDR
+    ros_image_t* img = ros_image_from_cdr(bytes, len);
+    assert(img != NULL);
+
+    // Access fields
+    uint32_t width = ros_image_get_width(img);
+    uint32_t height = ros_image_get_height(img);
+    const char* encoding = ros_image_get_encoding(img);  // borrowed
+
     size_t retrieved_len = 0;
-    const uint8_t* retrieved_data = ros_image_get_data(image2, &retrieved_len);
-    
-    printf("Deserialized Image: %ux%u, encoding=%s, data_len=%zu\n",
+    (void)ros_image_get_data(img, &retrieved_len);  // borrowed, used for length check
+
+    printf("Decoded: %ux%u encoding=\"%s\" data=%zu bytes\n",
            width, height, encoding, retrieved_len);
-    
+
     assert(width == 640 && height == 480);
     assert(strcmp(encoding, "rgb8") == 0);
     assert(retrieved_len == data_size);
-    
+
+    // Forward the raw CDR bytes (zero re-serialization cost)
+    size_t cdr_len;
+    const uint8_t* cdr = ros_image_as_cdr(img, &cdr_len);
+    printf("CDR bytes available for forwarding: %zu bytes at %p\n",
+           cdr_len, (const void*)cdr);
+
     // Cleanup
-    free(encoding);
-    free(bytes);
-    ros_image_free(image);
-    ros_image_free(image2);
-    
+    ros_image_free(img);
+    ros_bytes_free(bytes, len);
+
     printf("Image example completed successfully!\n");
 }
 
-void example_error_handling() {
-    printf("\n=== Example: Error Handling with errno ===\n");
-    
-    // Test NULL pointer handling
-    errno = 0;
-    if (ros_header_serialize(NULL, NULL, NULL) != 0) {
-        printf("Expected error on NULL pointers: %s\n", strerror(errno));
-        assert(errno == EINVAL);
-    }
-    
-    // Test deserialize with NULL pointer
-    errno = 0;
-    RosHeader* header = ros_header_deserialize(NULL, 100);
-    if (!header) {
-        printf("Expected error on NULL bytes: %s\n", strerror(errno));
-        assert(errno == EINVAL);
-    }
-    
-    // Test deserialize with zero length
-    errno = 0;
-    uint8_t dummy_bytes[1] = {0};
-    header = ros_header_deserialize(dummy_bytes, 0);
-    if (!header) {
-        printf("Expected error on zero length: %s\n", strerror(errno));
-        assert(errno == EINVAL);
-    }
-    
-    // Test deserialize with bad data
-    errno = 0;
-    uint8_t bad_data[10] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-    header = ros_header_deserialize(bad_data, sizeof(bad_data));
-    if (!header) {
-        printf("Expected error on bad message data: %s\n", strerror(errno));
-        assert(errno == EBADMSG);
-    }
-    
-    printf("Error handling tests completed successfully!\n");
+void example_dmabuffer(void) {
+    printf("\n=== Example: DmaBuffer (buffer-backed) ===\n");
+
+    // Encode a DmaBuffer
+    uint8_t* bytes = NULL;
+    size_t len = 0;
+    int ret = ros_dmabuffer_encode(&bytes, &len,
+        1000, 500000, "camera0",
+        12345, 42,               // pid, fd
+        1920, 1080,              // width, height
+        1920 * 2,                // stride (YUYV)
+        0x56595559,              // fourcc = 'YUYV'
+        1920 * 1080 * 2);       // length
+    assert(ret == 0);
+    printf("Encoded DmaBuffer: %zu CDR bytes\n", len);
+
+    // Decode
+    ros_dmabuffer_t* dmabuf = ros_dmabuffer_from_cdr(bytes, len);
+    assert(dmabuf != NULL);
+
+    uint32_t width = ros_dmabuffer_get_width(dmabuf);
+    uint32_t height = ros_dmabuffer_get_height(dmabuf);
+    uint32_t pid = ros_dmabuffer_get_pid(dmabuf);
+    int32_t fd = ros_dmabuffer_get_fd(dmabuf);
+
+    printf("Decoded: %ux%u pid=%u fd=%d\n", width, height, pid, fd);
+    assert(width == 1920 && height == 1080);
+    assert(pid == 12345 && fd == 42);
+
+    ros_dmabuffer_free(dmabuf);
+    ros_bytes_free(bytes, len);
+
+    printf("DmaBuffer example completed successfully!\n");
 }
 
-int main() {
+void example_error_handling(void) {
+    printf("\n=== Example: Error Handling ===\n");
+
+    // NULL data → EINVAL
+    errno = 0;
+    ros_header_t* hdr = ros_header_from_cdr(NULL, 100);
+    assert(hdr == NULL);
+    printf("NULL data: errno=%d (%s)\n", errno, strerror(errno));
+    assert(errno == EINVAL);
+
+    // Corrupt data → EBADMSG
+    errno = 0;
+    uint8_t bad[10] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    hdr = ros_header_from_cdr(bad, sizeof(bad));
+    assert(hdr == NULL);
+    printf("Bad data:  errno=%d (%s)\n", errno, strerror(errno));
+    assert(errno == EBADMSG);
+
+    // CdrFixed buffer too small → ENOBUFS
+    errno = 0;
+    uint8_t tiny[2];
+    size_t written;
+    int ret = ros_time_encode(tiny, sizeof(tiny), &written, 42, 0);
+    assert(ret == -1);
+    printf("Too small: errno=%d (%s)\n", errno, strerror(errno));
+    assert(errno == ENOBUFS);
+
+    printf("Error handling examples completed successfully!\n");
+}
+
+int main(void) {
     printf("EdgeFirst Schemas C API Examples\n");
     printf("=================================\n");
-    
-    example_header();
+
+    example_time();
     example_vector3();
-    example_dmabuf();
+    example_header();
     example_image();
+    example_dmabuffer();
     example_error_handling();
-    
+
     printf("\n=================================\n");
     printf("All examples completed successfully!\n");
-    
+
     return 0;
 }
