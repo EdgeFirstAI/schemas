@@ -274,9 +274,14 @@ All functions use POSIX `errno` conventions:
 
 | errno | Meaning |
 |-------|---------|
-| `EINVAL` | Invalid argument — NULL pointer, bad UTF-8, zero length |
+| `EINVAL` | NULL pointer passed where non-NULL is required |
 | `ENOBUFS` | Buffer too small (CdrFixed `_encode` with insufficient capacity) |
-| `EBADMSG` | CDR decoding failure — corrupted or truncated data |
+| `EBADMSG` | CDR decoding failure — corrupted, truncated, or zero-length data |
+
+**Note on string inputs:** Invalid UTF-8 in C string arguments (e.g.,
+`frame_id`, `encoding`) is silently coerced to an empty string `""` rather
+than returning an error. This matches the convention that C callers passing
+a non-NULL `const char*` expect the call to succeed.
 
 ```c
 #include <errno.h>
@@ -285,7 +290,7 @@ All functions use POSIX `errno` conventions:
 ros_header_t* hdr = ros_header_from_cdr(data, len);
 if (!hdr) {
     fprintf(stderr, "decode failed: %s\n", strerror(errno));
-    // errno == EBADMSG for corrupt data, EINVAL for NULL data
+    // errno == EINVAL for NULL data pointer, EBADMSG for anything else
 }
 ```
 
