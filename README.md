@@ -127,22 +127,19 @@ EdgeFirst Schemas uses [CDR (Common Data Representation)](https://www.omg.org/sp
 **Rust - Serializing and Deserializing Messages:**
 
 ```rust
-use edgefirst_schemas::std_msgs::Header;
 use edgefirst_schemas::builtin_interfaces::Time;
-use edgefirst_schemas::serde_cdr::{serialize, deserialize};
+use edgefirst_schemas::std_msgs::Header;
 
-// Create a message
-let header = Header {
-    stamp: Time { sec: 1234567890, nanosec: 123456789 },
-    frame_id: "camera_frame".to_string(),
-};
+let stamp = Time { sec: 1234567890, nanosec: 123456789 };
 
-// Serialize to CDR bytes (for network transmission)
-let bytes = serialize(&header).expect("serialization failed");
+// Buffer-backed zero-copy construction
+let header = Header::new(stamp, "camera_frame").unwrap();
+let bytes = header.to_cdr();
 
-// Deserialize from CDR bytes (received from network)
-let decoded: Header = deserialize(&bytes).expect("deserialization failed");
-assert_eq!(header, decoded);
+// Deserialize from CDR bytes (zero-copy)
+let decoded = Header::from_cdr(&bytes[..]).unwrap();
+assert_eq!(decoded.stamp(), stamp);
+assert_eq!(decoded.frame_id(), "camera_frame");
 ```
 
 ### Building from Source

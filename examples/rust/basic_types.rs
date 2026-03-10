@@ -3,263 +3,128 @@
 
 //! Basic Types Example
 //!
-//! Demonstrates fundamental ROS2 message types including:
-//! - builtin_interfaces (Time, Duration)
-//! - std_msgs (Header, ColorRGBA)
-//! - geometry_msgs (Vector3, Point, Quaternion, Pose, Transform)
+//! Demonstrates EdgeFirst Schemas CDR serialization patterns:
+//! - CdrFixed types: compile-time sized, value semantics (Time, Vector3, Pose, ColorRGBA)
+//! - Buffer-backed types: zero-copy views over CDR byte buffers (Header, Image)
+//!
+//! The library uses CDR1 Little-Endian wire format, compatible with ROS 2 DDS.
 
-use edgefirst_schemas::builtin_interfaces::{Duration, Time};
+use edgefirst_schemas::builtin_interfaces::Time;
+use edgefirst_schemas::cdr::{decode_fixed, encode_fixed};
 use edgefirst_schemas::geometry_msgs::{Point, Pose, Quaternion, Transform, Vector3};
+use edgefirst_schemas::sensor_msgs::Image;
 use edgefirst_schemas::std_msgs::{ColorRGBA, Header};
 
-fn example_time() {
-    println!("=== Example: Time ===");
+/// CdrFixed types: fixed-size structs serialized with encode_fixed/decode_fixed.
+fn example_fixed_types() {
+    println!("=== CdrFixed Types ===\n");
 
-    // Create a timestamp
-    let time = Time {
-        sec: 1234567890,
-        nanosec: 123456789,
-    };
+    // Time — 8 bytes on the wire (i32 sec + u32 nanosec)
+    let time = Time::new(1234567890, 123456789);
+    let bytes = encode_fixed(&time).unwrap();
+    let decoded: Time = decode_fixed(&bytes).unwrap();
+    assert_eq!(time, decoded);
+    println!("Time:       {}.{:09}s  ({} CDR bytes)", time.sec, time.nanosec, bytes.len());
 
-    println!("Time: {}.{:09} seconds", time.sec, time.nanosec);
-    println!("Time (debug): {:?}\n", time);
-}
+    // Vector3 — 24 bytes (3 × f64)
+    let vel = Vector3 { x: 1.5, y: 2.0, z: 0.5 };
+    let bytes = encode_fixed(&vel).unwrap();
+    let decoded: Vector3 = decode_fixed(&bytes).unwrap();
+    assert_eq!(vel, decoded);
+    let mag = (vel.x * vel.x + vel.y * vel.y + vel.z * vel.z).sqrt();
+    println!("Vector3:    ({}, {}, {})  mag={:.3}  ({} bytes)", vel.x, vel.y, vel.z, mag, bytes.len());
 
-fn example_duration() {
-    println!("=== Example: Duration ===");
-
-    // Create a duration (5.5 seconds)
-    let duration = Duration {
-        sec: 5,
-        nanosec: 500_000_000,
-    };
-
-    let total_ns = duration.sec as i64 * 1_000_000_000 + duration.nanosec as i64;
-    println!(
-        "Duration: {} seconds ({} nanoseconds)\n",
-        total_ns as f64 / 1e9,
-        total_ns
-    );
-}
-
-fn example_header() {
-    println!("=== Example: Header ===");
-
-    // Create a header with timestamp and frame ID
-    let header = Header {
-        stamp: Time {
-            sec: 1234567890,
-            nanosec: 123456789,
-        },
-        frame_id: "camera_optical_frame".to_string(),
-    };
-
-    println!("Header:");
-    println!(
-        "  timestamp: {}.{:09}",
-        header.stamp.sec, header.stamp.nanosec
-    );
-    println!("  frame_id: {}\n", header.frame_id);
-
-    // Using default values
-    let empty_header = Header {
-        stamp: Time { sec: 0, nanosec: 0 },
-        frame_id: String::new(),
-    };
-    println!("Empty header: {:?}\n", empty_header);
-}
-
-fn example_color() {
-    println!("=== Example: ColorRGBA ===");
-
-    // Create colors
-    let red = ColorRGBA {
-        r: 1.0,
-        g: 0.0,
-        b: 0.0,
-        a: 1.0,
-    };
-
-    let transparent_blue = ColorRGBA {
-        r: 0.0,
-        g: 0.0,
-        b: 1.0,
-        a: 0.5,
-    };
-
-    println!("Red: {:?}", red);
-    println!("Transparent blue: {:?}\n", transparent_blue);
-}
-
-fn example_vector3() {
-    println!("=== Example: Vector3 ===");
-
-    let velocity = Vector3 {
-        x: 1.5,
-        y: 2.0,
-        z: 0.5,
-    };
-
-    // Calculate magnitude
-    let magnitude = (velocity.x.powi(2) + velocity.y.powi(2) + velocity.z.powi(2)).sqrt();
-
-    println!(
-        "Velocity vector: ({}, {}, {})",
-        velocity.x, velocity.y, velocity.z
-    );
-    println!("Magnitude: {:.3}\n", magnitude);
-}
-
-fn example_point() {
-    println!("=== Example: Point ===");
-
-    let origin = Point {
-        x: 0.0,
-        y: 0.0,
-        z: 0.0,
-    };
-
-    let target = Point {
-        x: 10.0,
-        y: 5.0,
-        z: 2.0,
-    };
-
-    // Calculate distance
-    let dx = target.x - origin.x;
-    let dy = target.y - origin.y;
-    let dz = target.z - origin.z;
-    let distance = (dx * dx + dy * dy + dz * dz).sqrt();
-
-    println!("Origin: {:?}", origin);
-    println!("Target: {:?}", target);
-    println!("Distance: {:.3}\n", distance);
-}
-
-fn example_quaternion() {
-    println!("=== Example: Quaternion ===");
-
-    // Identity quaternion (no rotation)
-    let identity = Quaternion {
-        x: 0.0,
-        y: 0.0,
-        z: 0.0,
-        w: 1.0,
-    };
-
-    // 90 degree rotation around Z axis
-    let rotation_z_90 = Quaternion {
-        x: 0.0,
-        y: 0.0,
-        z: 0.707, // sin(45°)
-        w: 0.707, // cos(45°)
-    };
-
-    println!("Identity rotation: {:?}", identity);
-    println!("90° Z rotation: {:?}\n", rotation_z_90);
-}
-
-fn example_pose() {
-    println!("=== Example: Pose ===");
-
+    // Pose — 56 bytes (Point 24 + Quaternion 32)
     let pose = Pose {
-        position: Point {
-            x: 1.0,
-            y: 2.0,
-            z: 0.5,
-        },
-        orientation: Quaternion {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-            w: 1.0,
-        },
+        position: Point { x: 1.0, y: 2.0, z: 0.5 },
+        orientation: Quaternion { x: 0.0, y: 0.0, z: 0.707, w: 0.707 },
     };
+    let bytes = encode_fixed(&pose).unwrap();
+    let decoded: Pose = decode_fixed(&bytes).unwrap();
+    assert_eq!(pose, decoded);
+    println!("Pose:       pos=({},{},{}) quat=({},{},{},{})  ({} bytes)",
+        pose.position.x, pose.position.y, pose.position.z,
+        pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w,
+        bytes.len());
 
-    println!("Pose:");
-    println!(
-        "  position: ({}, {}, {})",
-        pose.position.x, pose.position.y, pose.position.z
-    );
-    println!(
-        "  orientation: ({}, {}, {}, {})\n",
-        pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w
-    );
+    // Transform — 56 bytes
+    let tf = Transform {
+        translation: Vector3 { x: 1.0, y: 2.0, z: 0.5 },
+        rotation: Quaternion { x: 0.0, y: 0.0, z: 0.0, w: 1.0 },
+    };
+    let bytes = encode_fixed(&tf).unwrap();
+    let decoded: Transform = decode_fixed(&bytes).unwrap();
+    assert_eq!(tf, decoded);
+    println!("Transform:  ({} bytes)", bytes.len());
+
+    // ColorRGBA — 16 bytes (4 × f32)
+    let color = ColorRGBA { r: 1.0, g: 0.0, b: 0.0, a: 1.0 };
+    let bytes = encode_fixed(&color).unwrap();
+    let decoded: ColorRGBA = decode_fixed(&bytes).unwrap();
+    assert_eq!(color, decoded);
+    println!("ColorRGBA:  r={} g={} b={} a={}  ({} bytes)\n", color.r, color.g, color.b, color.a, bytes.len());
 }
 
-fn example_transform() {
-    println!("=== Example: Transform ===");
+/// Buffer-backed types: generic over B: AsRef<[u8]>, wrapping a CDR byte buffer.
+/// Construction scans the buffer once to build a small offset table for O(1) field access.
+fn example_buffer_backed_types() {
+    println!("=== Buffer-Backed Types ===\n");
 
-    let transform = Transform {
-        translation: Vector3 {
-            x: 1.0,
-            y: 2.0,
-            z: 0.5,
-        },
-        rotation: Quaternion {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-            w: 1.0,
-        },
-    };
+    // Header<Vec<u8>> — owned buffer, constructed with new()
+    let stamp = Time::new(1234567890, 123456789);
+    let header = Header::new(stamp, "camera_optical_frame").unwrap();
+    println!("Header:     stamp={}.{:09}  frame_id=\"{}\"  ({} CDR bytes)",
+        header.stamp().sec, header.stamp().nanosec, header.frame_id(), header.cdr_size());
 
-    println!("Transform:");
-    println!(
-        "  translation: ({}, {}, {})",
-        transform.translation.x, transform.translation.y, transform.translation.z
-    );
-    println!(
-        "  rotation: ({}, {}, {}, {})\n",
-        transform.rotation.x, transform.rotation.y, transform.rotation.z, transform.rotation.w
-    );
+    // Round-trip: to_cdr() serializes, from_cdr() deserializes
+    let cdr_bytes = header.to_cdr();
+    let decoded = Header::from_cdr(cdr_bytes).unwrap();
+    assert_eq!(decoded.stamp(), stamp);
+    assert_eq!(decoded.frame_id(), "camera_optical_frame");
+    println!("            round-trip OK");
+
+    // Zero-copy borrow: from_cdr(&[u8]) borrows the buffer without copying
+    let owned_bytes = header.to_cdr();
+    let borrowed = Header::from_cdr(owned_bytes.as_slice()).unwrap();
+    assert_eq!(borrowed.frame_id(), "camera_optical_frame");
+    println!("            zero-copy borrow OK");
+
+    // Image<Vec<u8>> — larger buffer-backed type
+    let pixel_data = vec![128u8; 640 * 480 * 3]; // VGA RGB8
+    let img = Image::new(stamp, "camera", 480, 640, "rgb8", 0, 640 * 3, &pixel_data).unwrap();
+    println!("\nImage:      {}x{} encoding=\"{}\"  data={} bytes  CDR={} bytes",
+        img.width(), img.height(), img.encoding(), img.data().len(), img.cdr_size());
+
+    // Round-trip
+    let cdr_bytes = img.to_cdr();
+    let decoded = Image::from_cdr(cdr_bytes).unwrap();
+    assert_eq!(decoded.width(), 640);
+    assert_eq!(decoded.height(), 480);
+    assert_eq!(decoded.encoding(), "rgb8");
+    assert_eq!(decoded.data().len(), 640 * 480 * 3);
+    println!("            round-trip OK\n");
 }
 
-fn example_serialization() {
-    println!("=== Example: CDR Serialization ===");
+/// Mutation: buffer-backed types with mutable/owned buffers support in-place field updates.
+fn example_mutation() {
+    println!("=== Mutation ===\n");
 
-    use edgefirst_schemas::serde_cdr::{deserialize, serialize};
+    let mut header = Header::new(Time::new(0, 0), "test").unwrap();
+    println!("Before:     stamp={}.{:09}", header.stamp().sec, header.stamp().nanosec);
 
-    let header = Header {
-        stamp: Time {
-            sec: 1234567890,
-            nanosec: 123456789,
-        },
-        frame_id: "test_frame".to_string(),
-    };
-
-    // Serialize to CDR bytes (ROS2-compatible little-endian format)
-    let bytes = serialize(&header).expect("Serialization failed");
-    println!("Serialized header to {} bytes", bytes.len());
-
-    // Deserialize from CDR bytes
-    let decoded: Header = deserialize(&bytes).expect("Deserialization failed");
-
-    // Verify round-trip
-    assert_eq!(header.stamp.sec, decoded.stamp.sec);
-    assert_eq!(header.stamp.nanosec, decoded.stamp.nanosec);
-    assert_eq!(header.frame_id, decoded.frame_id);
-
-    println!("Round-trip successful!");
-    println!("  Original:    {:?}", header);
-    println!("  Deserialized: {:?}\n", decoded);
+    header.set_stamp(Time::new(42, 123)).unwrap();
+    println!("After:      stamp={}.{:09}\n", header.stamp().sec, header.stamp().nanosec);
+    assert_eq!(header.stamp(), Time::new(42, 123));
 }
 
 fn main() {
-    println!("EdgeFirst Schemas - Basic Types Examples");
-    println!("==========================================\n");
+    println!("EdgeFirst Schemas - CDR Serialization Examples");
+    println!("===============================================\n");
 
-    example_time();
-    example_duration();
-    example_header();
-    example_color();
-    example_vector3();
-    example_point();
-    example_quaternion();
-    example_pose();
-    example_transform();
-    example_serialization();
+    example_fixed_types();
+    example_buffer_backed_types();
+    example_mutation();
 
-    println!("==========================================");
+    println!("===============================================");
     println!("All examples completed successfully!");
 }

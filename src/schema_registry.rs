@@ -12,10 +12,10 @@
 //!
 //! ```rust
 //! use edgefirst_schemas::schema_registry::{SchemaType, is_supported};
-//! use edgefirst_schemas::sensor_msgs::Image;
+//! use edgefirst_schemas::sensor_msgs::NavSatStatus;
 //!
 //! // Get schema name from type
-//! assert_eq!(Image::SCHEMA_NAME, "sensor_msgs/msg/Image");
+//! assert_eq!(NavSatStatus::SCHEMA_NAME, "sensor_msgs/msg/NavSatStatus");
 //!
 //! // Check if schema is supported
 //! assert!(is_supported("sensor_msgs/msg/Image"));
@@ -25,12 +25,11 @@
 use crate::{
     builtin_interfaces, edgefirst_msgs, foxglove_msgs, geometry_msgs, sensor_msgs, std_msgs,
 };
-use serde::{de::DeserializeOwned, Serialize};
 
 /// Trait for types that have a schema name.
 ///
 /// All message types implement this trait to provide their ROS2 schema name.
-pub trait SchemaType: Serialize + DeserializeOwned {
+pub trait SchemaType {
     /// The ROS2 schema name (e.g., "sensor_msgs/msg/Image")
     const SCHEMA_NAME: &'static str;
 
@@ -130,14 +129,20 @@ mod tests {
 
     #[test]
     fn test_schema_name_trait() {
-        assert_eq!(sensor_msgs::Image::SCHEMA_NAME, "sensor_msgs/msg/Image");
+        assert_eq!(
+            sensor_msgs::NavSatStatus::SCHEMA_NAME,
+            "sensor_msgs/msg/NavSatStatus"
+        );
         assert_eq!(geometry_msgs::Pose::SCHEMA_NAME, "geometry_msgs/msg/Pose");
-        assert_eq!(edgefirst_msgs::Box::SCHEMA_NAME, "edgefirst_msgs/msg/Box");
+        assert_eq!(edgefirst_msgs::Date::SCHEMA_NAME, "edgefirst_msgs/msg/Date");
     }
 
     #[test]
     fn test_schema_name_method() {
-        assert_eq!(sensor_msgs::Image::schema_name(), "sensor_msgs/msg/Image");
+        assert_eq!(
+            sensor_msgs::NavSatStatus::schema_name(),
+            "sensor_msgs/msg/NavSatStatus"
+        );
     }
 
     #[test]

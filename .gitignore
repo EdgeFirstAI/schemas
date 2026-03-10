@@ -47,8 +47,8 @@ env.sh
 # Local TODO tracking (mirrored in JIRA)
 TODO*.md
 
-# Test data recordings (large binary files)
-testdata/
+# Test data recordings (large binary files tracked via Git LFS)
+# testdata/  — now tracked; see .gitattributes for LFS rules
 
 # Compiled C examples
 examples/c/example

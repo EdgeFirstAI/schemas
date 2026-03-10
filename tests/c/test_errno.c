@@ -1,290 +1,321 @@
 /**
  * @file test_errno.c
  * @brief Criterion tests for errno error handling across all message types
+ *
+ * Tests error behaviour for the v2 buffer-view API:
+ *   - CdrFixed encode/decode: EBADMSG on bad data, ENOBUFS on small buffer
+ *   - Buffer-backed from_cdr: EINVAL for NULL, EBADMSG for invalid CDR
+ *   - NULL pointer safety on all getters
  */
 
 #include <criterion/criterion.h>
 #include <errno.h>
 #include <string.h>
-#include <stdlib.h>
+#include <stdint.h>
 #include "edgefirst/schemas.h"
 
 // ============================================================================
-// Serialization Errno Tests
+// CdrFixed encode errno tests
 // ============================================================================
 
-Test(errno_handling, serialize_null_pointer) {
-    uint8_t *buffer = NULL;
-    size_t len = 0;
+Test(errno_handling, encode_buffer_too_small) {
+    uint8_t buf[2]; // Way too small for any type
+    size_t written = 0;
 
     errno = 0;
-    int ret = ros_header_serialize(NULL, &buffer, &len);
-    cr_assert_eq(ret, -1, "Should return -1 for NULL pointer");
-    cr_assert_eq(errno, EINVAL, "errno should be EINVAL");
+    int ret = ros_time_encode(buf, sizeof(buf), &written, 1, 2);
+    cr_assert_eq(ret, -1, "Should return -1 for small buffer");
+    cr_assert_eq(errno, ENOBUFS, "errno should be ENOBUFS");
 }
 
-Test(errno_handling, serialize_null_output_buffer) {
-    RosHeader *header = ros_header_new();
-    cr_assert_not_null(header);
-    size_t len = 0;
+Test(errno_handling, encode_size_query_succeeds) {
+    size_t written = 0;
 
+    // NULL buffer should succeed as a size query
     errno = 0;
-    int ret = ros_header_serialize(header, NULL, &len);
-    cr_assert_eq(ret, -1, "Should return -1 for NULL output buffer");
-    cr_assert_eq(errno, EINVAL, "errno should be EINVAL");
-
-    ros_header_free(header);
-}
-
-Test(errno_handling, serialize_null_output_len) {
-    RosHeader *header = ros_header_new();
-    cr_assert_not_null(header);
-    uint8_t *buffer = NULL;
-
-    errno = 0;
-    int ret = ros_header_serialize(header, &buffer, NULL);
-    cr_assert_eq(ret, -1, "Should return -1 for NULL output length");
-    cr_assert_eq(errno, EINVAL, "errno should be EINVAL");
-
-    ros_header_free(header);
+    int ret = ros_time_encode(NULL, 0, &written, 1, 2);
+    cr_assert_eq(ret, 0, "Size query should succeed");
+    cr_assert_gt(written, 0);
 }
 
 // ============================================================================
-// Deserialization Errno Tests
+// CdrFixed decode errno tests
 // ============================================================================
 
-Test(errno_handling, deserialize_null_buffer) {
+Test(errno_handling, decode_null_data) {
+    int32_t sec;
+    uint32_t nanosec;
+
     errno = 0;
-    RosHeader *header = ros_header_deserialize(NULL, 100);
-    cr_assert_null(header, "Should return NULL for NULL buffer");
+    int ret = ros_time_decode(NULL, 100, &sec, &nanosec);
+    cr_assert_eq(ret, -1, "Should return -1 for NULL data");
+    cr_assert_eq(errno, EBADMSG, "errno should be EBADMSG");
+}
+
+Test(errno_handling, decode_too_short) {
+    uint8_t buf[2] = {0x00, 0x01};
+
+    errno = 0;
+    int32_t sec;
+    uint32_t nanosec;
+    int ret = ros_time_decode(buf, sizeof(buf), &sec, &nanosec);
+    cr_assert_eq(ret, -1, "Should return -1 for truncated data");
+    cr_assert_eq(errno, EBADMSG, "errno should be EBADMSG");
+}
+
+Test(errno_handling, decode_truncated_vector3) {
+    // Encode valid data, then try to decode with truncated buffer
+    uint8_t buf[128];
+    size_t written = 0;
+
+    int ret = ros_vector3_encode(buf, sizeof(buf), &written, 1.0, 2.0, 3.0);
+    cr_assert_eq(ret, 0);
+    cr_assert_gt(written, 4);
+
+    double x, y, z;
+    errno = 0;
+    ret = ros_vector3_decode(buf, 4, &x, &y, &z);
+    cr_assert_eq(ret, -1, "Should return -1 for truncated data");
+    cr_assert_eq(errno, EBADMSG, "errno should be EBADMSG");
+}
+
+// ============================================================================
+// Buffer-backed from_cdr errno tests
+// ============================================================================
+
+Test(errno_handling, from_cdr_null_header) {
+    errno = 0;
+    ros_header_t *handle = ros_header_from_cdr(NULL, 100);
+    cr_assert_null(handle, "Should return NULL for NULL data");
     cr_assert_eq(errno, EINVAL, "errno should be EINVAL");
 }
 
-Test(errno_handling, deserialize_zero_length) {
-    uint8_t buffer[10] = {0};
-
-    errno = 0;
-    RosHeader *header = ros_header_deserialize(buffer, 0);
-    cr_assert_null(header, "Should return NULL for zero length");
-    cr_assert_eq(errno, EINVAL, "errno should be EINVAL");
-}
-
-Test(errno_handling, deserialize_invalid_data) {
+Test(errno_handling, from_cdr_invalid_header) {
     uint8_t bad_data[4] = {0xFF, 0xFF, 0xFF, 0xFF};
 
     errno = 0;
-    RosHeader *header = ros_header_deserialize(bad_data, 4);
-    cr_assert_null(header, "Should return NULL for invalid data");
+    ros_header_t *handle = ros_header_from_cdr(bad_data, sizeof(bad_data));
+    cr_assert_null(handle, "Should return NULL for invalid CDR");
     cr_assert_eq(errno, EBADMSG, "errno should be EBADMSG");
 }
 
-Test(errno_handling, deserialize_truncated_data) {
-    // Serialize a valid message
-    RosVector3 *original = ros_vector3_new();
-    cr_assert_not_null(original);
-    ros_vector3_set_x(original, 1.0);
-    ros_vector3_set_y(original, 2.0);
-    ros_vector3_set_z(original, 3.0);
-
-    uint8_t *buffer = NULL;
-    size_t len = 0;
-
-    int ret = ros_vector3_serialize(original, &buffer, &len);
-    cr_assert_eq(ret, 0);
-    cr_assert_gt(len, 4);
-
-    // Try to deserialize with truncated buffer
+Test(errno_handling, from_cdr_null_compressed_image) {
     errno = 0;
-    RosVector3 *deserialized = ros_vector3_deserialize(buffer, 4);
-    cr_assert_null(deserialized, "Should return NULL for truncated data");
-    cr_assert_eq(errno, EBADMSG, "errno should be EBADMSG");
+    ros_compressed_image_t *handle = ros_compressed_image_from_cdr(NULL, 100);
+    cr_assert_null(handle);
+    cr_assert_eq(errno, EINVAL);
+}
 
-    ros_vector3_free(original);
-    free(buffer);
+Test(errno_handling, from_cdr_null_compressed_video) {
+    errno = 0;
+    ros_compressed_video_t *handle = ros_compressed_video_from_cdr(NULL, 100);
+    cr_assert_null(handle);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(errno_handling, from_cdr_null_mask) {
+    errno = 0;
+    ros_mask_t *handle = ros_mask_from_cdr(NULL, 100);
+    cr_assert_null(handle);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(errno_handling, from_cdr_null_dmabuffer) {
+    errno = 0;
+    ros_dmabuffer_t *handle = ros_dmabuffer_from_cdr(NULL, 100);
+    cr_assert_null(handle);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(errno_handling, from_cdr_null_imu) {
+    errno = 0;
+    ros_imu_t *handle = ros_imu_from_cdr(NULL, 100);
+    cr_assert_null(handle);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(errno_handling, from_cdr_null_nav_sat_fix) {
+    errno = 0;
+    ros_nav_sat_fix_t *handle = ros_nav_sat_fix_from_cdr(NULL, 100);
+    cr_assert_null(handle);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(errno_handling, from_cdr_null_transform_stamped) {
+    errno = 0;
+    ros_transform_stamped_t *handle = ros_transform_stamped_from_cdr(NULL, 100);
+    cr_assert_null(handle);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(errno_handling, from_cdr_null_detect) {
+    errno = 0;
+    ros_detect_t *handle = ros_detect_from_cdr(NULL, 100);
+    cr_assert_null(handle);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(errno_handling, from_cdr_null_model) {
+    errno = 0;
+    ros_model_t *handle = ros_model_from_cdr(NULL, 100);
+    cr_assert_null(handle);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(errno_handling, from_cdr_null_model_info) {
+    errno = 0;
+    ros_model_info_t *handle = ros_model_info_from_cdr(NULL, 100);
+    cr_assert_null(handle);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(errno_handling, from_cdr_null_point_cloud2) {
+    errno = 0;
+    ros_point_cloud2_t *handle = ros_point_cloud2_from_cdr(NULL, 100);
+    cr_assert_null(handle);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(errno_handling, from_cdr_null_camera_info) {
+    errno = 0;
+    ros_camera_info_t *handle = ros_camera_info_from_cdr(NULL, 100);
+    cr_assert_null(handle);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(errno_handling, from_cdr_null_track) {
+    errno = 0;
+    ros_track_t *handle = ros_track_from_cdr(NULL, 100);
+    cr_assert_null(handle);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(errno_handling, from_cdr_null_box) {
+    errno = 0;
+    ros_box_t *handle = ros_box_from_cdr(NULL, 100);
+    cr_assert_null(handle);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(errno_handling, from_cdr_null_local_time) {
+    errno = 0;
+    ros_local_time_t *handle = ros_local_time_from_cdr(NULL, 100);
+    cr_assert_null(handle);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(errno_handling, from_cdr_null_radar_cube) {
+    errno = 0;
+    ros_radar_cube_t *handle = ros_radar_cube_from_cdr(NULL, 100);
+    cr_assert_null(handle);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(errno_handling, from_cdr_null_radar_info) {
+    errno = 0;
+    ros_radar_info_t *handle = ros_radar_info_from_cdr(NULL, 100);
+    cr_assert_null(handle);
+    cr_assert_eq(errno, EINVAL);
 }
 
 // ============================================================================
-// Setter Errno Tests
+// NULL pointer safety on getters
 // ============================================================================
 
-Test(errno_handling, set_frame_id_null_header) {
+Test(errno_handling, getter_null_time) {
+    // CdrFixed decode with NULL should return -1/EBADMSG
+    int32_t sec;
+    uint32_t nanosec;
     errno = 0;
-    int ret = ros_header_set_frame_id(NULL, "test");
-    cr_assert_eq(ret, -1, "Should return -1 for NULL header");
-    cr_assert_eq(errno, EINVAL, "errno should be EINVAL");
+    int ret = ros_time_decode(NULL, 8, &sec, &nanosec);
+    cr_assert_eq(ret, -1);
+    cr_assert_eq(errno, EBADMSG);
 }
 
-Test(errno_handling, set_frame_id_null_string) {
-    RosHeader *header = ros_header_new();
-    cr_assert_not_null(header);
-
-    errno = 0;
-    int ret = ros_header_set_frame_id(header, NULL);
-    cr_assert_eq(ret, -1, "Should return -1 for NULL string");
-    cr_assert_eq(errno, EINVAL, "errno should be EINVAL");
-
-    ros_header_free(header);
+Test(errno_handling, getter_null_header) {
+    cr_assert_eq(ros_header_get_stamp_sec(NULL), 0);
+    cr_assert_eq(ros_header_get_stamp_nanosec(NULL), 0);
+    cr_assert_null(ros_header_get_frame_id(NULL));
 }
 
-Test(errno_handling, set_label_null_detectbox2d) {
-    errno = 0;
-    int ret = edgefirst_box_set_label(NULL, "person");
-    cr_assert_eq(ret, -1, "Should return -1 for NULL detectbox2d");
-    cr_assert_eq(errno, EINVAL, "errno should be EINVAL");
+Test(errno_handling, getter_null_image) {
+    cr_assert_eq(ros_image_get_height(NULL), 0);
+    cr_assert_eq(ros_image_get_width(NULL), 0);
+    cr_assert_null(ros_image_get_encoding(NULL));
+    cr_assert_null(ros_image_get_data(NULL, NULL));
 }
 
-Test(errno_handling, set_encoding_null_mask) {
-    errno = 0;
-    int ret = edgefirst_mask_set_encoding(NULL, "zstd");
-    cr_assert_eq(ret, -1, "Should return -1 for NULL mask");
-    cr_assert_eq(errno, EINVAL, "errno should be EINVAL");
-}
-
-Test(errno_handling, set_data_null_mask) {
-    uint8_t data[10] = {0};
-
-    errno = 0;
-    int ret = edgefirst_mask_set_mask(NULL, data, 10);
-    cr_assert_eq(ret, -1, "Should return -1 for NULL mask");
-    cr_assert_eq(errno, EINVAL, "errno should be EINVAL");
-}
-
-Test(errno_handling, set_data_null_buffer) {
-    EdgeFirstMask *mask = edgefirst_mask_new();
-    cr_assert_not_null(mask);
-
-    errno = 0;
-    int ret = edgefirst_mask_set_mask(mask, NULL, 10);
-    cr_assert_eq(ret, -1, "Should return -1 for NULL data buffer");
-    cr_assert_eq(errno, EINVAL, "errno should be EINVAL");
-
-    edgefirst_mask_free(mask);
-}
-
-Test(errno_handling, set_covariance_null_navsatfix) {
-    double covariance[9] = {0};
-
-    errno = 0;
-    int ret = ros_nav_sat_fix_set_position_covariance(NULL, covariance);
-    cr_assert_eq(ret, -1, "Should return -1 for NULL NavSatFix");
-    cr_assert_eq(errno, EINVAL, "errno should be EINVAL");
-}
-
-Test(errno_handling, set_covariance_null_array) {
-    RosNavSatFix *fix = ros_nav_sat_fix_new();
-    cr_assert_not_null(fix);
-
-    errno = 0;
-    int ret = ros_nav_sat_fix_set_position_covariance(fix, NULL);
-    cr_assert_eq(ret, -1, "Should return -1 for NULL covariance array");
-    cr_assert_eq(errno, EINVAL, "errno should be EINVAL");
-
-    ros_nav_sat_fix_free(fix);
+Test(errno_handling, getter_null_mask) {
+    cr_assert_eq(ros_mask_get_height(NULL), 0);
+    cr_assert_eq(ros_mask_get_width(NULL), 0);
+    cr_assert_null(ros_mask_get_encoding(NULL));
+    cr_assert_null(ros_mask_get_data(NULL, NULL));
+    cr_assert_eq(ros_mask_get_boxed(NULL), false);
 }
 
 // ============================================================================
-// Getter Errno Tests (NULL pointer safety)
-// ============================================================================
-
-Test(errno_handling, get_primitive_null_pointer) {
-    // Primitive getters should handle NULL gracefully (return 0 or default)
-    // Note: These don't set errno, they just return safe defaults
-    int32_t sec = ros_time_get_sec(NULL);
-    cr_assert_eq(sec, 0, "Should return 0 for NULL pointer");
-
-    uint32_t nanosec = ros_time_get_nanosec(NULL);
-    cr_assert_eq(nanosec, 0, "Should return 0 for NULL pointer");
-}
-
-Test(errno_handling, get_array_null_pointer) {
-    size_t len = 999;
-    const uint8_t *data = edgefirst_mask_get_mask(NULL, &len);
-    cr_assert_null(data, "Should return NULL for NULL pointer");
-    cr_assert_eq(len, 0, "Length should be set to 0");
-}
-
-Test(errno_handling, get_array_null_length_output) {
-    EdgeFirstMask *mask = edgefirst_mask_new();
-    cr_assert_not_null(mask);
-
-    const uint8_t *data = edgefirst_mask_get_mask(mask, NULL);
-    cr_assert_null(data, "Should return NULL when length output is NULL");
-
-    edgefirst_mask_free(mask);
-}
-
-// ============================================================================
-// Multiple Error Scenarios
+// Sequential error recovery
 // ============================================================================
 
 Test(errno_handling, sequential_errors) {
-    // Test that errno is properly set for each error
-
-    // First error
+    // First error: NULL decode
     errno = 0;
-    RosHeader *header1 = ros_header_deserialize(NULL, 10);
-    cr_assert_null(header1);
-    cr_assert_eq(errno, EINVAL);
-
-    // Second error (different type)
-    errno = 0;
-    RosVector3 *vec = ros_vector3_deserialize(NULL, 20);
-    cr_assert_null(vec);
-    cr_assert_eq(errno, EINVAL);
-
-    // Third error (setter)
-    errno = 0;
-    int ret = ros_header_set_frame_id(NULL, "test");
+    int32_t sec;
+    uint32_t nanosec;
+    int ret = ros_time_decode(NULL, 8, &sec, &nanosec);
     cr_assert_eq(ret, -1);
-    cr_assert_eq(errno, EINVAL);
-}
+    cr_assert_eq(errno, EBADMSG);
 
-Test(errno_handling, error_then_success) {
-    // Test that successful operations don't set errno
-
-    // Cause an error
+    // Second error: NULL from_cdr
     errno = 0;
-    RosHeader *header = ros_header_deserialize(NULL, 10);
-    cr_assert_null(header);
+    ros_header_t *handle = ros_header_from_cdr(NULL, 100);
+    cr_assert_null(handle);
     cr_assert_eq(errno, EINVAL);
 
-    // Clear errno manually (libraries should not clear errno)
+    // Third error: buffer too small
+    uint8_t buf[2];
+    size_t written;
     errno = 0;
-
-    // Successful operation (should not touch errno)
-    RosTime *valid = ros_time_new();
-    cr_assert_not_null(valid);
-    cr_assert_eq(errno, 0, "Successful operation should not set errno");
-
-    ros_time_free(valid);
+    ret = ros_vector3_encode(buf, sizeof(buf), &written, 1.0, 2.0, 3.0);
+    cr_assert_eq(ret, -1);
+    cr_assert_eq(errno, ENOBUFS);
 }
 
 // ============================================================================
-// Destructor NULL Safety Tests
+// Destructor NULL safety
 // ============================================================================
 
-Test(errno_handling, destroy_null_pointer) {
-    // All destroy/free functions should safely handle NULL
-    // These should not crash or set errno
-    ros_time_free(NULL);
-    ros_duration_free(NULL);
+Test(errno_handling, free_null_all_types) {
+    // All free functions should safely handle NULL
     ros_header_free(NULL);
-    ros_vector3_free(NULL);
-    ros_point_free(NULL);
-    ros_quaternion_free(NULL);
-    ros_color_rgba_free(NULL);
-    edgefirst_track_free(NULL);
-    edgefirst_box_free(NULL);
-    edgefirst_detect_free(NULL);
-    edgefirst_mask_free(NULL);
-    edgefirst_dmabuf_free(NULL);
-    edgefirst_radarcube_free(NULL);
-    ros_point_field_free(NULL);
-    ros_point_cloud2_free(NULL);
-    ros_nav_sat_status_free(NULL);
+    ros_image_free(NULL);
+    ros_compressed_image_free(NULL);
+    ros_compressed_video_free(NULL);
+    ros_mask_free(NULL);
+    ros_dmabuffer_free(NULL);
+    ros_imu_free(NULL);
     ros_nav_sat_fix_free(NULL);
-    foxglove_compressed_video_free(NULL);
+    ros_transform_stamped_free(NULL);
+    ros_radar_cube_free(NULL);
+    ros_radar_info_free(NULL);
+    ros_detect_free(NULL);
+    ros_model_free(NULL);
+    ros_model_info_free(NULL);
+    ros_point_cloud2_free(NULL);
+    ros_camera_info_free(NULL);
+    ros_track_free(NULL);
+    ros_box_free(NULL);
+    ros_local_time_free(NULL);
 
-    // If we reach here, all free functions handled NULL safely
     cr_assert(1, "All free functions safely handled NULL");
+}
+
+// ============================================================================
+// ros_bytes_free NULL safety
+// ============================================================================
+
+Test(errno_handling, bytes_free_null) {
+    // Should not crash
+    ros_bytes_free(NULL, 0);
+    ros_bytes_free(NULL, 100);
 }
