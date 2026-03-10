@@ -53,7 +53,7 @@ Test(sensor_msgs, nav_sat_status_decode_null_data) {
     errno = 0;
     int ret = ros_nav_sat_status_decode(NULL, 100, &status, &service);
     cr_assert_eq(ret, -1);
-    cr_assert_eq(errno, EBADMSG);
+    cr_assert_eq(errno, EINVAL);
 }
 
 Test(sensor_msgs, nav_sat_status_encode_size_query) {

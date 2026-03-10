@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-03-10
+
 ### Changed — BREAKING
 
 **Replaced serde-based CDR with zero-copy CDR infrastructure.**
@@ -39,11 +41,18 @@ substantially.
   `encode_fixed`, buffer-backed constructors, and setter methods all return
   `Result`. Zero panics in production library code — validated-buffer
   accessors use `expect()` with documented invariants.
+- [`CAPI.md`](CAPI.md) — comprehensive C API reference with architecture
+  overview, memory management rules, error handling, full API signatures
+  for all types, and working examples
+- Updated `examples/c/example.c` to demonstrate the new zero-copy C API
 
-**Performance:**
-- Deserialization 100-100,000× faster via zero-copy borrow (see `BENCHMARKS.md`)
-- Serialization 2-10× faster via bulk memcpy for payloads
-- Fixed-size type encode/decode comparable or faster than serde baseline
+**Performance** (measured on Cortex-A53 @ 1.8 GHz, see [`BENCHMARKS.md`](BENCHMARKS.md)):
+- Zero-copy borrow (`from_cdr`) in 38–166 ns regardless of payload size —
+  applies to both Rust and C APIs; the C FFI `ros_*_from_cdr()` borrows the
+  caller's buffer directly with no intermediate copy
+- Rust encoding 270–530× faster than Python pycdr2 serialization
+- Rust decoding effectively unbounded speedup for large payloads — 1.8 billion×
+  faster for 1.5 MB radar cubes, growing proportionally with message size
 
 ### Migration Guide
 
@@ -91,12 +100,29 @@ let pixels: &[u8] = view.data();     // Points into cdr_slice
 let frame: &str = view.frame_id();   // Points into cdr_slice
 ```
 
-**C API:**
+**C API — Completely refactored for zero-copy CDR:**
 
-The C API is source-compatible for buffer-backed types (`ros_*_from_cdr`,
-`ros_*_get_*`, `ros_*_free`). CdrFixed encode/decode functions are unchanged.
-New IMU accessors: `ros_imu_get_orientation()`, `ros_imu_get_angular_velocity()`,
-`ros_imu_get_linear_acceleration()`, and their `_covariance` variants.
+The C API has been redesigned around the same zero-copy CDR patterns as the
+Rust API. The old `_new()` + `_set_*()` + `_serialize()` mutable-handle
+pattern is replaced by:
+
+- **CdrFixed types** — `ros_<type>_encode(buf, cap, &written, ...fields)` /
+  `ros_<type>_decode(data, len, ...out_fields)` directly into caller buffers.
+  No opaque handles, no heap allocation.
+- **Buffer-backed types** — `ros_<type>_encode(...)` for construction,
+  `ros_<type>_from_cdr(data, len)` for decoding into immutable view handles,
+  `ros_<type>_get_*()` for O(1) field access.
+- **Borrowed pointers** — String and byte-array getters now return `const`
+  pointers into the handle's internal buffer. Do **not** `free()` them
+  (the old API returned allocated copies that required `free()`).
+- **`ros_bytes_free()`** — Encode output must be freed with `ros_bytes_free()`
+  instead of `free()`.
+
+See [`CAPI.md`](CAPI.md) for the complete C API reference, memory management
+rules, error handling conventions, and working examples.
+
+**Python API — No changes.** Python bindings continue to use pycdr2 for
+CDR serialization. No migration required.
 
 ## [1.5.5] - 2026-02-17
 
@@ -342,7 +368,8 @@ New IMU accessors: `ros_imu_get_orientation()`, `ros_imu_get_angular_velocity()`
 - Python build issues with wheel generation
 - Removed auxiliary files from ROS2 schemas not required for this project
 
-[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.5...HEAD
+[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.5...v2.0.0
 [1.5.5]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.4...v1.5.5
 [1.5.4]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.3...v1.5.4
 [1.5.3]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.2...v1.5.3
