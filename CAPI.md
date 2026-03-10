@@ -183,19 +183,21 @@ represented as opaque handles wrapping an internal CDR byte buffer.
 **Pattern:**
 
 ```c
-// Decode: create a view handle from CDR bytes
+// Decode: create a zero-copy view over the caller's CDR buffer.
+// IMPORTANT: `data` must remain valid until ros_image_free(img).
 ros_image_t* img = ros_image_from_cdr(data, len);
 
-// Access fields — O(1), pointers borrow from the internal buffer
+// Access fields — O(1), pointers borrow from the caller's buffer
 uint32_t w = ros_image_get_width(img);
-const char* enc = ros_image_get_encoding(img);      // borrowed
-const uint8_t* px = ros_image_get_data(img, &pxlen); // borrowed
+const char* enc = ros_image_get_encoding(img);      // borrowed from data
+const uint8_t* px = ros_image_get_data(img, &pxlen); // borrowed from data
 
-// Re-export the raw CDR bytes
-const uint8_t* cdr = ros_image_as_cdr(img, &cdr_len); // borrowed
+// Re-export the raw CDR bytes (points into the original data buffer)
+const uint8_t* cdr = ros_image_as_cdr(img, &cdr_len); // borrowed from data
 
-// Free the handle when done
+// Free the handle, THEN free the source data buffer
 ros_image_free(img);
+// data can now be freed safely
 ```
 
 ```c
@@ -215,10 +217,10 @@ Every buffer-backed type provides five entry points:
 
 | Function | Purpose |
 |----------|---------|
-| `ros_<type>_from_cdr(data, len)` | Decode CDR bytes into an opaque view handle |
+| `ros_<type>_from_cdr(data, len)` | Zero-copy view over caller's CDR buffer (data must outlive handle) |
 | `ros_<type>_get_<field>(handle)` | Read a field (O(1), zero-copy for strings/blobs) |
-| `ros_<type>_as_cdr(handle, &len)` | Borrow the raw CDR buffer from the handle |
-| `ros_<type>_free(handle)` | Release the handle and its internal buffer |
+| `ros_<type>_as_cdr(handle, &len)` | Borrow the raw CDR buffer (points into caller's data) |
+| `ros_<type>_free(handle)` | Release the handle (does NOT free the source data) |
 | `ros_<type>_encode(...)` | Construct CDR bytes from field values (allocates) |
 
 ## Memory Management
@@ -227,6 +229,11 @@ Every buffer-backed type provides five entry points:
 Every `from_cdr` or `encode` call that returns a handle must be balanced by
 a `_free` call. Passing `NULL` to any `_free` function is safe (no-op).
 
+**Rule 1a — Keep source data alive until the handle is freed.**
+`from_cdr` creates a zero-copy view — the handle borrows the caller's `data`
+buffer directly. The `data` pointer must remain valid until `_free()` is called.
+Freeing `data` before the handle causes undefined behavior.
+
 **Rule 2 — Free encode output with `ros_bytes_free()`.**
 Buffer-backed `_encode` functions allocate output via `uint8_t**`.
 Free this memory with `ros_bytes_free(bytes, len)`. Do **not** call
@@ -234,18 +241,19 @@ Free this memory with `ros_bytes_free(bytes, len)`. Do **not** call
 
 **Rule 3 — Do NOT free borrowed pointers.**
 String getters (`const char*`) and blob getters (`const uint8_t*`) return
-pointers into the handle's internal CDR buffer. These are valid as long as
-the handle lives. Do not free them.
+pointers into the caller's original CDR buffer. These are valid as long as
+both the handle and the source data remain alive. Do not free them.
 
 ```c
 ros_header_t* hdr = ros_header_from_cdr(data, len);
 
 const char* frame = ros_header_get_frame_id(hdr);
 printf("%s\n", frame);
-// Do NOT call free(frame) — it points into hdr's buffer
+// Do NOT call free(frame) — it points into the caller's data buffer
 
 ros_header_free(hdr);
 // frame is now dangling — do not use after free
+// data can now be freed safely
 ```
 
 **Rule 4 — CdrFixed types use caller-owned buffers.**
@@ -256,10 +264,10 @@ a `const uint8_t*` you provide. No heap allocation, nothing to free.
 
 | Source | Who owns it | How to free |
 |--------|-------------|-------------|
-| `ros_<type>_from_cdr(...)` | Caller | `ros_<type>_free(handle)` |
+| `ros_<type>_from_cdr(...)` | Caller (handle + source data) | `ros_<type>_free(handle)`, then free source data |
 | `ros_<type>_encode(&bytes, ...)` | Caller | `ros_bytes_free(bytes, len)` |
-| `ros_<type>_get_<field>(handle)` | Handle | Do not free |
-| `ros_<type>_as_cdr(handle, ...)` | Handle | Do not free |
+| `ros_<type>_get_<field>(handle)` | Source data (via handle) | Do not free |
+| `ros_<type>_as_cdr(handle, ...)` | Source data (via handle) | Do not free |
 | CdrFixed `_encode(buf, ...)` | Caller | Stack/caller buffer, no free needed |
 
 ## Error Handling
@@ -274,9 +282,9 @@ All functions use POSIX `errno` conventions:
 
 | errno | Meaning |
 |-------|---------|
-| `EINVAL` | NULL pointer passed where non-NULL is required |
+| `EINVAL` | NULL pointer passed where non-NULL is required (buffer-backed `_from_cdr` / `_encode`) |
 | `ENOBUFS` | Buffer too small (CdrFixed `_encode` with insufficient capacity) |
-| `EBADMSG` | CDR decoding failure — corrupted, truncated, or zero-length data |
+| `EBADMSG` | CDR decoding failure — corrupted, truncated, zero-length, or NULL data. CdrFixed `_decode` functions use `EBADMSG` for all failures including NULL input. |
 
 **Note on string inputs:** Invalid UTF-8 in C string arguments (e.g.,
 `frame_id`, `encoding`) is silently coerced to an empty string `""` rather

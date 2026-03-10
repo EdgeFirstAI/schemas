@@ -17,7 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include "../../include/edgefirst/schemas.h"
+#include <edgefirst/schemas.h>
 
 static int example_time(void) {
     printf("\n=== Example: Time (CdrFixed) ===\n");
@@ -92,7 +92,7 @@ static int example_header(void) {
     }
     printf("Encoded Header: %zu CDR bytes\n", len);
 
-    // Decode from CDR into an opaque view handle
+    // Decode: zero-copy view over `bytes` — bytes must stay alive until _free()
     ros_header_t* hdr = ros_header_from_cdr(bytes, len);
     if (!hdr) {
         fprintf(stderr, "ros_header_from_cdr failed: %s\n", strerror(errno));
@@ -100,7 +100,7 @@ static int example_header(void) {
         return -1;
     }
 
-    // Access fields — borrowed pointers, do NOT free
+    // Access fields — borrowed from `bytes`, do NOT free
     int32_t sec = ros_header_get_stamp_sec(hdr);
     uint32_t nanosec = ros_header_get_stamp_nanosec(hdr);
     const char* frame_id = ros_header_get_frame_id(hdr);
@@ -110,9 +110,9 @@ static int example_header(void) {
     int ok = (sec == 1234567890 && nanosec == 123456789
               && strcmp(frame_id, "camera_frame") == 0);
 
-    // Cleanup: free the handle, then the encoded bytes
-    ros_header_free(hdr);
-    ros_bytes_free(bytes, len);  // NOT free(bytes)
+    // Cleanup: free handle first, THEN free the source buffer
+    ros_header_free(hdr);        // releases handle (does NOT free bytes)
+    ros_bytes_free(bytes, len);  // NOW safe to free the source buffer
 
     if (!ok) {
         fprintf(stderr, "Header roundtrip mismatch\n");
@@ -151,7 +151,7 @@ static int example_image(void) {
     free(pixel_data);  // Our source data, normal free
     printf("Encoded Image: %zu CDR bytes\n", len);
 
-    // Decode from CDR
+    // Decode: zero-copy view over `bytes` — bytes must stay alive until _free()
     ros_image_t* img = ros_image_from_cdr(bytes, len);
     if (!img) {
         fprintf(stderr, "ros_image_from_cdr failed: %s\n", strerror(errno));
@@ -180,7 +180,7 @@ static int example_image(void) {
     printf("CDR bytes available for forwarding: %zu bytes at %p\n",
            cdr_len, (const void*)cdr);
 
-    // Cleanup
+    // Cleanup: free handle first, THEN free the source buffer
     ros_image_free(img);
     ros_bytes_free(bytes, len);
 
@@ -211,7 +211,7 @@ static int example_dmabuffer(void) {
     }
     printf("Encoded DmaBuffer: %zu CDR bytes\n", len);
 
-    // Decode
+    // Decode: zero-copy view over `bytes`
     ros_dmabuffer_t* dmabuf = ros_dmabuffer_from_cdr(bytes, len);
     if (!dmabuf) {
         fprintf(stderr, "ros_dmabuffer_from_cdr failed: %s\n", strerror(errno));

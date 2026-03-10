@@ -47,7 +47,9 @@ substantially.
 - Updated `examples/c/example.c` to demonstrate the new zero-copy C API
 
 **Performance** (measured on Cortex-A53 @ 1.8 GHz, see [`BENCHMARKS.md`](BENCHMARKS.md)):
-- Zero-copy borrow (`from_cdr`) in 38–166 ns regardless of payload size
+- Zero-copy borrow (`from_cdr`) in 38–166 ns regardless of payload size —
+  applies to both Rust and C APIs; the C FFI `ros_*_from_cdr()` borrows the
+  caller's buffer directly with no intermediate copy
 - Rust encoding 270–530× faster than Python pycdr2 serialization
 - Rust decoding effectively unbounded speedup for large payloads — 1.8 billion×
   faster for 1.5 MB radar cubes, growing proportionally with message size

@@ -13,14 +13,14 @@
 //!   - `ros_<type>_decode(data, len, ...out_fields)` → read fields from CDR
 //!
 //! **Buffer-backed types** (Image, CompressedImage, etc.):
-//!   - `ros_<type>_from_cdr(data, len)` → opaque handle (copies CDR bytes)
+//!   - `ros_<type>_from_cdr(data, len)` → opaque handle (zero-copy borrow of `data`)
 //!   - `ros_<type>_get_<field>(handle)` → O(1) field access
 //!   - `ros_<type>_free(handle)` → release handle
 //!   - `ros_<type>_encode(&out_bytes, &out_len, ...fields)` → allocate + write CDR
 //!
-//! String getters return `const char*` pointing into the CDR buffer (zero-copy,
-//! valid as long as the handle lives). Byte blob getters return `const uint8_t*`
-//! with an `out_len` parameter.
+//! `from_cdr` borrows the caller's buffer — the returned handle stores a pointer
+//! into `data`, not a copy. The caller must keep `data` alive until `_free()`.
+//! String and blob getters return `const` pointers into the original `data` buffer.
 
 #![allow(non_camel_case_types)]
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -71,6 +71,14 @@ unsafe fn c_to_str<'a>(s: *const c_char) -> &'a str {
     } else {
         std::ffi::CStr::from_ptr(s).to_str().unwrap_or("")
     }
+}
+
+/// Erase the borrow lifetime on a `&[u8]` slice for FFI.
+///
+/// SAFETY: The C caller guarantees `data` outlives the returned handle.
+/// This is documented in CAPI.md — the handle borrows the caller's buffer.
+unsafe fn erase_lifetime<'a>(s: &'a [u8]) -> &'static [u8] {
+    unsafe { slice::from_raw_parts(s.as_ptr(), s.len()) }
 }
 
 macro_rules! check_null_ret_null {
@@ -711,13 +719,13 @@ fn return_cdr_bytes(cdr: Vec<u8>, out_bytes: *mut *mut u8, out_len: *mut usize) 
 // Header (buffer-backed)
 // =============================================================================
 
-pub struct ros_header_t(std_msgs::Header<Vec<u8>>);
+pub struct ros_header_t(std_msgs::Header<&'static [u8]>);
 
 #[no_mangle]
 pub extern "C" fn ros_header_from_cdr(data: *const u8, len: usize) -> *mut ros_header_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match std_msgs::Header::from_cdr(slice.to_vec()) {
+    match std_msgs::Header::from_cdr(unsafe { erase_lifetime(slice) }) {
         Ok(v) => Box::into_raw(Box::new(ros_header_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
@@ -782,13 +790,13 @@ pub extern "C" fn ros_header_encode(
 // Image (buffer-backed)
 // =============================================================================
 
-pub struct ros_image_t(sensor_msgs::Image<Vec<u8>>);
+pub struct ros_image_t(sensor_msgs::Image<&'static [u8]>);
 
 #[no_mangle]
 pub extern "C" fn ros_image_from_cdr(data: *const u8, len: usize) -> *mut ros_image_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match sensor_msgs::Image::from_cdr(slice.to_vec()) {
+    match sensor_msgs::Image::from_cdr(unsafe { erase_lifetime(slice) }) {
         Ok(v) => Box::into_raw(Box::new(ros_image_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
@@ -929,7 +937,7 @@ pub extern "C" fn ros_image_encode(
 // CompressedImage (buffer-backed)
 // =============================================================================
 
-pub struct ros_compressed_image_t(sensor_msgs::CompressedImage<Vec<u8>>);
+pub struct ros_compressed_image_t(sensor_msgs::CompressedImage<&'static [u8]>);
 
 #[no_mangle]
 pub extern "C" fn ros_compressed_image_from_cdr(
@@ -938,7 +946,7 @@ pub extern "C" fn ros_compressed_image_from_cdr(
 ) -> *mut ros_compressed_image_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match sensor_msgs::CompressedImage::from_cdr(slice.to_vec()) {
+    match sensor_msgs::CompressedImage::from_cdr(unsafe { erase_lifetime(slice) }) {
         Ok(v) => Box::into_raw(Box::new(ros_compressed_image_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
@@ -1044,7 +1052,7 @@ pub extern "C" fn ros_compressed_image_encode(
 // FoxgloveCompressedVideo (buffer-backed)
 // =============================================================================
 
-pub struct ros_compressed_video_t(foxglove_msgs::FoxgloveCompressedVideo<Vec<u8>>);
+pub struct ros_compressed_video_t(foxglove_msgs::FoxgloveCompressedVideo<&'static [u8]>);
 
 #[no_mangle]
 pub extern "C" fn ros_compressed_video_from_cdr(
@@ -1053,7 +1061,7 @@ pub extern "C" fn ros_compressed_video_from_cdr(
 ) -> *mut ros_compressed_video_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match foxglove_msgs::FoxgloveCompressedVideo::from_cdr(slice.to_vec()) {
+    match foxglove_msgs::FoxgloveCompressedVideo::from_cdr(unsafe { erase_lifetime(slice) }) {
         Ok(v) => Box::into_raw(Box::new(ros_compressed_video_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
@@ -1163,13 +1171,13 @@ pub extern "C" fn ros_compressed_video_encode(
 // Mask (buffer-backed)
 // =============================================================================
 
-pub struct ros_mask_t(edgefirst_msgs::Mask<Vec<u8>>);
+pub struct ros_mask_t(edgefirst_msgs::Mask<&'static [u8]>);
 
 #[no_mangle]
 pub extern "C" fn ros_mask_from_cdr(data: *const u8, len: usize) -> *mut ros_mask_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match edgefirst_msgs::Mask::from_cdr(slice.to_vec()) {
+    match edgefirst_msgs::Mask::from_cdr(unsafe { erase_lifetime(slice) }) {
         Ok(v) => Box::into_raw(Box::new(ros_mask_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
@@ -1273,13 +1281,13 @@ pub extern "C" fn ros_mask_encode(
 // DmaBuffer (buffer-backed)
 // =============================================================================
 
-pub struct ros_dmabuffer_t(edgefirst_msgs::DmaBuffer<Vec<u8>>);
+pub struct ros_dmabuffer_t(edgefirst_msgs::DmaBuffer<&'static [u8]>);
 
 #[no_mangle]
 pub extern "C" fn ros_dmabuffer_from_cdr(data: *const u8, len: usize) -> *mut ros_dmabuffer_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match edgefirst_msgs::DmaBuffer::from_cdr(slice.to_vec()) {
+    match edgefirst_msgs::DmaBuffer::from_cdr(unsafe { erase_lifetime(slice) }) {
         Ok(v) => Box::into_raw(Box::new(ros_dmabuffer_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
@@ -1417,13 +1425,13 @@ pub extern "C" fn ros_dmabuffer_encode(
 // IMU (buffer-backed)
 // =============================================================================
 
-pub struct ros_imu_t(sensor_msgs::Imu<Vec<u8>>);
+pub struct ros_imu_t(sensor_msgs::Imu<&'static [u8]>);
 
 #[no_mangle]
 pub extern "C" fn ros_imu_from_cdr(data: *const u8, len: usize) -> *mut ros_imu_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match sensor_msgs::Imu::from_cdr(slice.to_vec()) {
+    match sensor_msgs::Imu::from_cdr(unsafe { erase_lifetime(slice) }) {
         Ok(v) => Box::into_raw(Box::new(ros_imu_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
@@ -1587,13 +1595,13 @@ pub extern "C" fn ros_imu_get_linear_acceleration_covariance(
 // NavSatFix (buffer-backed)
 // =============================================================================
 
-pub struct ros_nav_sat_fix_t(sensor_msgs::NavSatFix<Vec<u8>>);
+pub struct ros_nav_sat_fix_t(sensor_msgs::NavSatFix<&'static [u8]>);
 
 #[no_mangle]
 pub extern "C" fn ros_nav_sat_fix_from_cdr(data: *const u8, len: usize) -> *mut ros_nav_sat_fix_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match sensor_msgs::NavSatFix::from_cdr(slice.to_vec()) {
+    match sensor_msgs::NavSatFix::from_cdr(unsafe { erase_lifetime(slice) }) {
         Ok(v) => Box::into_raw(Box::new(ros_nav_sat_fix_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
@@ -1663,7 +1671,7 @@ pub extern "C" fn ros_nav_sat_fix_get_altitude(view: *const ros_nav_sat_fix_t) -
 // TransformStamped (buffer-backed)
 // =============================================================================
 
-pub struct ros_transform_stamped_t(geometry_msgs::TransformStamped<Vec<u8>>);
+pub struct ros_transform_stamped_t(geometry_msgs::TransformStamped<&'static [u8]>);
 
 #[no_mangle]
 pub extern "C" fn ros_transform_stamped_from_cdr(
@@ -1672,7 +1680,7 @@ pub extern "C" fn ros_transform_stamped_from_cdr(
 ) -> *mut ros_transform_stamped_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match geometry_msgs::TransformStamped::from_cdr(slice.to_vec()) {
+    match geometry_msgs::TransformStamped::from_cdr(unsafe { erase_lifetime(slice) }) {
         Ok(v) => Box::into_raw(Box::new(ros_transform_stamped_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
@@ -1732,13 +1740,13 @@ pub extern "C" fn ros_transform_stamped_get_child_frame_id(
 // RadarCube (buffer-backed)
 // =============================================================================
 
-pub struct ros_radar_cube_t(edgefirst_msgs::RadarCube<Vec<u8>>);
+pub struct ros_radar_cube_t(edgefirst_msgs::RadarCube<&'static [u8]>);
 
 #[no_mangle]
 pub extern "C" fn ros_radar_cube_from_cdr(data: *const u8, len: usize) -> *mut ros_radar_cube_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match edgefirst_msgs::RadarCube::from_cdr(slice.to_vec()) {
+    match edgefirst_msgs::RadarCube::from_cdr(unsafe { erase_lifetime(slice) }) {
         Ok(v) => Box::into_raw(Box::new(ros_radar_cube_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
@@ -1842,13 +1850,13 @@ pub extern "C" fn ros_radar_cube_get_is_complex(view: *const ros_radar_cube_t) -
 // RadarInfo (buffer-backed)
 // =============================================================================
 
-pub struct ros_radar_info_t(edgefirst_msgs::RadarInfo<Vec<u8>>);
+pub struct ros_radar_info_t(edgefirst_msgs::RadarInfo<&'static [u8]>);
 
 #[no_mangle]
 pub extern "C" fn ros_radar_info_from_cdr(data: *const u8, len: usize) -> *mut ros_radar_info_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match edgefirst_msgs::RadarInfo::from_cdr(slice.to_vec()) {
+    match edgefirst_msgs::RadarInfo::from_cdr(unsafe { erase_lifetime(slice) }) {
         Ok(v) => Box::into_raw(Box::new(ros_radar_info_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
@@ -1940,13 +1948,13 @@ pub extern "C" fn ros_radar_info_get_cube(view: *const ros_radar_info_t) -> bool
 // Detect (buffer-backed)
 // =============================================================================
 
-pub struct ros_detect_t(edgefirst_msgs::Detect<Vec<u8>>);
+pub struct ros_detect_t(edgefirst_msgs::Detect<&'static [u8]>);
 
 #[no_mangle]
 pub extern "C" fn ros_detect_from_cdr(data: *const u8, len: usize) -> *mut ros_detect_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match edgefirst_msgs::Detect::from_cdr(slice.to_vec()) {
+    match edgefirst_msgs::Detect::from_cdr(unsafe { erase_lifetime(slice) }) {
         Ok(v) => Box::into_raw(Box::new(ros_detect_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
@@ -2000,13 +2008,13 @@ pub extern "C" fn ros_detect_get_boxes_len(view: *const ros_detect_t) -> u32 {
 // Model (buffer-backed)
 // =============================================================================
 
-pub struct ros_model_t(edgefirst_msgs::Model<Vec<u8>>);
+pub struct ros_model_t(edgefirst_msgs::Model<&'static [u8]>);
 
 #[no_mangle]
 pub extern "C" fn ros_model_from_cdr(data: *const u8, len: usize) -> *mut ros_model_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match edgefirst_msgs::Model::from_cdr(slice.to_vec()) {
+    match edgefirst_msgs::Model::from_cdr(unsafe { erase_lifetime(slice) }) {
         Ok(v) => Box::into_raw(Box::new(ros_model_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
@@ -2068,13 +2076,13 @@ pub extern "C" fn ros_model_get_masks_len(view: *const ros_model_t) -> u32 {
 // ModelInfo (buffer-backed)
 // =============================================================================
 
-pub struct ros_model_info_t(edgefirst_msgs::ModelInfo<Vec<u8>>);
+pub struct ros_model_info_t(edgefirst_msgs::ModelInfo<&'static [u8]>);
 
 #[no_mangle]
 pub extern "C" fn ros_model_info_from_cdr(data: *const u8, len: usize) -> *mut ros_model_info_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match edgefirst_msgs::ModelInfo::from_cdr(slice.to_vec()) {
+    match edgefirst_msgs::ModelInfo::from_cdr(unsafe { erase_lifetime(slice) }) {
         Ok(v) => Box::into_raw(Box::new(ros_model_info_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
@@ -2160,7 +2168,7 @@ pub extern "C" fn ros_model_info_get_output_type(view: *const ros_model_info_t) 
 // PointCloud2 (buffer-backed)
 // =============================================================================
 
-pub struct ros_point_cloud2_t(sensor_msgs::PointCloud2<Vec<u8>>);
+pub struct ros_point_cloud2_t(sensor_msgs::PointCloud2<&'static [u8]>);
 
 #[no_mangle]
 pub extern "C" fn ros_point_cloud2_from_cdr(
@@ -2169,7 +2177,7 @@ pub extern "C" fn ros_point_cloud2_from_cdr(
 ) -> *mut ros_point_cloud2_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match sensor_msgs::PointCloud2::from_cdr(slice.to_vec()) {
+    match sensor_msgs::PointCloud2::from_cdr(unsafe { erase_lifetime(slice) }) {
         Ok(v) => Box::into_raw(Box::new(ros_point_cloud2_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
@@ -2288,13 +2296,13 @@ pub extern "C" fn ros_point_cloud2_get_fields_len(view: *const ros_point_cloud2_
 // CameraInfo (buffer-backed)
 // =============================================================================
 
-pub struct ros_camera_info_t(sensor_msgs::CameraInfo<Vec<u8>>);
+pub struct ros_camera_info_t(sensor_msgs::CameraInfo<&'static [u8]>);
 
 #[no_mangle]
 pub extern "C" fn ros_camera_info_from_cdr(data: *const u8, len: usize) -> *mut ros_camera_info_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match sensor_msgs::CameraInfo::from_cdr(slice.to_vec()) {
+    match sensor_msgs::CameraInfo::from_cdr(unsafe { erase_lifetime(slice) }) {
         Ok(v) => Box::into_raw(Box::new(ros_camera_info_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
@@ -2382,13 +2390,13 @@ pub extern "C" fn ros_camera_info_get_binning_y(view: *const ros_camera_info_t) 
 // Track (buffer-backed)
 // =============================================================================
 
-pub struct ros_track_t(edgefirst_msgs::Track<Vec<u8>>);
+pub struct ros_track_t(edgefirst_msgs::Track<&'static [u8]>);
 
 #[no_mangle]
 pub extern "C" fn ros_track_from_cdr(data: *const u8, len: usize) -> *mut ros_track_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match edgefirst_msgs::Track::from_cdr(slice.to_vec()) {
+    match edgefirst_msgs::Track::from_cdr(unsafe { erase_lifetime(slice) }) {
         Ok(v) => Box::into_raw(Box::new(ros_track_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
@@ -2426,13 +2434,13 @@ pub extern "C" fn ros_track_get_lifetime(view: *const ros_track_t) -> i32 {
 // DetectBox (buffer-backed)
 // =============================================================================
 
-pub struct ros_box_t(edgefirst_msgs::DetectBox<Vec<u8>>);
+pub struct ros_box_t(edgefirst_msgs::DetectBox<&'static [u8]>);
 
 #[no_mangle]
 pub extern "C" fn ros_box_from_cdr(data: *const u8, len: usize) -> *mut ros_box_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match edgefirst_msgs::DetectBox::from_cdr(slice.to_vec()) {
+    match edgefirst_msgs::DetectBox::from_cdr(unsafe { erase_lifetime(slice) }) {
         Ok(v) => Box::into_raw(Box::new(ros_box_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
@@ -2534,13 +2542,13 @@ pub extern "C" fn ros_box_get_track_lifetime(view: *const ros_box_t) -> i32 {
 // LocalTime (buffer-backed)
 // =============================================================================
 
-pub struct ros_local_time_t(edgefirst_msgs::LocalTime<Vec<u8>>);
+pub struct ros_local_time_t(edgefirst_msgs::LocalTime<&'static [u8]>);
 
 #[no_mangle]
 pub extern "C" fn ros_local_time_from_cdr(data: *const u8, len: usize) -> *mut ros_local_time_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match edgefirst_msgs::LocalTime::from_cdr(slice.to_vec()) {
+    match edgefirst_msgs::LocalTime::from_cdr(unsafe { erase_lifetime(slice) }) {
         Ok(v) => Box::into_raw(Box::new(ros_local_time_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
