@@ -19,7 +19,7 @@ types and opaque view handles for variable-length buffer-backed types.
 ```
 
 ```bash
-gcc -I/path/to/include -L/path/to/lib -ledgefirst_schemas -o myapp myapp.c
+gcc -I/path/to/include -o myapp myapp.c -L/path/to/lib -ledgefirst_schemas
 ```
 
 At runtime the dynamic linker must find the shared library:
@@ -726,18 +726,27 @@ bool        ros_radar_cube_get_is_complex(const ros_radar_cube_t* view);
 const uint8_t* ros_radar_cube_as_cdr(const ros_radar_cube_t* view, size_t* out_len);
 ```
 
-The cube data is raw bytes. For `i16` radar samples, cast the pointer:
+The cube data is raw bytes. For `i16` radar samples, use `memcpy` for
+portable access:
 
 ```c
 size_t raw_len;
 const uint8_t* raw = ros_radar_cube_get_cube_raw(cube, &raw_len);
-const int16_t* samples = (const int16_t*)raw;
 size_t n_samples = raw_len / sizeof(int16_t);
+
+// Portable: copy to aligned buffer
+int16_t* samples = (int16_t*)malloc(raw_len);
+memcpy(samples, raw, raw_len);
+// ... use samples[0..n_samples-1] ...
+free(samples);
 ```
 
-This is safe on little-endian targets (CDR1-LE wire format matches native
-byte order). The Rust layer guarantees proper alignment for the returned
-pointer.
+The returned pointer borrows from an internal `Vec<u8>` (alignment 1).
+While real-world allocators typically over-align, this is **not** a
+hard guarantee — direct casting (`(int16_t*)raw`) may be undefined
+behavior on strictly-aligned targets. Use `memcpy` for portable code.
+On little-endian targets the byte order matches CDR1-LE wire format,
+so no byte-swapping is needed after copying.
 
 #### RadarInfo
 
