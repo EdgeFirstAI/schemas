@@ -282,9 +282,9 @@ All functions use POSIX `errno` conventions:
 
 | errno | Meaning |
 |-------|---------|
-| `EINVAL` | NULL pointer passed where non-NULL is required (buffer-backed `_from_cdr` / `_encode`) |
+| `EINVAL` | NULL pointer passed where non-NULL is required |
 | `ENOBUFS` | Buffer too small (CdrFixed `_encode` with insufficient capacity) |
-| `EBADMSG` | CDR decoding failure — corrupted, truncated, zero-length, or NULL data. CdrFixed `_decode` functions use `EBADMSG` for all failures including NULL input. |
+| `EBADMSG` | CDR decoding failure — corrupted, truncated, or zero-length data |
 
 **Note on string inputs:** Invalid UTF-8 in C string arguments (e.g.,
 `frame_id`, `encoding`) is silently coerced to an empty string `""` rather

@@ -77,7 +77,7 @@ unsafe fn c_to_str<'a>(s: *const c_char) -> &'a str {
 ///
 /// SAFETY: The C caller guarantees `data` outlives the returned handle.
 /// This is documented in CAPI.md — the handle borrows the caller's buffer.
-unsafe fn erase_lifetime<'a>(s: &'a [u8]) -> &'static [u8] {
+unsafe fn erase_lifetime(s: &[u8]) -> &'static [u8] {
     unsafe { slice::from_raw_parts(s.as_ptr(), s.len()) }
 }
 
@@ -154,13 +154,19 @@ fn encode_fixed_to_buf<T: CdrFixed>(val: &T, buf: *mut u8, cap: usize, written: 
     0
 }
 
-/// Generic decode for CdrFixed types. Returns 0 on success, -1 on error.
-fn decode_fixed_from_buf<T: CdrFixed>(data: *const u8, len: usize) -> Option<T> {
-    if data.is_null() || len < cdr::CDR_HEADER_SIZE {
-        return None;
+/// Generic decode for CdrFixed types. Sets errno and returns Err on failure.
+/// EINVAL for NULL data pointer, EBADMSG for decode failures.
+fn decode_fixed_from_buf<T: CdrFixed>(data: *const u8, len: usize) -> Result<T, ()> {
+    if data.is_null() {
+        set_errno(EINVAL);
+        return Err(());
+    }
+    if len < cdr::CDR_HEADER_SIZE {
+        set_errno(EBADMSG);
+        return Err(());
     }
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    cdr::decode_fixed(slice).ok()
+    cdr::decode_fixed(slice).map_err(|_| set_errno(EBADMSG))
 }
 
 // =============================================================================
@@ -187,7 +193,7 @@ pub extern "C" fn ros_time_decode(
     nanosec: *mut u32,
 ) -> i32 {
     match decode_fixed_from_buf::<Time>(data, len) {
-        Some(t) => unsafe {
+        Ok(t) => unsafe {
             if !sec.is_null() {
                 *sec = t.sec;
             }
@@ -196,10 +202,7 @@ pub extern "C" fn ros_time_decode(
             }
             0
         },
-        None => {
-            set_errno(EBADMSG);
-            -1
-        }
+        Err(()) => -1,
     }
 }
 
@@ -227,7 +230,7 @@ pub extern "C" fn ros_duration_decode(
     nanosec: *mut u32,
 ) -> i32 {
     match decode_fixed_from_buf::<Duration>(data, len) {
-        Some(d) => unsafe {
+        Ok(d) => unsafe {
             if !sec.is_null() {
                 *sec = d.sec;
             }
@@ -236,10 +239,7 @@ pub extern "C" fn ros_duration_decode(
             }
             0
         },
-        None => {
-            set_errno(EBADMSG);
-            -1
-        }
+        Err(()) => -1,
     }
 }
 
@@ -269,7 +269,7 @@ pub extern "C" fn ros_vector3_decode(
     z: *mut f64,
 ) -> i32 {
     match decode_fixed_from_buf::<Vector3>(data, len) {
-        Some(v) => unsafe {
+        Ok(v) => unsafe {
             if !x.is_null() {
                 *x = v.x;
             }
@@ -281,10 +281,7 @@ pub extern "C" fn ros_vector3_decode(
             }
             0
         },
-        None => {
-            set_errno(EBADMSG);
-            -1
-        }
+        Err(()) => -1,
     }
 }
 
@@ -310,7 +307,7 @@ pub extern "C" fn ros_point_decode(
     z: *mut f64,
 ) -> i32 {
     match decode_fixed_from_buf::<Point>(data, len) {
-        Some(v) => unsafe {
+        Ok(v) => unsafe {
             if !x.is_null() {
                 *x = v.x;
             }
@@ -322,10 +319,7 @@ pub extern "C" fn ros_point_decode(
             }
             0
         },
-        None => {
-            set_errno(EBADMSG);
-            -1
-        }
+        Err(()) => -1,
     }
 }
 
@@ -353,7 +347,7 @@ pub extern "C" fn ros_quaternion_decode(
     w: *mut f64,
 ) -> i32 {
     match decode_fixed_from_buf::<Quaternion>(data, len) {
-        Some(v) => unsafe {
+        Ok(v) => unsafe {
             if !x.is_null() {
                 *x = v.x;
             }
@@ -368,10 +362,7 @@ pub extern "C" fn ros_quaternion_decode(
             }
             0
         },
-        None => {
-            set_errno(EBADMSG);
-            -1
-        }
+        Err(()) => -1,
     }
 }
 
@@ -418,7 +409,7 @@ pub extern "C" fn ros_pose_decode(
     ow: *mut f64,
 ) -> i32 {
     match decode_fixed_from_buf::<Pose>(data, len) {
-        Some(v) => unsafe {
+        Ok(v) => unsafe {
             if !px.is_null() {
                 *px = v.position.x;
             }
@@ -442,10 +433,7 @@ pub extern "C" fn ros_pose_decode(
             }
             0
         },
-        None => {
-            set_errno(EBADMSG);
-            -1
-        }
+        Err(()) => -1,
     }
 }
 
@@ -492,7 +480,7 @@ pub extern "C" fn ros_transform_decode(
     rw: *mut f64,
 ) -> i32 {
     match decode_fixed_from_buf::<Transform>(data, len) {
-        Some(v) => unsafe {
+        Ok(v) => unsafe {
             if !tx.is_null() {
                 *tx = v.translation.x;
             }
@@ -516,10 +504,7 @@ pub extern "C" fn ros_transform_decode(
             }
             0
         },
-        None => {
-            set_errno(EBADMSG);
-            -1
-        }
+        Err(()) => -1,
     }
 }
 
@@ -563,7 +548,7 @@ pub extern "C" fn ros_twist_decode(
     az: *mut f64,
 ) -> i32 {
     match decode_fixed_from_buf::<Twist>(data, len) {
-        Some(v) => unsafe {
+        Ok(v) => unsafe {
             if !lx.is_null() {
                 *lx = v.linear.x;
             }
@@ -584,10 +569,7 @@ pub extern "C" fn ros_twist_decode(
             }
             0
         },
-        None => {
-            set_errno(EBADMSG);
-            -1
-        }
+        Err(()) => -1,
     }
 }
 
@@ -631,7 +613,7 @@ pub extern "C" fn ros_accel_decode(
     az: *mut f64,
 ) -> i32 {
     match decode_fixed_from_buf::<Accel>(data, len) {
-        Some(v) => unsafe {
+        Ok(v) => unsafe {
             if !lx.is_null() {
                 *lx = v.linear.x;
             }
@@ -652,10 +634,7 @@ pub extern "C" fn ros_accel_decode(
             }
             0
         },
-        None => {
-            set_errno(EBADMSG);
-            -1
-        }
+        Err(()) => -1,
     }
 }
 
@@ -679,7 +658,7 @@ pub extern "C" fn ros_nav_sat_status_decode(
     service: *mut u16,
 ) -> i32 {
     match decode_fixed_from_buf::<NavSatStatus>(data, len) {
-        Some(v) => unsafe {
+        Ok(v) => unsafe {
             if !status.is_null() {
                 *status = v.status;
             }
@@ -688,10 +667,7 @@ pub extern "C" fn ros_nav_sat_status_decode(
             }
             0
         },
-        None => {
-            set_errno(EBADMSG);
-            -1
-        }
+        Err(()) => -1,
     }
 }
 
