@@ -104,7 +104,7 @@ Test(builtin_interfaces, time_decode_null_data) {
     errno = 0;
     int ret = ros_time_decode(NULL, 100, &sec, &nanosec);
     cr_assert_eq(ret, -1, "Should fail with NULL data");
-    cr_assert_eq(errno, EBADMSG, "errno should be EBADMSG");
+    cr_assert_eq(errno, EINVAL, "errno should be EINVAL for NULL data");
 }
 
 Test(builtin_interfaces, time_decode_zero_length) {
@@ -197,7 +197,7 @@ Test(builtin_interfaces, duration_decode_null_data) {
     uint32_t nanosec = 0;
     int ret = ros_duration_decode(NULL, 100, &sec, &nanosec);
     cr_assert_eq(ret, -1);
-    cr_assert_eq(errno, EBADMSG);
+    cr_assert_eq(errno, EINVAL);
 }
 
 Test(builtin_interfaces, duration_encode_size_query) {

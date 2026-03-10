@@ -53,7 +53,7 @@ Test(geometry_msgs, vector3_decode_null_data) {
     errno = 0;
     int ret = ros_vector3_decode(NULL, 100, &x, &y, &z);
     cr_assert_eq(ret, -1);
-    cr_assert_eq(errno, EBADMSG);
+    cr_assert_eq(errno, EINVAL);
 }
 
 Test(geometry_msgs, vector3_decode_null_out_pointers) {
@@ -97,7 +97,7 @@ Test(geometry_msgs, point_decode_null_data) {
     errno = 0;
     int ret = ros_point_decode(NULL, 100, &x, &y, &z);
     cr_assert_eq(ret, -1);
-    cr_assert_eq(errno, EBADMSG);
+    cr_assert_eq(errno, EINVAL);
 }
 
 // ============================================================================
@@ -140,7 +140,7 @@ Test(geometry_msgs, quaternion_decode_null_data) {
     errno = 0;
     int ret = ros_quaternion_decode(NULL, 100, &x, &y, &z, &w);
     cr_assert_eq(ret, -1);
-    cr_assert_eq(errno, EBADMSG);
+    cr_assert_eq(errno, EINVAL);
 }
 
 // ============================================================================
@@ -174,7 +174,7 @@ Test(geometry_msgs, pose_decode_null_data) {
     errno = 0;
     int ret = ros_pose_decode(NULL, 100, &px, &py, &pz, &ox, &oy, &oz, &ow);
     cr_assert_eq(ret, -1);
-    cr_assert_eq(errno, EBADMSG);
+    cr_assert_eq(errno, EINVAL);
 }
 
 // ============================================================================
@@ -206,7 +206,7 @@ Test(geometry_msgs, transform_decode_null_data) {
     errno = 0;
     int ret = ros_transform_decode(NULL, 100, &tx, &ty, &tz, &rx, &ry, &rz, &rw);
     cr_assert_eq(ret, -1);
-    cr_assert_eq(errno, EBADMSG);
+    cr_assert_eq(errno, EINVAL);
 }
 
 // ============================================================================
@@ -239,7 +239,7 @@ Test(geometry_msgs, twist_decode_null_data) {
     errno = 0;
     int ret = ros_twist_decode(NULL, 100, &lx, &ly, &lz, &ax, &ay, &az);
     cr_assert_eq(ret, -1);
-    cr_assert_eq(errno, EBADMSG);
+    cr_assert_eq(errno, EINVAL);
 }
 
 // ============================================================================
@@ -272,7 +272,7 @@ Test(geometry_msgs, accel_decode_null_data) {
     errno = 0;
     int ret = ros_accel_decode(NULL, 100, &lx, &ly, &lz, &ax, &ay, &az);
     cr_assert_eq(ret, -1);
-    cr_assert_eq(errno, EBADMSG);
+    cr_assert_eq(errno, EINVAL);
 }
 
 // ============================================================================

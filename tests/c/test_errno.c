@@ -49,7 +49,7 @@ Test(errno_handling, decode_null_data) {
     errno = 0;
     int ret = ros_time_decode(NULL, 100, &sec, &nanosec);
     cr_assert_eq(ret, -1, "Should return -1 for NULL data");
-    cr_assert_eq(errno, EBADMSG, "errno should be EBADMSG");
+    cr_assert_eq(errno, EINVAL, "errno should be EINVAL for NULL data");
 }
 
 Test(errno_handling, decode_too_short) {
@@ -223,13 +223,13 @@ Test(errno_handling, from_cdr_null_radar_info) {
 // ============================================================================
 
 Test(errno_handling, getter_null_time) {
-    // CdrFixed decode with NULL should return -1/EBADMSG
+    // CdrFixed decode with NULL should return -1/EINVAL
     int32_t sec;
     uint32_t nanosec;
     errno = 0;
     int ret = ros_time_decode(NULL, 8, &sec, &nanosec);
     cr_assert_eq(ret, -1);
-    cr_assert_eq(errno, EBADMSG);
+    cr_assert_eq(errno, EINVAL);
 }
 
 Test(errno_handling, getter_null_header) {
@@ -264,7 +264,7 @@ Test(errno_handling, sequential_errors) {
     uint32_t nanosec;
     int ret = ros_time_decode(NULL, 8, &sec, &nanosec);
     cr_assert_eq(ret, -1);
-    cr_assert_eq(errno, EBADMSG);
+    cr_assert_eq(errno, EINVAL);
 
     // Second error: NULL from_cdr
     errno = 0;
