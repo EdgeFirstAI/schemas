@@ -168,6 +168,33 @@ fn size_point_field_element(s: &mut CdrSizer, name: &str) {
     s.size_u32();
 }
 
+/// Non-allocating iterator over PointField elements in a PointCloud2.
+pub struct PointFieldIter<'a> {
+    cursor: CdrCursor<'a>,
+    remaining: usize,
+}
+
+impl<'a> Iterator for PointFieldIter<'a> {
+    type Item = PointFieldView<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.remaining == 0 {
+            return None;
+        }
+        self.remaining -= 1;
+        Some(
+            scan_point_field_element(&mut self.cursor)
+                .expect("point field elements validated during from_cdr"),
+        )
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.remaining, Some(self.remaining))
+    }
+}
+
+impl ExactSizeIterator for PointFieldIter<'_> {}
+
 // ── Buffer-backed types ─────────────────────────────────────────────
 
 // ── CompressedImage<B> ──────────────────────────────────────────────
@@ -817,6 +844,23 @@ impl<B: AsRef<[u8]>> PointCloud2<B> {
             .collect()
     }
 
+    /// Non-allocating iterator over the PointField descriptors.
+    pub fn fields_iter(&self) -> PointFieldIter<'_> {
+        let b = self.buf.as_ref();
+        let p = align(self.offsets[0], 4) + 8;
+        let count = rd_u32(b, p) as usize;
+        let cursor = CdrCursor::resume(b, p + 4);
+        PointFieldIter {
+            cursor,
+            remaining: count,
+        }
+    }
+
+    /// Total number of points (height × width).
+    pub fn point_count(&self) -> usize {
+        (self.height() as usize) * (self.width() as usize)
+    }
+
     pub fn is_bigendian(&self) -> bool {
         rd_bool(self.buf.as_ref(), self.offsets[1])
     }
@@ -1323,6 +1367,56 @@ mod tests {
         assert_eq!(decoded.width(), 1024);
         assert_eq!(decoded.fields_len(), 3);
         assert!(decoded.is_dense());
+    }
+
+    #[test]
+    fn point_cloud2_fields_iter() {
+        let fields = [
+            PointFieldView {
+                name: "x",
+                offset: 0,
+                datatype: 7,
+                count: 1,
+            },
+            PointFieldView {
+                name: "y",
+                offset: 4,
+                datatype: 7,
+                count: 1,
+            },
+            PointFieldView {
+                name: "z",
+                offset: 8,
+                datatype: 7,
+                count: 1,
+            },
+        ];
+        let data = vec![0u8; 36]; // 3 points × 12 bytes
+        let cloud = PointCloud2::new(
+            Time::new(100, 0),
+            "lidar",
+            1,
+            3,
+            &fields,
+            false,
+            12,
+            36,
+            &data,
+            true,
+        )
+        .unwrap();
+        let cdr = cloud.to_cdr();
+        let decoded = PointCloud2::from_cdr(cdr).unwrap();
+
+        let iter_fields: Vec<_> = decoded.fields_iter().collect();
+        assert_eq!(iter_fields.len(), 3);
+        assert_eq!(iter_fields[0].name, "x");
+        assert_eq!(iter_fields[1].name, "y");
+        assert_eq!(iter_fields[2].name, "z");
+        assert_eq!(iter_fields[0].offset, 0);
+        assert_eq!(iter_fields[1].offset, 4);
+        assert_eq!(iter_fields[2].offset, 8);
+        assert_eq!(decoded.point_count(), 3);
     }
 
     #[test]
