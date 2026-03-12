@@ -248,6 +248,23 @@ impl<'a> CdrCursor<'a> {
         self.read_u32()
     }
 
+    /// Validate that a sequence count is plausible given the remaining buffer
+    /// and the minimum byte size per element. Returns the count as `usize`.
+    ///
+    /// This is a hardening check — the cursor's per-element bounds checking
+    /// would eventually catch an invalid count, but this avoids attempting
+    /// billions of loop iterations on malformed input.
+    pub fn check_seq_count(&self, count: u32, min_element_bytes: usize) -> Result<usize, CdrError> {
+        let n = count as usize;
+        if min_element_bytes > 0 && n > self.remaining() / min_element_bytes {
+            return Err(CdrError::BufferTooShort {
+                need: self.pos + n * min_element_bytes,
+                have: self.buf.len(),
+            });
+        }
+        Ok(n)
+    }
+
     /// Read a CDR string as a zero-copy `&str`.
     ///
     /// CDR strings are encoded as: u32 length (including NUL), UTF-8 bytes, NUL.

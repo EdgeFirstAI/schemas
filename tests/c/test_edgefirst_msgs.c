@@ -382,6 +382,10 @@ Test(edgefirst_msgs, model_info_getters_null) {
     cr_assert_null(ros_model_info_get_model_format(NULL));
     cr_assert_eq(ros_model_info_get_input_type(NULL), 0);
     cr_assert_eq(ros_model_info_get_output_type(NULL), 0);
+    cr_assert_null(ros_model_info_get_input_shape(NULL, NULL));
+    cr_assert_null(ros_model_info_get_output_shape(NULL, NULL));
+    cr_assert_eq(ros_model_info_get_labels_len(NULL), 0);
+    cr_assert_null(ros_model_info_get_label(NULL, 0));
 }
 
 // ============================================================================

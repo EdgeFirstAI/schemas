@@ -1306,6 +1306,77 @@ fn golden_edgefirst_msgs_detect() {
 }
 
 #[test]
+fn golden_edgefirst_msgs_detect_multi() {
+    let golden = read_golden("edgefirst_msgs", "Detect_multi");
+    let view = edgefirst_msgs::Detect::from_cdr(&golden[..]).unwrap();
+    assert_eq!(view.stamp(), STAMP);
+    assert_eq!(view.frame_id(), FRAME_ID);
+    assert_eq!(view.boxes_len(), 3);
+    let boxes = view.boxes();
+    assert_eq!(boxes[0].label, "a");
+    assert_eq!(boxes[0].track_id, "t");
+    assert_eq!(boxes[0].score, 0.95f32);
+    assert_eq!(boxes[1].label, "person");
+    assert_eq!(boxes[1].track_id, "track_long_id");
+    assert_eq!(boxes[1].score, 0.87f32);
+    assert_eq!(boxes[1].track_lifetime, 10);
+    assert_eq!(boxes[2].label, "ab");
+    assert_eq!(boxes[2].track_id, "abc");
+    assert_eq!(boxes[2].score, 0.50f32);
+    // Phase 2: rebuild and compare
+    let built = edgefirst_msgs::Detect::new(
+        STAMP,
+        FRAME_ID,
+        STAMP,
+        Time::new(0, 1000000),
+        Time::new(0, 2000000),
+        &[
+            DetectBoxView {
+                center_x: 0.1,
+                center_y: 0.2,
+                width: 0.5,
+                height: 0.6,
+                label: "a",
+                score: 0.95,
+                distance: 5.0,
+                speed: 1.0,
+                track_id: "t",
+                track_lifetime: 1,
+                track_created: Time::new(1, 0),
+            },
+            DetectBoxView {
+                center_x: 0.3,
+                center_y: 0.4,
+                width: 0.2,
+                height: 0.3,
+                label: "person",
+                score: 0.87,
+                distance: 12.0,
+                speed: 3.0,
+                track_id: "track_long_id",
+                track_lifetime: 10,
+                track_created: Time::new(2, 0),
+            },
+            DetectBoxView {
+                center_x: 0.7,
+                center_y: 0.8,
+                width: 0.1,
+                height: 0.1,
+                label: "ab",
+                score: 0.50,
+                distance: 0.0,
+                speed: 0.0,
+                track_id: "abc",
+                track_lifetime: 0,
+                track_created: Time::new(0, 0),
+            },
+        ],
+    )
+    .unwrap();
+    assert_eq!(built.to_cdr(), golden);
+}
+
+#[test]
 fn golden_edgefirst_msgs_model() {
     let golden = read_golden("edgefirst_msgs", "Model");
     let view = edgefirst_msgs::Model::from_cdr(&golden[..]).unwrap();
@@ -1436,6 +1507,64 @@ fn golden_edgefirst_msgs_model_info() {
     )
     .unwrap();
     assert_ne!(mi2.to_cdr(), golden);
+}
+
+#[test]
+fn golden_edgefirst_msgs_model_info_labels() {
+    let golden = read_golden("edgefirst_msgs", "ModelInfo_labels");
+    let view = edgefirst_msgs::ModelInfo::from_cdr(&golden[..]).unwrap();
+    assert_eq!(view.stamp(), STAMP);
+    assert_eq!(view.frame_id(), FRAME_ID);
+    assert_eq!(view.input_shape(), &[1, 3, 320, 320]);
+    assert_eq!(view.output_shape(), &[1, 100, 6]);
+    assert_eq!(view.labels(), vec!["a", "ab", "abc", "abcd", "abcde"]);
+    assert_eq!(view.model_type(), "object_detection");
+    assert_eq!(view.model_format(), "DeepViewRT");
+    assert_eq!(view.model_name(), "yolov8n");
+    // Phase 2: rebuild and compare
+    let built = edgefirst_msgs::ModelInfo::new(
+        STAMP,
+        FRAME_ID,
+        &[1, 3, 320, 320],
+        8,
+        &[1, 100, 6],
+        8,
+        &["a", "ab", "abc", "abcd", "abcde"],
+        "object_detection",
+        "DeepViewRT",
+        "yolov8n",
+    )
+    .unwrap();
+    assert_eq!(built.to_cdr(), golden);
+}
+
+#[test]
+fn golden_edgefirst_msgs_model_info_empty() {
+    let golden = read_golden("edgefirst_msgs", "ModelInfo_empty");
+    let view = edgefirst_msgs::ModelInfo::from_cdr(&golden[..]).unwrap();
+    assert_eq!(view.stamp(), STAMP);
+    assert_eq!(view.frame_id(), FRAME_ID);
+    assert_eq!(view.input_shape(), &[1, 3, 224, 224]);
+    assert_eq!(view.output_shape(), &[1, 10]);
+    assert_eq!(view.labels(), Vec::<&str>::new());
+    assert_eq!(view.model_type(), "classifier");
+    assert_eq!(view.model_format(), "onnx");
+    assert_eq!(view.model_name(), "mobilenet");
+    // Phase 2: rebuild and compare
+    let built = edgefirst_msgs::ModelInfo::new(
+        STAMP,
+        FRAME_ID,
+        &[1, 3, 224, 224],
+        8,
+        &[1, 10],
+        8,
+        &[],
+        "classifier",
+        "onnx",
+        "mobilenet",
+    )
+    .unwrap();
+    assert_eq!(built.to_cdr(), golden);
 }
 
 // ── foxglove_msgs (CdrFixed) ──────────────────────────────────────────────

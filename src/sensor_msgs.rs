@@ -765,7 +765,8 @@ impl<B: AsRef<[u8]>> PointCloud2<B> {
         let mut c = CdrCursor::resume(buf.as_ref(), o0);
         c.read_u32()?; // height
         c.read_u32()?; // width
-        let fields_count = c.read_u32()? as usize;
+        let raw_fields = c.read_u32()?;
+        let fields_count = c.check_seq_count(raw_fields, 9)?;
         for _ in 0..fields_count {
             scan_point_field_element(&mut c)?;
         }

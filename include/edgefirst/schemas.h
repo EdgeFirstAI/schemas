@@ -1198,6 +1198,18 @@ uint8_t ros_model_info_get_input_type(const ros_model_info_t* view);
 /** @brief Get output type. */
 uint8_t ros_model_info_get_output_type(const ros_model_info_t* view);
 
+/** @brief Get input shape array (zero-copy pointer into CDR buffer). */
+const uint32_t* ros_model_info_get_input_shape(const ros_model_info_t* view, size_t* out_len);
+
+/** @brief Get output shape array (zero-copy pointer into CDR buffer). */
+const uint32_t* ros_model_info_get_output_shape(const ros_model_info_t* view, size_t* out_len);
+
+/** @brief Get number of labels. */
+uint32_t ros_model_info_get_labels_len(const ros_model_info_t* view);
+
+/** @brief Get label at index (zero-copy pointer into CDR buffer). Sets errno EINVAL if out of bounds. */
+const char* ros_model_info_get_label(const ros_model_info_t* view, uint32_t index);
+
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_model_info_as_cdr(const ros_model_info_t* view, size_t* out_len);
 

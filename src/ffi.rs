@@ -2140,6 +2140,66 @@ pub extern "C" fn ros_model_info_get_output_type(view: *const ros_model_info_t) 
     unsafe { (*view).0.output_type() }
 }
 
+#[no_mangle]
+pub extern "C" fn ros_model_info_get_input_shape(
+    view: *const ros_model_info_t,
+    out_len: *mut usize,
+) -> *const u32 {
+    if view.is_null() {
+        return ptr::null();
+    }
+    let data = unsafe { (*view).0.input_shape() };
+    unsafe {
+        if !out_len.is_null() {
+            *out_len = data.len();
+        }
+    }
+    data.as_ptr()
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_info_get_output_shape(
+    view: *const ros_model_info_t,
+    out_len: *mut usize,
+) -> *const u32 {
+    if view.is_null() {
+        return ptr::null();
+    }
+    let data = unsafe { (*view).0.output_shape() };
+    unsafe {
+        if !out_len.is_null() {
+            *out_len = data.len();
+        }
+    }
+    data.as_ptr()
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_info_get_labels_len(view: *const ros_model_info_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.labels_len() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_info_get_label(
+    view: *const ros_model_info_t,
+    index: u32,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    let labels = unsafe { (*view).0.labels() };
+    match labels.get(index as usize) {
+        Some(s) => str_as_c(s),
+        None => {
+            set_errno(EINVAL);
+            ptr::null()
+        }
+    }
+}
+
 // =============================================================================
 // PointCloud2 (buffer-backed)
 // =============================================================================

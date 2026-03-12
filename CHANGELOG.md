@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-03-12
+
+### Added
+
+- C API functions for ModelInfo labels access: `ros_model_info_get_labels_len()`, `ros_model_info_get_label()`
+- C API functions for ModelInfo shape access: `ros_model_info_get_input_shape()`, `ros_model_info_get_output_shape()`
+- `CdrCursor::check_seq_count()` for sequence count validation against buffer bounds
+- Golden CDR test data for multi-box Detect, ModelInfo with labels, and empty ModelInfo
+- Comprehensive edge case tests for ModelInfo labels and DetectBox variable-length fields
+
+### Changed
+
+- Reduced ModelInfo offset table from 7 to 6 entries (removed unused slot)
+- Reduced FoxgloveImageAnnotation offset table from 3 to 2 entries (removed unused slot)
+
 ## [2.0.0] - 2026-03-10
 
 ### Changed — BREAKING

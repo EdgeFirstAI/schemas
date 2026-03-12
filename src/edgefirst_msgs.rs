@@ -1060,7 +1060,8 @@ impl<B: AsRef<[u8]>> Detect<B> {
         Time::read_cdr(&mut c)?; // input_timestamp
         Time::read_cdr(&mut c)?; // model_time
         Time::read_cdr(&mut c)?; // output_time
-        let count = c.read_u32()? as usize;
+        let raw_count = c.read_u32()?;
+        let count = c.check_seq_count(raw_count, 24)?;
         for _ in 0..count {
             scan_box_element(&mut c)?;
         }
@@ -1189,12 +1190,14 @@ impl<B: AsRef<[u8]>> Model<B> {
         Duration::read_cdr(&mut c)?;
         Duration::read_cdr(&mut c)?;
         Duration::read_cdr(&mut c)?;
-        let boxes_count = c.read_u32()? as usize;
+        let raw_boxes = c.read_u32()?;
+        let boxes_count = c.check_seq_count(raw_boxes, 24)?;
         for _ in 0..boxes_count {
             scan_box_element(&mut c)?;
         }
         let o1 = c.offset();
-        let masks_count = c.read_u32()? as usize;
+        let raw_masks = c.read_u32()?;
+        let masks_count = c.check_seq_count(raw_masks, 13)?;
         for _ in 0..masks_count {
             scan_mask_element(&mut c)?;
         }
@@ -1343,7 +1346,7 @@ impl Model<Vec<u8>> {
 
 pub struct ModelInfo<B> {
     buf: B,
-    offsets: [usize; 7],
+    offsets: [usize; 6],
 }
 
 impl<B: AsRef<[u8]>> ModelInfo<B> {
@@ -1359,7 +1362,8 @@ impl<B: AsRef<[u8]>> ModelInfo<B> {
         c.skip_seq_4(os_count)?;
         let o2 = c.offset();
         c.read_u8()?; // output_type
-        let lab_count = c.read_u32()? as usize;
+        let raw_lab = c.read_u32()?;
+        let lab_count = c.check_seq_count(raw_lab, 5)?;
         for _ in 0..lab_count {
             c.read_string()?;
         }
@@ -1369,9 +1373,8 @@ impl<B: AsRef<[u8]>> ModelInfo<B> {
         let _ = c.read_string()?;
         let o5 = c.offset();
         let _ = c.read_string()?;
-        let o6 = c.offset();
         Ok(ModelInfo {
-            offsets: [o0, o1, o2, o3, o4, o5, o6],
+            offsets: [o0, o1, o2, o3, o4, o5],
             buf,
         })
     }
@@ -1422,6 +1425,11 @@ impl<B: AsRef<[u8]>> ModelInfo<B> {
                     .expect("label data validated during from_cdr")
             })
             .collect()
+    }
+
+    pub fn labels_len(&self) -> u32 {
+        let mut c = CdrCursor::resume(self.buf.as_ref(), self.offsets[2] + 1);
+        c.read_u32().expect("label data validated during from_cdr")
     }
 
     #[inline]
@@ -1481,7 +1489,6 @@ impl ModelInfo<Vec<u8>> {
         sizer.size_string(model_format);
         let o5 = sizer.offset();
         sizer.size_string(model_name);
-        let o6 = sizer.offset();
 
         let mut buf = vec![0u8; sizer.size()];
         let mut w = CdrWriter::new(&mut buf)?;
@@ -1503,7 +1510,7 @@ impl ModelInfo<Vec<u8>> {
         w.finish()?;
 
         Ok(ModelInfo {
-            offsets: [o0, o1, o2, o3, o4, o5, o6],
+            offsets: [o0, o1, o2, o3, o4, o5],
             buf,
         })
     }
@@ -1780,6 +1787,81 @@ mod tests {
     }
 
     #[test]
+    fn detect_multi_box_varying_strings() {
+        let boxes = [
+            DetectBoxView {
+                center_x: 0.1,
+                center_y: 0.2,
+                width: 0.5,
+                height: 0.6,
+                label: "a",
+                score: 0.95,
+                distance: 5.0,
+                speed: 1.0,
+                track_id: "t",
+                track_lifetime: 1,
+                track_created: Time::new(1, 0),
+            },
+            DetectBoxView {
+                center_x: 0.3,
+                center_y: 0.4,
+                width: 0.2,
+                height: 0.3,
+                label: "person",
+                score: 0.87,
+                distance: 12.0,
+                speed: 3.0,
+                track_id: "track_long_id",
+                track_lifetime: 10,
+                track_created: Time::new(2, 0),
+            },
+            DetectBoxView {
+                center_x: 0.7,
+                center_y: 0.8,
+                width: 0.1,
+                height: 0.1,
+                label: "ab",
+                score: 0.50,
+                distance: 0.0,
+                speed: 0.0,
+                track_id: "abc",
+                track_lifetime: 0,
+                track_created: Time::new(0, 0),
+            },
+        ];
+        let detect = Detect::new(
+            Time::new(100, 0),
+            "camera",
+            Time::new(99, 0),
+            Time::new(0, 50_000_000),
+            Time::new(100, 0),
+            &boxes,
+        )
+        .unwrap();
+        assert_eq!(detect.boxes_len(), 3);
+        let decoded_boxes = detect.boxes();
+        assert_eq!(decoded_boxes[0].label, "a");
+        assert_eq!(decoded_boxes[0].track_id, "t");
+        assert_eq!(decoded_boxes[1].label, "person");
+        assert_eq!(decoded_boxes[1].track_id, "track_long_id");
+        assert_eq!(decoded_boxes[2].label, "ab");
+        assert_eq!(decoded_boxes[2].track_id, "abc");
+
+        let bytes = detect.to_cdr();
+        let decoded = Detect::from_cdr(bytes).unwrap();
+        assert_eq!(decoded.boxes_len(), 3);
+        let b = decoded.boxes();
+        assert_eq!(b[0].label, "a");
+        assert_eq!(b[0].track_id, "t");
+        assert_eq!(b[0].score, 0.95);
+        assert_eq!(b[1].label, "person");
+        assert_eq!(b[1].track_id, "track_long_id");
+        assert_eq!(b[1].track_lifetime, 10);
+        assert_eq!(b[2].label, "ab");
+        assert_eq!(b[2].track_id, "abc");
+    }
+
+    #[test]
     fn model_roundtrip() {
         let model = Model::new(
             Time::new(0, 0),
@@ -1833,6 +1915,140 @@ mod tests {
     }
 
     #[test]
+    fn model_info_empty_labels() {
+        let info = ModelInfo::new(
+            Time::new(1, 0),
+            "cam",
+            &[1, 3, 224, 224],
+            8,
+            &[1, 10],
+            8,
+            &[],
+            "classifier",
+            "onnx",
+            "mobilenet",
+        )
+        .unwrap();
+        assert_eq!(info.labels(), Vec::<&str>::new());
+        assert_eq!(info.input_shape(), &[1, 3, 224, 224]);
+        assert_eq!(info.output_shape(), &[1, 10]);
+        assert_eq!(info.model_type(), "classifier");
+        assert_eq!(info.model_format(), "onnx");
+        assert_eq!(info.model_name(), "mobilenet");
+
+        let bytes = info.to_cdr();
+        let decoded = ModelInfo::from_cdr(bytes).unwrap();
+        assert_eq!(decoded.labels(), Vec::<&str>::new());
+        assert_eq!(decoded.model_type(), "classifier");
+        assert_eq!(decoded.model_name(), "mobilenet");
+    }
+
+    #[test]
+    fn model_info_single_empty_label() {
+        let info = ModelInfo::new(
+            Time::new(0, 0),
+            "",
+            &[1],
+            0,
+            &[1],
+            0,
+            &[""],
+            "det",
+            "tflite",
+            "m",
+        )
+        .unwrap();
+        assert_eq!(info.labels(), vec![""]);
+
+        let bytes = info.to_cdr();
+        let decoded = ModelInfo::from_cdr(bytes).unwrap();
+        assert_eq!(decoded.labels(), vec![""]);
+        assert_eq!(decoded.model_type(), "det");
+    }
+
+    #[test]
+    fn model_info_alignment_stressing_labels() {
+        let info = ModelInfo::new(
+            Time::new(0, 0),
+            "f",
+            &[1, 3, 320, 320],
+            8,
+            &[1, 100, 6],
+            8,
+            &["a", "ab", "abc", "abcd", "abcde"],
+            "object_detection",
+            "DeepViewRT",
+            "yolov8n",
+        )
+        .unwrap();
+        assert_eq!(info.labels(), vec!["a", "ab", "abc", "abcd", "abcde"]);
+        assert_eq!(info.input_shape(), &[1, 3, 320, 320]);
+        assert_eq!(info.model_type(), "object_detection");
+
+        let bytes = info.to_cdr();
+        let decoded = ModelInfo::from_cdr(bytes).unwrap();
+        assert_eq!(decoded.labels(), vec!["a", "ab", "abc", "abcd", "abcde"]);
+        assert_eq!(decoded.input_shape(), &[1, 3, 320, 320]);
+        assert_eq!(decoded.model_type(), "object_detection");
+        assert_eq!(decoded.model_name(), "yolov8n");
+    }
+
+    #[test]
+    fn model_info_many_labels() {
+        let label_strs: Vec<String> = (0..80).map(|i| format!("class_{i}")).collect();
+        let labels: Vec<&str> = label_strs.iter().map(|s| s.as_str()).collect();
+        let info = ModelInfo::new(
+            Time::new(0, 0),
+            "cam0",
+            &[1, 3, 640, 640],
+            8,
+            &[1, 84, 8400],
+            8,
+            &labels,
+            "object_detection",
+            "DeepViewRT",
+            "yolov8n",
+        )
+        .unwrap();
+        assert_eq!(info.labels().len(), 80);
+        assert_eq!(info.labels()[0], "class_0");
+        assert_eq!(info.labels()[79], "class_79");
+
+        let bytes = info.to_cdr();
+        let decoded = ModelInfo::from_cdr(bytes).unwrap();
+        assert_eq!(decoded.labels().len(), 80);
+        assert_eq!(decoded.labels()[0], "class_0");
+        assert_eq!(decoded.labels()[79], "class_79");
+        assert_eq!(decoded.model_name(), "yolov8n");
+    }
+
+    #[test]
+    fn model_info_empty_shapes() {
+        let info = ModelInfo::new(
+            Time::new(0, 0),
+            "",
+            &[],
+            0,
+            &[],
+            0,
+            &["label"],
+            "type",
+            "format",
+            "name",
+        )
+        .unwrap();
+        assert_eq!(info.input_shape(), &[] as &[u32]);
+        assert_eq!(info.output_shape(), &[] as &[u32]);
+        assert_eq!(info.labels(), vec!["label"]);
+
+        let bytes = info.to_cdr();
+        let decoded = ModelInfo::from_cdr(bytes).unwrap();
+        assert_eq!(decoded.input_shape(), &[] as &[u32]);
+        assert_eq!(decoded.output_shape(), &[] as &[u32]);
+        assert_eq!(decoded.labels(), vec!["label"]);
+    }
+
+    #[test]
     fn track_roundtrip() {
         let track = Track::new("t1", 5, Time::new(95, 0)).unwrap();
         assert_eq!(track.id(), "t1");
@@ -1870,5 +2086,32 @@ mod tests {
         let decoded = DetectBox::from_cdr(bytes).unwrap();
         assert_eq!(decoded.label(), "car");
         assert_eq!(decoded.track_id(), "t1");
+    }
+
+    #[test]
+    fn detect_box_empty_strings() {
+        let b = DetectBox::new(
+            0.5,
+            0.5,
+            0.1,
+            0.2,
+            "",
+            0.0,
+            0.0,
+            0.0,
+            "",
+            0,
+            Time::new(0, 0),
+        )
+        .unwrap();
+        assert_eq!(b.label(), "");
+        assert_eq!(b.track_id(), "");
+        assert_eq!(b.center_x(), 0.5);
+
+        let bytes = b.to_cdr();
+        let decoded = DetectBox::from_cdr(bytes).unwrap();
+        assert_eq!(decoded.label(), "");
+        assert_eq!(decoded.track_id(), "");
+        assert_eq!(decoded.score(), 0.0);
     }
 }

@@ -304,6 +304,35 @@ def gen_edgefirst_msgs():
                   output_time=builtin_interfaces.Time(sec=0, nanosec=2000000),
                   boxes=[box_msg]))
 
+    # Detect with multiple boxes (varying string lengths for alignment testing)
+    boxes_multi = [
+        edgefirst_msgs.Box(
+            center_x=0.1, center_y=0.2, width=0.5, height=0.6,
+            label="a", score=0.95, distance=5.0, speed=1.0,
+            track=edgefirst_msgs.Track(
+                id="t", lifetime=1,
+                created=builtin_interfaces.Time(sec=1, nanosec=0))),
+        edgefirst_msgs.Box(
+            center_x=0.3, center_y=0.4, width=0.2, height=0.3,
+            label="person", score=0.87, distance=12.0, speed=3.0,
+            track=edgefirst_msgs.Track(
+                id="track_long_id", lifetime=10,
+                created=builtin_interfaces.Time(sec=2, nanosec=0))),
+        edgefirst_msgs.Box(
+            center_x=0.7, center_y=0.8, width=0.1, height=0.1,
+            label="ab", score=0.50, distance=0.0, speed=0.0,
+            track=edgefirst_msgs.Track(
+                id="abc", lifetime=0,
+                created=builtin_interfaces.Time(sec=0, nanosec=0))),
+    ]
+    write_cdr("edgefirst_msgs", "Detect_multi",
+              edgefirst_msgs.Detect(
+                  header=header,
+                  input_timestamp=STAMP,
+                  model_time=builtin_interfaces.Time(sec=0, nanosec=1000000),
+                  output_time=builtin_interfaces.Time(sec=0, nanosec=2000000),
+                  boxes=boxes_multi))
+
     # Model
     write_cdr("edgefirst_msgs", "Model",
               edgefirst_msgs.Model(
@@ -329,6 +358,32 @@ def gen_edgefirst_msgs():
                   model_type="object_detection",
                   model_format="DeepViewRT",
                   model_name="yolov8n"))
+
+    # ModelInfo with alignment-stressing labels
+    write_cdr("edgefirst_msgs", "ModelInfo_labels",
+              edgefirst_msgs.ModelInfo(
+                  header=header,
+                  input_shape=[1, 3, 320, 320],
+                  input_type=8,
+                  output_shape=[1, 100, 6],
+                  output_type=8,
+                  labels=["a", "ab", "abc", "abcd", "abcde"],
+                  model_type="object_detection",
+                  model_format="DeepViewRT",
+                  model_name="yolov8n"))
+
+    # ModelInfo with empty labels array
+    write_cdr("edgefirst_msgs", "ModelInfo_empty",
+              edgefirst_msgs.ModelInfo(
+                  header=header,
+                  input_shape=[1, 3, 224, 224],
+                  input_type=8,
+                  output_shape=[1, 10],
+                  output_type=8,
+                  labels=[],
+                  model_type="classifier",
+                  model_format="onnx",
+                  model_name="mobilenet"))
 
 
 def gen_foxglove_msgs():

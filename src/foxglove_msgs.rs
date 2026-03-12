@@ -594,33 +594,35 @@ impl FoxglovePointAnnotation<Vec<u8>> {
 // CDR layout:
 //   circles(Vec<FoxgloveCircleAnnotations>) → offsets[0],
 //   points(Vec<FoxglovePointAnnotations>) → offsets[1],
-//   texts(Vec<FoxgloveTextAnnotations>) → offsets[2]
+//   texts(Vec<FoxgloveTextAnnotations>)
 
 pub struct FoxgloveImageAnnotation<B> {
     buf: B,
-    offsets: [usize; 3],
+    offsets: [usize; 2],
 }
 
 impl<B: AsRef<[u8]>> FoxgloveImageAnnotation<B> {
     pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
         let mut c = CdrCursor::new(buf.as_ref())?;
-        let circ_count = c.read_u32()? as usize;
+        let raw_circ = c.read_u32()?;
+        let circ_count = c.check_seq_count(raw_circ, 40)?;
         for _ in 0..circ_count {
             FoxgloveCircleAnnotations::read_cdr(&mut c)?;
         }
         let o0 = c.offset();
-        let pts_count = c.read_u32()? as usize;
+        let raw_pts = c.read_u32()?;
+        let pts_count = c.check_seq_count(raw_pts, 12)?;
         for _ in 0..pts_count {
             scan_point_annotation(&mut c)?;
         }
         let o1 = c.offset();
-        let txt_count = c.read_u32()? as usize;
+        let raw_txt = c.read_u32()?;
+        let txt_count = c.check_seq_count(raw_txt, 13)?;
         for _ in 0..txt_count {
             scan_text_annotation(&mut c)?;
         }
-        let o2 = c.offset();
         Ok(FoxgloveImageAnnotation {
-            offsets: [o0, o1, o2],
+            offsets: [o0, o1],
             buf,
         })
     }
@@ -692,7 +694,6 @@ impl FoxgloveImageAnnotation<Vec<u8>> {
         for t in texts {
             size_text_annotation(&mut sizer, t.text);
         }
-        let o2 = sizer.offset();
 
         let mut buf = vec![0u8; sizer.size()];
         let mut w = CdrWriter::new(&mut buf)?;
@@ -711,7 +712,7 @@ impl FoxgloveImageAnnotation<Vec<u8>> {
         w.finish()?;
 
         Ok(FoxgloveImageAnnotation {
-            offsets: [o0, o1, o2],
+            offsets: [o0, o1],
             buf,
         })
     }
