@@ -1526,4 +1526,617 @@ mod tests {
         assert_eq!(typed_cloud.len(), 4);
         assert_eq!(typed_cloud.get(0).unwrap().x, 1.0);
     }
+
+    // ── PointFieldType unit tests ───────────────────────────────────
+
+    #[test]
+    fn point_field_type_from_datatype() {
+        assert_eq!(PointFieldType::from_datatype(1), Some(PointFieldType::Int8));
+        assert_eq!(
+            PointFieldType::from_datatype(2),
+            Some(PointFieldType::Uint8)
+        );
+        assert_eq!(
+            PointFieldType::from_datatype(3),
+            Some(PointFieldType::Int16)
+        );
+        assert_eq!(
+            PointFieldType::from_datatype(4),
+            Some(PointFieldType::Uint16)
+        );
+        assert_eq!(
+            PointFieldType::from_datatype(5),
+            Some(PointFieldType::Int32)
+        );
+        assert_eq!(
+            PointFieldType::from_datatype(6),
+            Some(PointFieldType::Uint32)
+        );
+        assert_eq!(
+            PointFieldType::from_datatype(7),
+            Some(PointFieldType::Float32)
+        );
+        assert_eq!(
+            PointFieldType::from_datatype(8),
+            Some(PointFieldType::Float64)
+        );
+        // Invalid
+        assert_eq!(PointFieldType::from_datatype(0), None);
+        assert_eq!(PointFieldType::from_datatype(9), None);
+        assert_eq!(PointFieldType::from_datatype(255), None);
+    }
+
+    #[test]
+    fn point_field_type_size_bytes() {
+        assert_eq!(PointFieldType::Int8.size_bytes(), 1);
+        assert_eq!(PointFieldType::Uint8.size_bytes(), 1);
+        assert_eq!(PointFieldType::Int16.size_bytes(), 2);
+        assert_eq!(PointFieldType::Uint16.size_bytes(), 2);
+        assert_eq!(PointFieldType::Int32.size_bytes(), 4);
+        assert_eq!(PointFieldType::Uint32.size_bytes(), 4);
+        assert_eq!(PointFieldType::Float32.size_bytes(), 4);
+        assert_eq!(PointFieldType::Float64.size_bytes(), 8);
+    }
+
+    #[test]
+    fn field_desc_from_view_unknown_datatype() {
+        let view = PointFieldView {
+            name: "bad",
+            offset: 0,
+            datatype: 99,
+            count: 1,
+        };
+        assert!(FieldDesc::from_view(&view).is_none());
+    }
+
+    // ── Signed and f64 type tests ───────────────────────────────────
+
+    #[test]
+    fn dyn_cloud_signed_and_f64_types() {
+        let fields = [
+            PointFieldView {
+                name: "i8_field",
+                offset: 0,
+                datatype: 1,
+                count: 1,
+            }, // Int8
+            PointFieldView {
+                name: "u8_field",
+                offset: 1,
+                datatype: 2,
+                count: 1,
+            }, // Uint8
+            PointFieldView {
+                name: "i16_field",
+                offset: 2,
+                datatype: 3,
+                count: 1,
+            }, // Int16
+            PointFieldView {
+                name: "u16_field",
+                offset: 4,
+                datatype: 4,
+                count: 1,
+            }, // Uint16
+            PointFieldView {
+                name: "i32_field",
+                offset: 6,
+                datatype: 5,
+                count: 1,
+            }, // Int32
+            PointFieldView {
+                name: "u32_field",
+                offset: 10,
+                datatype: 6,
+                count: 1,
+            }, // Uint32
+            PointFieldView {
+                name: "f32_field",
+                offset: 14,
+                datatype: 7,
+                count: 1,
+            }, // Float32
+            PointFieldView {
+                name: "f64_field",
+                offset: 18,
+                datatype: 8,
+                count: 1,
+            }, // Float64
+        ];
+        let point_step = 26u32; // 1+1+2+2+4+4+4+8
+        let mut data = vec![0u8; point_step as usize];
+        data[0] = 0xFE_u8; // i8 = -2
+        data[1] = 42; // u8 = 42
+        data[2..4].copy_from_slice(&(-300i16).to_le_bytes()); // i16
+        data[4..6].copy_from_slice(&1000u16.to_le_bytes()); // u16
+        data[6..10].copy_from_slice(&(-100_000i32).to_le_bytes()); // i32
+        data[10..14].copy_from_slice(&3_000_000u32.to_le_bytes()); // u32
+        data[14..18].copy_from_slice(&std::f32::consts::PI.to_le_bytes()); // f32
+        data[18..26].copy_from_slice(&std::f64::consts::E.to_le_bytes()); // f64
+
+        let pc = PointCloud2::new(
+            Time::new(0, 0),
+            "test",
+            1,
+            1,
+            &fields,
+            false,
+            point_step,
+            point_step,
+            &data,
+            true,
+        )
+        .unwrap();
+        let cdr = pc.to_cdr();
+        let decoded = PointCloud2::from_cdr(&cdr).unwrap();
+        let cloud = DynPointCloud::from_pointcloud2(&decoded).unwrap();
+
+        assert_eq!(cloud.field_count(), 8);
+
+        // Verify all field types are correctly resolved
+        let i8_desc = cloud.field("i8_field").unwrap();
+        assert_eq!(i8_desc.field_type, PointFieldType::Int8);
+        let f64_desc = cloud.field("f64_field").unwrap();
+        assert_eq!(f64_desc.field_type, PointFieldType::Float64);
+
+        // Verify gather for u8 and u16
+        assert_eq!(cloud.gather_u8("u8_field"), Some(vec![42]));
+        assert_eq!(cloud.gather_u16("u16_field"), Some(vec![1000]));
+        assert_eq!(cloud.gather_u32("u32_field"), Some(vec![3_000_000]));
+
+        // Verify point-level access
+        let p = cloud.point(0).unwrap();
+        assert_eq!(p.read_u8("u8_field"), Some(42));
+        assert_eq!(p.read_u16("u16_field"), Some(1000));
+        assert_eq!(p.read_u32("u32_field"), Some(3_000_000));
+        assert_eq!(p.read_f32("f32_field"), Some(std::f32::consts::PI));
+
+        // Verify descriptor-based access
+        let u16_desc = cloud.field("u16_field").unwrap();
+        assert_eq!(p.read_u16_at(u16_desc), 1000);
+        let u8_desc = cloud.field("u8_field").unwrap();
+        assert_eq!(p.read_u8_at(u8_desc), 42);
+    }
+
+    // ── define_point! macro metadata tests ──────────────────────────
+
+    #[test]
+    fn define_point_metadata() {
+        assert_eq!(TestXyzPoint::FIELD_COUNT, 3);
+        assert_eq!(TestXyzPoint::point_size(), 12);
+
+        let fields = TestXyzPoint::expected_fields();
+        assert_eq!(fields.len(), 3);
+        assert_eq!(fields[0].name, "x");
+        assert_eq!(fields[0].byte_offset, 0);
+        assert_eq!(fields[0].field_type, PointFieldType::Float32);
+        assert_eq!(fields[1].name, "y");
+        assert_eq!(fields[2].name, "z");
+        assert_eq!(fields[2].byte_offset, 8);
+    }
+
+    #[test]
+    fn define_point_mixed_metadata() {
+        assert_eq!(TestXyzClassPoint::FIELD_COUNT, 5);
+        assert_eq!(TestXyzClassPoint::point_size(), 16); // max(14+2) = 16
+
+        let fields = TestXyzClassPoint::expected_fields();
+        assert_eq!(fields[3].name, "class_id");
+        assert_eq!(fields[3].field_type, PointFieldType::Uint16);
+        assert_eq!(fields[3].byte_offset, 12);
+        assert_eq!(fields[4].name, "instance_id");
+        assert_eq!(fields[4].byte_offset, 14);
+    }
+
+    #[test]
+    fn define_point_read_from() {
+        let mut data = vec![0u8; 12];
+        data[0..4].copy_from_slice(&1.5f32.to_le_bytes());
+        data[4..8].copy_from_slice(&2.5f32.to_le_bytes());
+        data[8..12].copy_from_slice(&3.5f32.to_le_bytes());
+
+        let p = TestXyzPoint::read_from(&data, 0);
+        assert_eq!(p.x, 1.5);
+        assert_eq!(p.y, 2.5);
+        assert_eq!(p.z, 3.5);
+    }
+
+    // ── Static cloud validation edge cases ──────────────────────────
+
+    #[test]
+    fn static_cloud_validation_offset_mismatch() {
+        // Field "y" at wrong offset (8 instead of 4)
+        let fields = [
+            PointFieldView {
+                name: "x",
+                offset: 0,
+                datatype: 7,
+                count: 1,
+            },
+            PointFieldView {
+                name: "y",
+                offset: 8, // wrong — TestXyzPoint expects 4
+                datatype: 7,
+                count: 1,
+            },
+            PointFieldView {
+                name: "z",
+                offset: 12,
+                datatype: 7,
+                count: 1,
+            },
+        ];
+        let data = vec![0u8; 16];
+        let pc = PointCloud2::new(
+            Time::new(0, 0),
+            "f",
+            1,
+            1,
+            &fields,
+            false,
+            16,
+            16,
+            &data,
+            true,
+        )
+        .unwrap();
+        let cdr = pc.to_cdr();
+        let decoded = PointCloud2::from_cdr(&cdr).unwrap();
+        let err = PointCloud::<TestXyzPoint>::from_pointcloud2(&decoded).unwrap_err();
+        assert!(matches!(
+            err,
+            PointCloudError::FieldMismatch {
+                name: "y",
+                reason: "byte offset mismatch"
+            }
+        ));
+    }
+
+    #[test]
+    fn static_cloud_point_step_too_small() {
+        let fields = [
+            PointFieldView {
+                name: "x",
+                offset: 0,
+                datatype: 7,
+                count: 1,
+            },
+            PointFieldView {
+                name: "y",
+                offset: 4,
+                datatype: 7,
+                count: 1,
+            },
+            PointFieldView {
+                name: "z",
+                offset: 8,
+                datatype: 7,
+                count: 1,
+            },
+        ];
+        // point_step=8 < TestXyzPoint::point_size()=12
+        let data = vec![0u8; 8];
+        let pc = PointCloud2::new(
+            Time::new(0, 0),
+            "f",
+            1,
+            1,
+            &fields,
+            false,
+            8,
+            8,
+            &data,
+            true,
+        )
+        .unwrap();
+        let cdr = pc.to_cdr();
+        let decoded = PointCloud2::from_cdr(&cdr).unwrap();
+        let err = PointCloud::<TestXyzPoint>::from_pointcloud2(&decoded).unwrap_err();
+        assert!(matches!(err, PointCloudError::InvalidLayout { .. }));
+    }
+
+    // ── Realistic LiDAR layout with padding ─────────────────────────
+
+    define_point! {
+        /// Typical Ouster OS1 point layout (subset).
+        struct TestOusterPoint {
+            x: f32 => 0,
+            y: f32 => 4,
+            z: f32 => 8,
+        }
+    }
+
+    #[test]
+    fn static_cloud_with_padding() {
+        // Simulates a sensor with 32-byte point_step but only xyz used
+        let fields = [
+            PointFieldView {
+                name: "x",
+                offset: 0,
+                datatype: 7,
+                count: 1,
+            },
+            PointFieldView {
+                name: "y",
+                offset: 4,
+                datatype: 7,
+                count: 1,
+            },
+            PointFieldView {
+                name: "z",
+                offset: 8,
+                datatype: 7,
+                count: 1,
+            },
+            PointFieldView {
+                name: "intensity",
+                offset: 12,
+                datatype: 7,
+                count: 1,
+            },
+            PointFieldView {
+                name: "ring",
+                offset: 16,
+                datatype: 4,
+                count: 1,
+            },
+            PointFieldView {
+                name: "timestamp",
+                offset: 24,
+                datatype: 8,
+                count: 1,
+            },
+        ];
+        let point_step = 32u32;
+        let n = 3u32;
+        let mut data = vec![0u8; (point_step * n) as usize];
+        for i in 0..n {
+            let base = (i * point_step) as usize;
+            data[base..base + 4].copy_from_slice(&(i as f32 * 10.0).to_le_bytes());
+            data[base + 4..base + 8].copy_from_slice(&(i as f32 * 20.0).to_le_bytes());
+            data[base + 8..base + 12].copy_from_slice(&(i as f32 * 30.0).to_le_bytes());
+        }
+
+        let pc = PointCloud2::new(
+            Time::new(0, 0),
+            "os1",
+            1,
+            n,
+            &fields,
+            false,
+            point_step,
+            point_step * n,
+            &data,
+            true,
+        )
+        .unwrap();
+        let cdr = pc.to_cdr();
+        let decoded = PointCloud2::from_cdr(&cdr).unwrap();
+
+        // Static typed — only reads x,y,z, skips intensity/ring/timestamp
+        let cloud = PointCloud::<TestOusterPoint>::from_pointcloud2(&decoded).unwrap();
+        assert_eq!(cloud.len(), 3);
+        let p1 = cloud.get(1).unwrap();
+        assert_eq!(p1.x, 10.0);
+        assert_eq!(p1.y, 20.0);
+        assert_eq!(p1.z, 30.0);
+
+        // Dynamic — can also read intensity and ring
+        let dyn_cloud = decoded.as_dyn_cloud().unwrap();
+        assert_eq!(dyn_cloud.field_count(), 6);
+        assert_eq!(dyn_cloud.point_step(), 32);
+
+        // Verify stride is respected in gather
+        let xs = dyn_cloud.gather_f32("x").unwrap();
+        assert_eq!(xs, vec![0.0, 10.0, 20.0]);
+    }
+
+    // ── DynPointCloud error paths ───────────────────────────────────
+
+    #[test]
+    fn dyn_cloud_unknown_datatype_rejected() {
+        // Manually craft a PointCloud2 with an unknown datatype
+        // We can't do this through the normal API, so test FieldDesc directly
+        let view = PointFieldView {
+            name: "bad",
+            offset: 0,
+            datatype: 99,
+            count: 1,
+        };
+        assert!(FieldDesc::from_view(&view).is_none());
+    }
+
+    #[test]
+    fn dyn_cloud_gather_wrong_type_returns_none() {
+        let pc = make_test_cloud();
+        let cdr = pc.to_cdr();
+        let decoded = PointCloud2::from_cdr(&cdr).unwrap();
+        let cloud = DynPointCloud::from_pointcloud2(&decoded).unwrap();
+
+        // "x" is f32, not u32/u16/u8
+        assert!(cloud.gather_u32("x").is_none());
+        assert!(cloud.gather_u16("x").is_none());
+        assert!(cloud.gather_u8("x").is_none());
+
+        // Non-existent field
+        assert!(cloud.gather_f32("nonexistent").is_none());
+        assert!(cloud.gather_u32("nonexistent").is_none());
+        assert!(cloud.gather_u16("nonexistent").is_none());
+        assert!(cloud.gather_u8("nonexistent").is_none());
+    }
+
+    #[test]
+    fn dyn_point_wrong_type_returns_none() {
+        let pc = make_test_cloud();
+        let cdr = pc.to_cdr();
+        let decoded = PointCloud2::from_cdr(&cdr).unwrap();
+        let cloud = DynPointCloud::from_pointcloud2(&decoded).unwrap();
+        let p = cloud.point(0).unwrap();
+
+        // "x" is f32 — all non-f32 reads should return None
+        assert!(p.read_u32("x").is_none());
+        assert!(p.read_u16("x").is_none());
+        assert!(p.read_u8("x").is_none());
+
+        // Non-existent field
+        assert!(p.read_f32("nope").is_none());
+        assert!(p.read_u32("nope").is_none());
+        assert!(p.read_u16("nope").is_none());
+        assert!(p.read_u8("nope").is_none());
+    }
+
+    // ── PointCloud2 error display ───────────────────────────────────
+
+    #[test]
+    fn point_cloud_error_display() {
+        let e = PointCloudError::FieldNotFound { name: "x" };
+        assert_eq!(format!("{e}"), "field not found: x");
+
+        let e = PointCloudError::FieldMismatch {
+            name: "y",
+            reason: "byte offset mismatch",
+        };
+        assert_eq!(
+            format!("{e}"),
+            "field mismatch for 'y': byte offset mismatch"
+        );
+
+        let e = PointCloudError::TooManyFields { found: 20 };
+        assert_eq!(format!("{e}"), "too many fields: 20 (max 16)");
+
+        let e = PointCloudError::UnknownDatatype {
+            field_name: "bad".into(),
+            datatype: 99,
+        };
+        assert_eq!(format!("{e}"), "unknown datatype 99 for field 'bad'");
+
+        let e = PointCloudError::BigEndianNotSupported;
+        assert_eq!(format!("{e}"), "big-endian point data not supported");
+
+        let e = PointCloudError::InvalidLayout {
+            reason: "point_step is zero",
+        };
+        assert_eq!(format!("{e}"), "invalid layout: point_step is zero");
+    }
+
+    // ── Static cloud organized access ───────────────────────────────
+
+    #[test]
+    fn static_cloud_organized_access() {
+        let fields = [
+            PointFieldView {
+                name: "x",
+                offset: 0,
+                datatype: 7,
+                count: 1,
+            },
+            PointFieldView {
+                name: "y",
+                offset: 4,
+                datatype: 7,
+                count: 1,
+            },
+            PointFieldView {
+                name: "z",
+                offset: 8,
+                datatype: 7,
+                count: 1,
+            },
+        ];
+        let point_step = 12u32;
+        // 3×2 organized cloud
+        let n = 6u32;
+        let mut data = vec![0u8; (point_step * n) as usize];
+        for i in 0..n {
+            let base = (i * point_step) as usize;
+            data[base..base + 4].copy_from_slice(&(i as f32).to_le_bytes());
+        }
+
+        let pc = PointCloud2::new(
+            Time::new(0, 0),
+            "depth",
+            3,
+            2,
+            &fields,
+            false,
+            point_step,
+            point_step * 2,
+            &data,
+            true,
+        )
+        .unwrap();
+        let cdr = pc.to_cdr();
+        let decoded = PointCloud2::from_cdr(&cdr).unwrap();
+        let cloud = PointCloud::<TestXyzPoint>::from_pointcloud2(&decoded).unwrap();
+
+        assert_eq!(cloud.height(), 3);
+        assert_eq!(cloud.width(), 2);
+
+        // (row, col) → linear index = row * width + col
+        assert_eq!(cloud.get_at(0, 0).unwrap().x, 0.0);
+        assert_eq!(cloud.get_at(0, 1).unwrap().x, 1.0);
+        assert_eq!(cloud.get_at(1, 0).unwrap().x, 2.0);
+        assert_eq!(cloud.get_at(1, 1).unwrap().x, 3.0);
+        assert_eq!(cloud.get_at(2, 0).unwrap().x, 4.0);
+        assert_eq!(cloud.get_at(2, 1).unwrap().x, 5.0);
+
+        // Out of bounds
+        assert!(cloud.get_at(3, 0).is_none());
+        assert!(cloud.get_at(0, 2).is_none());
+    }
+
+    // ── PointScalar trait coverage ──────────────────────────────────
+
+    define_point! {
+        /// Point with all supported scalar types.
+        struct TestAllTypesPoint {
+            a: i8 => 0,
+            b: u8 => 1,
+            c: i16 => 2,
+            d: u16 => 4,
+            e: i32 => 6,
+            f: u32 => 10,
+            g: f32 => 14,
+            h: f64 => 18,
+        }
+    }
+
+    #[test]
+    fn static_cloud_all_scalar_types() {
+        use crate::sensor_msgs::pointcloud::Point;
+
+        assert_eq!(TestAllTypesPoint::FIELD_COUNT, 8);
+        assert_eq!(TestAllTypesPoint::point_size(), 26); // 18 + 8
+
+        let fields = TestAllTypesPoint::expected_fields();
+        assert_eq!(fields[0].field_type, PointFieldType::Int8);
+        assert_eq!(fields[1].field_type, PointFieldType::Uint8);
+        assert_eq!(fields[2].field_type, PointFieldType::Int16);
+        assert_eq!(fields[3].field_type, PointFieldType::Uint16);
+        assert_eq!(fields[4].field_type, PointFieldType::Int32);
+        assert_eq!(fields[5].field_type, PointFieldType::Uint32);
+        assert_eq!(fields[6].field_type, PointFieldType::Float32);
+        assert_eq!(fields[7].field_type, PointFieldType::Float64);
+
+        // Read from raw bytes
+        let mut data = vec![0u8; 26];
+        data[0] = 0xFE; // i8 = -2
+        data[1] = 200; // u8
+        data[2..4].copy_from_slice(&(-500i16).to_le_bytes());
+        data[4..6].copy_from_slice(&60000u16.to_le_bytes());
+        data[6..10].copy_from_slice(&(-1_000_000i32).to_le_bytes());
+        data[10..14].copy_from_slice(&4_000_000u32.to_le_bytes());
+        data[14..18].copy_from_slice(&std::f32::consts::E.to_le_bytes());
+        data[18..26].copy_from_slice(&std::f64::consts::PI.to_le_bytes());
+
+        let p = TestAllTypesPoint::read_from(&data, 0);
+        assert_eq!(p.a, -2);
+        assert_eq!(p.b, 200);
+        assert_eq!(p.c, -500);
+        assert_eq!(p.d, 60000);
+        assert_eq!(p.e, -1_000_000);
+        assert_eq!(p.f, 4_000_000);
+        assert_eq!(p.g, std::f32::consts::E);
+        assert_eq!(p.h, std::f64::consts::PI);
+    }
 }
