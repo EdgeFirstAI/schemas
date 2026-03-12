@@ -254,7 +254,7 @@ pub trait Point: Sized {
 /// # Example
 /// ```
 /// use edgefirst_schemas::define_point;
-/// use edgefirst_schemas::sensor_msgs::pointcloud::PointFieldType;
+/// use edgefirst_schemas::sensor_msgs::pointcloud::{Point, PointFieldType};
 ///
 /// define_point! {
 ///     pub struct XyzPoint {
@@ -358,6 +358,7 @@ pub use crate::define_point;
 pub struct DynPointCloud<'a> {
     data: &'a [u8],
     point_step: usize,
+    row_step: usize,
     num_points: usize,
     fields: [Option<FieldDesc<'a>>; MAX_FIELDS],
     field_count: usize,
@@ -384,10 +385,18 @@ impl<'a> DynPointCloud<'a> {
         let num_points = pc.point_count();
         let data = pc.data();
 
-        if num_points > 0 && data.len() < num_points * point_step {
-            return Err(PointCloudError::InvalidLayout {
-                reason: "data buffer shorter than num_points × point_step",
-            });
+        if num_points > 0 {
+            let required_len =
+                num_points
+                    .checked_mul(point_step)
+                    .ok_or(PointCloudError::InvalidLayout {
+                        reason: "num_points × point_step overflows usize",
+                    })?;
+            if data.len() < required_len {
+                return Err(PointCloudError::InvalidLayout {
+                    reason: "data buffer shorter than num_points × point_step",
+                });
+            }
         }
 
         let mut fields = [const { None }; MAX_FIELDS];
@@ -404,6 +413,17 @@ impl<'a> DynPointCloud<'a> {
                     field_name: view.name.to_string(),
                     datatype: view.datatype,
                 })?;
+            // Validate field fits within point_step.
+            let field_end = (desc.byte_offset as usize)
+                .checked_add(desc.field_type.size_bytes())
+                .ok_or(PointCloudError::InvalidLayout {
+                    reason: "field offset + size overflows usize",
+                })?;
+            if field_end > point_step {
+                return Err(PointCloudError::InvalidLayout {
+                    reason: "field extends beyond point_step",
+                });
+            }
             fields[field_count] = Some(desc);
             field_count += 1;
         }
@@ -411,6 +431,7 @@ impl<'a> DynPointCloud<'a> {
         Ok(DynPointCloud {
             data,
             point_step,
+            row_step: pc.row_step() as usize,
             num_points,
             fields,
             field_count,
@@ -478,11 +499,21 @@ impl<'a> DynPointCloud<'a> {
     }
 
     /// Get a point by (row, col) for organized clouds.
+    ///
+    /// Uses `row_step` to correctly handle row padding in organized clouds.
     pub fn point_at(&self, row: u32, col: u32) -> Option<DynPoint<'a, '_>> {
         if row >= self.height || col >= self.width {
             return None;
         }
-        self.point((row as usize) * (self.width as usize) + (col as usize))
+        let base = (row as usize) * self.row_step + (col as usize) * self.point_step;
+        let end = base + self.point_step;
+        if end > self.data.len() {
+            return None;
+        }
+        Some(DynPoint {
+            data: &self.data[base..end],
+            cloud: self,
+        })
     }
 
     /// Iterate over all points.
@@ -678,7 +709,7 @@ impl ExactSizeIterator for DynPointIter<'_, '_> {}
 /// # Example
 /// ```ignore
 /// define_point! {
-///     pub struct XyzPoint { x: f32 => 0, y: f32 => 4, z: f32 at 8 }
+///     pub struct XyzPoint { x: f32 => 0, y: f32 => 4, z: f32 => 8 }
 /// }
 /// let cloud = PointCloud::<XyzPoint>::from_pointcloud2(&pcd2)?;
 /// for point in cloud.iter() {
@@ -689,6 +720,7 @@ impl ExactSizeIterator for DynPointIter<'_, '_> {}
 pub struct PointCloud<'a, P: Point> {
     data: &'a [u8],
     point_step: usize,
+    row_step: usize,
     num_points: usize,
     height: u32,
     width: u32,
@@ -712,6 +744,7 @@ impl<'a, P: Point> PointCloud<'a, P> {
         Ok(PointCloud {
             data: pc.data(),
             point_step,
+            row_step: pc.row_step() as usize,
             num_points,
             height: pc.height(),
             width: pc.width(),
@@ -721,23 +754,30 @@ impl<'a, P: Point> PointCloud<'a, P> {
 
     /// Validate that the PointCloud2 field layout matches `P`'s expectations.
     pub fn validate<B: AsRef<[u8]>>(pc: &super::PointCloud2<B>) -> Result<(), PointCloudError> {
-        let fields: Vec<_> = pc.fields_iter().collect();
         let expected = P::expected_fields();
 
+        // Scan fields without allocating — for each expected field, iterate
+        // the PointCloud2 field descriptors to find a match.
         for exp in expected {
-            let found = fields.iter().find(|f| f.name == exp.name);
+            let mut found = None;
+            for f in pc.fields_iter() {
+                if f.name == exp.name {
+                    found = Some((f.offset, f.datatype));
+                    break;
+                }
+            }
             match found {
                 None => {
                     return Err(PointCloudError::FieldNotFound { name: exp.name });
                 }
-                Some(f) => {
-                    if f.offset != exp.byte_offset {
+                Some((offset, datatype)) => {
+                    if offset != exp.byte_offset {
                         return Err(PointCloudError::FieldMismatch {
                             name: exp.name,
                             reason: "byte offset mismatch",
                         });
                     }
-                    let actual_type = PointFieldType::from_datatype(f.datatype);
+                    let actual_type = PointFieldType::from_datatype(datatype);
                     if actual_type != Some(exp.field_type) {
                         return Err(PointCloudError::FieldMismatch {
                             name: exp.name,
@@ -791,11 +831,17 @@ impl<'a, P: Point> PointCloud<'a, P> {
     }
 
     /// Read a point by (row, col) for organized clouds.
+    ///
+    /// Uses `row_step` to correctly handle row padding in organized clouds.
     pub fn get_at(&self, row: u32, col: u32) -> Option<P> {
         if row >= self.height || col >= self.width {
             return None;
         }
-        self.get((row as usize) * (self.width as usize) + (col as usize))
+        let base = (row as usize) * self.row_step + (col as usize) * self.point_step;
+        if base + P::point_size() as usize > self.data.len() {
+            return None;
+        }
+        Some(P::read_from(self.data, base))
     }
 
     /// Iterate over all points.
