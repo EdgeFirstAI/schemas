@@ -393,6 +393,113 @@ fn bench_dmabuf(c: &mut Criterion) {
 }
 
 // ============================================================================
+// POINTCLOUD ACCESS BENCHMARKS
+// ============================================================================
+
+use edgefirst_schemas::define_point;
+use edgefirst_schemas::sensor_msgs::pointcloud::{DynPointCloud, PointCloud};
+use edgefirst_schemas::sensor_msgs::{PointCloud2, PointFieldView};
+
+define_point! {
+    struct BenchXyz {
+        x: f32 => 0,
+        y: f32 => 4,
+        z: f32 => 8,
+    }
+}
+
+/// Build a 1024-point xyz cloud for benchmarking.
+fn make_bench_cloud() -> Vec<u8> {
+    let fields = [
+        PointFieldView {
+            name: "x",
+            offset: 0,
+            datatype: 7,
+            count: 1,
+        },
+        PointFieldView {
+            name: "y",
+            offset: 4,
+            datatype: 7,
+            count: 1,
+        },
+        PointFieldView {
+            name: "z",
+            offset: 8,
+            datatype: 7,
+            count: 1,
+        },
+    ];
+    let n = 1024u32;
+    let point_step = 12u32;
+    let mut data = vec![0u8; (point_step * n) as usize];
+    for i in 0..n {
+        let base = (i * point_step) as usize;
+        data[base..base + 4].copy_from_slice(&(i as f32).to_le_bytes());
+        data[base + 4..base + 8].copy_from_slice(&(i as f32 * 0.5).to_le_bytes());
+        data[base + 8..base + 12].copy_from_slice(&(i as f32 * 0.1).to_le_bytes());
+    }
+    let pc = PointCloud2::new(
+        Time::new(0, 0),
+        "lidar",
+        1,
+        n,
+        &fields,
+        false,
+        point_step,
+        point_step * n,
+        &data,
+        true,
+    )
+    .unwrap();
+    pc.to_cdr()
+}
+
+fn bench_pointcloud(c: &mut Criterion) {
+    let cdr = make_bench_cloud();
+    let decoded = PointCloud2::from_cdr(&cdr).unwrap();
+
+    let mut group = c.benchmark_group("PointCloud");
+    group.throughput(Throughput::Elements(1024));
+
+    group.bench_function("dyn_gather_xyz_1024", |b| {
+        b.iter(|| {
+            let cloud = DynPointCloud::from_pointcloud2(black_box(&decoded)).unwrap();
+            let _x = cloud.gather_f32("x");
+            let _y = cloud.gather_f32("y");
+            let _z = cloud.gather_f32("z");
+        })
+    });
+
+    group.bench_function("static_iter_xyz_1024", |b| {
+        b.iter(|| {
+            let cloud = PointCloud::<BenchXyz>::from_pointcloud2(black_box(&decoded)).unwrap();
+            let mut sum = 0.0f32;
+            for p in cloud.iter() {
+                sum += p.x + p.y + p.z;
+            }
+            black_box(sum);
+        })
+    });
+
+    group.bench_function("dyn_iter_xyz_1024", |b| {
+        b.iter(|| {
+            let cloud = DynPointCloud::from_pointcloud2(black_box(&decoded)).unwrap();
+            let x_desc = cloud.field("x").unwrap();
+            let y_desc = cloud.field("y").unwrap();
+            let z_desc = cloud.field("z").unwrap();
+            let mut sum = 0.0f32;
+            for p in cloud.iter() {
+                sum += p.read_f32_at(x_desc) + p.read_f32_at(y_desc) + p.read_f32_at(z_desc);
+            }
+            black_box(sum);
+        })
+    });
+
+    group.finish();
+}
+
+// ============================================================================
 // CRITERION GROUPS
 // ============================================================================
 
@@ -415,6 +522,7 @@ criterion_group! {
         bench_radar_cube,
         bench_mask,
         bench_dmabuf,
+        bench_pointcloud,
 }
 
 criterion_main!(benches);

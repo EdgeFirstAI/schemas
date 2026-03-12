@@ -7,6 +7,12 @@
 //!
 //! Buffer-backed: `Image`, `CompressedImage`, `Imu`, `NavSatFix`,
 //! `PointCloud2`, `PointField` (with `PointFieldView`), `CameraInfo`
+//!
+//! Pointcloud access: [`pointcloud`] module provides zero-copy
+//! [`DynPointCloud`](pointcloud::DynPointCloud) and
+//! [`PointCloud<P>`](pointcloud::PointCloud) views over PointCloud2 data.
+
+pub mod pointcloud;
 
 use crate::builtin_interfaces::Time;
 use crate::cdr::*;
@@ -859,6 +865,20 @@ impl<B: AsRef<[u8]>> PointCloud2<B> {
     /// Total number of points (height × width).
     pub fn point_count(&self) -> usize {
         (self.height() as usize) * (self.width() as usize)
+    }
+
+    /// Create a dynamic (runtime-typed) point cloud view over the data buffer.
+    pub fn as_dyn_cloud(
+        &self,
+    ) -> Result<pointcloud::DynPointCloud<'_>, pointcloud::PointCloudError> {
+        pointcloud::DynPointCloud::from_pointcloud2(self)
+    }
+
+    /// Create a statically-typed point cloud view, validating field layout.
+    pub fn as_typed_cloud<P: pointcloud::Point>(
+        &self,
+    ) -> Result<pointcloud::PointCloud<'_, P>, pointcloud::PointCloudError> {
+        pointcloud::PointCloud::from_pointcloud2(self)
     }
 
     pub fn is_bigendian(&self) -> bool {
