@@ -349,7 +349,7 @@ let pcd2 = PointCloud2::from_cdr(cdr_bytes).unwrap();
 let dyn_cloud = pcd2.as_dyn_cloud().unwrap();
 let x_desc = dyn_cloud.field("x").unwrap();
 for point in dyn_cloud.iter() {
-    let x = point.read_f32_at(x_desc); // pre-resolved, avoids name lookup
+    let x = point.read_f32_at(x_desc).unwrap(); // pre-resolved, avoids name lookup
 }
 
 // Typed access (compile-time offsets)

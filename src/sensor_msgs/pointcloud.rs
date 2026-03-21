@@ -387,9 +387,9 @@ impl<'a> DynPointCloud<'a> {
     /// # Errors
     ///
     /// - [`PointCloudError::BigEndianNotSupported`] — big-endian point data.
-    /// - [`PointCloudError::InvalidLayout`] — `point_step` is zero, data
-    ///   buffer is shorter than `num_points × point_step`, or a field
-    ///   extends beyond `point_step`.
+    /// - [`PointCloudError::InvalidLayout`] — `point_step` is zero, `row_step`
+    ///   smaller than `width × point_step`, data buffer shorter than
+    ///   `height × row_step`, or a field extends beyond `point_step`.
     /// - [`PointCloudError::TooManyFields`] — more than [`MAX_FIELDS`] fields.
     /// - [`PointCloudError::UnknownDatatype`] — unrecognized PointField datatype.
     pub fn from_pointcloud2<B: AsRef<[u8]>>(
@@ -1027,7 +1027,8 @@ impl<'a, P: Point> PointCloud<'a, P> {
     /// - [`PointCloudError::FieldNotFound`] — a field expected by `P` is missing.
     /// - [`PointCloudError::FieldMismatch`] — a field has wrong offset or datatype.
     /// - [`PointCloudError::InvalidLayout`] — `point_step` smaller than
-    ///   `P::point_size()`, or data buffer shorter than `num_points × point_step`.
+    ///   `P::point_size()`, `row_step` smaller than `width × point_step`,
+    ///   or data buffer shorter than `height × row_step`.
     pub fn from_pointcloud2<B: AsRef<[u8]>>(
         pc: &'a super::PointCloud2<B>,
     ) -> Result<Self, PointCloudError> {
