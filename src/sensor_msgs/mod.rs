@@ -174,7 +174,14 @@ fn size_point_field_element(s: &mut CdrSizer, name: &str) {
     s.size_u32();
 }
 
-/// Non-allocating iterator over PointField elements in a PointCloud2.
+/// Non-allocating iterator over PointField descriptors in a PointCloud2.
+///
+/// Yields [`PointFieldView`] items by parsing the CDR field array on
+/// each call to `next()`. No heap allocation occurs — the iterator
+/// borrows directly from the PointCloud2 buffer.
+///
+/// Implements [`ExactSizeIterator`], so `iter.len()` returns the
+/// remaining field count.
 pub struct PointFieldIter<'a> {
     cursor: CdrCursor<'a>,
     remaining: usize,

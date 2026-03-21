@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-03-20
+
+### Added
+
+- Zero-copy `pointcloud` access layer over PointCloud2 data buffers (`sensor_msgs::pointcloud`)
+  - `DynPointCloud`: Runtime field inspection with dynamic typed access to individual point fields
+  - `DynPoint`: Zero-copy single-point view with by-name and pre-resolved descriptor access
+  - `PointCloud<P>`: Compile-time typed access via the `Point` trait and `define_point!` macro
+  - `PointFieldIter`: Non-allocating iterator over PointCloud2 field descriptors
+  - `FieldDesc`, `PointFieldType`, and `PointCloudError` public types
+- Convenience methods on `PointCloud2`: `as_dyn_cloud()` and `as_typed_cloud::<P>()`
+  for direct construction of pointcloud views from a decoded message
+- Complete `DynPoint` accessor coverage for all scalar types:
+  `read_f32`, `read_f64`, `read_u8`, `read_u16`, `read_u32`,
+  `read_i8`, `read_i16`, `read_i32` (plus `_at` variants)
+- Bulk `gather_*` methods for all scalar types on `DynPointCloud`
+- PointCloud access benchmarks for `DynPointCloud` and typed `PointCloud<P>`
+
+### Changed
+
+- Refactored `sensor_msgs` into a multi-file module (`sensor_msgs/mod.rs` +
+  `sensor_msgs/pointcloud.rs`). Existing `use edgefirst_schemas::sensor_msgs::*`
+  imports are unaffected.
+
 ## [2.0.1] - 2026-03-12
 
 ### Added
@@ -383,7 +407,9 @@ CDR serialization. No migration required.
 - Python build issues with wheel generation
 - Removed auxiliary files from ROS2 schemas not required for this project
 
-[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/EdgeFirstAI/schemas/compare/v2.0.1...v2.1.0
+[2.0.1]: https://github.com/EdgeFirstAI/schemas/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.5...v2.0.0
 [1.5.5]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.4...v1.5.5
 [1.5.4]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.3...v1.5.4

@@ -15,7 +15,7 @@ EdgeFirst Perception Schemas provides the foundational message types used throug
 - **🔄 ROS2 Common Interfaces** - Full compatibility with standard [ROS2](https://www.ros.org/) message types (`geometry_msgs`, `sensor_msgs`, `std_msgs`, `nav_msgs`)
 - **📊 Foxglove Schema Support** - Native visualization with [Foxglove Studio](https://foxglove.dev/)
 - **⚡ Custom EdgeFirst Messages** - Specialized types for edge AI (detection, tracking, DMA buffers, radar)
-- **🦀 High-Performance Rust Bindings** - Zero-copy serialization with CDR encoding
+- **🦀 High-Performance Rust Bindings** - Zero-copy serialization with CDR encoding, including typed and dynamic point cloud access
 - **🐍 Python Bindings** - Efficient point cloud decoding and message handling
 - **📡 Zenoh-Based Communication** - Modern pub/sub over [Zenoh](https://zenoh.io/) middleware
 - **💻 Cross-Platform** - Linux, Windows, and macOS support
@@ -56,6 +56,27 @@ points = decode_pcd(point_cloud_msg)
 for point in points:
     x, y, z = point.x, point.y, point.z
     # Process point data...
+```
+
+**Rust Example - Consuming PointCloud2 (Zero-Copy):**
+
+```rust
+use edgefirst_schemas::sensor_msgs::PointCloud2;
+use edgefirst_schemas::define_point;
+use edgefirst_schemas::sensor_msgs::pointcloud::PointCloud;
+
+// Define your point layout at compile time
+define_point! {
+    pub struct XyzPoint { x: f32 => 0, y: f32 => 4, z: f32 => 8 }
+}
+
+fn process_pointcloud(cdr_bytes: &[u8]) {
+    let pcd2 = PointCloud2::from_cdr(cdr_bytes).unwrap();
+    let cloud = pcd2.as_typed_cloud::<XyzPoint>().unwrap();
+    for point in cloud.iter() {
+        println!("{}, {}, {}", point.x, point.y, point.z);
+    }
+}
 ```
 
 **Rust Example - Consuming Detection Results:**
@@ -192,7 +213,7 @@ Standard [ROS2](https://www.ros.org/) message types for broad interoperability:
 
 - **`std_msgs`** - Basic primitive types (Header, String, etc.)
 - **`geometry_msgs`** - Spatial messages (Pose, Transform, Twist, etc.)
-- **`sensor_msgs`** - Sensor data (PointCloud2, Image, CameraInfo, Imu, NavSatFix, etc.)
+- **`sensor_msgs`** - Sensor data (Image, CameraInfo, Imu, NavSatFix, PointCloud2 with [zero-copy access layer](https://docs.rs/edgefirst-schemas/latest/edgefirst_schemas/sensor_msgs/pointcloud/), etc.)
 - **`nav_msgs`** - Navigation (Odometry, Path)
 - **`builtin_interfaces`** - Time and Duration
 - **`rosgraph_msgs`** - Clock

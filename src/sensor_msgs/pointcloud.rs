@@ -13,11 +13,11 @@
 
 use super::PointFieldView;
 
-/// Maximum number of fields in a DynPointCloud.
+/// Maximum number of fields supported by [`DynPointCloud`].
 ///
 /// 16 covers all practical sensor outputs. Clouds with more fields
-/// than this should use the static `PointCloud<P>` tier instead.
-const MAX_FIELDS: usize = 16;
+/// than this should use the static [`PointCloud<P>`] tier instead.
+pub const MAX_FIELDS: usize = 16;
 
 // ── PointFieldType ──────────────────────────────────────────────────
 
@@ -125,6 +125,8 @@ impl core::fmt::Display for PointCloudError {
         }
     }
 }
+
+impl std::error::Error for PointCloudError {}
 
 // ── PointScalar ─────────────────────────────────────────────────────
 
@@ -343,7 +345,12 @@ pub use crate::define_point;
 /// Zero-copy dynamic point cloud view over PointCloud2 data.
 ///
 /// Fields are resolved at construction time from the PointCloud2 field
-/// descriptors. Access is by field name with explicit type.
+/// descriptors. Access is by field name with explicit type. Supports up
+/// to [`MAX_FIELDS`] fields per point; clouds with more fields should
+/// use the compile-time [`PointCloud<P>`] tier instead.
+///
+/// The returned view borrows the PointCloud2's internal data buffer —
+/// no data is copied. The `PointCloud2` must outlive this view.
 ///
 /// # Example
 /// ```ignore
@@ -368,6 +375,18 @@ pub struct DynPointCloud<'a> {
 
 impl<'a> DynPointCloud<'a> {
     /// Create a dynamic point cloud view from a PointCloud2 message.
+    ///
+    /// Returns a zero-copy view that borrows the PointCloud2's internal
+    /// data buffer. The `PointCloud2` must outlive the returned view.
+    ///
+    /// # Errors
+    ///
+    /// - [`PointCloudError::BigEndianNotSupported`] — big-endian point data.
+    /// - [`PointCloudError::InvalidLayout`] — `point_step` is zero, data
+    ///   buffer is shorter than `num_points × point_step`, or a field
+    ///   extends beyond `point_step`.
+    /// - [`PointCloudError::TooManyFields`] — more than [`MAX_FIELDS`] fields.
+    /// - [`PointCloudError::UnknownDatatype`] — unrecognized PointField datatype.
     pub fn from_pointcloud2<B: AsRef<[u8]>>(
         pc: &'a super::PointCloud2<B>,
     ) -> Result<Self, PointCloudError> {
@@ -413,12 +432,19 @@ impl<'a> DynPointCloud<'a> {
                     field_name: view.name.to_string(),
                     datatype: view.datatype,
                 })?;
-            // Validate field fits within point_step.
-            let field_end = (desc.byte_offset as usize)
-                .checked_add(desc.field_type.size_bytes())
+            // Validate field fits within point_step (accounting for count).
+            let field_size = desc
+                .field_type
+                .size_bytes()
+                .checked_mul(desc.count as usize)
                 .ok_or(PointCloudError::InvalidLayout {
-                    reason: "field offset + size overflows usize",
+                    reason: "field count × size overflows usize",
                 })?;
+            let field_end = (desc.byte_offset as usize).checked_add(field_size).ok_or(
+                PointCloudError::InvalidLayout {
+                    reason: "field offset + size overflows usize",
+                },
+            )?;
             if field_end > point_step {
                 return Err(PointCloudError::InvalidLayout {
                     reason: "field extends beyond point_step",
@@ -525,6 +551,10 @@ impl<'a> DynPointCloud<'a> {
     }
 
     /// Gather a named f32 field into a Vec.
+    ///
+    /// **Note:** Allocates a `Vec` of `num_points` elements. For hot-path
+    /// access without allocation, use [`DynPoint::read_f32_at`] with a
+    /// pre-resolved descriptor instead.
     pub fn gather_f32(&self, name: &str) -> Option<Vec<f32>> {
         let desc = self.field(name)?;
         if desc.field_type != PointFieldType::Float32 {
@@ -541,6 +571,10 @@ impl<'a> DynPointCloud<'a> {
     }
 
     /// Gather a named u32 field into a Vec.
+    ///
+    /// **Note:** Allocates a `Vec` of `num_points` elements. For hot-path
+    /// access without allocation, use [`DynPoint::read_u32_at`] with a
+    /// pre-resolved descriptor instead.
     pub fn gather_u32(&self, name: &str) -> Option<Vec<u32>> {
         let desc = self.field(name)?;
         if desc.field_type != PointFieldType::Uint32 {
@@ -557,6 +591,10 @@ impl<'a> DynPointCloud<'a> {
     }
 
     /// Gather a named u16 field into a Vec.
+    ///
+    /// **Note:** Allocates a `Vec` of `num_points` elements. For hot-path
+    /// access without allocation, use [`DynPoint::read_u16_at`] with a
+    /// pre-resolved descriptor instead.
     pub fn gather_u16(&self, name: &str) -> Option<Vec<u16>> {
         let desc = self.field(name)?;
         if desc.field_type != PointFieldType::Uint16 {
@@ -573,6 +611,10 @@ impl<'a> DynPointCloud<'a> {
     }
 
     /// Gather a named u8 field into a Vec.
+    ///
+    /// **Note:** Allocates a `Vec` of `num_points` elements. For hot-path
+    /// access without allocation, use [`DynPoint::read_u8_at`] with a
+    /// pre-resolved descriptor instead.
     pub fn gather_u8(&self, name: &str) -> Option<Vec<u8>> {
         let desc = self.field(name)?;
         if desc.field_type != PointFieldType::Uint8 {
@@ -585,14 +627,96 @@ impl<'a> DynPointCloud<'a> {
         }
         Some(out)
     }
+
+    /// Gather a named i8 field into a Vec.
+    ///
+    /// **Note:** Allocates a `Vec` of `num_points` elements. For hot-path
+    /// access without allocation, use [`DynPoint::read_i8_at`] with a
+    /// pre-resolved descriptor instead.
+    pub fn gather_i8(&self, name: &str) -> Option<Vec<i8>> {
+        let desc = self.field(name)?;
+        if desc.field_type != PointFieldType::Int8 {
+            return None;
+        }
+        let off = desc.byte_offset as usize;
+        let mut out = Vec::with_capacity(self.num_points);
+        for i in 0..self.num_points {
+            out.push(self.data[i * self.point_step + off] as i8);
+        }
+        Some(out)
+    }
+
+    /// Gather a named i16 field into a Vec.
+    ///
+    /// **Note:** Allocates a `Vec` of `num_points` elements. For hot-path
+    /// access without allocation, use [`DynPoint::read_i16_at`] with a
+    /// pre-resolved descriptor instead.
+    pub fn gather_i16(&self, name: &str) -> Option<Vec<i16>> {
+        let desc = self.field(name)?;
+        if desc.field_type != PointFieldType::Int16 {
+            return None;
+        }
+        let off = desc.byte_offset as usize;
+        let mut out = Vec::with_capacity(self.num_points);
+        for i in 0..self.num_points {
+            let base = i * self.point_step + off;
+            let bytes: [u8; 2] = self.data[base..base + 2].try_into().ok()?;
+            out.push(i16::from_le_bytes(bytes));
+        }
+        Some(out)
+    }
+
+    /// Gather a named i32 field into a Vec.
+    ///
+    /// **Note:** Allocates a `Vec` of `num_points` elements. For hot-path
+    /// access without allocation, use [`DynPoint::read_i32_at`] with a
+    /// pre-resolved descriptor instead.
+    pub fn gather_i32(&self, name: &str) -> Option<Vec<i32>> {
+        let desc = self.field(name)?;
+        if desc.field_type != PointFieldType::Int32 {
+            return None;
+        }
+        let off = desc.byte_offset as usize;
+        let mut out = Vec::with_capacity(self.num_points);
+        for i in 0..self.num_points {
+            let base = i * self.point_step + off;
+            let bytes: [u8; 4] = self.data[base..base + 4].try_into().ok()?;
+            out.push(i32::from_le_bytes(bytes));
+        }
+        Some(out)
+    }
+
+    /// Gather a named f64 field into a Vec.
+    ///
+    /// **Note:** Allocates a `Vec` of `num_points` elements. For hot-path
+    /// access without allocation, use [`DynPoint::read_f64_at`] with a
+    /// pre-resolved descriptor instead.
+    pub fn gather_f64(&self, name: &str) -> Option<Vec<f64>> {
+        let desc = self.field(name)?;
+        if desc.field_type != PointFieldType::Float64 {
+            return None;
+        }
+        let off = desc.byte_offset as usize;
+        let mut out = Vec::with_capacity(self.num_points);
+        for i in 0..self.num_points {
+            let base = i * self.point_step + off;
+            let bytes: [u8; 8] = self.data[base..base + 8].try_into().ok()?;
+            out.push(f64::from_le_bytes(bytes));
+        }
+        Some(out)
+    }
 }
 
 // ── DynPoint ────────────────────────────────────────────────────────
 
-/// Zero-copy view of a single point within a DynPointCloud.
+/// Zero-copy view of a single point within a [`DynPointCloud`].
+///
+/// Provides typed field access by name (`read_f32("x")`) or by
+/// pre-resolved [`FieldDesc`] (`read_f32_at(&desc)`) for hot-path
+/// use where repeated name lookups would be wasteful.
 ///
 /// Field access reads bytes from the point's data slice using
-/// `from_le_bytes` — no unsafe code, no alignment concerns.
+/// `from_le_bytes` — no unsafe code, no allocation, no alignment concerns.
 pub struct DynPoint<'a, 'c> {
     data: &'a [u8],
     cloud: &'c DynPointCloud<'a>,
@@ -641,6 +765,48 @@ impl<'a, 'c> DynPoint<'a, 'c> {
         Some(self.data[desc.byte_offset as usize])
     }
 
+    /// Read an i8 field by name.
+    pub fn read_i8(&self, name: &str) -> Option<i8> {
+        let desc = self.cloud.field(name)?;
+        if desc.field_type != PointFieldType::Int8 {
+            return None;
+        }
+        Some(self.data[desc.byte_offset as usize] as i8)
+    }
+
+    /// Read an i16 field by name.
+    pub fn read_i16(&self, name: &str) -> Option<i16> {
+        let desc = self.cloud.field(name)?;
+        if desc.field_type != PointFieldType::Int16 {
+            return None;
+        }
+        let off = desc.byte_offset as usize;
+        let bytes: [u8; 2] = self.data[off..off + 2].try_into().ok()?;
+        Some(i16::from_le_bytes(bytes))
+    }
+
+    /// Read an i32 field by name.
+    pub fn read_i32(&self, name: &str) -> Option<i32> {
+        let desc = self.cloud.field(name)?;
+        if desc.field_type != PointFieldType::Int32 {
+            return None;
+        }
+        let off = desc.byte_offset as usize;
+        let bytes: [u8; 4] = self.data[off..off + 4].try_into().ok()?;
+        Some(i32::from_le_bytes(bytes))
+    }
+
+    /// Read an f64 field by name.
+    pub fn read_f64(&self, name: &str) -> Option<f64> {
+        let desc = self.cloud.field(name)?;
+        if desc.field_type != PointFieldType::Float64 {
+            return None;
+        }
+        let off = desc.byte_offset as usize;
+        let bytes: [u8; 8] = self.data[off..off + 8].try_into().ok()?;
+        Some(f64::from_le_bytes(bytes))
+    }
+
     /// Read an f32 field by pre-resolved descriptor (avoids name lookup).
     pub fn read_f32_at(&self, desc: &FieldDesc<'_>) -> f32 {
         let off = desc.byte_offset as usize;
@@ -671,6 +837,38 @@ impl<'a, 'c> DynPoint<'a, 'c> {
     /// Read a u8 field by pre-resolved descriptor.
     pub fn read_u8_at(&self, desc: &FieldDesc<'_>) -> u8 {
         self.data[desc.byte_offset as usize]
+    }
+
+    /// Read an i8 field by pre-resolved descriptor.
+    pub fn read_i8_at(&self, desc: &FieldDesc<'_>) -> i8 {
+        self.data[desc.byte_offset as usize] as i8
+    }
+
+    /// Read an i16 field by pre-resolved descriptor.
+    pub fn read_i16_at(&self, desc: &FieldDesc<'_>) -> i16 {
+        let off = desc.byte_offset as usize;
+        let bytes: [u8; 2] = self.data[off..off + 2]
+            .try_into()
+            .expect("field offset within point bounds");
+        i16::from_le_bytes(bytes)
+    }
+
+    /// Read an i32 field by pre-resolved descriptor.
+    pub fn read_i32_at(&self, desc: &FieldDesc<'_>) -> i32 {
+        let off = desc.byte_offset as usize;
+        let bytes: [u8; 4] = self.data[off..off + 4]
+            .try_into()
+            .expect("field offset within point bounds");
+        i32::from_le_bytes(bytes)
+    }
+
+    /// Read an f64 field by pre-resolved descriptor.
+    pub fn read_f64_at(&self, desc: &FieldDesc<'_>) -> f64 {
+        let off = desc.byte_offset as usize;
+        let bytes: [u8; 8] = self.data[off..off + 8]
+            .try_into()
+            .expect("field offset within point bounds");
+        f64::from_le_bytes(bytes)
     }
 }
 
@@ -728,7 +926,19 @@ pub struct PointCloud<'a, P: Point> {
 }
 
 impl<'a, P: Point> PointCloud<'a, P> {
-    /// Create a typed point cloud view, validating field layout.
+    /// Create a typed point cloud view, validating that the PointCloud2
+    /// field layout matches `P`'s expectations.
+    ///
+    /// Returns a zero-copy view that borrows the PointCloud2's internal
+    /// data buffer. The `PointCloud2` must outlive the returned view.
+    ///
+    /// # Errors
+    ///
+    /// - [`PointCloudError::BigEndianNotSupported`] — big-endian point data.
+    /// - [`PointCloudError::FieldNotFound`] — a field expected by `P` is missing.
+    /// - [`PointCloudError::FieldMismatch`] — a field has wrong offset or datatype.
+    /// - [`PointCloudError::InvalidLayout`] — `point_step` smaller than
+    ///   `P::point_size()`, or data buffer shorter than `num_points × point_step`.
     pub fn from_pointcloud2<B: AsRef<[u8]>>(
         pc: &'a super::PointCloud2<B>,
     ) -> Result<Self, PointCloudError> {
@@ -740,6 +950,21 @@ impl<'a, P: Point> PointCloud<'a, P> {
 
         let point_step = pc.point_step() as usize;
         let num_points = pc.point_count();
+
+        // Bounds-check the data buffer (same check as DynPointCloud).
+        if num_points > 0 {
+            let required_len =
+                num_points
+                    .checked_mul(point_step)
+                    .ok_or(PointCloudError::InvalidLayout {
+                        reason: "num_points × point_step overflows usize",
+                    })?;
+            if pc.data().len() < required_len {
+                return Err(PointCloudError::InvalidLayout {
+                    reason: "data buffer shorter than num_points × point_step",
+                });
+            }
+        }
 
         Ok(PointCloud {
             data: pc.data(),
@@ -2129,6 +2354,76 @@ mod tests {
         // Out of bounds
         assert!(cloud.get_at(3, 0).is_none());
         assert!(cloud.get_at(0, 2).is_none());
+    }
+
+    #[test]
+    fn static_cloud_organized_with_row_padding() {
+        // Organized cloud where row_step > width * point_step (row padding).
+        let fields = [
+            PointFieldView {
+                name: "x",
+                offset: 0,
+                datatype: 7,
+                count: 1,
+            },
+            PointFieldView {
+                name: "y",
+                offset: 4,
+                datatype: 7,
+                count: 1,
+            },
+            PointFieldView {
+                name: "z",
+                offset: 8,
+                datatype: 7,
+                count: 1,
+            },
+        ];
+        let point_step = 12u32;
+        let width = 2u32;
+        let height = 3u32;
+        // 8 bytes of padding per row (row_step = 32 > width * point_step = 24).
+        let row_step = 32u32;
+        let total_bytes = (row_step * height) as usize;
+        let mut data = vec![0xFFu8; total_bytes]; // fill with 0xFF to catch stale reads
+
+        for row in 0..height {
+            for col in 0..width {
+                let offset = (row * row_step + col * point_step) as usize;
+                let val = (row * width + col) as f32;
+                data[offset..offset + 4].copy_from_slice(&val.to_le_bytes());
+            }
+        }
+
+        let pc = PointCloud2::new(
+            Time::new(0, 0),
+            "padded",
+            height,
+            width,
+            &fields,
+            false,
+            point_step,
+            row_step,
+            &data,
+            true,
+        )
+        .unwrap();
+        let cdr = pc.to_cdr();
+        let decoded = PointCloud2::from_cdr(&cdr).unwrap();
+
+        // Test both DynPointCloud and PointCloud<P>
+        let dyn_cloud = DynPointCloud::from_pointcloud2(&decoded).unwrap();
+        let typed_cloud = PointCloud::<TestXyzPoint>::from_pointcloud2(&decoded).unwrap();
+
+        for row in 0..height {
+            for col in 0..width {
+                let expected = (row * width + col) as f32;
+                let dp = dyn_cloud.point_at(row, col).unwrap();
+                assert_eq!(dp.read_f32("x"), Some(expected), "dyn row={row} col={col}");
+                let tp = typed_cloud.get_at(row, col).unwrap();
+                assert_eq!(tp.x, expected, "typed row={row} col={col}");
+            }
+        }
     }
 
     // ── PointScalar trait coverage ──────────────────────────────────
