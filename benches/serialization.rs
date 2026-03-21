@@ -490,7 +490,9 @@ fn bench_pointcloud(c: &mut Criterion) {
             let z_desc = cloud.field("z").unwrap();
             let mut sum = 0.0f32;
             for p in cloud.iter() {
-                sum += p.read_f32_at(x_desc) + p.read_f32_at(y_desc) + p.read_f32_at(z_desc);
+                sum += p.read_f32_at(x_desc).unwrap()
+                    + p.read_f32_at(y_desc).unwrap()
+                    + p.read_f32_at(z_desc).unwrap();
             }
             black_box(sum);
         })
