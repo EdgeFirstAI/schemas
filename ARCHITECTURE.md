@@ -1,7 +1,7 @@
 # EdgeFirst Perception Schemas - Architecture
 
-**Version:** 1.0
-**Last Updated:** November 17, 2025
+**Version:** 2.0
+**Last Updated:** March 2026
 **Target Audience:** Developers implementing or integrating EdgeFirst Perception
 
 ---
@@ -13,6 +13,7 @@
 - [Core Components](#core-components)
 - [Message Serialization](#message-serialization)
 - [Language Bindings](#language-bindings)
+- [PointCloud Access Layer](#pointcloud-access-layer)
 - [Zenoh Communication](#zenoh-communication)
 - [ROS2 Interoperability](#ros2-interoperability)
 - [Zero-Copy DMA Buffers](#zero-copy-dma-buffers)
@@ -64,13 +65,15 @@ This is **NOT** included:
 - Smaller deployment footprint
 - Easier cross-platform development
 
-### 2. Performance-First
+### 2. Performance-First — Zero-Copy CDR
 
 **Goal**: Minimize serialization overhead for real-time perception systems.
 
 **Techniques**:
-- Zero-copy where possible (DMA buffers)
-- Efficient CDR binary encoding
+- **Serialization is a no-op**: Messages are constructed directly in-place within a buffer. The buffer *is* the serialized form.
+- **Deserialization builds offset tables**: Receiving a CDR buffer constructs an offset table mapping variable-length fields to their positions. No data is copied.
+- **Field access reads directly from the buffer**: Fixed-size fields use computed offsets; variable-length fields use the offset table.
+- Zero-copy DMA buffer sharing on embedded platforms
 - Compile-time type checking (Rust)
 - Minimal allocations during hot paths
 
@@ -119,16 +122,21 @@ EdgeFirst Perception Schemas
 **Rust** (`src/`):
 ```
 src/
-├── lib.rs              # Public API, re-exports
-├── std_msgs.rs         # ROS2 standard messages
-├── geometry_msgs.rs    # ROS2 geometry
-├── sensor_msgs.rs      # ROS2 sensors + PointCloud2 decode
-├── nav_msgs.rs         # ROS2 navigation
-├── builtin_interfaces.rs  # ROS2 time types
-├── rosgraph_msgs.rs    # ROS2 graph (Clock)
-├── foxglove_msgs.rs    # Foxglove visualization
-├── edgefirst_msgs.rs   # EdgeFirst custom messages
-└── service.rs          # ROS2 service wrapper
+├── lib.rs                  # Public API, re-exports
+├── cdr.rs                  # Zero-copy CDR1-LE: CdrCursor, CdrWriter, CdrSizer, CdrFixed
+├── std_msgs.rs             # ROS2 standard messages
+├── geometry_msgs.rs        # ROS2 geometry
+├── sensor_msgs/            # ROS2 sensor messages
+│   ├── mod.rs              # Image, PointCloud2, CameraInfo, Imu, etc.
+│   └── pointcloud.rs       # Zero-copy PointCloud access (DynPointCloud, PointCloud<P>)
+├── nav_msgs.rs             # ROS2 navigation
+├── builtin_interfaces.rs   # ROS2 time types
+├── rosgraph_msgs.rs        # ROS2 graph (Clock)
+├── foxglove_msgs.rs        # Foxglove visualization
+├── edgefirst_msgs.rs       # EdgeFirst custom messages
+├── schema_registry.rs      # Runtime schema name registry
+├── service.rs              # ROS2 service wrapper
+└── ffi.rs                  # C API via FFI (cbindgen)
 ```
 
 **Python** (`edgefirst/schemas/`):
@@ -176,16 +184,31 @@ EdgeFirst uses **CDR** for binary serialization, the same format as ROS2 DDS.
 - **Arrays**: Length-prefixed elements
 - **Structs**: Sequential field encoding
 
-**Example (Rust):**
+**Example — Fixed-size type (CdrFixed):**
 
 ```rust
-use serde::{Serialize, Deserialize};
+// Fixed-size types use repr(C) — their memory layout IS the CDR encoding.
+use edgefirst_schemas::builtin_interfaces::Time;
+use edgefirst_schemas::cdr;
 
-#[derive(Serialize, Deserialize)]
-pub struct Header {
-    pub stamp: Time,      // 8 bytes (sec) + 4 bytes (nanosec)
-    pub frame_id: String, // 4 bytes (length) + UTF-8 data
-}
+let time = Time::new(1234567890, 123456789);
+let bytes = cdr::encode_fixed(&time).unwrap();
+let decoded: Time = cdr::decode_fixed(&bytes).unwrap();
+```
+
+**Example — Buffer-backed type (zero-copy):**
+
+```rust
+use edgefirst_schemas::std_msgs::Header;
+use edgefirst_schemas::builtin_interfaces::Time;
+
+// Construction writes directly into an internal buffer
+let header = Header::new(Time::new(1, 0), "camera").unwrap();
+let cdr_bytes = header.to_cdr();
+
+// Deserialization builds an offset table — no data copied
+let view = Header::from_cdr(&cdr_bytes).unwrap();
+assert_eq!(view.frame_id(), "camera"); // reads directly from buffer
 ```
 
 #### Why CDR?
@@ -193,14 +216,19 @@ pub struct Header {
 - ✅ **ROS2 compatible**: Same encoding as ROS2 DDS
 - ✅ **Well-specified**: OMG standard
 - ✅ **Efficient**: Compact binary representation
-- ✅ **Language-agnostic**: Works across Rust, Python, C++
-- ✅ **Tooling**: Existing libraries (cdr, pycdr2)
+- ✅ **Language-agnostic**: Works across Rust, Python, C
+- ✅ **Zero-copy**: Offset-table deserialization with no allocation
 
 ### Serialization Libraries
 
 **Rust**:
-- `serde` + `serde_derive`: Serialization framework
-- Marshalling handled by Zenoh transport
+- Custom zero-copy CDR1-LE implementation (`src/cdr.rs`):
+  `CdrCursor` (reader), `CdrWriter` (builder), `CdrSizer` (size calculator), `CdrFixed` (trait for fixed-size types)
+- No `serde` dependency — all serialization is hand-written for zero-copy
+
+**C API**:
+- FFI bindings via `cbindgen` — same zero-copy CDR under the hood
+- Header generated as `include/edgefirst/schemas.h`
 
 **Python**:
 - `pycdr2`: CDR encoding/decoding
@@ -213,35 +241,30 @@ pub struct Header {
 ### Rust Implementation
 
 **Key Features**:
-- Zero-copy deserialization where possible
-- Type-safe at compile time
-- serde-based serialization
+- Zero-copy CDR: serialization writes in-place, deserialization builds offset tables
+- Buffer-backed generic types `Type<B: AsRef<[u8]>>` — `from_cdr()` borrows with no allocation
+- `CdrFixed` implementations for all fixed-size types (direct memory-mapped CDR)
+- Type-safe at compile time, `Result`-based error handling throughout
 
-**Example (PointCloud2):**
+**Example (PointCloud2 — buffer-backed):**
 
 ```rust
-// src/sensor_msgs.rs
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
-pub struct PointCloud2 {
-    pub header: std_msgs::Header,
-    pub height: u32,
-    pub width: u32,
-    pub fields: Vec<PointField>,
-    pub is_bigendian: bool,
-    pub point_step: u32,
-    pub row_step: u32,
-    pub data: Vec<u8>,       // Raw point data
-    pub is_dense: bool,
+use edgefirst_schemas::sensor_msgs::PointCloud2;
+
+// Zero-copy deserialization — builds offset table, borrows buffer
+let pcd = PointCloud2::from_cdr(cdr_bytes).unwrap();
+let height = pcd.height();       // O(1) fixed-offset read
+let data: &[u8] = pcd.data();   // Points into original buffer
+
+// Field iteration — non-allocating CDR cursor walk
+for field in pcd.fields_iter() {
+    println!("{}: offset={}, datatype={}", field.name, field.offset, field.datatype);
 }
 ```
 
-**PointCloud Decoding** (`src/lib.rs:decode_points`):
+**PointCloud Access Layer** (`src/sensor_msgs/pointcloud.rs`):
 
-Optimized decoder that:
-1. Parses field layout from PointField definitions
-2. Builds struct format string for parsing
-3. Uses zero-copy indexing into data buffer
-4. Returns HashMap of field_name → value
+Two-tier zero-copy access over PointCloud2 data buffers — see [PointCloud Access Layer](#pointcloud-access-layer) below.
 
 ### Python Implementation
 
@@ -278,6 +301,62 @@ points = decode_pcd(point_cloud_msg)
 for point in points:
     x, y, z = point.x, point.y, point.z
     rgb = point.rgb  # If RGB field exists
+```
+
+---
+
+## PointCloud Access Layer
+
+The `sensor_msgs::pointcloud` module provides zero-copy typed access over PointCloud2 data buffers. It sits above the raw PointCloud2 CDR type and provides two tiers of access:
+
+### Two-Tier Design
+
+**`DynPointCloud`** (runtime/dynamic tier):
+- Resolves field metadata at construction time from PointCloud2 field descriptors
+- Stores up to `MAX_FIELDS` (16) field descriptors in a fixed-size array — no heap allocation
+- Access by field name (`read_f32("x")`) or pre-resolved descriptor (`read_f32_at(&desc)`)
+- Suitable when the point layout is not known at compile time
+
+**`PointCloud<P>`** (compile-time/static tier):
+- Validates field layout against a user-defined `Point` type at construction time
+- The `define_point!` macro generates `Point` implementations with compile-time offsets
+- Direct struct field access (`point.x`) with no runtime overhead beyond `from_le_bytes`
+- Suitable when the point layout is known at compile time
+
+### Why Two Tiers?
+
+| Scenario | Use |
+|----------|-----|
+| Sensor driver known, fixed layout (e.g., `x, y, z, intensity`) | `PointCloud<P>` — compile-time, fastest |
+| Generic tool (visualizer, recorder), layout varies at runtime | `DynPointCloud` — flexible, still zero-copy |
+
+Both tiers share no state and have minimal coupling. Neither copies data out of the PointCloud2 buffer — they read directly via `from_le_bytes` on small byte arrays.
+
+### Example
+
+```rust
+use edgefirst_schemas::define_point;
+use edgefirst_schemas::sensor_msgs::PointCloud2;
+use edgefirst_schemas::sensor_msgs::pointcloud::PointCloud;
+
+define_point! {
+    pub struct XyzPoint { x: f32 => 0, y: f32 => 4, z: f32 => 8 }
+}
+
+let pcd2 = PointCloud2::from_cdr(cdr_bytes).unwrap();
+
+// Dynamic access (runtime field lookup)
+let dyn_cloud = pcd2.as_dyn_cloud().unwrap();
+let x_desc = dyn_cloud.field("x").unwrap();
+for point in dyn_cloud.iter() {
+    let x = point.read_f32_at(x_desc).unwrap(); // pre-resolved, avoids name lookup
+}
+
+// Typed access (compile-time offsets)
+let cloud = pcd2.as_typed_cloud::<XyzPoint>().unwrap();
+for point in cloud.iter() {
+    println!("{}, {}, {}", point.x, point.y, point.z);
+}
 ```
 
 ---
@@ -349,21 +428,22 @@ graph LR
 
 ```rust
 use edgefirst_schemas::sensor_msgs::CompressedImage;
+use edgefirst_schemas::builtin_interfaces::Time;
 use zenoh::prelude::*;
 
-// Publisher
+// Publisher — construct directly into CDR buffer
 let session = zenoh::open(config).await?;
 let publisher = session.declare_publisher("rt/camera/h264").await?;
 
-let img = CompressedImage { /* ... */ };
-let encoded = cdr::serialize(&img)?;
-publisher.put(encoded).await?;
+let img = CompressedImage::new(Time::new(1, 0), "camera", "h264", &frame_data)?;
+publisher.put(img.to_cdr()).await?;
 
-// Subscriber
+// Subscriber — zero-copy decode
 let subscriber = session.declare_subscriber("rt/camera/h264").await?;
 while let Ok(sample) = subscriber.recv_async().await {
-    let img: CompressedImage = cdr::deserialize(&sample.payload)?;
-    process_image(img);
+    let img = CompressedImage::from_cdr(&sample.payload)?; // borrows payload
+    let data: &[u8] = img.data(); // zero-copy reference
+    process_image(data);
 }
 ```
 
@@ -512,11 +592,14 @@ The consumer application will not be able to call `pidfd_getfd` if it runs at a 
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
-| **PointCloud2 decode** | `src/lib.rs:45` | Efficient point cloud decoding |
-| **DmaBuffer** | `src/edgefirst_msgs.rs:10` | Zero-copy buffer sharing |
-| **Detect message** | `src/edgefirst_msgs.rs:150` | Object detection results |
-| **CDR serialization** | Via `serde` derives | Automatic via macro |
-| **Python decode_pcd** | `edgefirst/schemas/__init__.py:16` | Python point cloud decode |
+| **CDR infrastructure** | `src/cdr.rs` | Zero-copy CDR1-LE: CdrCursor, CdrWriter, CdrSizer, CdrFixed |
+| **PointCloud2 message** | `src/sensor_msgs/mod.rs` | Buffer-backed PointCloud2 with field iteration |
+| **PointCloud access** | `src/sensor_msgs/pointcloud.rs` | DynPointCloud, PointCloud\<P\>, define_point! |
+| **DmaBuffer** | `src/edgefirst_msgs.rs` | Zero-copy DMA buffer sharing |
+| **Detect message** | `src/edgefirst_msgs.rs` | Object detection results |
+| **C API (FFI)** | `src/ffi.rs` | C bindings, header via cbindgen |
+| **Schema registry** | `src/schema_registry.rs` | Runtime type lookup by ROS2 schema name |
+| **Python decode_pcd** | `edgefirst/schemas/__init__.py` | Python point cloud decode |
 | **Message definitions** | `edgefirst_msgs/msg/*.msg` | Source IDL definitions |
 
 ---
