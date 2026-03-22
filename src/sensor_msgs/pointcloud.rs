@@ -837,12 +837,14 @@ impl<'a> DynPointCloud<'a> {
     ///
     /// Returns `None` if the field does not exist.
     pub fn gather_as_f32(&self, name: &str) -> Option<Vec<f32>> {
-        Some(
-            self.gather_as_f64(name)?
-                .into_iter()
-                .map(|v| v as f32)
-                .collect(),
-        )
+        let desc = self.field(name)?;
+        let mut out = Vec::with_capacity(self.num_points);
+        for i in 0..self.num_points {
+            let base = self.point_offset(i);
+            let point_data = &self.data[base..base + self.point_step];
+            out.push(desc.read_as_f32(point_data)?);
+        }
+        Some(out)
     }
 }
 
