@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-03-22
+
+### Added
+
+- Type-coercing field reads via `PointFieldType::read_as_f64` — converts any stored
+  numeric type to `f64` without precision loss; used by all coercion methods below
+- `FieldDesc::read_as_f64` and `read_as_f32` — per-field coercion from any
+  `PointFieldType` to a common float target (`f32` may lose precision for
+  `Int32`/`Uint32` >24-bit or `Float64` narrowing)
+- Public accessors `DynPoint::cloud()` and `DynPoint::data()` enabling zero-overhead
+  hot-loop pattern with pre-resolved field descriptors
+- Convenience methods on `DynPoint`: `read_as_f64` and `read_as_f32`
+  (name-based coercing reads)
+- Bulk coercing methods on `DynPointCloud`: `gather_as_f64` and `gather_as_f32`
+
 ## [2.1.0] - 2026-03-20
 
 ### Added
@@ -407,7 +422,8 @@ CDR serialization. No migration required.
 - Python build issues with wheel generation
 - Removed auxiliary files from ROS2 schemas not required for this project
 
-[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/EdgeFirstAI/schemas/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/EdgeFirstAI/schemas/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/EdgeFirstAI/schemas/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/EdgeFirstAI/schemas/compare/v1.5.5...v2.0.0
