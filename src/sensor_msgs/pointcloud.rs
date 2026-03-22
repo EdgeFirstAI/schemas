@@ -10,6 +10,11 @@
 //! Both modes are zero-copy views over the PointCloud2 data buffer.
 //! Field reads use `from_le_bytes` on small byte-array copies (matching
 //! the pattern used by [`CdrCursor`](crate::cdr::CdrCursor)).
+//!
+//! The dynamic tier also provides **type-coercing** access via
+//! [`FieldDesc::read_as_f64`] and [`FieldDesc::read_as_f32`], which
+//! convert any stored [`PointFieldType`] to a common float target.
+//! This is useful when the field's storage type varies across services.
 
 use super::PointFieldView;
 
@@ -59,6 +64,39 @@ impl PointFieldType {
             Self::Float64 => 8,
         }
     }
+
+    /// Read a single scalar of this type from `data` at `off`, returning
+    /// as `f64`.
+    ///
+    /// All integer and `Float32` variants convert to `f64` without
+    /// precision loss. `Float64` is returned as-is. Returns `None` if
+    /// `data` is too short.
+    ///
+    /// Reads element 0 only. For fields with `count > 1`, subsequent
+    /// elements require manual offset arithmetic via
+    /// [`size_bytes`](Self::size_bytes).
+    pub fn read_as_f64(self, data: &[u8], off: usize) -> Option<f64> {
+        match self {
+            Self::Float64 => Some(f64::from_le_bytes(data.get(off..off + 8)?.try_into().ok()?)),
+            Self::Float32 => {
+                Some(f32::from_le_bytes(data.get(off..off + 4)?.try_into().ok()?) as f64)
+            }
+            Self::Uint32 => {
+                Some(u32::from_le_bytes(data.get(off..off + 4)?.try_into().ok()?) as f64)
+            }
+            Self::Int32 => {
+                Some(i32::from_le_bytes(data.get(off..off + 4)?.try_into().ok()?) as f64)
+            }
+            Self::Uint16 => {
+                Some(u16::from_le_bytes(data.get(off..off + 2)?.try_into().ok()?) as f64)
+            }
+            Self::Int16 => {
+                Some(i16::from_le_bytes(data.get(off..off + 2)?.try_into().ok()?) as f64)
+            }
+            Self::Uint8 => Some(*data.get(off)? as f64),
+            Self::Int8 => Some(*data.get(off)? as i8 as f64),
+        }
+    }
 }
 
 // ── FieldDesc ───────────────────────────────────────────────────────
@@ -81,6 +119,35 @@ impl<'a> FieldDesc<'a> {
             field_type: PointFieldType::from_datatype(view.datatype)?,
             count: view.count,
         })
+    }
+
+    /// Read this field from a point's data slice, converting any numeric
+    /// type to `f64`.
+    ///
+    /// All integer and `Float32` variants convert to `f64` without
+    /// precision loss. `Float64` is returned as-is. Delegates to
+    /// [`PointFieldType::read_as_f64`].
+    ///
+    /// Returns `None` if `point_data` is too short for the field's byte
+    /// offset and type width.
+    pub fn read_as_f64(&self, point_data: &[u8]) -> Option<f64> {
+        self.field_type
+            .read_as_f64(point_data, self.byte_offset as usize)
+    }
+
+    /// Read this field from a point's data slice, converting any numeric
+    /// type to `f32`.
+    ///
+    /// **Precision:** `Int32` / `Uint32` values wider than 24 bits may
+    /// lose precision (f32 mantissa is 23 bits). `Float64` values are
+    /// narrowed and may become `±inf` if outside f32 range.
+    ///
+    /// Returns `None` if `point_data` is too short for the field's byte
+    /// offset and type width.
+    pub fn read_as_f32(&self, point_data: &[u8]) -> Option<f32> {
+        self.field_type
+            .read_as_f64(point_data, self.byte_offset as usize)
+            .map(|v| v as f32)
     }
 }
 
@@ -739,6 +806,44 @@ impl<'a> DynPointCloud<'a> {
         }
         Some(out)
     }
+
+    /// Gather a named field into a `Vec<f64>`, widening from any stored
+    /// numeric type.
+    ///
+    /// **Note:** Allocates a `Vec` of `num_points` elements. For hot-path
+    /// access without allocation, pre-resolve a [`FieldDesc`] with
+    /// [`DynPointCloud::field`] and call [`FieldDesc::read_as_f64`] with
+    /// [`DynPoint::data`] per point.
+    ///
+    /// Returns `None` if the field does not exist.
+    pub fn gather_as_f64(&self, name: &str) -> Option<Vec<f64>> {
+        let desc = self.field(name)?;
+        let mut out = Vec::with_capacity(self.num_points);
+        for i in 0..self.num_points {
+            let base = self.point_offset(i);
+            let point_data = &self.data[base..base + self.point_step];
+            out.push(desc.read_as_f64(point_data)?);
+        }
+        Some(out)
+    }
+
+    /// Gather a named field into a `Vec<f32>`, widening from any stored
+    /// numeric type.
+    ///
+    /// **Precision:** See [`FieldDesc::read_as_f32`] for precision caveats
+    /// when widening `Int32`/`Uint32` or narrowing `Float64`.
+    ///
+    /// **Note:** Allocates a `Vec` of `num_points` elements.
+    ///
+    /// Returns `None` if the field does not exist.
+    pub fn gather_as_f32(&self, name: &str) -> Option<Vec<f32>> {
+        Some(
+            self.gather_as_f64(name)?
+                .into_iter()
+                .map(|v| v as f32)
+                .collect(),
+        )
+    }
 }
 
 // ── DynPoint ────────────────────────────────────────────────────────
@@ -958,6 +1063,56 @@ impl<'a, 'c> DynPoint<'a, 'c> {
                 byte_offset: desc.byte_offset,
             })?;
         Ok(f64::from_le_bytes(bytes))
+    }
+
+    /// Access the parent point cloud for field metadata lookup.
+    ///
+    /// Enables the hot-loop pattern: resolve a [`FieldDesc`] once from the
+    /// cloud, then call [`FieldDesc::read_as_f64`] with [`DynPoint::data`]
+    /// per point without per-point name lookup overhead.
+    pub fn cloud(&self) -> &DynPointCloud<'a> {
+        self.cloud
+    }
+
+    /// Access the raw byte slice for this point's data region.
+    ///
+    /// The slice spans exactly `point_step` bytes. Use with
+    /// [`FieldDesc::read_as_f64`] and related methods for the
+    /// resolve-once-read-many hot-loop pattern:
+    ///
+    /// ```ignore
+    /// let desc = cloud.field("x").unwrap();
+    /// for point in cloud.iter() {
+    ///     let x = desc.read_as_f32(point.data()).unwrap();
+    /// }
+    /// ```
+    ///
+    /// Field offsets within this slice correspond to
+    /// [`FieldDesc::byte_offset`].
+    pub fn data(&self) -> &'a [u8] {
+        self.data
+    }
+
+    /// Read a named field as `f64`, widening from any stored numeric type.
+    ///
+    /// Combines a field name lookup with [`FieldDesc::read_as_f64`].
+    /// Returns `None` if the field does not exist or the byte offset is
+    /// out of range.
+    ///
+    /// For repeated access in a loop, prefer resolving the [`FieldDesc`]
+    /// once with [`DynPointCloud::field`] and calling
+    /// [`FieldDesc::read_as_f64`] directly with [`DynPoint::data`].
+    pub fn read_as_f64(&self, name: &str) -> Option<f64> {
+        self.cloud.field(name)?.read_as_f64(self.data)
+    }
+
+    /// Read a named field as `f32`, converting from any stored numeric type.
+    ///
+    /// Returns `None` if the field does not exist or the byte offset is
+    /// out of range. See [`FieldDesc::read_as_f32`] for precision caveats
+    /// (`Int32`/`Uint32` >24-bit, `Float64` narrowing).
+    pub fn read_as_f32(&self, name: &str) -> Option<f32> {
+        self.cloud.field(name)?.read_as_f32(self.data)
     }
 }
 
@@ -3043,5 +3198,362 @@ mod tests {
         // Test get() also uses correct offsets
         assert_eq!(cloud.get(2).unwrap().x, 2.0);
         assert_eq!(cloud.get(3).unwrap().x, 3.0);
+    }
+
+    // ── Type-coercing field access tests ────────────────────────────
+
+    /// Helper: build a single-point cloud with all 8 field types for coercion tests.
+    fn make_coercion_cloud_cdr() -> Vec<u8> {
+        let fields = [
+            PointFieldView {
+                name: "fi8",
+                offset: 0,
+                datatype: 1,
+                count: 1,
+            },
+            PointFieldView {
+                name: "fu8",
+                offset: 1,
+                datatype: 2,
+                count: 1,
+            },
+            PointFieldView {
+                name: "fi16",
+                offset: 2,
+                datatype: 3,
+                count: 1,
+            },
+            PointFieldView {
+                name: "fu16",
+                offset: 4,
+                datatype: 4,
+                count: 1,
+            },
+            PointFieldView {
+                name: "fi32",
+                offset: 6,
+                datatype: 5,
+                count: 1,
+            },
+            PointFieldView {
+                name: "fu32",
+                offset: 10,
+                datatype: 6,
+                count: 1,
+            },
+            PointFieldView {
+                name: "ff32",
+                offset: 14,
+                datatype: 7,
+                count: 1,
+            },
+            PointFieldView {
+                name: "ff64",
+                offset: 18,
+                datatype: 8,
+                count: 1,
+            },
+        ];
+        let point_step = 26u32;
+        let mut data = vec![0u8; point_step as usize];
+        data[0] = 0xFF_u8; // i8 = -1
+        data[1] = 200; // u8 = 200
+        data[2..4].copy_from_slice(&(-1000i16).to_le_bytes());
+        data[4..6].copy_from_slice(&60000u16.to_le_bytes());
+        data[6..10].copy_from_slice(&(-1_000_000i32).to_le_bytes());
+        data[10..14].copy_from_slice(&3_000_000_000u32.to_le_bytes());
+        data[14..18].copy_from_slice(&1.5f32.to_le_bytes());
+        data[18..26].copy_from_slice(&2.5f64.to_le_bytes());
+
+        PointCloud2::new(
+            Time::new(0, 0),
+            "coerce",
+            1,
+            1,
+            &fields,
+            false,
+            point_step,
+            point_step,
+            &data,
+            true,
+        )
+        .unwrap()
+        .to_cdr()
+    }
+
+    #[test]
+    fn field_desc_read_as_f64_all_types() {
+        let cdr = make_coercion_cloud_cdr();
+        let decoded = PointCloud2::from_cdr(&cdr).unwrap();
+        let cloud = DynPointCloud::from_pointcloud2(&decoded).unwrap();
+        let p = cloud.point(0).unwrap();
+        let data = p.data();
+
+        assert_eq!(cloud.field("fi8").unwrap().read_as_f64(data), Some(-1.0));
+        assert_eq!(cloud.field("fu8").unwrap().read_as_f64(data), Some(200.0));
+        assert_eq!(
+            cloud.field("fi16").unwrap().read_as_f64(data),
+            Some(-1000.0)
+        );
+        assert_eq!(
+            cloud.field("fu16").unwrap().read_as_f64(data),
+            Some(60000.0)
+        );
+        assert_eq!(
+            cloud.field("fi32").unwrap().read_as_f64(data),
+            Some(-1_000_000.0)
+        );
+        assert_eq!(
+            cloud.field("fu32").unwrap().read_as_f64(data),
+            Some(3_000_000_000.0)
+        );
+        assert_eq!(
+            cloud.field("ff32").unwrap().read_as_f64(data),
+            Some(1.5f32 as f64)
+        );
+        assert_eq!(cloud.field("ff64").unwrap().read_as_f64(data), Some(2.5));
+    }
+
+    #[test]
+    fn field_desc_read_as_f32_all_types() {
+        let cdr = make_coercion_cloud_cdr();
+        let decoded = PointCloud2::from_cdr(&cdr).unwrap();
+        let cloud = DynPointCloud::from_pointcloud2(&decoded).unwrap();
+        let p = cloud.point(0).unwrap();
+        let data = p.data();
+
+        assert_eq!(cloud.field("fi8").unwrap().read_as_f32(data), Some(-1.0f32));
+        assert_eq!(
+            cloud.field("fu8").unwrap().read_as_f32(data),
+            Some(200.0f32)
+        );
+        assert_eq!(
+            cloud.field("fi16").unwrap().read_as_f32(data),
+            Some(-1000.0f32)
+        );
+        assert_eq!(
+            cloud.field("fu16").unwrap().read_as_f32(data),
+            Some(60000.0f32)
+        );
+        assert_eq!(
+            cloud.field("fi32").unwrap().read_as_f32(data),
+            Some(-1_000_000.0f32)
+        );
+        // u32: 3_000_000_000 loses precision in f32 — use as-cast for expected value
+        assert_eq!(
+            cloud.field("fu32").unwrap().read_as_f32(data),
+            Some(3_000_000_000u32 as f32)
+        );
+        assert_eq!(cloud.field("ff32").unwrap().read_as_f32(data), Some(1.5f32));
+        assert_eq!(cloud.field("ff64").unwrap().read_as_f32(data), Some(2.5f32));
+    }
+
+    #[test]
+    fn field_desc_read_as_out_of_bounds() {
+        let bad = FieldDesc {
+            name: "fake",
+            byte_offset: 100,
+            field_type: PointFieldType::Float32,
+            count: 1,
+        };
+        let short_data = [0u8; 4];
+        assert!(bad.read_as_f64(&short_data).is_none());
+        assert!(bad.read_as_f32(&short_data).is_none());
+
+        let bad_f64 = FieldDesc {
+            name: "fake64",
+            byte_offset: 100,
+            field_type: PointFieldType::Float64,
+            count: 1,
+        };
+        assert!(bad_f64.read_as_f64(&short_data).is_none());
+        assert!(bad_f64.read_as_f32(&short_data).is_none());
+
+        // 1-byte and 2-byte types with offset past end
+        let bad_u8 = FieldDesc {
+            name: "oob_u8",
+            byte_offset: 100,
+            field_type: PointFieldType::Uint8,
+            count: 1,
+        };
+        assert!(bad_u8.read_as_f64(&short_data).is_none());
+        assert!(bad_u8.read_as_f32(&short_data).is_none());
+
+        let bad_i16 = FieldDesc {
+            name: "oob_i16",
+            byte_offset: 100,
+            field_type: PointFieldType::Int16,
+            count: 1,
+        };
+        assert!(bad_i16.read_as_f64(&short_data).is_none());
+        assert!(bad_i16.read_as_f32(&short_data).is_none());
+    }
+
+    #[test]
+    fn dynpoint_read_as_convenience() {
+        let cdr = make_coercion_cloud_cdr();
+        let decoded = PointCloud2::from_cdr(&cdr).unwrap();
+        let cloud = DynPointCloud::from_pointcloud2(&decoded).unwrap();
+        let p = cloud.point(0).unwrap();
+
+        // f64 coercion from various source types
+        assert_eq!(p.read_as_f64("fu16"), Some(60000.0));
+        assert_eq!(p.read_as_f64("fi32"), Some(-1_000_000.0));
+        assert_eq!(p.read_as_f64("ff32"), Some(1.5f32 as f64));
+
+        // f32 coercion
+        assert_eq!(p.read_as_f32("fu8"), Some(200.0f32));
+        assert_eq!(p.read_as_f32("fi16"), Some(-1000.0f32));
+        assert_eq!(p.read_as_f32("ff64"), Some(2.5f32));
+    }
+
+    #[test]
+    fn dynpoint_read_as_missing_field() {
+        let cdr = make_coercion_cloud_cdr();
+        let decoded = PointCloud2::from_cdr(&cdr).unwrap();
+        let cloud = DynPointCloud::from_pointcloud2(&decoded).unwrap();
+        let p = cloud.point(0).unwrap();
+
+        assert!(p.read_as_f64("nonexistent").is_none());
+        assert!(p.read_as_f32("nonexistent").is_none());
+    }
+
+    #[test]
+    fn dynpoint_data_and_cloud_accessors() {
+        let cdr = make_coercion_cloud_cdr();
+        let decoded = PointCloud2::from_cdr(&cdr).unwrap();
+        let cloud = DynPointCloud::from_pointcloud2(&decoded).unwrap();
+        let p = cloud.point(0).unwrap();
+
+        assert_eq!(p.data().len(), cloud.point_step());
+        assert!(p.cloud().field("fi8").is_some());
+        assert!(p.cloud().field("nonexistent").is_none());
+    }
+
+    #[test]
+    fn dynpoint_hot_loop_pattern() {
+        let cdr = make_coercion_cloud_cdr();
+        let decoded = PointCloud2::from_cdr(&cdr).unwrap();
+        let cloud = DynPointCloud::from_pointcloud2(&decoded).unwrap();
+
+        // Resolve descriptors once
+        let f32_desc = cloud.field("ff32").unwrap();
+        let u16_desc = cloud.field("fu16").unwrap();
+
+        // Read per-point via data()
+        for point in cloud.iter() {
+            assert_eq!(f32_desc.read_as_f64(point.data()), Some(1.5f32 as f64));
+            assert_eq!(u16_desc.read_as_f32(point.data()), Some(60000.0f32));
+        }
+    }
+
+    #[test]
+    fn dyn_cloud_gather_as_f64() {
+        let cdr = make_coercion_cloud_cdr();
+        let decoded = PointCloud2::from_cdr(&cdr).unwrap();
+        let cloud = DynPointCloud::from_pointcloud2(&decoded).unwrap();
+
+        // u16 field gathered as f64
+        assert_eq!(cloud.gather_as_f64("fu16"), Some(vec![60000.0f64]));
+        // i32 field gathered as f64
+        assert_eq!(cloud.gather_as_f64("fi32"), Some(vec![-1_000_000.0f64]));
+    }
+
+    #[test]
+    fn dyn_cloud_gather_as_f32() {
+        let cdr = make_coercion_cloud_cdr();
+        let decoded = PointCloud2::from_cdr(&cdr).unwrap();
+        let cloud = DynPointCloud::from_pointcloud2(&decoded).unwrap();
+
+        // u32 field gathered as f32 (precision loss expected)
+        assert_eq!(
+            cloud.gather_as_f32("fu32"),
+            Some(vec![3_000_000_000u32 as f32])
+        );
+        // f64 field gathered as f32
+        assert_eq!(cloud.gather_as_f32("ff64"), Some(vec![2.5f32]));
+    }
+
+    #[test]
+    fn dyn_cloud_gather_as_missing() {
+        let cdr = make_coercion_cloud_cdr();
+        let decoded = PointCloud2::from_cdr(&cdr).unwrap();
+        let cloud = DynPointCloud::from_pointcloud2(&decoded).unwrap();
+
+        assert!(cloud.gather_as_f64("nonexistent").is_none());
+        assert!(cloud.gather_as_f32("nonexistent").is_none());
+    }
+
+    #[test]
+    fn dyn_cloud_gather_as_multipoint_with_row_padding() {
+        // 2×2 organized cloud with row padding, u16 field
+        let fields = [
+            PointFieldView {
+                name: "val",
+                offset: 0,
+                datatype: 4,
+                count: 1,
+            }, // Uint16
+        ];
+        let point_step = 4u32; // 2 bytes val + 2 padding
+        let width = 2u32;
+        let height = 2u32;
+        let row_step = 16u32; // 8 bytes padding per row
+        let total = (row_step * height) as usize;
+        let mut data = vec![0xFFu8; total];
+
+        let values: [u16; 4] = [100, 200, 300, 400];
+        for row in 0..height {
+            for col in 0..width {
+                let off = (row * row_step + col * point_step) as usize;
+                let idx = (row * width + col) as usize;
+                data[off..off + 2].copy_from_slice(&values[idx].to_le_bytes());
+            }
+        }
+
+        let pc = PointCloud2::new(
+            Time::new(0, 0),
+            "multi",
+            height,
+            width,
+            &fields,
+            false,
+            point_step,
+            row_step,
+            &data,
+            true,
+        )
+        .unwrap();
+        let cdr = pc.to_cdr();
+        let decoded = PointCloud2::from_cdr(&cdr).unwrap();
+        let cloud = DynPointCloud::from_pointcloud2(&decoded).unwrap();
+
+        // gather_as_f64: u16 → f64 across 4 points with row padding
+        assert_eq!(
+            cloud.gather_as_f64("val"),
+            Some(vec![100.0, 200.0, 300.0, 400.0])
+        );
+
+        // gather_as_f32: u16 → f32 across 4 points with row padding
+        assert_eq!(
+            cloud.gather_as_f32("val"),
+            Some(vec![100.0f32, 200.0f32, 300.0f32, 400.0f32])
+        );
+    }
+
+    #[test]
+    fn field_desc_read_as_f32_infinity_narrowing() {
+        // Float64 value outside f32 range should produce ±inf
+        let desc = FieldDesc {
+            name: "big",
+            byte_offset: 0,
+            field_type: PointFieldType::Float64,
+            count: 1,
+        };
+        let big = 1e40_f64.to_le_bytes();
+        assert_eq!(desc.read_as_f32(&big), Some(f32::INFINITY));
+
+        let neg_big = (-1e40_f64).to_le_bytes();
+        assert_eq!(desc.read_as_f32(&neg_big), Some(f32::NEG_INFINITY));
     }
 }

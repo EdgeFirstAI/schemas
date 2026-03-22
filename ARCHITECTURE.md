@@ -332,6 +332,8 @@ The `sensor_msgs::pointcloud` module provides zero-copy typed access over PointC
 
 Both tiers share no state and have minimal coupling. Neither copies data out of the PointCloud2 buffer — they read directly via `from_le_bytes` on small byte arrays.
 
+The dynamic tier also provides **type-coercing access** via `FieldDesc::read_as_f64` and `read_as_f32`, which convert any `PointFieldType` to a common float target. This is useful when the same field (e.g., `vision_class`) has different storage types across services (UINT8, UINT16, or UINT32).
+
 ### Example
 
 ```rust

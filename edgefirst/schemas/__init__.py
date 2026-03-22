@@ -15,7 +15,7 @@ def default_field(obj):
 from .registry import from_schema, is_supported, list_schemas, schema_name
 from .sensor_msgs import PointCloud2, PointField
 
-__version__ = "2.1.0"
+__version__ = "2.2.0"
 
 __all__ = [
     "from_schema",
