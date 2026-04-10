@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-04-10
+
+### Fixed
+
+- C library SOVERSION layout now follows the standard GNU/Linux convention.
+  The Makefile previously created a single backwards symlink
+  (`libedgefirst_schemas.so.MAJOR → libedgefirst_schemas.so`) and never
+  produced the intermediate `.so.MAJOR.MINOR` / `.so.MAJOR.MINOR.PATCH`
+  names. Both `make lib` and the release workflow now produce the chained
+  layout `libedgefirst_schemas.so → .so.MAJOR → .so.MAJOR.MINOR →
+  .so.MAJOR.MINOR.PATCH` with the fully-qualified name as the real file.
+- `CAPI.md` installation snippet now installs the versioned file and the
+  full symlink chain (the previous instructions copied only `.so`, leaving
+  the loader unable to resolve the embedded SONAME without a manual
+  `ldconfig` fixup).
+
 ## [2.2.0] - 2026-03-22
 
 ### Added
@@ -422,7 +438,8 @@ CDR serialization. No migration required.
 - Python build issues with wheel generation
 - Removed auxiliary files from ROS2 schemas not required for this project
 
-[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v2.2.1...HEAD
+[2.2.1]: https://github.com/EdgeFirstAI/schemas/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/EdgeFirstAI/schemas/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/EdgeFirstAI/schemas/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/EdgeFirstAI/schemas/compare/v2.0.0...v2.0.1

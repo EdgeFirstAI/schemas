@@ -49,11 +49,17 @@ jobs:
           cp README.md LICENSE "${PKG_NAME}/"
           cp include/edgefirst/schemas.h "${PKG_NAME}/include/edgefirst/"
 
-          # Versioned shared library with symlinks (GNU/Linux convention)
+          # Versioned shared library with chained symlinks (GNU/Linux convention).
+          # The ELF DT_SONAME is libedgefirst_schemas.so.${MAJOR}; the runtime
+          # loader opens that name and walks this chain to the real file:
+          #   .so                               symlink -> .so.${MAJOR}
+          #   .so.${MAJOR}                      symlink -> .so.${MAJOR}.${MINOR}
+          #   .so.${MAJOR}.${MINOR}             symlink -> .so.${MAJOR}.${MINOR}.${PATCH}
+          #   .so.${MAJOR}.${MINOR}.${PATCH}    real file
           cp target/release/libedgefirst_schemas.so "${PKG_NAME}/lib/libedgefirst_schemas.so.${MAJOR}.${MINOR}.${PATCH}"
           ln -s "libedgefirst_schemas.so.${MAJOR}.${MINOR}.${PATCH}" "${PKG_NAME}/lib/libedgefirst_schemas.so.${MAJOR}.${MINOR}"
-          ln -s "libedgefirst_schemas.so.${MAJOR}.${MINOR}.${PATCH}" "${PKG_NAME}/lib/libedgefirst_schemas.so.${MAJOR}"
-          ln -s "libedgefirst_schemas.so.${MAJOR}.${MINOR}.${PATCH}" "${PKG_NAME}/lib/libedgefirst_schemas.so"
+          ln -s "libedgefirst_schemas.so.${MAJOR}.${MINOR}"          "${PKG_NAME}/lib/libedgefirst_schemas.so.${MAJOR}"
+          ln -s "libedgefirst_schemas.so.${MAJOR}"                   "${PKG_NAME}/lib/libedgefirst_schemas.so"
 
           cp target/release/libedgefirst_schemas.a "${PKG_NAME}/lib/"
           sed "s/@VERSION@/${VERSION}/" \

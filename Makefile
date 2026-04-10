@@ -39,14 +39,49 @@ TEST_BINARIES = $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/%,$(TEST_SOURCES))
 
 all: lib $(TEST_BINARIES)
 
-# Extract major version for SONAME symlink
-VERSION_MAJOR = $(word 1,$(subst ., ,$(shell grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')))
+# Parse semver components from Cargo.toml for the SOVERSION chain.
+# Using := (immediate expansion) so the shell runs once per make invocation.
+VERSION_FULL  := $(shell grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+VERSION_MAJOR := $(word 1,$(subst ., ,$(VERSION_FULL)))
+VERSION_MINOR := $(word 2,$(subst ., ,$(VERSION_FULL)))
 
-# Build Rust library and create SONAME symlink
+# Build the Rust library and arrange the GNU/Linux SOVERSION symlink chain:
+#
+#   libedgefirst_schemas.so                      symlink -> .so.MAJOR
+#   libedgefirst_schemas.so.MAJOR                symlink -> .so.MAJOR.MINOR
+#   libedgefirst_schemas.so.MAJOR.MINOR          symlink -> .so.MAJOR.MINOR.PATCH
+#   libedgefirst_schemas.so.MAJOR.MINOR.PATCH    real file (renamed from cargo output)
+#
+# build.rs embeds DT_SONAME = libedgefirst_schemas.so.MAJOR; that is the name
+# the runtime loader actually opens, and it resolves through the chain above
+# to the real file. Rationale: rustc writes the cdylib to `libedgefirst_schemas.so`; on first build
+# we rename that file to the fully-qualified name and create the chain of symlinks
+# up from it. Incremental rebuilds write through the `.so` symlink (open() follows
+# symlinks on O_TRUNC|O_WRONLY), so the real file at .so.MAJOR.MINOR.PATCH is
+# updated in place and the chain stays intact. On a version bump, stale versioned
+# files/symlinks from prior versions are removed before the chain is rebuilt.
 lib:
 	@echo "Building Rust library..."
 	@cargo build $(CARGO_FLAGS)
-	@ln -sf $(LIB_NAME).so $(LIB_DIR)/$(LIB_NAME).so.$(VERSION_MAJOR)
+	@set -e; \
+	LIB_DIR='$(LIB_DIR)'; LIB='$(LIB_NAME)'; \
+	VERSION='$(VERSION_FULL)'; MAJOR='$(VERSION_MAJOR)'; MINOR='$(VERSION_MINOR)'; \
+	REAL="$$LIB_DIR/$$LIB.so.$$VERSION"; \
+	if [ -f "$$LIB_DIR/$$LIB.so" ] && [ ! -L "$$LIB_DIR/$$LIB.so" ]; then \
+	    find "$$LIB_DIR" -maxdepth 1 \( -type l -o -type f \) -name "$$LIB.so.*" \
+	        ! -name "$$LIB.so.$$VERSION" -exec rm -f {} +; \
+	    mv -f "$$LIB_DIR/$$LIB.so" "$$REAL"; \
+	elif [ ! -e "$$REAL" ]; then \
+	    echo "error: cargo output missing and no prior $$LIB.so.$$VERSION found" >&2; \
+	    echo "hint: run 'make clean' then retry (version bump without clean build)" >&2; \
+	    exit 1; \
+	fi; \
+	rm -f "$$LIB_DIR/$$LIB.so" \
+	      "$$LIB_DIR/$$LIB.so.$$MAJOR" \
+	      "$$LIB_DIR/$$LIB.so.$$MAJOR.$$MINOR"; \
+	ln -s "$$LIB.so.$$VERSION"        "$$LIB_DIR/$$LIB.so.$$MAJOR.$$MINOR"; \
+	ln -s "$$LIB.so.$$MAJOR.$$MINOR"  "$$LIB_DIR/$$LIB.so.$$MAJOR"; \
+	ln -s "$$LIB.so.$$MAJOR"          "$$LIB_DIR/$$LIB.so"
 
 # Ensure build directory exists
 $(BUILD_DIR):
