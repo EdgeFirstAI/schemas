@@ -47,9 +47,19 @@ gcc $(pkg-config --cflags edgefirst-schemas) -o myapp myapp.c \
 sudo mkdir -p /usr/local/include/edgefirst
 sudo cp include/edgefirst/schemas.h /usr/local/include/edgefirst/
 
-# Install library
-sudo cp target/release/libedgefirst_schemas.so /usr/local/lib/      # Linux
-sudo cp target/release/libedgefirst_schemas.dylib /usr/local/lib/   # macOS
+# Install library (Linux) — install the versioned real file and create the
+# symlink chain expected by the GNU/Linux dynamic linker. Replace 2.2.1 with
+# the version you built.
+VERSION=2.2.1; MAJOR=${VERSION%%.*}; MM=${VERSION%.*}
+sudo install -m 644 target/release/libedgefirst_schemas.so \
+    /usr/local/lib/libedgefirst_schemas.so.${VERSION}
+sudo ln -sf libedgefirst_schemas.so.${VERSION} /usr/local/lib/libedgefirst_schemas.so.${MM}
+sudo ln -sf libedgefirst_schemas.so.${MM}      /usr/local/lib/libedgefirst_schemas.so.${MAJOR}
+sudo ln -sf libedgefirst_schemas.so.${MAJOR}   /usr/local/lib/libedgefirst_schemas.so
+
+# Install library (macOS) — dylib versioning is handled differently; a plain
+# copy is sufficient for development installs.
+sudo cp target/release/libedgefirst_schemas.dylib /usr/local/lib/
 
 # Update library cache (Linux only)
 sudo ldconfig
@@ -1113,13 +1123,22 @@ nm -D target/release/libedgefirst_schemas.so | grep ros_header
 
 ### SONAME Versioning
 
-The shared library embeds a SONAME (`libedgefirst_schemas.so.2` for version
-2.x). When installing system-wide, create the expected symlink:
+The shared library embeds a SONAME of `libedgefirst_schemas.so.MAJOR` (for
+example `libedgefirst_schemas.so.2` for the 2.x series). Releases ship with
+the standard GNU/Linux chain so both the linker (`-ledgefirst_schemas`) and
+the runtime loader (via SONAME) find the library:
 
-```bash
-sudo ln -sf libedgefirst_schemas.so /usr/local/lib/libedgefirst_schemas.so.2
-sudo ldconfig
 ```
+libedgefirst_schemas.so                          -> libedgefirst_schemas.so.2
+libedgefirst_schemas.so.2                        -> libedgefirst_schemas.so.2.2   (SONAME target)
+libedgefirst_schemas.so.2.2                      -> libedgefirst_schemas.so.2.2.1
+libedgefirst_schemas.so.2.2.1                      real file
+```
+
+`make lib` produces the same layout under `target/release/`, and the release
+packages published by the [`release.yml`](.github/workflows/release.yml)
+workflow lay the library out this way in `lib/`. After a manual install, run
+`sudo ldconfig` so the loader picks up the new SONAME mapping.
 
 ### Segfaults and Memory Errors
 
