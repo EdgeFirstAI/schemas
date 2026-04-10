@@ -47,12 +47,14 @@ VERSION_MINOR := $(word 2,$(subst ., ,$(VERSION_FULL)))
 
 # Build the Rust library and arrange the GNU/Linux SOVERSION symlink chain:
 #
-#   libedgefirst_schemas.so                         -> .so.MAJOR
-#   libedgefirst_schemas.so.MAJOR                   -> .so.MAJOR.MINOR   (embedded SONAME)
-#   libedgefirst_schemas.so.MAJOR.MINOR             -> .so.MAJOR.MINOR.PATCH
-#   libedgefirst_schemas.so.MAJOR.MINOR.PATCH       real file (renamed from cargo output)
+#   libedgefirst_schemas.so                      symlink -> .so.MAJOR
+#   libedgefirst_schemas.so.MAJOR                symlink -> .so.MAJOR.MINOR
+#   libedgefirst_schemas.so.MAJOR.MINOR          symlink -> .so.MAJOR.MINOR.PATCH
+#   libedgefirst_schemas.so.MAJOR.MINOR.PATCH    real file (renamed from cargo output)
 #
-# Rationale: rustc writes the cdylib to `libedgefirst_schemas.so`; on first build
+# build.rs embeds DT_SONAME = libedgefirst_schemas.so.MAJOR; that is the name
+# the runtime loader actually opens, and it resolves through the chain above
+# to the real file. Rationale: rustc writes the cdylib to `libedgefirst_schemas.so`; on first build
 # we rename that file to the fully-qualified name and create the chain of symlinks
 # up from it. Incremental rebuilds write through the `.so` symlink (open() follows
 # symlinks on O_TRUNC|O_WRONLY), so the real file at .so.MAJOR.MINOR.PATCH is

@@ -1129,11 +1129,15 @@ the standard GNU/Linux chain so both the linker (`-ledgefirst_schemas`) and
 the runtime loader (via SONAME) find the library:
 
 ```
-libedgefirst_schemas.so                          -> libedgefirst_schemas.so.2
-libedgefirst_schemas.so.2                        -> libedgefirst_schemas.so.2.2   (SONAME target)
-libedgefirst_schemas.so.2.2                      -> libedgefirst_schemas.so.2.2.1
-libedgefirst_schemas.so.2.2.1                      real file
+libedgefirst_schemas.so                       symlink -> libedgefirst_schemas.so.2
+libedgefirst_schemas.so.2                     symlink -> libedgefirst_schemas.so.2.2
+libedgefirst_schemas.so.2.2                   symlink -> libedgefirst_schemas.so.2.2.1
+libedgefirst_schemas.so.2.2.1                 real file
 ```
+
+The ELF `DT_SONAME` is `libedgefirst_schemas.so.2` — that is the name
+the runtime loader opens, which then resolves through the chain above
+to the real file.
 
 `make lib` produces the same layout under `target/release/`, and the release
 packages published by the [`release.yml`](.github/workflows/release.yml)
