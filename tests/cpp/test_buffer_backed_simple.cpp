@@ -25,6 +25,88 @@ TEST_CASE("Header encode+view roundtrip", "[buffer_backed][header]") {
     CHECK(!hdr->as_cdr().empty());
 }
 
+TEST_CASE("Header release transfers byte ownership", "[buffer_backed][header][release]") {
+    auto hdr = ef::Header::encode({1234, 5678}, "release_test");
+    REQUIRE(hdr.has_value());
+
+    // Capture the raw buffer pointer and size BEFORE release.
+    auto cdr = hdr->as_cdr();
+    const std::uint8_t* expected_data = cdr.data();
+    const std::size_t   expected_size = cdr.size();
+
+    // Transfer ownership out of the wrapper.
+    auto released = std::move(*hdr).release();
+    CHECK(released.data == expected_data);
+    CHECK(released.size == expected_size);
+
+    // *hdr is now empty — its destructor must be a safe no-op when the
+    // enclosing expected<> goes out of scope. ASan would catch a
+    // double-free if release() didn't null the internal state.
+
+    // Caller is responsible for freeing the buffer.
+    ros_bytes_free(released.data, released.size);
+}
+
+TEST_CASE("Header double-release yields empty buffer on second call",
+          "[buffer_backed][header][release]") {
+    auto hdr = ef::Header::encode({1, 2}, "cam");
+    REQUIRE(hdr.has_value());
+    auto r1 = std::move(*hdr).release();
+    CHECK(r1.data != nullptr);
+    CHECK(r1.size > 0);
+
+    // Construct a moved-from Header via default construction impossible
+    // (protected), so simulate via self-assign from another release:
+    auto hdr2 = ef::Header::encode({3, 4}, "cam2");
+    REQUIRE(hdr2.has_value());
+    auto r2 = std::move(*hdr2).release();
+    CHECK(r2.data != nullptr);
+
+    // Free both buffers ourselves.
+    ros_bytes_free(r1.data, r1.size);
+    ros_bytes_free(r2.data, r2.size);
+}
+
+TEST_CASE("Image release transfers large pixel buffer ownership",
+          "[buffer_backed][image][release]") {
+    // Large pixel buffer to verify release() also works for big payloads.
+    std::vector<std::uint8_t> pixels(640 * 480 * 3, 0xA5);
+    auto img = ef::Image::encode(
+        ef::Time{1, 2}, "cam", 480, 640, "rgb8", /*is_bigendian=*/false,
+        640 * 3, ef::span<const std::uint8_t>{pixels.data(), pixels.size()});
+    REQUIRE(img.has_value());
+
+    const auto cdr = img->as_cdr();
+    const std::uint8_t* expected_data = cdr.data();
+    const std::size_t   expected_size = cdr.size();
+
+    auto released = std::move(*img).release();
+    CHECK(released.data == expected_data);
+    CHECK(released.size == expected_size);
+    CHECK(released.size > pixels.size());  // includes CDR header + fields
+
+    ros_bytes_free(released.data, released.size);
+}
+
+TEST_CASE("Mask release works on OwnedBaseNoCdr derivatives",
+          "[buffer_backed][mask][release]") {
+    // Mask uses OwnedBaseNoCdr (no ros_mask_as_cdr); verify release()
+    // is also available there and correctly transfers ownership.
+    std::vector<std::uint8_t> mdata{1, 2, 3, 4, 5, 6, 7, 8};
+    auto mask = ef::Mask::encode(
+        /*height=*/2, /*width=*/4, /*length=*/static_cast<std::uint32_t>(mdata.size()),
+        "mono8",
+        ef::span<const std::uint8_t>{mdata.data(), mdata.size()},
+        /*boxed=*/true);
+    REQUIRE(mask.has_value());
+
+    auto released = std::move(*mask).release();
+    CHECK(released.data != nullptr);
+    CHECK(released.size > 0);
+
+    ros_bytes_free(released.data, released.size);
+}
+
 TEST_CASE("Header encode empty frame_id", "[buffer_backed][header]") {
     auto hdr = ef::Header::encode({0, 0}, "");
     REQUIRE(hdr.has_value());

@@ -67,6 +67,27 @@
  * synchronization. `errno` is thread-local, so error reporting is
  * thread-safe under the usual POSIX conventions.
  *
+ * @section allocation Allocation characteristics
+ *
+ * View types (`from_cdr`) are allocation-free aside from a single small
+ * heap box for the opaque C handle — field accessors cost zero additional
+ * allocations.
+ *
+ * Owning types allocate exactly **one** fresh CDR byte buffer per
+ * `encode(...)` call, sized to the serialised message. The buffer is
+ * owned by the wrapper and freed by its destructor via `ros_bytes_free`.
+ * At high publish rates (for example a 30 Hz compressed-image stream),
+ * this produces allocator churn proportional to `rate × message_size`.
+ * Applications on allocator-sensitive paths should be aware of this and
+ * either reuse encoded instances when possible or transfer ownership out
+ * of the wrapper with `release()` to hand the buffer to a downstream
+ * sink without an intermediate copy (see the publishing example below).
+ *
+ * A future release may introduce an `encode_into(span<uint8_t>)` variant
+ * that encodes into a caller-provided buffer, eliminating the
+ * per-message allocation entirely. This is a C API change and is
+ * tracked separately.
+ *
  * @section interop Interop with zenoh-cpp and raw buffers
  *
  * `ViewT::from_cdr(span<const std::uint8_t>)` accepts any
@@ -81,6 +102,24 @@
  *     std::string_view enc = img->encoding();  // borrows zenoh buffer
  *     // ... process ...
  * }
+ * @endcode
+ *
+ * For **publishing** a freshly-encoded message, use `release()` on the
+ * owning wrapper to transfer the encoded buffer into a `zenoh::Bytes`
+ * (or any sink that takes a `(ptr, size, deleter)` tuple). This avoids
+ * copying the encoded bytes and lets zenoh's own reference count drive
+ * the buffer lifetime:
+ *
+ * @code{.cpp}
+ * namespace ef = edgefirst::schemas;
+ * auto img = ef::CompressedImage::encode(stamp, "cam", "jpeg", jpeg_bytes);
+ * if (!img) return;
+ * auto owned = std::move(*img).release();   // transfer (ptr, size) out
+ * zenoh::Bytes payload{
+ *     owned.data, owned.size,
+ *     [size = owned.size](std::uint8_t* p) { ros_bytes_free(p, size); }
+ * };
+ * publisher.put(std::move(payload));
  * @endcode
  */
 
@@ -165,6 +204,41 @@ struct Error {
     static Error from_errno(std::string_view w) noexcept {
         return {errno, w};
     }
+};
+
+/**
+ * @brief Raw ownership of an encoded CDR byte buffer transferred out of
+ *        an owning wrapper via `release()`.
+ *
+ * The buffer was originally allocated by the C library's encode path
+ * (`ros_<type>_encode`) and MUST be freed via `ros_bytes_free(data, size)`
+ * OR handed to a sink that takes ownership (for example
+ * `zenoh::Bytes` with a deleter lambda). Dropping a `Released` without
+ * freeing `data` leaks the buffer — this is a POD by design so that
+ * ownership transfer to C-style APIs is a trivial value copy.
+ *
+ * Typical use:
+ * @code{.cpp}
+ * auto img = ef::CompressedImage::encode(stamp, "cam", "jpeg", jpeg_span);
+ * if (!img) return;
+ * auto owned = std::move(*img).release();   // transfer ownership out
+ * zenoh::Bytes payload{
+ *     owned.data, owned.size,
+ *     [size = owned.size](std::uint8_t* p) { ros_bytes_free(p, size); }
+ * };
+ * publisher.put(std::move(payload));
+ * @endcode
+ *
+ * After `release()` the source owning wrapper is empty; its destructor
+ * is a safe no-op and further accessor calls are undefined behavior
+ * (it is moved-from).
+ */
+struct Released {
+    /// Raw pointer to the encoded CDR bytes. `nullptr` when the source
+    /// wrapper was moved-from or already released.
+    std::uint8_t* data{nullptr};
+    /// Size of the buffer in bytes.
+    std::size_t   size{0};
 };
 
 /**
@@ -915,6 +989,30 @@ public:
         return {p, n};
     }
 
+    /// @brief Transfer ownership of the encoded CDR byte buffer out of
+    ///        this wrapper and return it as a raw `(data, size)` pair.
+    ///
+    /// After this call the wrapper is empty: its internal C handle has
+    /// been freed, its byte pointer has been nulled, and the destructor
+    /// becomes a safe no-op. The caller is responsible for freeing the
+    /// returned buffer via `ros_bytes_free(r.data, r.size)` or handing
+    /// ownership to a sink that frees it (for example a
+    /// `zenoh::Bytes` constructed with a matching deleter lambda).
+    ///
+    /// Rvalue-qualified to make the ownership-transfer intent explicit
+    /// at the call site; call as `std::move(owner).release()`.
+    ///
+    /// @return A `Released` POD with the transferred buffer pointer and
+    ///         size. Returns `{nullptr, 0}` if the wrapper was already
+    ///         empty (moved-from or previously released).
+    [[nodiscard]] Released release() && noexcept {
+        if (handle_) { Traits::free(handle_); handle_ = nullptr; }
+        Released r{bytes_, bytes_len_};
+        bytes_ = nullptr;
+        bytes_len_ = 0;
+        return r;
+    }
+
 protected:
     OwnedBase() noexcept = default;
     [[nodiscard]] const handle_type* handle() const noexcept { return handle_; }
@@ -982,6 +1080,20 @@ public:
 
     [[nodiscard]] span<const std::uint8_t> as_cdr() const noexcept {
         return {bytes_, bytes_len_};
+    }
+
+    /// @brief Transfer ownership of the encoded CDR byte buffer out of
+    ///        this wrapper and return it as a raw `(data, size)` pair.
+    ///
+    /// See `OwnedBase::release()` for the full contract. Applies to
+    /// owning types whose C handle lacks an `as_cdr` accessor (today,
+    /// just `Mask`).
+    [[nodiscard]] Released release() && noexcept {
+        if (handle_) { Traits::free(handle_); handle_ = nullptr; }
+        Released r{bytes_, bytes_len_};
+        bytes_ = nullptr;
+        bytes_len_ = 0;
+        return r;
     }
 
 protected:
@@ -1216,15 +1328,15 @@ public:
         iterator(const ParentHandle* parent, std::uint32_t idx, GetFn get) noexcept
             : parent_(parent), idx_(idx), get_(get) {}
 
-        ChildView operator*() const noexcept {
+        [[nodiscard]] ChildView operator*() const noexcept {
             return ChildView{get_(parent_, idx_)};
         }
 
         iterator& operator++() noexcept { ++idx_; return *this; }
         iterator  operator++(int) noexcept { auto tmp = *this; ++idx_; return tmp; }
 
-        bool operator==(const iterator& o) const noexcept { return idx_ == o.idx_; }
-        bool operator!=(const iterator& o) const noexcept { return idx_ != o.idx_; }
+        [[nodiscard]] bool operator==(const iterator& o) const noexcept { return idx_ == o.idx_; }
+        [[nodiscard]] bool operator!=(const iterator& o) const noexcept { return idx_ != o.idx_; }
 
     private:
         const ParentHandle* parent_{nullptr};

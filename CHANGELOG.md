@@ -56,6 +56,15 @@ library SONAME changes from `libedgefirst_schemas.so.2` to
   `example-cpp` (build the C++ example), and `install` (installs headers,
   C++ stdlib headers, and the versioned library symlink chain to `PREFIX`,
   default `/usr/local`).
+- **`release()` ownership transfer on owning types** — `Header`, `Image`,
+  `CompressedImage`, `CompressedVideo`, `DmaBuffer`, and `Mask` now expose
+  `Released release() && noexcept` returning a raw `(data, size)` POD.
+  This transfers ownership of the encoded CDR byte buffer out of the
+  wrapper so the caller can hand it to a downstream sink (for example
+  `zenoh::Bytes` with a custom deleter) without an intermediate copy.
+  After `release()` the wrapper is empty and its destructor is a safe
+  no-op. See `Released` in `schemas.hpp` and the "publishing" code
+  example in the file-level Doxygen block for the zenoh-cpp pattern.
 
 ### Changed — BREAKING (for C callers caching child handles)
 
