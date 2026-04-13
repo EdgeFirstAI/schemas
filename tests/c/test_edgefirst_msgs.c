@@ -78,6 +78,27 @@ Test(edgefirst_msgs, box_getters_null) {
     cr_assert_float_eq(ros_box_get_speed(NULL), 0.0f, 0.0001f);
     cr_assert_null(ros_box_get_track_id(NULL));
     cr_assert_eq(ros_box_get_track_lifetime(NULL), 0);
+    cr_assert_eq(ros_box_get_track_created_sec(NULL), 0);
+    cr_assert_eq(ros_box_get_track_created_nanosec(NULL), 0u);
+}
+
+/* Box.cdr golden: center_x=0.5 center_y=0.5 width=0.1 height=0.2 label="car"
+ * score=0.98 distance=10.0 speed=5.0 track_id="t1" track_lifetime=5
+ * track_created={sec=95, nanosec=0}
+ */
+static const uint8_t box_cdr[] = {
+    0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x3f,0x00,0x00,0x00,0x3f,0xcd,0xcc,0xcc,0x3d,
+    0xcd,0xcc,0x4c,0x3e,0x04,0x00,0x00,0x00,0x63,0x61,0x72,0x00,0x48,0xe1,0x7a,0x3f,
+    0x00,0x00,0x20,0x41,0x00,0x00,0xa0,0x40,0x03,0x00,0x00,0x00,0x74,0x31,0x00,0x00,
+    0x05,0x00,0x00,0x00,0x5f,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+};
+
+Test(edgefirst_msgs, box_track_created_roundtrip) {
+    ros_box_t *handle = ros_box_from_cdr(box_cdr, sizeof(box_cdr));
+    cr_assert_not_null(handle);
+    cr_assert_eq(ros_box_get_track_created_sec(handle), 95);
+    cr_assert_eq(ros_box_get_track_created_nanosec(handle), 0u);
+    ros_box_free(handle);
 }
 
 // ============================================================================
@@ -416,4 +437,329 @@ Test(edgefirst_msgs, local_time_getters_null) {
     cr_assert_eq(ros_local_time_get_stamp_nanosec(NULL), 0);
     cr_assert_null(ros_local_time_get_frame_id(NULL));
     cr_assert_eq(ros_local_time_get_timezone(NULL), 0);
+}
+
+// ============================================================================
+// Indexed child accessor tests — ros_detect_get_box
+//
+// Uses golden CDR from testdata/cdr/edgefirst_msgs/Detect_multi.cdr
+// which contains 3 boxes: label="a" score=0.95, label="person" score=0.87,
+// label="ab" score=0.50.
+// ============================================================================
+
+// Detect_multi.cdr embedded as a literal byte array
+static const uint8_t detect_multi_cdr[] = {
+    0x00,0x01,0x00,0x00,0xd2,0x02,0x96,0x49,0x15,0xcd,0x5b,0x07,0x0b,0x00,0x00,0x00,
+    0x74,0x65,0x73,0x74,0x5f,0x66,0x72,0x61,0x6d,0x65,0x00,0x00,0xd2,0x02,0x96,0x49,
+    0x15,0xcd,0x5b,0x07,0x00,0x00,0x00,0x00,0x40,0x42,0x0f,0x00,0x00,0x00,0x00,0x00,
+    0x80,0x84,0x1e,0x00,0x03,0x00,0x00,0x00,0xcd,0xcc,0xcc,0x3d,0xcd,0xcc,0x4c,0x3e,
+    0x00,0x00,0x00,0x3f,0x9a,0x99,0x19,0x3f,0x02,0x00,0x00,0x00,0x61,0x00,0x00,0x00,
+    0x33,0x33,0x73,0x3f,0x00,0x00,0xa0,0x40,0x00,0x00,0x80,0x3f,0x02,0x00,0x00,0x00,
+    0x74,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x9a,0x99,0x99,0x3e,0xcd,0xcc,0xcc,0x3e,0xcd,0xcc,0x4c,0x3e,0x9a,0x99,0x99,0x3e,
+    0x07,0x00,0x00,0x00,0x70,0x65,0x72,0x73,0x6f,0x6e,0x00,0x00,0x52,0xb8,0x5e,0x3f,
+    0x00,0x00,0x40,0x41,0x00,0x00,0x40,0x40,0x0e,0x00,0x00,0x00,0x74,0x72,0x61,0x63,
+    0x6b,0x5f,0x6c,0x6f,0x6e,0x67,0x5f,0x69,0x64,0x00,0x00,0x00,0x0a,0x00,0x00,0x00,
+    0x02,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x33,0x33,0x33,0x3f,0xcd,0xcc,0x4c,0x3f,
+    0xcd,0xcc,0xcc,0x3d,0xcd,0xcc,0xcc,0x3d,0x03,0x00,0x00,0x00,0x61,0x62,0x00,0x00,
+    0x00,0x00,0x00,0x3f,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x04,0x00,0x00,0x00,
+    0x61,0x62,0x63,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+};
+
+Test(edgefirst_msgs, detect_get_box_roundtrip) {
+    ros_detect_t *handle = ros_detect_from_cdr(detect_multi_cdr, sizeof(detect_multi_cdr));
+    cr_assert_not_null(handle);
+
+    uint32_t len = ros_detect_get_boxes_len(handle);
+    cr_assert_eq(len, 3u);
+
+    // Box 0: label="a"
+    const ros_box_t *box0 = ros_detect_get_box(handle, 0);
+    cr_assert_not_null(box0);
+    cr_assert_str_eq(ros_box_get_label(box0), "a");
+    cr_assert_str_eq(ros_box_get_track_id(box0), "t");
+    cr_assert_float_eq(ros_box_get_score(box0), 0.95f, 0.001f);
+
+    // Box 1: label="person"
+    const ros_box_t *box1 = ros_detect_get_box(handle, 1);
+    cr_assert_not_null(box1);
+    cr_assert_str_eq(ros_box_get_label(box1), "person");
+    cr_assert_str_eq(ros_box_get_track_id(box1), "track_long_id");
+    cr_assert_eq(ros_box_get_track_lifetime(box1), 10);
+
+    // Box 2: label="ab"
+    const ros_box_t *box2 = ros_detect_get_box(handle, 2);
+    cr_assert_not_null(box2);
+    cr_assert_str_eq(ros_box_get_label(box2), "ab");
+    cr_assert_str_eq(ros_box_get_track_id(box2), "abc");
+
+    ros_detect_free(handle);
+}
+
+Test(edgefirst_msgs, detect_get_box_null_view) {
+    errno = 0;
+    const ros_box_t *box = ros_detect_get_box(NULL, 0);
+    cr_assert_null(box);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(edgefirst_msgs, detect_get_box_out_of_bounds) {
+    ros_detect_t *handle = ros_detect_from_cdr(detect_multi_cdr, sizeof(detect_multi_cdr));
+    cr_assert_not_null(handle);
+
+    uint32_t len = ros_detect_get_boxes_len(handle);
+    errno = 0;
+    const ros_box_t *box = ros_detect_get_box(handle, len); // one past the end
+    cr_assert_null(box);
+    cr_assert_eq(errno, EINVAL);
+
+    ros_detect_free(handle);
+}
+
+// ============================================================================
+// Indexed child accessor tests — ros_model_get_box / ros_model_get_mask
+//
+// Uses golden CDR from testdata/cdr/edgefirst_msgs/Model.cdr
+// which contains 1 box (label="car") and 1 mask (encoding="raw", 8 bytes).
+// ============================================================================
+
+// Model.cdr embedded as a literal byte array
+static const uint8_t model_cdr[] = {
+    0x00,0x01,0x00,0x00,0xd2,0x02,0x96,0x49,0x15,0xcd,0x5b,0x07,0x0b,0x00,0x00,0x00,
+    0x74,0x65,0x73,0x74,0x5f,0x66,0x72,0x61,0x6d,0x65,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x40,0x42,0x0f,0x00,0x00,0x00,0x00,0x00,0x40,0x4b,0x4c,0x00,0x00,0x00,0x00,0x00,
+    0x20,0xa1,0x07,0x00,0x00,0x00,0x00,0x00,0x40,0x0d,0x03,0x00,0x01,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x3f,0x00,0x00,0x00,0x3f,0xcd,0xcc,0xcc,0x3d,0xcd,0xcc,0x4c,0x3e,
+    0x04,0x00,0x00,0x00,0x63,0x61,0x72,0x00,0x48,0xe1,0x7a,0x3f,0x00,0x00,0x20,0x41,
+    0x00,0x00,0xa0,0x40,0x03,0x00,0x00,0x00,0x74,0x31,0x00,0x00,0x05,0x00,0x00,0x00,
+    0x5f,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x02,0x00,0x00,0x00,
+    0x04,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x08,0x00,0x00,0x00,0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x01
+};
+
+Test(edgefirst_msgs, model_get_box_roundtrip) {
+    ros_model_t *handle = ros_model_from_cdr(model_cdr, sizeof(model_cdr));
+    cr_assert_not_null(handle);
+
+    uint32_t boxes_len = ros_model_get_boxes_len(handle);
+    cr_assert_eq(boxes_len, 1u);
+
+    const ros_box_t *box0 = ros_model_get_box(handle, 0);
+    cr_assert_not_null(box0);
+    cr_assert_str_eq(ros_box_get_label(box0), "car");
+    cr_assert_float_eq(ros_box_get_score(box0), 0.98f, 0.001f);
+
+    ros_model_free(handle);
+}
+
+Test(edgefirst_msgs, model_get_box_null_view) {
+    errno = 0;
+    const ros_box_t *box = ros_model_get_box(NULL, 0);
+    cr_assert_null(box);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(edgefirst_msgs, model_get_box_out_of_bounds) {
+    ros_model_t *handle = ros_model_from_cdr(model_cdr, sizeof(model_cdr));
+    cr_assert_not_null(handle);
+
+    uint32_t len = ros_model_get_boxes_len(handle);
+    errno = 0;
+    const ros_box_t *box = ros_model_get_box(handle, len);
+    cr_assert_null(box);
+    cr_assert_eq(errno, EINVAL);
+
+    ros_model_free(handle);
+}
+
+Test(edgefirst_msgs, model_get_mask_roundtrip) {
+    ros_model_t *handle = ros_model_from_cdr(model_cdr, sizeof(model_cdr));
+    cr_assert_not_null(handle);
+
+    uint32_t masks_len = ros_model_get_masks_len(handle);
+    cr_assert_eq(masks_len, 1u);
+
+    const ros_mask_t *mask0 = ros_model_get_mask(handle, 0);
+    cr_assert_not_null(mask0);
+    cr_assert_eq(ros_mask_get_height(mask0), 2u);
+    cr_assert_eq(ros_mask_get_width(mask0), 4u);
+    cr_assert_eq(ros_mask_get_boxed(mask0), true);
+    size_t data_len = 0;
+    const uint8_t *data = ros_mask_get_data(mask0, &data_len);
+    cr_assert_not_null(data);
+    cr_assert_eq(data_len, 8u);
+
+    ros_model_free(handle);
+}
+
+Test(edgefirst_msgs, model_get_mask_null_view) {
+    errno = 0;
+    const ros_mask_t *mask = ros_model_get_mask(NULL, 0);
+    cr_assert_null(mask);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(edgefirst_msgs, model_get_mask_out_of_bounds) {
+    ros_model_t *handle = ros_model_from_cdr(model_cdr, sizeof(model_cdr));
+    cr_assert_not_null(handle);
+
+    uint32_t len = ros_model_get_masks_len(handle);
+    errno = 0;
+    const ros_mask_t *mask = ros_model_get_mask(handle, len);
+    cr_assert_null(mask);
+    cr_assert_eq(errno, EINVAL);
+
+    ros_model_free(handle);
+}
+
+// ============================================================================
+// Regression test for NULL-view out_len initialization (commits 3a14cbe, 991903f)
+//
+// Task #43: Verify that blob getters and as_cdr functions explicitly write 0 to
+// *out_len when the view is NULL, preventing uninitialized memory reads.
+// This test uses sentinel values (0xDEADBEEF) pre-assigned to out_len to catch
+// any code path that leaves out_len untouched.
+// ============================================================================
+
+Test(memory_safety, blob_getters_null_view_initializes_out_len) {
+    size_t out_len;
+    const uint8_t *data_ptr;
+
+    // ========================================================================
+    // Test representative blob getters (commit 3a14cbe fixes)
+    // ========================================================================
+
+    // ros_image_get_data: NULL view must initialize out_len to 0
+    out_len = 0xDEADBEEF;
+    data_ptr = ros_image_get_data(NULL, &out_len);
+    cr_assert_null(data_ptr, "ros_image_get_data should return NULL for NULL view");
+    cr_assert_eq(out_len, 0, "ros_image_get_data must initialize out_len to 0 on NULL view");
+
+    // ros_compressed_image_get_data: NULL view must initialize out_len to 0
+    out_len = 0xDEADBEEF;
+    data_ptr = ros_compressed_image_get_data(NULL, &out_len);
+    cr_assert_null(data_ptr, "ros_compressed_image_get_data should return NULL for NULL view");
+    cr_assert_eq(out_len, 0, "ros_compressed_image_get_data must initialize out_len to 0 on NULL view");
+
+    // ros_compressed_video_get_data: NULL view must initialize out_len to 0
+    out_len = 0xDEADBEEF;
+    data_ptr = ros_compressed_video_get_data(NULL, &out_len);
+    cr_assert_null(data_ptr, "ros_compressed_video_get_data should return NULL for NULL view");
+    cr_assert_eq(out_len, 0, "ros_compressed_video_get_data must initialize out_len to 0 on NULL view");
+
+    // ros_mask_get_data: NULL view must initialize out_len to 0
+    out_len = 0xDEADBEEF;
+    data_ptr = ros_mask_get_data(NULL, &out_len);
+    cr_assert_null(data_ptr, "ros_mask_get_data should return NULL for NULL view");
+    cr_assert_eq(out_len, 0, "ros_mask_get_data must initialize out_len to 0 on NULL view");
+
+    // ros_radar_cube_get_cube_raw: NULL view must initialize out_len to 0
+    out_len = 0xDEADBEEF;
+    data_ptr = ros_radar_cube_get_cube_raw(NULL, &out_len);
+    cr_assert_null(data_ptr, "ros_radar_cube_get_cube_raw should return NULL for NULL view");
+    cr_assert_eq(out_len, 0, "ros_radar_cube_get_cube_raw must initialize out_len to 0 on NULL view");
+
+    // ros_point_cloud2_get_data: NULL view must initialize out_len to 0
+    out_len = 0xDEADBEEF;
+    data_ptr = ros_point_cloud2_get_data(NULL, &out_len);
+    cr_assert_null(data_ptr, "ros_point_cloud2_get_data should return NULL for NULL view");
+    cr_assert_eq(out_len, 0, "ros_point_cloud2_get_data must initialize out_len to 0 on NULL view");
+
+    // ros_model_info_get_input_shape: NULL view must initialize out_len to 0
+    // Note: returns *const u32, but uses same out_len mechanism
+    out_len = 0xDEADBEEF;
+    const uint32_t *shape_ptr = ros_model_info_get_input_shape(NULL, &out_len);
+    cr_assert_null(shape_ptr, "ros_model_info_get_input_shape should return NULL for NULL view");
+    cr_assert_eq(out_len, 0, "ros_model_info_get_input_shape must initialize out_len to 0 on NULL view");
+
+    // ros_model_info_get_output_shape: NULL view must initialize out_len to 0
+    out_len = 0xDEADBEEF;
+    shape_ptr = ros_model_info_get_output_shape(NULL, &out_len);
+    cr_assert_null(shape_ptr, "ros_model_info_get_output_shape should return NULL for NULL view");
+    cr_assert_eq(out_len, 0, "ros_model_info_get_output_shape must initialize out_len to 0 on NULL view");
+
+    // ========================================================================
+    // Test representative macro-generated as_cdr functions (commit 991903f fixes)
+    // The impl_as_cdr! macro expands 15 times; we test a representative subset
+    // ========================================================================
+
+    // ros_header_as_cdr: NULL view must initialize out_len to 0
+    out_len = 0xDEADBEEF;
+    data_ptr = ros_header_as_cdr(NULL, &out_len);
+    cr_assert_null(data_ptr, "ros_header_as_cdr should return NULL for NULL view");
+    cr_assert_eq(out_len, 0, "ros_header_as_cdr must initialize out_len to 0 on NULL view");
+
+    // ros_image_as_cdr: NULL view must initialize out_len to 0
+    out_len = 0xDEADBEEF;
+    data_ptr = ros_image_as_cdr(NULL, &out_len);
+    cr_assert_null(data_ptr, "ros_image_as_cdr should return NULL for NULL view");
+    cr_assert_eq(out_len, 0, "ros_image_as_cdr must initialize out_len to 0 on NULL view");
+
+    // ros_compressed_image_as_cdr: NULL view must initialize out_len to 0
+    out_len = 0xDEADBEEF;
+    data_ptr = ros_compressed_image_as_cdr(NULL, &out_len);
+    cr_assert_null(data_ptr, "ros_compressed_image_as_cdr should return NULL for NULL view");
+    cr_assert_eq(out_len, 0, "ros_compressed_image_as_cdr must initialize out_len to 0 on NULL view");
+
+    // ros_point_cloud2_as_cdr: NULL view must initialize out_len to 0
+    out_len = 0xDEADBEEF;
+    data_ptr = ros_point_cloud2_as_cdr(NULL, &out_len);
+    cr_assert_null(data_ptr, "ros_point_cloud2_as_cdr should return NULL for NULL view");
+    cr_assert_eq(out_len, 0, "ros_point_cloud2_as_cdr must initialize out_len to 0 on NULL view");
+
+    // ros_dmabuffer_as_cdr: NULL view must initialize out_len to 0
+    out_len = 0xDEADBEEF;
+    data_ptr = ros_dmabuffer_as_cdr(NULL, &out_len);
+    cr_assert_null(data_ptr, "ros_dmabuffer_as_cdr should return NULL for NULL view");
+    cr_assert_eq(out_len, 0, "ros_dmabuffer_as_cdr must initialize out_len to 0 on NULL view");
+
+    // ros_imu_as_cdr: NULL view must initialize out_len to 0
+    out_len = 0xDEADBEEF;
+    data_ptr = ros_imu_as_cdr(NULL, &out_len);
+    cr_assert_null(data_ptr, "ros_imu_as_cdr should return NULL for NULL view");
+    cr_assert_eq(out_len, 0, "ros_imu_as_cdr must initialize out_len to 0 on NULL view");
+
+    // ros_radar_cube_as_cdr: NULL view must initialize out_len to 0
+    out_len = 0xDEADBEEF;
+    data_ptr = ros_radar_cube_as_cdr(NULL, &out_len);
+    cr_assert_null(data_ptr, "ros_radar_cube_as_cdr should return NULL for NULL view");
+    cr_assert_eq(out_len, 0, "ros_radar_cube_as_cdr must initialize out_len to 0 on NULL view");
+
+    // ros_track_as_cdr: NULL view must initialize out_len to 0
+    out_len = 0xDEADBEEF;
+    data_ptr = ros_track_as_cdr(NULL, &out_len);
+    cr_assert_null(data_ptr, "ros_track_as_cdr should return NULL for NULL view");
+    cr_assert_eq(out_len, 0, "ros_track_as_cdr must initialize out_len to 0 on NULL view");
+
+    // ros_local_time_as_cdr: NULL view must initialize out_len to 0
+    out_len = 0xDEADBEEF;
+    data_ptr = ros_local_time_as_cdr(NULL, &out_len);
+    cr_assert_null(data_ptr, "ros_local_time_as_cdr should return NULL for NULL view");
+    cr_assert_eq(out_len, 0, "ros_local_time_as_cdr must initialize out_len to 0 on NULL view");
+
+    // ========================================================================
+    // Test manually-written as_cdr functions (also fixed in commit 3a14cbe)
+    // ========================================================================
+
+    // ros_detect_as_cdr: NULL view must initialize out_len to 0
+    out_len = 0xDEADBEEF;
+    data_ptr = ros_detect_as_cdr(NULL, &out_len);
+    cr_assert_null(data_ptr, "ros_detect_as_cdr should return NULL for NULL view");
+    cr_assert_eq(out_len, 0, "ros_detect_as_cdr must initialize out_len to 0 on NULL view");
+
+    // ros_model_as_cdr: NULL view must initialize out_len to 0
+    out_len = 0xDEADBEEF;
+    data_ptr = ros_model_as_cdr(NULL, &out_len);
+    cr_assert_null(data_ptr, "ros_model_as_cdr should return NULL for NULL view");
+    cr_assert_eq(out_len, 0, "ros_model_as_cdr must initialize out_len to 0 on NULL view");
+
+    // ========================================================================
+    // Test radar layout getter (commit 991903f fix)
+    // ========================================================================
+
+    // ros_radar_cube_get_layout: NULL view must initialize out_len to 0
+    out_len = 0xDEADBEEF;
+    const uint8_t *layout_ptr = ros_radar_cube_get_layout(NULL, &out_len);
+    cr_assert_null(layout_ptr, "ros_radar_cube_get_layout should return NULL for NULL view");
+    cr_assert_eq(out_len, 0, "ros_radar_cube_get_layout must initialize out_len to 0 on NULL view");
 }
