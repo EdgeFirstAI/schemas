@@ -188,6 +188,24 @@ impl Mask<Vec<u8>> {
     }
 }
 
+impl Mask<&'static [u8]> {
+    /// Parse a standalone Mask CDR buffer and return a `'static`-lifetimed view.
+    ///
+    /// This is an FFI-oriented helper. Unlike the field-by-field copy path via
+    /// `Mask::from_cdr(...)` followed by accessor methods, the returned
+    /// `MaskView<'static>` borrows directly from the input buffer with the
+    /// buffer's native `'static` lifetime — no `mem::transmute` is required at
+    /// the FFI layer to widen method-returned references whose lifetimes are
+    /// tied to a temporary `&self`.
+    ///
+    /// The parse is a single pass: `scan_mask_element` consumes the fields
+    /// and produces the view directly, so there is no double-validation cost.
+    pub(crate) fn from_cdr_as_view(buf: &'static [u8]) -> Result<MaskView<'static>, CdrError> {
+        let mut c = CdrCursor::new(buf)?;
+        scan_mask_element(&mut c)
+    }
+}
+
 impl<B: AsRef<[u8]> + AsMut<[u8]>> Mask<B> {
     pub fn set_height(&mut self, h: u32) -> Result<(), CdrError> {
         wr_u32(self.buf.as_mut(), CDR_HEADER_SIZE, h)
@@ -207,6 +225,7 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Mask<B> {
 }
 
 /// Zero-copy view of a Mask element within a CDR sequence.
+#[derive(Copy, Clone, Debug)]
 pub struct MaskView<'a> {
     pub height: u32,
     pub width: u32,
@@ -843,6 +862,7 @@ pub struct DetectBox<B> {
 }
 
 /// Zero-copy view of a Box element within a CDR sequence.
+#[derive(Copy, Clone, Debug)]
 pub struct DetectBoxView<'a> {
     pub center_x: f32,
     pub center_y: f32,
@@ -910,6 +930,25 @@ pub(crate) fn size_box_element(s: &mut CdrSizer, label: &str, track_id: &str) {
     s.size_string(track_id);
     s.size_i32();
     Time::size_cdr(s);
+}
+
+impl DetectBox<&'static [u8]> {
+    /// Parse a standalone DetectBox CDR buffer and return a `'static`-lifetimed
+    /// view.
+    ///
+    /// This is an FFI-oriented helper. Unlike the field-by-field copy path via
+    /// `DetectBox::from_cdr(...)` followed by accessor methods, the returned
+    /// `DetectBoxView<'static>` borrows directly from the input buffer with the
+    /// buffer's native `'static` lifetime — no `mem::transmute` is required at
+    /// the FFI layer to widen method-returned references whose lifetimes are
+    /// tied to a temporary `&self`.
+    ///
+    /// The parse is a single pass: `scan_box_element` consumes the fields and
+    /// produces the view directly, so there is no double-validation cost.
+    pub(crate) fn from_cdr_as_view(buf: &'static [u8]) -> Result<DetectBoxView<'static>, CdrError> {
+        let mut c = CdrCursor::new(buf)?;
+        scan_box_element(&mut c)
+    }
 }
 
 impl<B: AsRef<[u8]>> DetectBox<B> {
@@ -1123,6 +1162,43 @@ impl<B: AsRef<[u8]>> Detect<B> {
     }
 }
 
+impl Detect<&'static [u8]> {
+    /// Parse a Detect message and simultaneously collect the box views
+    /// encountered during validation, avoiding a second parse pass in the
+    /// FFI layer.
+    ///
+    /// The views in the returned `Vec` naturally have `'static` lifetime
+    /// because they borrow from the `&'static [u8]` buffer. No unsafe
+    /// transmute is required.
+    ///
+    /// This is a crate-private helper used by the FFI layer to avoid the
+    /// cost of a second walk in `inner.boxes()` after `from_cdr`.
+    pub(crate) fn from_cdr_collect_boxes(
+        buf: &'static [u8],
+    ) -> Result<(Self, Vec<DetectBoxView<'static>>), CdrError> {
+        let header = Header::<&[u8]>::from_cdr(buf)?;
+        let o0 = header.end_offset();
+        let mut c = CdrCursor::resume(buf, o0);
+        Time::read_cdr(&mut c)?; // input_timestamp
+        Time::read_cdr(&mut c)?; // model_time
+        Time::read_cdr(&mut c)?; // output_time
+        let raw_count = c.read_u32()?;
+        let count = c.check_seq_count(raw_count, 24)?;
+        let mut box_views = Vec::with_capacity(count);
+        for _ in 0..count {
+            box_views.push(scan_box_element(&mut c)?);
+        }
+        let o1 = c.offset();
+        Ok((
+            Detect {
+                offsets: [o0, o1],
+                buf,
+            },
+            box_views,
+        ))
+    }
+}
+
 impl Detect<Vec<u8>> {
     pub fn new(
         stamp: Time,
@@ -1273,6 +1349,53 @@ impl<B: AsRef<[u8]>> Model<B> {
     }
     pub fn to_cdr(&self) -> Vec<u8> {
         self.buf.as_ref().to_vec()
+    }
+}
+
+impl Model<&'static [u8]> {
+    /// Parse a Model message and simultaneously collect the box and mask views
+    /// encountered during validation, avoiding a second parse pass in the
+    /// FFI layer.
+    ///
+    /// The views in the returned `Vec`s naturally have `'static` lifetime
+    /// because they borrow from the `&'static [u8]` buffer. No unsafe
+    /// transmute is required.
+    ///
+    /// This is a crate-private helper used by the FFI layer to avoid the
+    /// cost of a second walk in `inner.boxes()` / `inner.masks()` after
+    /// `from_cdr`.
+    pub(crate) fn from_cdr_collect_children(
+        buf: &'static [u8],
+    ) -> Result<(Self, Vec<DetectBoxView<'static>>, Vec<MaskView<'static>>), CdrError> {
+        let header = Header::<&[u8]>::from_cdr(buf)?;
+        let o0 = header.end_offset();
+        let mut c = CdrCursor::resume(buf, o0);
+        Duration::read_cdr(&mut c)?;
+        Duration::read_cdr(&mut c)?;
+        Duration::read_cdr(&mut c)?;
+        Duration::read_cdr(&mut c)?;
+        let raw_boxes = c.read_u32()?;
+        let boxes_count = c.check_seq_count(raw_boxes, 24)?;
+        let mut box_views = Vec::with_capacity(boxes_count);
+        for _ in 0..boxes_count {
+            box_views.push(scan_box_element(&mut c)?);
+        }
+        let o1 = c.offset();
+        let raw_masks = c.read_u32()?;
+        let masks_count = c.check_seq_count(raw_masks, 13)?;
+        let mut mask_views = Vec::with_capacity(masks_count);
+        for _ in 0..masks_count {
+            mask_views.push(scan_mask_element(&mut c)?);
+        }
+        let o2 = c.offset();
+        Ok((
+            Model {
+                offsets: [o0, o1, o2],
+                buf,
+            },
+            box_views,
+            mask_views,
+        ))
     }
 }
 
@@ -2113,5 +2236,116 @@ mod tests {
         assert_eq!(decoded.label(), "");
         assert_eq!(decoded.track_id(), "");
         assert_eq!(decoded.score(), 0.0);
+    }
+
+    /// Verify that `Detect::from_cdr_collect_boxes` produces box views with
+    /// fields identical to those returned by the two-pass
+    /// `Detect::from_cdr(…).boxes()` path.
+    #[test]
+    fn detect_from_cdr_collect_boxes_matches_boxes() {
+        static BYTES: &[u8] = include_bytes!("../testdata/cdr/edgefirst_msgs/Detect_multi.cdr");
+
+        // Path 1: legacy two-pass (from_cdr then .boxes()).
+        let detect_ref = Detect::from_cdr(BYTES).expect("reference decode");
+        let boxes_ref = detect_ref.boxes();
+
+        // Path 2: single-pass collect helper.
+        let (detect_new, boxes_new) =
+            Detect::from_cdr_collect_boxes(BYTES).expect("collect decode");
+
+        // Parent-level fields must agree.
+        assert_eq!(detect_ref.stamp().sec, detect_new.stamp().sec);
+        assert_eq!(detect_ref.stamp().nanosec, detect_new.stamp().nanosec);
+        assert_eq!(detect_ref.frame_id(), detect_new.frame_id());
+        assert_eq!(detect_ref.boxes_len(), detect_new.boxes_len());
+
+        // Both paths must yield the same number of box views.
+        assert_eq!(boxes_ref.len(), boxes_new.len());
+
+        // Every field in every box must be identical.
+        for (i, (a, b)) in boxes_ref.iter().zip(boxes_new.iter()).enumerate() {
+            assert_eq!(a.center_x, b.center_x, "box[{i}].center_x");
+            assert_eq!(a.center_y, b.center_y, "box[{i}].center_y");
+            assert_eq!(a.width, b.width, "box[{i}].width");
+            assert_eq!(a.height, b.height, "box[{i}].height");
+            assert_eq!(a.label, b.label, "box[{i}].label");
+            assert_eq!(a.score, b.score, "box[{i}].score");
+            assert_eq!(a.distance, b.distance, "box[{i}].distance");
+            assert_eq!(a.speed, b.speed, "box[{i}].speed");
+            assert_eq!(a.track_id, b.track_id, "box[{i}].track_id");
+            assert_eq!(
+                a.track_lifetime, b.track_lifetime,
+                "box[{i}].track_lifetime"
+            );
+            assert_eq!(
+                a.track_created.sec, b.track_created.sec,
+                "box[{i}].track_created.sec"
+            );
+            assert_eq!(
+                a.track_created.nanosec, b.track_created.nanosec,
+                "box[{i}].track_created.nanosec"
+            );
+        }
+    }
+
+    /// Verify that `Model::from_cdr_collect_children` produces box and mask
+    /// views with fields identical to those returned by the two-pass
+    /// `Model::from_cdr(…).boxes()` / `.masks()` path.
+    #[test]
+    fn model_from_cdr_collect_children_matches_boxes_and_masks() {
+        static BYTES: &[u8] = include_bytes!("../testdata/cdr/edgefirst_msgs/Model.cdr");
+
+        // Path 1: legacy two-pass.
+        let model_ref = Model::from_cdr(BYTES).expect("reference decode");
+        let boxes_ref = model_ref.boxes();
+        let masks_ref = model_ref.masks();
+
+        // Path 2: single-pass collect helper.
+        let (model_new, boxes_new, masks_new) =
+            Model::from_cdr_collect_children(BYTES).expect("collect decode");
+
+        // Parent-level fields must agree.
+        assert_eq!(model_ref.stamp().sec, model_new.stamp().sec);
+        assert_eq!(model_ref.stamp().nanosec, model_new.stamp().nanosec);
+        assert_eq!(model_ref.frame_id(), model_new.frame_id());
+        assert_eq!(model_ref.boxes_len(), model_new.boxes_len());
+        assert_eq!(model_ref.masks_len(), model_new.masks_len());
+
+        // Box views.
+        assert_eq!(boxes_ref.len(), boxes_new.len());
+        for (i, (a, b)) in boxes_ref.iter().zip(boxes_new.iter()).enumerate() {
+            assert_eq!(a.center_x, b.center_x, "box[{i}].center_x");
+            assert_eq!(a.center_y, b.center_y, "box[{i}].center_y");
+            assert_eq!(a.width, b.width, "box[{i}].width");
+            assert_eq!(a.height, b.height, "box[{i}].height");
+            assert_eq!(a.label, b.label, "box[{i}].label");
+            assert_eq!(a.score, b.score, "box[{i}].score");
+            assert_eq!(a.distance, b.distance, "box[{i}].distance");
+            assert_eq!(a.speed, b.speed, "box[{i}].speed");
+            assert_eq!(a.track_id, b.track_id, "box[{i}].track_id");
+            assert_eq!(
+                a.track_lifetime, b.track_lifetime,
+                "box[{i}].track_lifetime"
+            );
+            assert_eq!(
+                a.track_created.sec, b.track_created.sec,
+                "box[{i}].track_created.sec"
+            );
+            assert_eq!(
+                a.track_created.nanosec, b.track_created.nanosec,
+                "box[{i}].track_created.nanosec"
+            );
+        }
+
+        // Mask views.
+        assert_eq!(masks_ref.len(), masks_new.len());
+        for (i, (a, b)) in masks_ref.iter().zip(masks_new.iter()).enumerate() {
+            assert_eq!(a.height, b.height, "mask[{i}].height");
+            assert_eq!(a.width, b.width, "mask[{i}].width");
+            assert_eq!(a.length, b.length, "mask[{i}].length");
+            assert_eq!(a.encoding, b.encoding, "mask[{i}].encoding");
+            assert_eq!(a.mask, b.mask, "mask[{i}].mask");
+            assert_eq!(a.boxed, b.boxed, "mask[{i}].boxed");
+        }
     }
 }

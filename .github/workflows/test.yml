@@ -264,12 +264,149 @@ jobs:
         if: always()
 
   # ============================================================================
+  # C++ Tests (GCC + Clang matrix)
+  # ============================================================================
+  cpp-test:
+    name: C++ Tests (${{ matrix.compiler }}, ${{ matrix.cxxstd }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        cxxstd: [c++17, c++20]
+        include:
+          - compiler: gcc
+            cc: gcc
+            cxx: g++
+            packages: ""
+          - compiler: clang
+            cc: clang
+            cxx: clang++
+            packages: "clang"
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          lfs: true
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Install compiler
+        if: matrix.packages != ''
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.packages }}
+
+      - name: Build Rust library
+        run: cargo build --release
+
+      - name: Run C++ tests with XML output
+        env:
+          CXX: ${{ matrix.cxx }}
+        run: make test-cpp-xml CXXSTD=${{ matrix.cxxstd }}
+
+      - name: Upload C++ test results
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: cpp-test-results-${{ matrix.compiler }}-${{ matrix.cxxstd }}
+          path: build/test-results/*.xml
+          retention-days: 7
+        if: always()
+
+      - name: Test Summary
+        uses: EnricoMi/publish-unit-test-result-action@27d65e188ec43221b20d26de30f4892fad91df2f # v2.22.0
+        with:
+          files: build/test-results/*.xml
+          check_name: "Test Results (C++ ${{ matrix.compiler }}, ${{ matrix.cxxstd }})"
+          comment_mode: "off"
+        if: always()
+
+  # ============================================================================
+  # C++ Tests with AddressSanitizer + UBSan
+  # ============================================================================
+  cpp-test-asan:
+    name: C++ Tests (ASan/UBSan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          lfs: true
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Build Rust library
+        run: cargo build --release
+
+      - name: Run C++ tests under ASan/UBSan
+        run: make test-cpp-asan
+
+  # ============================================================================
+  # Documentation build smoke test
+  # ============================================================================
+  docs-build:
+    name: Docs Build (Doxygen)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Install Doxygen
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y doxygen graphviz
+
+      - name: Build Rust library
+        run: make lib
+
+      - name: Generate documentation
+        run: make docs
+
+      - name: Upload documentation artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: doxygen-html
+          path: build/docs/html
+          retention-days: 7
+
+  # ============================================================================
+  # C++23 smoke build (best-effort, non-blocking)
+  # ============================================================================
+  # Exercises the `std::expected` and `std::span` alias paths in
+  # include/edgefirst/stdlib/*.hpp that only compile on C++23+. Since not all
+  # compilers / stdlib versions ship std::expected yet, this job is
+  # continue-on-error: true and informational-only.
+  cpp-test-cxx23:
+    name: C++ Tests (C++23 smoke)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Install GCC 13 (for C++23 std::expected support)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++-13
+          echo "CXX=g++-13" >> $GITHUB_ENV
+
+      - name: Build Rust library
+        run: make lib
+
+      - name: Build and run C++ tests on C++23
+        run: make test-cpp CXX=$CXX CXXSTD=c++23
+
+  # ============================================================================
   # SonarCloud Analysis (runs after all tests complete)
   # ============================================================================
   sonarcloud:
     name: SonarCloud
     runs-on: ubuntu-latest
-    needs: [rust-and-c-test, python-test]
+    needs: [rust-and-c-test, cpp-test, cpp-test-asan, python-test]
     # Only run on main repo (not forks) due to secrets
     if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push'
     steps:

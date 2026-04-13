@@ -17,6 +17,7 @@ that require attribution:
   * clap_builder 4.5.54 (Apache-2.0, MIT)
   * clap_lex 0.7.7 (Apache-2.0, MIT)
   * colorchoice 1.0.4 (Apache-2.0, MIT)
+  * edgefirst-schemas 3.0.0 (Apache-2.0)
   * equivalent 1.0.2 (Apache-2.0, MIT)
   * errno 0.3.14 (Apache-2.0, MIT)
   * fastrand 2.3.0 (Apache-2.0, MIT)
@@ -55,3 +56,21 @@ For a complete Software Content Register (SBOM) including all dependencies,
 licenses, and version information, see the sbom.json file generated via
 GitHub Actions in this repository or included in release artifacts.
 
+This software also includes the following vendored C++ dependencies:
+
+Catch2 (v2.13.10, BSL-1.0)
+  Copyright (c) 2010-2022 Two Blue Cubes Ltd.
+  https://github.com/catchorg/Catch2
+  Vendored at tests/cpp/catch.hpp for C++ unit testing.
+
+tl::expected (CC0-1.0)
+  Copyright (c) 2017 Sy Brand
+  https://github.com/TartanLlama/expected
+  Vendored at include/edgefirst/stdlib/expected.hpp as a C++17 fallback for std::expected.
+  Namespace renamed from tl:: to edgefirst::stdlib:: to avoid ODR violations.
+
+edgefirst::stdlib::span (Apache-2.0)
+  Copyright (c) 2025 Au-Zone Technologies. All Rights Reserved.
+  Original Au-Zone C++17 backport of std::span for older C++ standards.
+  Vendored at include/edgefirst/stdlib/span.hpp — aliases to std::span on
+  C++20+ via __cpp_lib_span feature detection.

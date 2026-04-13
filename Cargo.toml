@@ -5,7 +5,7 @@ authors = ["Au-Zone Technologies <support@au-zone.com>"]
 edition = "2021"
 license = "Apache-2.0"
 readme = "README.md"
-version = "2.2.1"
+version = "3.0.0"
 homepage = "https://doc.edgefirst.ai"
 repository = "https://github.com/EdgeFirstAI/schemas"
 documentation = "https://docs.rs/edgefirst-schemas/"
@@ -30,6 +30,10 @@ name = "serialization"
 harness = false
 
 [build-dependencies]
+# cbindgen is declared as a build-dependency for future header auto-generation,
+# but is NOT currently invoked by build.rs. include/edgefirst/schemas.h is
+# maintained by hand. Do not edit build.rs to invoke cbindgen without also
+# regenerating schemas.h from Rust doc comments and verifying the output.
 cbindgen = "0.29.2"
 
 # Release profile: optimized, stripped, no debug info

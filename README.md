@@ -163,6 +163,102 @@ assert_eq!(decoded.stamp(), stamp);
 assert_eq!(decoded.frame_id(), "camera_frame");
 ```
 
+### C++ Usage
+
+A header-only C++17 wrapper provides RAII, move-only semantics, and
+`expected<T, Error>` for all fallible operations. Zero-copy is fully
+preserved — string and blob accessors return `std::string_view` and
+`ef::span<const uint8_t>` that borrow directly from the CDR backing buffer.
+The wrapper pairs naturally with zenoh-cpp subscribers that expose
+incoming payloads as `ef::span<const uint8_t>`.
+
+**Include:**
+
+```cpp
+#include <edgefirst/schemas.hpp>
+```
+
+**Link** (same library as the C API):
+
+```bash
+g++ -std=c++17 -I/path/to/include -o myapp myapp.cpp \
+    -L/path/to/lib -ledgefirst_schemas
+```
+
+> **Note:** The `<edgefirst/schemas.hpp>` header transitively includes two compatibility shims from `include/edgefirst/stdlib/`: `expected.hpp` (alias for `std::expected` on C++23+, vendored `tl::expected` fallback on older standards) and `span.hpp` (alias for `std::span` on C++20+, hand-written fallback on C++17). If you use `make install`, these are placed automatically under `$(PREFIX)/include/edgefirst/stdlib/`. If you copy headers manually, ensure both files accompany `schemas.hpp`.
+
+**Decode an Image from an incoming Zenoh payload:**
+
+```cpp
+namespace ef = edgefirst::schemas;
+
+void on_image(ef::span<const uint8_t> payload) {
+    // from_cdr returns expected<ImageView, Error> — no exceptions
+    auto img = ef::ImageView::from_cdr(payload);
+    if (!img) {
+        std::cerr << "decode failed: " << img.error().category()
+                  << " in " << img.error().where << "\n";
+        return;
+    }
+
+    // All accessors are zero-copy borrows into payload
+    ef::Time stamp    = img->stamp();
+    uint32_t width    = img->width();
+    uint32_t height   = img->height();
+    std::string_view  enc  = img->encoding();   // e.g. "rgb8"
+    ef::span<const uint8_t> px = img->data();
+
+    std::cout << width << "x" << height << " " << enc
+              << " (" << px.size() << " bytes)\n";
+}
+```
+
+**Encode a Header and forward the CDR bytes:**
+
+```cpp
+// encode() returns expected<Header, Error>
+// Header is an owning type — it holds the allocated CDR buffer.
+auto hdr = ef::Header::encode(ef::Time{1234567890, 0}, "camera_frame");
+if (!hdr) { /* handle error */ }
+
+// as_cdr() returns ef::span<const uint8_t> — no copy, no re-serialisation
+auto bytes = hdr->as_cdr();
+z_publisher_put(pub, bytes.data(), bytes.size(), nullptr);
+```
+
+**Error handling:**
+
+Every fallible factory (`from_cdr`, `encode`, `decode`) returns
+`expected<T, Error>`. On failure:
+
+```cpp
+if (!result) {
+    auto& err = result.error();
+    std::cerr << err.where << ": " << err.category() << "\n";
+    // err.code is the raw POSIX errno (EINVAL, ENOBUFS, EBADMSG)
+}
+```
+
+**Iterating over array children (e.g., detection boxes):**
+
+```cpp
+auto det = ef::DetectView::from_cdr(payload);
+if (!det) { /* handle error */ }
+
+for (auto box : det->boxes()) {
+    std::cout << "class=" << box.label()
+              << " score=" << box.score() << "\n";
+}
+```
+
+Child views returned by `boxes()` and `masks()` are parent-borrowed — they
+do not own memory and become invalid when the parent view is destroyed (see
+Rule 5 in [CAPI.md](CAPI.md#memory-management)).
+
+A full working example is in [`examples/cpp/example.cpp`](examples/cpp/example.cpp).
+The complete C++ API surface is documented in
+[`include/edgefirst/schemas.hpp`](include/edgefirst/schemas.hpp).
+
 ### Building from Source
 
 **Rust:**

@@ -105,6 +105,25 @@ source /opt/ros/humble/setup.bash
 fakeroot debian/rules build
 ```
 
+### C++ Standards
+
+The C++ wrapper (`include/edgefirst/schemas.hpp`) is tested in CI on the
+following configurations:
+
+| Compiler | C++ standard | Status |
+|---|---|---|
+| GCC | c++17 | Required (minimum baseline) |
+| GCC | c++20 | Required |
+| Clang | c++17 | Required |
+| Clang | c++20 | Required |
+| GCC 13+ | c++23 | Best-effort (non-blocking) |
+
+C++17 is the minimum supported standard. On C++20+, `edgefirst::stdlib::span`
+aliases to `std::span` automatically. On C++23+, `edgefirst::stdlib::expected`
+aliases to `std::expected` automatically. No source changes are required to
+opt into newer standard library types — the wrapper detects them via
+`__cpp_lib_*` feature-test macros.
+
 ## How to Contribute
 
 ### Reporting Bugs

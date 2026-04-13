@@ -57,6 +57,14 @@
  * - Encode functions for buffer-backed types allocate output via `uint8_t**` and
  *   `size_t*`; callers must free with `ros_bytes_free()`.
  *
+ * **Parent-borrowed child handles.** Functions like ros_detect_get_box() and
+ * ros_model_get_box() / ros_model_get_mask() return borrowed child handles whose
+ * lifetime is tied to the parent handle. These pointers become invalid when
+ * the parent is freed via its corresponding _free function. Do NOT pass them
+ * to ros_box_free() / ros_mask_free() — the parent owns their storage. The
+ * parent's underlying CDR buffer (passed to the parent's _from_cdr function)
+ * must also remain valid for as long as the child pointers are used.
+ *
  * @subsection Example
  * @code
  * #include <edgefirst/schemas.h>
@@ -108,32 +116,71 @@ extern "C" {
  * ========================================================================= */
 
 /* std_msgs */
+/** @brief Opaque buffer-backed view handle for std_msgs::Header. */
 typedef struct ros_header_t ros_header_t;
 
 /* sensor_msgs */
+/** @brief Opaque buffer-backed view handle for sensor_msgs::Image. */
 typedef struct ros_image_t ros_image_t;
+/** @brief Opaque buffer-backed view handle for sensor_msgs::CompressedImage. */
 typedef struct ros_compressed_image_t ros_compressed_image_t;
+/** @brief Opaque buffer-backed view handle for sensor_msgs::Imu. */
 typedef struct ros_imu_t ros_imu_t;
+/** @brief Opaque buffer-backed view handle for sensor_msgs::NavSatFix. */
 typedef struct ros_nav_sat_fix_t ros_nav_sat_fix_t;
+/** @brief Opaque buffer-backed view handle for sensor_msgs::PointCloud2. */
 typedef struct ros_point_cloud2_t ros_point_cloud2_t;
+/** @brief Opaque buffer-backed view handle for sensor_msgs::CameraInfo. */
 typedef struct ros_camera_info_t ros_camera_info_t;
 
 /* geometry_msgs */
+/** @brief Opaque buffer-backed view handle for geometry_msgs::TransformStamped. */
 typedef struct ros_transform_stamped_t ros_transform_stamped_t;
 
 /* foxglove_msgs */
+/** @brief Opaque buffer-backed view handle for foxglove_msgs::CompressedVideo. */
 typedef struct ros_compressed_video_t ros_compressed_video_t;
 
 /* edgefirst_msgs */
+/**
+ * @brief Opaque view handle for an edgefirst_msgs::Mask.
+ *
+ * Handles may be either standalone-owned (returned by
+ * ros_mask_from_cdr() and freed via ros_mask_free()) or parent-borrowed
+ * (returned by ros_model_get_mask() — lifetime tied to the parent
+ * ros_model_t, must NOT be passed to ros_mask_free(); see Memory
+ * Management Rule 5). The same typedef covers both cases; ros_mask_free()
+ * internally detects borrowed handles and safely no-ops with errno=EINVAL
+ * instead of corrupting the parent's internal storage.
+ */
 typedef struct ros_mask_t ros_mask_t;
+/** @brief Opaque buffer-backed view handle for edgefirst_msgs::DmaBuffer. */
 typedef struct ros_dmabuffer_t ros_dmabuffer_t;
+/** @brief Opaque buffer-backed view handle for edgefirst_msgs::RadarCube. */
 typedef struct ros_radar_cube_t ros_radar_cube_t;
+/** @brief Opaque buffer-backed view handle for edgefirst_msgs::RadarInfo. */
 typedef struct ros_radar_info_t ros_radar_info_t;
+/** @brief Opaque buffer-backed view handle for edgefirst_msgs::Detect. */
 typedef struct ros_detect_t ros_detect_t;
+/** @brief Opaque buffer-backed view handle for edgefirst_msgs::Model. */
 typedef struct ros_model_t ros_model_t;
+/** @brief Opaque buffer-backed view handle for edgefirst_msgs::ModelInfo. */
 typedef struct ros_model_info_t ros_model_info_t;
+/** @brief Opaque buffer-backed view handle for edgefirst_msgs::Track. */
 typedef struct ros_track_t ros_track_t;
+/**
+ * @brief Opaque view handle for an edgefirst_msgs::DetectBox.
+ *
+ * Handles may be either standalone-owned (returned by ros_box_from_cdr()
+ * and freed via ros_box_free()) or parent-borrowed (returned by
+ * ros_detect_get_box() / ros_model_get_box() — lifetime tied to the parent
+ * ros_detect_t / ros_model_t, must NOT be passed to ros_box_free(); see
+ * Memory Management Rule 5). The same typedef covers both cases;
+ * ros_box_free() internally detects borrowed handles and safely no-ops
+ * with errno=EINVAL instead of corrupting the parent's internal storage.
+ */
 typedef struct ros_box_t ros_box_t;
+/** @brief Opaque buffer-backed view handle for edgefirst_msgs::LocalTime. */
 typedef struct ros_local_time_t ros_local_time_t;
 
 /* ============================================================================
@@ -492,7 +539,7 @@ int ros_nav_sat_status_decode(const uint8_t* data, size_t len,
 
 /**
  * @brief Create a Header view from CDR bytes.
- * @param data CDR encoded bytes (copied internally)
+ * @param data CDR encoded bytes (borrowed; must outlive the returned handle)
  * @param len Length of data
  * @return Opaque handle or NULL on error
  *
@@ -548,7 +595,7 @@ int ros_header_encode(uint8_t** out_bytes, size_t* out_len,
 
 /**
  * @brief Create an Image view from CDR bytes.
- * @param data CDR encoded bytes (copied internally)
+ * @param data CDR encoded bytes (borrowed; must outlive the returned handle)
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
@@ -621,7 +668,7 @@ int ros_image_encode(uint8_t** out_bytes, size_t* out_len,
 
 /**
  * @brief Create a CompressedImage view from CDR bytes.
- * @param data CDR encoded bytes (copied internally)
+ * @param data CDR encoded bytes (borrowed; must outlive the returned handle)
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
@@ -676,7 +723,7 @@ int ros_compressed_image_encode(uint8_t** out_bytes, size_t* out_len,
 
 /**
  * @brief Create a CompressedVideo view from CDR bytes.
- * @param data CDR encoded bytes (copied internally)
+ * @param data CDR encoded bytes (borrowed; must outlive the returned handle)
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
@@ -732,7 +779,7 @@ int ros_compressed_video_encode(uint8_t** out_bytes, size_t* out_len,
 
 /**
  * @brief Create a Mask view from CDR bytes.
- * @param data CDR encoded bytes (copied internally)
+ * @param data CDR encoded bytes (borrowed; must outlive the returned handle)
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
@@ -764,9 +811,6 @@ const uint8_t* ros_mask_get_data(const ros_mask_t* view, size_t* out_len);
 /** @brief Get boxed flag. */
 bool ros_mask_get_boxed(const ros_mask_t* view);
 
-/** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_mask_as_cdr(const ros_mask_t* view, size_t* out_len);
-
 /**
  * @brief Encode a Mask to CDR (allocates output).
  * @param out_bytes Receives allocated byte pointer (free with ros_bytes_free)
@@ -792,7 +836,7 @@ int ros_mask_encode(uint8_t** out_bytes, size_t* out_len,
 
 /**
  * @brief Create a DmaBuffer view from CDR bytes.
- * @param data CDR encoded bytes (copied internally)
+ * @param data CDR encoded bytes (borrowed; must outlive the returned handle)
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
@@ -863,7 +907,7 @@ int ros_dmabuffer_encode(uint8_t** out_bytes, size_t* out_len,
 
 /**
  * @brief Create an Imu view from CDR bytes.
- * @param data CDR encoded bytes (copied internally)
+ * @param data CDR encoded bytes (borrowed; must outlive the returned handle)
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
@@ -942,7 +986,7 @@ const uint8_t* ros_imu_as_cdr(const ros_imu_t* view, size_t* out_len);
 
 /**
  * @brief Create a NavSatFix view from CDR bytes.
- * @param data CDR encoded bytes (copied internally)
+ * @param data CDR encoded bytes (borrowed; must outlive the returned handle)
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
@@ -978,7 +1022,7 @@ const uint8_t* ros_nav_sat_fix_as_cdr(const ros_nav_sat_fix_t* view, size_t* out
 
 /**
  * @brief Create a TransformStamped view from CDR bytes.
- * @param data CDR encoded bytes (copied internally)
+ * @param data CDR encoded bytes (borrowed; must outlive the returned handle)
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
@@ -1008,7 +1052,7 @@ const uint8_t* ros_transform_stamped_as_cdr(const ros_transform_stamped_t* view,
 
 /**
  * @brief Create a RadarCube view from CDR bytes.
- * @param data CDR encoded bytes (copied internally)
+ * @param data CDR encoded bytes (borrowed; must outlive the returned handle)
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
@@ -1060,7 +1104,7 @@ const uint8_t* ros_radar_cube_as_cdr(const ros_radar_cube_t* view, size_t* out_l
 
 /**
  * @brief Create a RadarInfo view from CDR bytes.
- * @param data CDR encoded bytes (copied internally)
+ * @param data CDR encoded bytes (borrowed; must outlive the returned handle)
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
@@ -1102,7 +1146,7 @@ const uint8_t* ros_radar_info_as_cdr(const ros_radar_info_t* view, size_t* out_l
 
 /**
  * @brief Create a Detect view from CDR bytes.
- * @param data CDR encoded bytes (copied internally)
+ * @param data CDR encoded bytes (borrowed; must outlive the returned handle)
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
@@ -1123,6 +1167,19 @@ const char* ros_detect_get_frame_id(const ros_detect_t* view);
 /** @brief Get number of detection boxes. */
 uint32_t ros_detect_get_boxes_len(const ros_detect_t* view);
 
+/**
+ * @brief Get a borrowed view of the i-th detection box.
+ * @param view Detect handle
+ * @param index Zero-based box index (must be < ros_detect_get_boxes_len(view))
+ * @return Borrowed ros_box_t* whose lifetime is tied to the parent Detect handle,
+ *         or NULL on error (errno set to EINVAL).
+ *
+ * @warning Do NOT pass the returned pointer to ros_box_free(). The parent handle
+ *          owns the child's storage. The pointer becomes invalid when the parent
+ *          is freed via ros_detect_free().
+ */
+const ros_box_t* ros_detect_get_box(const ros_detect_t* view, uint32_t index);
+
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_detect_as_cdr(const ros_detect_t* view, size_t* out_len);
 
@@ -1132,7 +1189,7 @@ const uint8_t* ros_detect_as_cdr(const ros_detect_t* view, size_t* out_len);
 
 /**
  * @brief Create a Model view from CDR bytes.
- * @param data CDR encoded bytes (copied internally)
+ * @param data CDR encoded bytes (borrowed; must outlive the returned handle)
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
@@ -1156,6 +1213,32 @@ uint32_t ros_model_get_boxes_len(const ros_model_t* view);
 /** @brief Get number of masks. */
 uint32_t ros_model_get_masks_len(const ros_model_t* view);
 
+/**
+ * @brief Get a borrowed view of the i-th model box.
+ * @param view Model handle
+ * @param index Zero-based box index (must be < ros_model_get_boxes_len(view))
+ * @return Borrowed ros_box_t* whose lifetime is tied to the parent Model handle,
+ *         or NULL on error (errno set to EINVAL).
+ *
+ * @warning Do NOT pass the returned pointer to ros_box_free(). The parent handle
+ *          owns the child's storage. The pointer becomes invalid when the parent
+ *          is freed via ros_model_free().
+ */
+const ros_box_t* ros_model_get_box(const ros_model_t* view, uint32_t index);
+
+/**
+ * @brief Get a borrowed view of the i-th model mask.
+ * @param view Model handle
+ * @param index Zero-based mask index (must be < ros_model_get_masks_len(view))
+ * @return Borrowed ros_mask_t* whose lifetime is tied to the parent Model handle,
+ *         or NULL on error (errno set to EINVAL).
+ *
+ * @warning Do NOT pass the returned pointer to ros_mask_free(). The parent handle
+ *          owns the child's storage. The pointer becomes invalid when the parent
+ *          is freed via ros_model_free().
+ */
+const ros_mask_t* ros_model_get_mask(const ros_model_t* view, uint32_t index);
+
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_model_as_cdr(const ros_model_t* view, size_t* out_len);
 
@@ -1165,7 +1248,7 @@ const uint8_t* ros_model_as_cdr(const ros_model_t* view, size_t* out_len);
 
 /**
  * @brief Create a ModelInfo view from CDR bytes.
- * @param data CDR encoded bytes (copied internally)
+ * @param data CDR encoded bytes (borrowed; must outlive the returned handle)
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
@@ -1219,7 +1302,7 @@ const uint8_t* ros_model_info_as_cdr(const ros_model_info_t* view, size_t* out_l
 
 /**
  * @brief Create a PointCloud2 view from CDR bytes.
- * @param data CDR encoded bytes (copied internally)
+ * @param data CDR encoded bytes (borrowed; must outlive the returned handle)
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
@@ -1275,7 +1358,7 @@ const uint8_t* ros_point_cloud2_as_cdr(const ros_point_cloud2_t* view, size_t* o
 
 /**
  * @brief Create a CameraInfo view from CDR bytes.
- * @param data CDR encoded bytes (copied internally)
+ * @param data CDR encoded bytes (borrowed; must outlive the returned handle)
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
@@ -1317,7 +1400,7 @@ const uint8_t* ros_camera_info_as_cdr(const ros_camera_info_t* view, size_t* out
 
 /**
  * @brief Create a Track view from CDR bytes.
- * @param data CDR encoded bytes (copied internally)
+ * @param data CDR encoded bytes (borrowed; must outlive the returned handle)
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
@@ -1341,7 +1424,7 @@ const uint8_t* ros_track_as_cdr(const ros_track_t* view, size_t* out_len);
 
 /**
  * @brief Create a DetectBox view from CDR bytes.
- * @param data CDR encoded bytes (copied internally)
+ * @param data CDR encoded bytes (borrowed; must outlive the returned handle)
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
@@ -1380,8 +1463,11 @@ const char* ros_box_get_track_id(const ros_box_t* view);
 /** @brief Get track lifetime. */
 int32_t ros_box_get_track_lifetime(const ros_box_t* view);
 
-/** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_box_as_cdr(const ros_box_t* view, size_t* out_len);
+/** @brief Get the box's track_created timestamp seconds component. */
+int32_t ros_box_get_track_created_sec(const ros_box_t* view);
+
+/** @brief Get the box's track_created timestamp nanoseconds component. */
+uint32_t ros_box_get_track_created_nanosec(const ros_box_t* view);
 
 /* ============================================================================
  * edgefirst_msgs - LocalTime (buffer-backed)
@@ -1389,7 +1475,7 @@ const uint8_t* ros_box_as_cdr(const ros_box_t* view, size_t* out_len);
 
 /**
  * @brief Create a LocalTime view from CDR bytes.
- * @param data CDR encoded bytes (copied internally)
+ * @param data CDR encoded bytes (borrowed; must outlive the returned handle)
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */

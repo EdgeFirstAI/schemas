@@ -270,6 +270,16 @@ ros_header_free(hdr);
 `_encode` writes into a `uint8_t[]` you provide. `_decode` reads from
 a `const uint8_t*` you provide. No heap allocation, nothing to free.
 
+**Rule 5 — Parent-borrowed child handles.**
+Indexed accessors like `ros_detect_get_box(view, i)`, `ros_model_get_box(view, i)`,
+and `ros_model_get_mask(view, i)` return pointers to child view handles owned by
+the parent. These are NOT separately allocated — they live inside the parent's
+internal `child_boxes`/`child_masks` vector, which is populated once during
+`from_cdr` and freed with the parent. Do not pass them to `ros_box_free()` /
+`ros_mask_free()`; the parent owns them. They become invalid when the parent is
+freed. The parent's CDR buffer (passed to `ros_<parent>_from_cdr`) must also remain
+valid for as long as the child pointers are used.
+
 ### Summary
 
 | Source | Who owns it | How to free |
@@ -278,7 +288,27 @@ a `const uint8_t*` you provide. No heap allocation, nothing to free.
 | `ros_<type>_encode(&bytes, ...)` | Caller | `ros_bytes_free(bytes, len)` |
 | `ros_<type>_get_<field>(handle)` | Source data (via handle) | Do not free |
 | `ros_<type>_as_cdr(handle, ...)` | Source data (via handle) | Do not free |
+| `ros_detect_get_box(handle, i)` | Parent handle | Do NOT free; owned by parent |
+| `ros_model_get_box(handle, i)` | Parent handle | Do NOT free; owned by parent |
+| `ros_model_get_mask(handle, i)` | Parent handle | Do NOT free; owned by parent |
 | CdrFixed `_encode(buf, ...)` | Caller | Stack/caller buffer, no free needed |
+
+## Functions removed in 3.0.0
+
+The following C API functions were removed in 3.0.0 as part of the refactor
+that made `ros_box_t` and `ros_mask_t` parent-borrowed view types:
+
+- **`ros_box_as_cdr(box, &len)`** — removed. Child boxes inside a Detect have
+  no independent CDR encoding; producing one would require re-encoding the
+  box into a fresh buffer, which violates the library's zero-copy contract.
+  **Migration**: forward the parent Detect via `ros_detect_as_cdr(detect, &len)`
+  and let subscribers iterate with `ros_detect_get_box(detect, i)`.
+- **`ros_mask_as_cdr(mask, &len)`** — removed for the same reason. Forward
+  the parent Model via `ros_model_as_cdr` and iterate with `ros_model_get_mask`.
+
+Standalone `ros_box_from_cdr(bytes, len)` and `ros_mask_from_cdr(bytes, len)`
+remain available for decoding box/mask CDR buffers that were encoded
+standalone (not embedded in a Detect/Model).
 
 ## Error Handling
 
@@ -692,9 +722,14 @@ uint32_t    ros_mask_get_length(const ros_mask_t* view);
 const char* ros_mask_get_encoding(const ros_mask_t* view);
 const uint8_t* ros_mask_get_data(const ros_mask_t* view, size_t* out_len);
 bool        ros_mask_get_boxed(const ros_mask_t* view);
+```
 
-const uint8_t* ros_mask_as_cdr(const ros_mask_t* view, size_t* out_len);
+> **Note:** `ros_mask_as_cdr` has been removed. Forwarding an embedded child mask
+> as a standalone CDR would require re-encoding, which violates the zero-copy
+> contract. Child masks accessed via `ros_model_get_mask` are embedded in the
+> parent buffer and do not have an independent CDR form.
 
+```c
 int ros_mask_encode(uint8_t** out_bytes, size_t* out_len,
                     uint32_t height, uint32_t width, uint32_t length,
                     const char* encoding,
@@ -799,6 +834,8 @@ int32_t     ros_detect_get_stamp_sec(const ros_detect_t* view);
 uint32_t    ros_detect_get_stamp_nanosec(const ros_detect_t* view);
 const char* ros_detect_get_frame_id(const ros_detect_t* view);
 uint32_t    ros_detect_get_boxes_len(const ros_detect_t* view);
+// Returns a borrowed pointer; do NOT free. See Rule 5.
+const ros_box_t* ros_detect_get_box(const ros_detect_t* view, uint32_t index);
 
 const uint8_t* ros_detect_as_cdr(const ros_detect_t* view, size_t* out_len);
 ```
@@ -814,6 +851,9 @@ uint32_t    ros_model_get_stamp_nanosec(const ros_model_t* view);
 const char* ros_model_get_frame_id(const ros_model_t* view);
 uint32_t    ros_model_get_boxes_len(const ros_model_t* view);
 uint32_t    ros_model_get_masks_len(const ros_model_t* view);
+// Returns borrowed pointers; do NOT free. See Rule 5.
+const ros_box_t*  ros_model_get_box(const ros_model_t* view, uint32_t index);
+const ros_mask_t* ros_model_get_mask(const ros_model_t* view, uint32_t index);
 
 const uint8_t* ros_model_as_cdr(const ros_model_t* view, size_t* out_len);
 ```
@@ -864,9 +904,14 @@ float       ros_box_get_distance(const ros_box_t* view);
 float       ros_box_get_speed(const ros_box_t* view);
 const char* ros_box_get_track_id(const ros_box_t* view);
 int32_t     ros_box_get_track_lifetime(const ros_box_t* view);
-
-const uint8_t* ros_box_as_cdr(const ros_box_t* view, size_t* out_len);
+int32_t     ros_box_get_track_created_sec(const ros_box_t* view);
+uint32_t    ros_box_get_track_created_nanosec(const ros_box_t* view);
 ```
+
+> **Note:** `ros_box_as_cdr` has been removed. Forwarding an embedded child box
+> as a standalone CDR would require re-encoding, which violates the zero-copy
+> contract. Child boxes accessed via `ros_detect_get_box`/`ros_model_get_box`
+> are embedded in the parent buffer and do not have an independent CDR form.
 
 #### LocalTime
 
@@ -1156,6 +1201,41 @@ Common causes:
    `ros_bytes_free(bytes, len)`. The memory is allocated by Rust's allocator.
 4. **NULL handle** — Getters return 0 or `NULL` for NULL handles rather than
    crashing, but always check `from_cdr` return values.
+
+## C++ Wrapper
+
+A header-only C++17 wrapper is available at
+`include/edgefirst/schemas.hpp`. It provides RAII-managed view and owning
+types for every C handle type — `ImageView`/`Image`, `HeaderView`/`Header`,
+`DetectView`, `ModelView`, `MaskView`/`Mask`, and so on — together with
+`expected<T, Error>` error handling (no exceptions) and range-based iteration
+for array children:
+
+```cpp
+namespace ef = edgefirst::schemas;
+
+// Decode a Detect message and iterate its boxes
+auto det = ef::DetectView::from_cdr(payload);
+for (auto box : det->boxes()) {
+    std::cout << "label=" << box.label() << " score=" << box.score() << "\n";
+}
+```
+
+The range adaptors (`boxes()`, `masks()`) use the same indexed accessor
+functions documented in Rule 5 of the [Memory Management](#memory-management)
+section above (`ros_detect_get_box`, `ros_model_get_box`,
+`ros_model_get_mask`). Child views returned from the range are parent-borrowed
+and must not be freed independently — exactly the same lifetime rule that
+makes zero-copy iteration possible.
+
+The C++ wrapper links against the same `libedgefirst_schemas` shared library
+as the C API — there is no separate build target or additional library. Include
+the C++ header and link with `-ledgefirst_schemas` exactly as you would for C.
+
+See [README.md § C++ Usage](README.md#c-usage) for the full introduction,
+installation notes, and working examples. The per-type API surface (constructors,
+field accessors, encode/decode signatures) is documented inline in
+`include/edgefirst/schemas.hpp`.
 
 ## Building from Source
 

@@ -75,11 +75,23 @@ unsafe fn c_to_str<'a>(s: *const c_char) -> &'a str {
 
 /// Erase the borrow lifetime on a `&[u8]` slice for FFI.
 ///
-/// SAFETY: The C caller guarantees `data` outlives the returned handle.
+/// # Safety
+/// The C caller guarantees `data` outlives the returned handle.
 /// This is documented in CAPI.md — the handle borrows the caller's buffer.
 unsafe fn erase_lifetime(s: &[u8]) -> &'static [u8] {
     unsafe { slice::from_raw_parts(s.as_ptr(), s.len()) }
 }
+
+// Note: there are no `erase_box_view_lifetime` / `erase_mask_view_lifetime`
+// helpers any more. Every construction path for `DetectBoxView<'static>` and
+// `MaskView<'static>` uses a parse helper that yields the `'static` view
+// directly from a `&'static [u8]` input slice, so no unsafe `mem::transmute`
+// is required to widen method-returned references. The standalone paths
+// call `DetectBox::from_cdr_as_view` / `Mask::from_cdr_as_view`; the
+// parent-child paths call `Detect::from_cdr_collect_boxes` /
+// `Model::from_cdr_collect_children`. Both produce views whose `&str` and
+// `&[u8]` fields are naturally tied to the buffer's lifetime via the
+// `scan_*_element` primitives, not to a temporary `&self`.
 
 macro_rules! check_null_ret_null {
     ($ptr:expr) => {
@@ -697,6 +709,10 @@ fn return_cdr_bytes(cdr: Vec<u8>, out_bytes: *mut *mut u8, out_len: *mut usize) 
 
 pub struct ros_header_t(std_msgs::Header<&'static [u8]>);
 
+/// @brief Create a Header view from CDR bytes.
+/// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+/// @param len Length of data
+/// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
 pub extern "C" fn ros_header_from_cdr(data: *const u8, len: usize) -> *mut ros_header_t {
     check_null_ret_null!(data);
@@ -768,6 +784,10 @@ pub extern "C" fn ros_header_encode(
 
 pub struct ros_image_t(sensor_msgs::Image<&'static [u8]>);
 
+/// @brief Create an Image view from CDR bytes.
+/// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+/// @param len Length of data
+/// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
 pub extern "C" fn ros_image_from_cdr(data: *const u8, len: usize) -> *mut ros_image_t {
     check_null_ret_null!(data);
@@ -857,6 +877,11 @@ pub extern "C" fn ros_image_get_step(view: *const ros_image_t) -> u32 {
 #[no_mangle]
 pub extern "C" fn ros_image_get_data(view: *const ros_image_t, out_len: *mut usize) -> *const u8 {
     if view.is_null() {
+        if !out_len.is_null() {
+            unsafe {
+                *out_len = 0;
+            }
+        }
         return ptr::null();
     }
     let data = unsafe { (*view).0.data() };
@@ -915,6 +940,10 @@ pub extern "C" fn ros_image_encode(
 
 pub struct ros_compressed_image_t(sensor_msgs::CompressedImage<&'static [u8]>);
 
+/// @brief Create a CompressedImage view from CDR bytes.
+/// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+/// @param len Length of data
+/// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
 pub extern "C" fn ros_compressed_image_from_cdr(
     data: *const u8,
@@ -984,6 +1013,11 @@ pub extern "C" fn ros_compressed_image_get_data(
     out_len: *mut usize,
 ) -> *const u8 {
     if view.is_null() {
+        if !out_len.is_null() {
+            unsafe {
+                *out_len = 0;
+            }
+        }
         return ptr::null();
     }
     let data = unsafe { (*view).0.data() };
@@ -1030,6 +1064,10 @@ pub extern "C" fn ros_compressed_image_encode(
 
 pub struct ros_compressed_video_t(foxglove_msgs::FoxgloveCompressedVideo<&'static [u8]>);
 
+/// @brief Create a CompressedVideo view from CDR bytes.
+/// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+/// @param len Length of data
+/// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
 pub extern "C" fn ros_compressed_video_from_cdr(
     data: *const u8,
@@ -1089,6 +1127,11 @@ pub extern "C" fn ros_compressed_video_get_data(
     out_len: *mut usize,
 ) -> *const u8 {
     if view.is_null() {
+        if !out_len.is_null() {
+            unsafe {
+                *out_len = 0;
+            }
+        }
         return ptr::null();
     }
     let data = unsafe { (*view).0.data() };
@@ -1147,14 +1190,33 @@ pub extern "C" fn ros_compressed_video_encode(
 // Mask (buffer-backed)
 // =============================================================================
 
-pub struct ros_mask_t(edgefirst_msgs::Mask<&'static [u8]>);
+pub struct ros_mask_t {
+    view: edgefirst_msgs::MaskView<'static>,
+    /// `true` if this handle was heap-allocated by `ros_mask_from_cdr`
+    /// (and must be freed by `ros_mask_free`). `false` if this handle
+    /// lives inside a parent `ros_model_t`'s `child_masks` vector and
+    /// is borrowed from there; calling `ros_mask_free` on a borrowed
+    /// handle would `Box::from_raw` an address inside someone else's
+    /// allocation and corrupt the heap, so `ros_mask_free` checks this
+    /// flag and no-ops with `errno=EINVAL` when it's `false`.
+    owned: bool,
+}
 
+/// @brief Create a Mask view from a standalone CDR buffer.
+/// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+/// @param len Length of data
+/// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
 pub extern "C" fn ros_mask_from_cdr(data: *const u8, len: usize) -> *mut ros_mask_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match edgefirst_msgs::Mask::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_mask_t(v))),
+    let static_slice: &'static [u8] = unsafe { erase_lifetime(slice) };
+    // Parse directly into a `MaskView<'static>`. The helper calls
+    // `scan_mask_element` which returns a view whose `&str` / `&[u8]` fields
+    // are structurally tied to the buffer's `'static` lifetime, so no unsafe
+    // `mem::transmute` is required to widen method-returned references.
+    match edgefirst_msgs::Mask::from_cdr_as_view(static_slice) {
+        Ok(view) => Box::into_raw(Box::new(ros_mask_t { view, owned: true })),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -1162,11 +1224,26 @@ pub extern "C" fn ros_mask_from_cdr(data: *const u8, len: usize) -> *mut ros_mas
     }
 }
 
+/// @brief Free a Mask handle obtained from `ros_mask_from_cdr`.
+///
+/// Safe to call with a NULL pointer. If the handle was obtained from
+/// `ros_model_get_mask` (a parent-borrowed child), this function does
+/// **not** free it — the parent `ros_model_t` owns the child storage,
+/// and freeing here would corrupt the parent's `child_masks` vector.
+/// In that case the function sets `errno=EINVAL` and returns without
+/// touching the pointer. Passing a borrowed handle here is an API
+/// misuse (Rule 5 in CAPI.md); this is defense-in-depth against it.
 #[no_mangle]
 pub extern "C" fn ros_mask_free(view: *mut ros_mask_t) {
-    if !view.is_null() {
-        unsafe {
+    if view.is_null() {
+        return;
+    }
+    unsafe {
+        if (*view).owned {
             drop(Box::from_raw(view));
+        } else {
+            // Parent-borrowed child — must not free.
+            set_errno(EINVAL);
         }
     }
 }
@@ -1176,7 +1253,7 @@ pub extern "C" fn ros_mask_get_height(view: *const ros_mask_t) -> u32 {
     if view.is_null() {
         return 0;
     }
-    unsafe { (*view).0.height() }
+    unsafe { (*view).view.height }
 }
 
 #[no_mangle]
@@ -1184,7 +1261,7 @@ pub extern "C" fn ros_mask_get_width(view: *const ros_mask_t) -> u32 {
     if view.is_null() {
         return 0;
     }
-    unsafe { (*view).0.width() }
+    unsafe { (*view).view.width }
 }
 
 #[no_mangle]
@@ -1192,7 +1269,7 @@ pub extern "C" fn ros_mask_get_length(view: *const ros_mask_t) -> u32 {
     if view.is_null() {
         return 0;
     }
-    unsafe { (*view).0.length() }
+    unsafe { (*view).view.length }
 }
 
 #[no_mangle]
@@ -1200,15 +1277,20 @@ pub extern "C" fn ros_mask_get_encoding(view: *const ros_mask_t) -> *const c_cha
     if view.is_null() {
         return ptr::null();
     }
-    str_as_c(unsafe { (*view).0.encoding() })
+    str_as_c(unsafe { (*view).view.encoding })
 }
 
 #[no_mangle]
 pub extern "C" fn ros_mask_get_data(view: *const ros_mask_t, out_len: *mut usize) -> *const u8 {
     if view.is_null() {
+        if !out_len.is_null() {
+            unsafe {
+                *out_len = 0;
+            }
+        }
         return ptr::null();
     }
-    let data = unsafe { (*view).0.mask_data() };
+    let data = unsafe { (*view).view.mask };
     unsafe {
         if !out_len.is_null() {
             *out_len = data.len();
@@ -1222,7 +1304,7 @@ pub extern "C" fn ros_mask_get_boxed(view: *const ros_mask_t) -> bool {
     if view.is_null() {
         return false;
     }
-    unsafe { (*view).0.boxed() }
+    unsafe { (*view).view.boxed }
 }
 
 #[no_mangle]
@@ -1259,6 +1341,10 @@ pub extern "C" fn ros_mask_encode(
 
 pub struct ros_dmabuffer_t(edgefirst_msgs::DmaBuffer<&'static [u8]>);
 
+/// @brief Create a DmaBuffer view from CDR bytes.
+/// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+/// @param len Length of data
+/// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
 pub extern "C" fn ros_dmabuffer_from_cdr(data: *const u8, len: usize) -> *mut ros_dmabuffer_t {
     check_null_ret_null!(data);
@@ -1403,6 +1489,10 @@ pub extern "C" fn ros_dmabuffer_encode(
 
 pub struct ros_imu_t(sensor_msgs::Imu<&'static [u8]>);
 
+/// @brief Create an Imu view from CDR bytes.
+/// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+/// @param len Length of data
+/// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
 pub extern "C" fn ros_imu_from_cdr(data: *const u8, len: usize) -> *mut ros_imu_t {
     check_null_ret_null!(data);
@@ -1573,6 +1663,10 @@ pub extern "C" fn ros_imu_get_linear_acceleration_covariance(
 
 pub struct ros_nav_sat_fix_t(sensor_msgs::NavSatFix<&'static [u8]>);
 
+/// @brief Create a NavSatFix view from CDR bytes.
+/// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+/// @param len Length of data
+/// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
 pub extern "C" fn ros_nav_sat_fix_from_cdr(data: *const u8, len: usize) -> *mut ros_nav_sat_fix_t {
     check_null_ret_null!(data);
@@ -1649,6 +1743,10 @@ pub extern "C" fn ros_nav_sat_fix_get_altitude(view: *const ros_nav_sat_fix_t) -
 
 pub struct ros_transform_stamped_t(geometry_msgs::TransformStamped<&'static [u8]>);
 
+/// @brief Create a TransformStamped view from CDR bytes.
+/// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+/// @param len Length of data
+/// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
 pub extern "C" fn ros_transform_stamped_from_cdr(
     data: *const u8,
@@ -1718,6 +1816,10 @@ pub extern "C" fn ros_transform_stamped_get_child_frame_id(
 
 pub struct ros_radar_cube_t(edgefirst_msgs::RadarCube<&'static [u8]>);
 
+/// @brief Create a RadarCube view from CDR bytes.
+/// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+/// @param len Length of data
+/// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
 pub extern "C" fn ros_radar_cube_from_cdr(data: *const u8, len: usize) -> *mut ros_radar_cube_t {
     check_null_ret_null!(data);
@@ -1778,6 +1880,11 @@ pub extern "C" fn ros_radar_cube_get_layout(
     out_len: *mut usize,
 ) -> *const u8 {
     if view.is_null() {
+        if !out_len.is_null() {
+            unsafe {
+                *out_len = 0;
+            }
+        }
         return ptr::null();
     }
     let data = unsafe { (*view).0.layout() };
@@ -1795,6 +1902,11 @@ pub extern "C" fn ros_radar_cube_get_cube_raw(
     out_len: *mut usize,
 ) -> *const u8 {
     if view.is_null() {
+        if !out_len.is_null() {
+            unsafe {
+                *out_len = 0;
+            }
+        }
         return ptr::null();
     }
     let data = unsafe { (*view).0.cube_raw() };
@@ -1828,6 +1940,10 @@ pub extern "C" fn ros_radar_cube_get_is_complex(view: *const ros_radar_cube_t) -
 
 pub struct ros_radar_info_t(edgefirst_msgs::RadarInfo<&'static [u8]>);
 
+/// @brief Create a RadarInfo view from CDR bytes.
+/// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+/// @param len Length of data
+/// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
 pub extern "C" fn ros_radar_info_from_cdr(data: *const u8, len: usize) -> *mut ros_radar_info_t {
     check_null_ret_null!(data);
@@ -1924,14 +2040,41 @@ pub extern "C" fn ros_radar_info_get_cube(view: *const ros_radar_info_t) -> bool
 // Detect (buffer-backed)
 // =============================================================================
 
-pub struct ros_detect_t(edgefirst_msgs::Detect<&'static [u8]>);
+pub struct ros_detect_t {
+    inner: edgefirst_msgs::Detect<&'static [u8]>,
+    /// Pre-materialized child box views, one per box in the parent. Each view's
+    /// `&str` fields borrow directly from `inner`'s CDR buffer — no data
+    /// duplication. This is bookkeeping allocation (Vec header + N*sizeof(ros_box_t))
+    /// in the same category as the offset tables already built during from_cdr.
+    child_boxes: Vec<ros_box_t>,
+}
 
+/// @brief Create a Detect view from CDR bytes.
+/// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+/// @param len Length of data
+/// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
 pub extern "C" fn ros_detect_from_cdr(data: *const u8, len: usize) -> *mut ros_detect_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match edgefirst_msgs::Detect::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_detect_t(v))),
+    match edgefirst_msgs::Detect::from_cdr_collect_boxes(unsafe { erase_lifetime(slice) }) {
+        Ok((v, box_views)) => {
+            // box_views were collected during the single validation walk;
+            // no second pass over the CDR buffer is needed here. Each child
+            // is marked `owned: false` so ros_box_free safely no-ops if a
+            // caller mistakenly casts away const and passes a borrowed child.
+            let child_boxes: Vec<ros_box_t> = box_views
+                .into_iter()
+                .map(|bv| ros_box_t {
+                    view: bv,
+                    owned: false,
+                })
+                .collect();
+            Box::into_raw(Box::new(ros_detect_t {
+                inner: v,
+                child_boxes,
+            }))
+        }
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -1953,7 +2096,7 @@ pub extern "C" fn ros_detect_get_stamp_sec(view: *const ros_detect_t) -> i32 {
     if view.is_null() {
         return 0;
     }
-    unsafe { (*view).0.stamp().sec }
+    unsafe { (*view).inner.stamp().sec }
 }
 
 #[no_mangle]
@@ -1961,7 +2104,7 @@ pub extern "C" fn ros_detect_get_stamp_nanosec(view: *const ros_detect_t) -> u32
     if view.is_null() {
         return 0;
     }
-    unsafe { (*view).0.stamp().nanosec }
+    unsafe { (*view).inner.stamp().nanosec }
 }
 
 #[no_mangle]
@@ -1969,7 +2112,7 @@ pub extern "C" fn ros_detect_get_frame_id(view: *const ros_detect_t) -> *const c
     if view.is_null() {
         return ptr::null();
     }
-    str_as_c(unsafe { (*view).0.frame_id() })
+    str_as_c(unsafe { (*view).inner.frame_id() })
 }
 
 #[no_mangle]
@@ -1977,21 +2120,91 @@ pub extern "C" fn ros_detect_get_boxes_len(view: *const ros_detect_t) -> u32 {
     if view.is_null() {
         return 0;
     }
-    unsafe { (*view).0.boxes_len() }
+    unsafe { (*view).child_boxes.len() as u32 }
+}
+
+/// @brief Get a borrowed view of the i-th detection box.
+/// @param view Detect handle
+/// @param index Zero-based box index (must be < ros_detect_get_boxes_len(view))
+/// @return Borrowed ros_box_t* whose lifetime is tied to the parent Detect handle,
+///         or NULL on error (errno set to EINVAL).
+///
+/// The returned pointer is NOT a separately-owned handle: do NOT pass it to
+/// ros_box_free(). It becomes invalid when the parent Detect handle is freed.
+/// The parent's CDR buffer (passed to ros_detect_from_cdr) must also remain
+/// valid for as long as the returned pointer is used.
+///
+/// Defense-in-depth: the returned `ros_box_t` has its internal `owned` tag
+/// set to `false` (populated at parent `from_cdr` time). If a caller
+/// mistakenly casts away `const` and passes this pointer to `ros_box_free`,
+/// the free function detects the borrowed tag, sets `errno=EINVAL`, and
+/// safely no-ops — the parent's internal `child_boxes` Vec is never
+/// touched, so heap corruption from misuse is not possible.
+#[no_mangle]
+pub extern "C" fn ros_detect_get_box(view: *const ros_detect_t, index: u32) -> *const ros_box_t {
+    if view.is_null() {
+        set_errno(EINVAL);
+        return ptr::null();
+    }
+    let v = unsafe { &*view };
+    let idx = index as usize;
+    if idx >= v.child_boxes.len() {
+        set_errno(EINVAL);
+        return ptr::null();
+    }
+    &v.child_boxes[idx] as *const ros_box_t
 }
 
 // =============================================================================
 // Model (buffer-backed)
 // =============================================================================
 
-pub struct ros_model_t(edgefirst_msgs::Model<&'static [u8]>);
+pub struct ros_model_t {
+    inner: edgefirst_msgs::Model<&'static [u8]>,
+    /// Pre-materialized child box views, one per box in the parent. Each view's
+    /// `&str` fields borrow directly from `inner`'s CDR buffer — no data
+    /// duplication.
+    child_boxes: Vec<ros_box_t>,
+    /// Pre-materialized child mask views, one per mask in the parent. Each view's
+    /// `&str` and `&[u8]` fields borrow directly from `inner`'s CDR buffer.
+    child_masks: Vec<ros_mask_t>,
+}
 
+/// @brief Create a Model view from CDR bytes.
+/// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+/// @param len Length of data
+/// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
 pub extern "C" fn ros_model_from_cdr(data: *const u8, len: usize) -> *mut ros_model_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match edgefirst_msgs::Model::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_model_t(v))),
+    match edgefirst_msgs::Model::from_cdr_collect_children(unsafe { erase_lifetime(slice) }) {
+        Ok((v, box_views, mask_views)) => {
+            // box_views and mask_views were collected during the single
+            // validation walk; no second pass over the CDR buffer is needed.
+            // Each child is marked `owned: false` so ros_box_free /
+            // ros_mask_free safely no-op if a caller mistakenly casts
+            // away const and passes a borrowed child.
+            let child_boxes: Vec<ros_box_t> = box_views
+                .into_iter()
+                .map(|bv| ros_box_t {
+                    view: bv,
+                    owned: false,
+                })
+                .collect();
+            let child_masks: Vec<ros_mask_t> = mask_views
+                .into_iter()
+                .map(|mv| ros_mask_t {
+                    view: mv,
+                    owned: false,
+                })
+                .collect();
+            Box::into_raw(Box::new(ros_model_t {
+                inner: v,
+                child_boxes,
+                child_masks,
+            }))
+        }
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -2013,7 +2226,7 @@ pub extern "C" fn ros_model_get_stamp_sec(view: *const ros_model_t) -> i32 {
     if view.is_null() {
         return 0;
     }
-    unsafe { (*view).0.stamp().sec }
+    unsafe { (*view).inner.stamp().sec }
 }
 
 #[no_mangle]
@@ -2021,7 +2234,7 @@ pub extern "C" fn ros_model_get_stamp_nanosec(view: *const ros_model_t) -> u32 {
     if view.is_null() {
         return 0;
     }
-    unsafe { (*view).0.stamp().nanosec }
+    unsafe { (*view).inner.stamp().nanosec }
 }
 
 #[no_mangle]
@@ -2029,7 +2242,7 @@ pub extern "C" fn ros_model_get_frame_id(view: *const ros_model_t) -> *const c_c
     if view.is_null() {
         return ptr::null();
     }
-    str_as_c(unsafe { (*view).0.frame_id() })
+    str_as_c(unsafe { (*view).inner.frame_id() })
 }
 
 #[no_mangle]
@@ -2037,7 +2250,7 @@ pub extern "C" fn ros_model_get_boxes_len(view: *const ros_model_t) -> u32 {
     if view.is_null() {
         return 0;
     }
-    unsafe { (*view).0.boxes_len() }
+    unsafe { (*view).child_boxes.len() as u32 }
 }
 
 #[no_mangle]
@@ -2045,7 +2258,67 @@ pub extern "C" fn ros_model_get_masks_len(view: *const ros_model_t) -> u32 {
     if view.is_null() {
         return 0;
     }
-    unsafe { (*view).0.masks_len() }
+    unsafe { (*view).child_masks.len() as u32 }
+}
+
+/// @brief Get a borrowed view of the i-th model box.
+/// @param view Model handle
+/// @param index Zero-based box index (must be < ros_model_get_boxes_len(view))
+/// @return Borrowed ros_box_t* whose lifetime is tied to the parent Model handle,
+///         or NULL on error (errno set to EINVAL).
+///
+/// The returned pointer is NOT a separately-owned handle: do NOT pass it to
+/// ros_box_free(). It becomes invalid when the parent Model handle is freed.
+///
+/// Defense-in-depth: the returned `ros_box_t` has its internal `owned` tag
+/// set to `false`. If a caller mistakenly casts away `const` and passes
+/// this pointer to `ros_box_free`, the free function detects the borrowed
+/// tag, sets `errno=EINVAL`, and safely no-ops — the parent's internal
+/// `child_boxes` Vec is never touched, so heap corruption from misuse is
+/// not possible.
+#[no_mangle]
+pub extern "C" fn ros_model_get_box(view: *const ros_model_t, index: u32) -> *const ros_box_t {
+    if view.is_null() {
+        set_errno(EINVAL);
+        return ptr::null();
+    }
+    let v = unsafe { &*view };
+    let idx = index as usize;
+    if idx >= v.child_boxes.len() {
+        set_errno(EINVAL);
+        return ptr::null();
+    }
+    &v.child_boxes[idx] as *const ros_box_t
+}
+
+/// @brief Get a borrowed view of the i-th model mask.
+/// @param view Model handle
+/// @param index Zero-based mask index (must be < ros_model_get_masks_len(view))
+/// @return Borrowed ros_mask_t* whose lifetime is tied to the parent Model handle,
+///         or NULL on error (errno set to EINVAL).
+///
+/// The returned pointer is NOT a separately-owned handle: do NOT pass it to
+/// ros_mask_free(). It becomes invalid when the parent Model handle is freed.
+///
+/// Defense-in-depth: the returned `ros_mask_t` has its internal `owned` tag
+/// set to `false`. If a caller mistakenly casts away `const` and passes
+/// this pointer to `ros_mask_free`, the free function detects the borrowed
+/// tag, sets `errno=EINVAL`, and safely no-ops — the parent's internal
+/// `child_masks` Vec is never touched, so heap corruption from misuse is
+/// not possible.
+#[no_mangle]
+pub extern "C" fn ros_model_get_mask(view: *const ros_model_t, index: u32) -> *const ros_mask_t {
+    if view.is_null() {
+        set_errno(EINVAL);
+        return ptr::null();
+    }
+    let v = unsafe { &*view };
+    let idx = index as usize;
+    if idx >= v.child_masks.len() {
+        set_errno(EINVAL);
+        return ptr::null();
+    }
+    &v.child_masks[idx] as *const ros_mask_t
 }
 
 // =============================================================================
@@ -2054,6 +2327,10 @@ pub extern "C" fn ros_model_get_masks_len(view: *const ros_model_t) -> u32 {
 
 pub struct ros_model_info_t(edgefirst_msgs::ModelInfo<&'static [u8]>);
 
+/// @brief Create a ModelInfo view from CDR bytes.
+/// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+/// @param len Length of data
+/// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
 pub extern "C" fn ros_model_info_from_cdr(data: *const u8, len: usize) -> *mut ros_model_info_t {
     check_null_ret_null!(data);
@@ -2146,6 +2423,11 @@ pub extern "C" fn ros_model_info_get_input_shape(
     out_len: *mut usize,
 ) -> *const u32 {
     if view.is_null() {
+        if !out_len.is_null() {
+            unsafe {
+                *out_len = 0;
+            }
+        }
         return ptr::null();
     }
     let data = unsafe { (*view).0.input_shape() };
@@ -2163,6 +2445,11 @@ pub extern "C" fn ros_model_info_get_output_shape(
     out_len: *mut usize,
 ) -> *const u32 {
     if view.is_null() {
+        if !out_len.is_null() {
+            unsafe {
+                *out_len = 0;
+            }
+        }
         return ptr::null();
     }
     let data = unsafe { (*view).0.output_shape() };
@@ -2206,6 +2493,10 @@ pub extern "C" fn ros_model_info_get_label(
 
 pub struct ros_point_cloud2_t(sensor_msgs::PointCloud2<&'static [u8]>);
 
+/// @brief Create a PointCloud2 view from CDR bytes.
+/// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+/// @param len Length of data
+/// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
 pub extern "C" fn ros_point_cloud2_from_cdr(
     data: *const u8,
@@ -2293,6 +2584,11 @@ pub extern "C" fn ros_point_cloud2_get_data(
     out_len: *mut usize,
 ) -> *const u8 {
     if view.is_null() {
+        if !out_len.is_null() {
+            unsafe {
+                *out_len = 0;
+            }
+        }
         return ptr::null();
     }
     let data = unsafe { (*view).0.data() };
@@ -2334,6 +2630,10 @@ pub extern "C" fn ros_point_cloud2_get_fields_len(view: *const ros_point_cloud2_
 
 pub struct ros_camera_info_t(sensor_msgs::CameraInfo<&'static [u8]>);
 
+/// @brief Create a CameraInfo view from CDR bytes.
+/// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+/// @param len Length of data
+/// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
 pub extern "C" fn ros_camera_info_from_cdr(data: *const u8, len: usize) -> *mut ros_camera_info_t {
     check_null_ret_null!(data);
@@ -2428,6 +2728,10 @@ pub extern "C" fn ros_camera_info_get_binning_y(view: *const ros_camera_info_t) 
 
 pub struct ros_track_t(edgefirst_msgs::Track<&'static [u8]>);
 
+/// @brief Create a Track view from CDR bytes.
+/// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+/// @param len Length of data
+/// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
 pub extern "C" fn ros_track_from_cdr(data: *const u8, len: usize) -> *mut ros_track_t {
     check_null_ret_null!(data);
@@ -2470,14 +2774,34 @@ pub extern "C" fn ros_track_get_lifetime(view: *const ros_track_t) -> i32 {
 // DetectBox (buffer-backed)
 // =============================================================================
 
-pub struct ros_box_t(edgefirst_msgs::DetectBox<&'static [u8]>);
+pub struct ros_box_t {
+    view: edgefirst_msgs::DetectBoxView<'static>,
+    /// `true` if this handle was heap-allocated by `ros_box_from_cdr`
+    /// (and must be freed by `ros_box_free`). `false` if this handle
+    /// lives inside a parent `ros_detect_t` / `ros_model_t`'s
+    /// `child_boxes` vector and is borrowed from there; calling
+    /// `ros_box_free` on a borrowed handle would `Box::from_raw` an
+    /// address inside someone else's allocation and corrupt the heap,
+    /// so `ros_box_free` checks this flag and no-ops with
+    /// `errno=EINVAL` when it's `false`.
+    owned: bool,
+}
 
+/// @brief Create a DetectBox view from a standalone CDR buffer.
+/// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+/// @param len Length of data
+/// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
 pub extern "C" fn ros_box_from_cdr(data: *const u8, len: usize) -> *mut ros_box_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
-    match edgefirst_msgs::DetectBox::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_box_t(v))),
+    let static_slice: &'static [u8] = unsafe { erase_lifetime(slice) };
+    // Parse directly into a `DetectBoxView<'static>`. The helper calls
+    // `scan_box_element` which returns a view whose `&str` fields are
+    // structurally tied to the buffer's `'static` lifetime, so no unsafe
+    // `mem::transmute` is required to widen method-returned references.
+    match edgefirst_msgs::DetectBox::from_cdr_as_view(static_slice) {
+        Ok(view) => Box::into_raw(Box::new(ros_box_t { view, owned: true })),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -2485,11 +2809,27 @@ pub extern "C" fn ros_box_from_cdr(data: *const u8, len: usize) -> *mut ros_box_
     }
 }
 
+/// @brief Free a DetectBox handle obtained from `ros_box_from_cdr`.
+///
+/// Safe to call with a NULL pointer. If the handle was obtained from
+/// `ros_detect_get_box` / `ros_model_get_box` (a parent-borrowed
+/// child), this function does **not** free it — the parent
+/// `ros_detect_t` / `ros_model_t` owns the child storage, and freeing
+/// here would corrupt the parent's `child_boxes` vector. In that case
+/// the function sets `errno=EINVAL` and returns without touching the
+/// pointer. Passing a borrowed handle here is an API misuse (Rule 5
+/// in CAPI.md); this is defense-in-depth against it.
 #[no_mangle]
 pub extern "C" fn ros_box_free(view: *mut ros_box_t) {
-    if !view.is_null() {
-        unsafe {
+    if view.is_null() {
+        return;
+    }
+    unsafe {
+        if (*view).owned {
             drop(Box::from_raw(view));
+        } else {
+            // Parent-borrowed child — must not free.
+            set_errno(EINVAL);
         }
     }
 }
@@ -2499,7 +2839,7 @@ pub extern "C" fn ros_box_get_center_x(view: *const ros_box_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
-    unsafe { (*view).0.center_x() }
+    unsafe { (*view).view.center_x }
 }
 
 #[no_mangle]
@@ -2507,7 +2847,7 @@ pub extern "C" fn ros_box_get_center_y(view: *const ros_box_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
-    unsafe { (*view).0.center_y() }
+    unsafe { (*view).view.center_y }
 }
 
 #[no_mangle]
@@ -2515,7 +2855,7 @@ pub extern "C" fn ros_box_get_width(view: *const ros_box_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
-    unsafe { (*view).0.width() }
+    unsafe { (*view).view.width }
 }
 
 #[no_mangle]
@@ -2523,7 +2863,7 @@ pub extern "C" fn ros_box_get_height(view: *const ros_box_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
-    unsafe { (*view).0.height() }
+    unsafe { (*view).view.height }
 }
 
 #[no_mangle]
@@ -2531,7 +2871,7 @@ pub extern "C" fn ros_box_get_label(view: *const ros_box_t) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
-    str_as_c(unsafe { (*view).0.label() })
+    str_as_c(unsafe { (*view).view.label })
 }
 
 #[no_mangle]
@@ -2539,7 +2879,7 @@ pub extern "C" fn ros_box_get_score(view: *const ros_box_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
-    unsafe { (*view).0.score() }
+    unsafe { (*view).view.score }
 }
 
 #[no_mangle]
@@ -2547,7 +2887,7 @@ pub extern "C" fn ros_box_get_distance(view: *const ros_box_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
-    unsafe { (*view).0.distance() }
+    unsafe { (*view).view.distance }
 }
 
 #[no_mangle]
@@ -2555,7 +2895,7 @@ pub extern "C" fn ros_box_get_speed(view: *const ros_box_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
-    unsafe { (*view).0.speed() }
+    unsafe { (*view).view.speed }
 }
 
 #[no_mangle]
@@ -2563,7 +2903,7 @@ pub extern "C" fn ros_box_get_track_id(view: *const ros_box_t) -> *const c_char 
     if view.is_null() {
         return ptr::null();
     }
-    str_as_c(unsafe { (*view).0.track_id() })
+    str_as_c(unsafe { (*view).view.track_id })
 }
 
 #[no_mangle]
@@ -2571,7 +2911,29 @@ pub extern "C" fn ros_box_get_track_lifetime(view: *const ros_box_t) -> i32 {
     if view.is_null() {
         return 0;
     }
-    unsafe { (*view).0.track_lifetime() }
+    unsafe { (*view).view.track_lifetime }
+}
+
+/// @brief Get the box's track_created timestamp seconds component.
+/// @param view Box handle
+/// @return Time.sec or 0 if view is NULL
+#[no_mangle]
+pub extern "C" fn ros_box_get_track_created_sec(view: *const ros_box_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).view.track_created.sec }
+}
+
+/// @brief Get the box's track_created timestamp nanoseconds component.
+/// @param view Box handle
+/// @return Time.nanosec or 0 if view is NULL
+#[no_mangle]
+pub extern "C" fn ros_box_get_track_created_nanosec(view: *const ros_box_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).view.track_created.nanosec }
 }
 
 // =============================================================================
@@ -2580,6 +2942,10 @@ pub extern "C" fn ros_box_get_track_lifetime(view: *const ros_box_t) -> i32 {
 
 pub struct ros_local_time_t(edgefirst_msgs::LocalTime<&'static [u8]>);
 
+/// @brief Create a LocalTime view from CDR bytes.
+/// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+/// @param len Length of data
+/// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
 pub extern "C" fn ros_local_time_from_cdr(data: *const u8, len: usize) -> *mut ros_local_time_t {
     check_null_ret_null!(data);
@@ -2646,6 +3012,11 @@ macro_rules! impl_as_cdr {
         #[no_mangle]
         pub extern "C" fn $fn_name(view: *const $view_type, out_len: *mut usize) -> *const u8 {
             if view.is_null() {
+                if !out_len.is_null() {
+                    unsafe {
+                        *out_len = 0;
+                    }
+                }
                 return ptr::null();
             }
             let cdr = unsafe { (*view).0.as_cdr() };
@@ -2663,18 +3034,58 @@ impl_as_cdr!(ros_header_as_cdr, ros_header_t);
 impl_as_cdr!(ros_image_as_cdr, ros_image_t);
 impl_as_cdr!(ros_compressed_image_as_cdr, ros_compressed_image_t);
 impl_as_cdr!(ros_compressed_video_as_cdr, ros_compressed_video_t);
-impl_as_cdr!(ros_mask_as_cdr, ros_mask_t);
 impl_as_cdr!(ros_dmabuffer_as_cdr, ros_dmabuffer_t);
 impl_as_cdr!(ros_imu_as_cdr, ros_imu_t);
 impl_as_cdr!(ros_nav_sat_fix_as_cdr, ros_nav_sat_fix_t);
 impl_as_cdr!(ros_transform_stamped_as_cdr, ros_transform_stamped_t);
 impl_as_cdr!(ros_radar_cube_as_cdr, ros_radar_cube_t);
 impl_as_cdr!(ros_radar_info_as_cdr, ros_radar_info_t);
-impl_as_cdr!(ros_detect_as_cdr, ros_detect_t);
-impl_as_cdr!(ros_model_as_cdr, ros_model_t);
 impl_as_cdr!(ros_model_info_as_cdr, ros_model_info_t);
 impl_as_cdr!(ros_point_cloud2_as_cdr, ros_point_cloud2_t);
 impl_as_cdr!(ros_camera_info_as_cdr, ros_camera_info_t);
 impl_as_cdr!(ros_track_as_cdr, ros_track_t);
-impl_as_cdr!(ros_box_as_cdr, ros_box_t);
 impl_as_cdr!(ros_local_time_as_cdr, ros_local_time_t);
+
+// ros_detect_t and ros_model_t use named fields, so they need manual as_cdr impls.
+
+#[no_mangle]
+pub extern "C" fn ros_detect_as_cdr(view: *const ros_detect_t, out_len: *mut usize) -> *const u8 {
+    if view.is_null() {
+        if !out_len.is_null() {
+            unsafe {
+                *out_len = 0;
+            }
+        }
+        return ptr::null();
+    }
+    let cdr = unsafe { (*view).inner.as_cdr() };
+    unsafe {
+        if !out_len.is_null() {
+            *out_len = cdr.len();
+        }
+    }
+    cdr.as_ptr()
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_as_cdr(view: *const ros_model_t, out_len: *mut usize) -> *const u8 {
+    if view.is_null() {
+        if !out_len.is_null() {
+            unsafe {
+                *out_len = 0;
+            }
+        }
+        return ptr::null();
+    }
+    let cdr = unsafe { (*view).inner.as_cdr() };
+    unsafe {
+        if !out_len.is_null() {
+            *out_len = cdr.len();
+        }
+    }
+    cdr.as_ptr()
+}
+
+// ros_box_as_cdr and ros_mask_as_cdr have been removed. Forwarding an embedded
+// child box/mask as a standalone CDR would require re-encoding, which violates
+// the zero-copy contract. See CAPI.md for details.

@@ -7,6 +7,149 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-04-10
+
+This release introduces a header-only C++17 wrapper around the C API and
+refactors the way embedded child messages (boxes inside Detect/Model, masks
+inside Model) are exposed. The refactor is **source- and binary-incompatible**
+for C code that called `ros_box_as_cdr` or `ros_mask_as_cdr`, and the shared
+library SONAME changes from `libedgefirst_schemas.so.2` to
+`libedgefirst_schemas.so.3`. See the Migration section below.
+
+### Added
+
+- **C++ header-only wrapper** — `include/edgefirst/schemas.hpp` provides a
+  complete C++17 API over the C library: RAII move-only view types
+  (`ImageView`, `HeaderView`, `DetectView`, `ModelView`, …) and owning types
+  (`Image`, `Header`, `Mask`, `DmaBuffer`, …), `expected<T, Error>` for all
+  fallible operations (no exceptions), and range-based iteration for array
+  children (`for (auto box : det.boxes()) { ... }`). Links against the same
+  `libedgefirst_schemas.so` as the C API — no separate library to build.
+- **Indexed child accessors in the C API** — three new functions return
+  parent-borrowed child handles, replacing the previous bulk-array pattern
+  and enabling the new C++ iteration API:
+  - `ros_detect_get_box(view, i)` — returns a `const ros_box_t*` borrowed
+    from the parent Detect.
+  - `ros_model_get_box(view, i)` — same, for Model.
+  - `ros_model_get_mask(view, i)` — returns a `const ros_mask_t*` borrowed
+    from the parent Model.
+  Returned pointers are owned by the parent handle; do **not** pass them to
+  `ros_box_free()` / `ros_mask_free()`. Lifetime is tied to both the parent
+  handle and the parent's CDR buffer. See [CAPI.md § Memory Management,
+  Rule 5](CAPI.md#memory-management).
+  - **`ros_box_get_track_created_sec(box)` / `ros_box_get_track_created_nanosec(box)`**
+    — expose the box's track_created timestamp. Previously populated in the
+    view but lacked a C accessor. Also exposed via C++ `BoxView::track_created()`
+    and `BorrowedBoxView::track_created()`.
+- `examples/cpp/example.cpp` — C++ example mirroring the C example:
+  CdrFixed encode/decode, buffer-backed encode/view round-trips, zero-copy
+  field access via `std::string_view` / `span<const uint8_t>`.
+- `include/edgefirst/stdlib/expected.hpp` — vendored tl::expected (CC0-1.0)
+  providing `std::expected`-compatible semantics on C++17 targets. The
+  wrapper picks up `std::expected` automatically on C++23+. Namespace unified
+  under `edgefirst::stdlib::` (renamed from upstream `tl::`).
+- `include/edgefirst/stdlib/span.hpp` — minimal C++17 span shim that
+  aliases `std::span` on C++20+ and supplies a two-pointer fallback otherwise.
+  Moved from the former `detail/` directory; namespace unified under `edgefirst::stdlib::`.
+- Makefile targets: `test-cpp`, `test-cpp-asan`, `test-cpp-xml`,
+  `test-cpp-asan-xml` (Catch2-based C++ test suite with JUnit output),
+  `example-cpp` (build the C++ example), and `install` (installs headers,
+  C++ stdlib headers, and the versioned library symlink chain to `PREFIX`,
+  default `/usr/local`).
+- **`release()` ownership transfer on owning types** — `Header`, `Image`,
+  `CompressedImage`, `CompressedVideo`, `DmaBuffer`, and `Mask` now expose
+  `Released release() && noexcept` returning a raw `(data, size)` POD.
+  This transfers ownership of the encoded CDR byte buffer out of the
+  wrapper so the caller can hand it to a downstream sink (for example
+  `zenoh::Bytes` with a custom deleter) without an intermediate copy.
+  After `release()` the wrapper is empty and its destructor is a safe
+  no-op. See `Released` in `schemas.hpp` and the "publishing" code
+  example in the file-level Doxygen block for the zenoh-cpp pattern.
+
+### Changed — BREAKING (for C callers caching child handles)
+
+- `ros_box_t` and `ros_mask_t` are now **view types backed by the parent
+  handle's CDR buffer** rather than standalone allocated structs. Child
+  handles returned by `ros_detect_get_box`, `ros_model_get_box`, and
+  `ros_model_get_mask` are owned by the parent and must not be freed
+  independently. Top-level `ros_box_from_cdr` / `ros_mask_from_cdr` (decoding
+  a standalone box or mask CDR slice) continue to work and still produce
+  caller-owned handles that **must** be freed with `ros_box_free` /
+  `ros_mask_free`.
+
+### Removed — BREAKING
+
+- `ros_box_as_cdr` and `ros_mask_as_cdr` are removed. Embedded child boxes
+  and masks live inside the parent's CDR buffer and have no independent CDR
+  encoding; producing one would require **re-encoding** the child into a
+  fresh allocation, which violates the library's zero-copy contract.
+
+  **Migration.** If you previously called `ros_box_as_cdr(box)` or
+  `ros_mask_as_cdr(mask)` to forward an embedded child as a standalone
+  message, forward the **entire parent** instead and let downstream code
+  iterate it:
+
+  ```c
+  // Before (2.2.x):
+  size_t box_len;
+  const uint8_t* box_cdr = ros_box_as_cdr(box, &box_len);
+  publish("topic/box", box_cdr, box_len);   // no longer possible
+
+  // After (3.0.0):
+  size_t parent_len;
+  const uint8_t* parent_cdr = ros_detect_as_cdr(detect, &parent_len);
+  publish("topic/detect", parent_cdr, parent_len);
+  // Subscribers iterate with ros_detect_get_box(detect, i).
+  ```
+
+  Standalone box/mask CDR slices (decoded with `ros_box_from_cdr` /
+  `ros_mask_from_cdr`) remain fully supported; only the *embedded-child*
+  forwarding path is affected.
+
+  **Trade-offs to note:**
+  - **Wire size**: forwarding the full parent CDR carries the header, other
+    boxes, and any additional parent-level fields — a multiplier of N× for a
+    Detect with N boxes compared to the old single-box path.
+  - **Iteration order**: subscribers must now iterate to find the specific
+    box they want; if the old pattern relied on "the i-th message is the i-th
+    box", consider encoding the box index into a sidecar field or splitting
+    topics by box.
+
+### Fixed
+
+- Stale `@param data` doc comments on all `ros_<type>_from_cdr` functions
+  (both `src/ffi.rs` and `include/edgefirst/schemas.h`) now correctly read
+  "borrowed; must outlive the returned handle" instead of the previous
+  misleading "copied internally" wording.
+- **Zero-copy blob getters and `as_cdr` functions now initialize `*out_len = 0`
+  on the NULL-view path** — previously left uninitialized, which could lead to
+  undefined behavior in defensively-written C callers. Affects ~25 functions
+  including `ros_image_get_data`, `ros_mask_get_data`, all 15 `ros_*_as_cdr`
+  variants, and `ros_radar_cube_get_layout`.
+- **Detect/Model decode is now single-pass** — the FFI layer previously walked
+  the CDR buffer twice (once during validation in `Detect::from_cdr`, again in
+  `inner.boxes()` to materialize child views for the `ros_detect_get_box` /
+  `ros_model_get_box` / `ros_model_get_mask` accessors). The FFI now uses new
+  crate-private `from_cdr_collect_boxes` / `from_cdr_collect_children` helpers
+  that fuse the two passes. Typical speedup proportional to the number of
+  boxes/masks per message.
+- **Testing and documentation improvements:**
+  - Comprehensive Doxygen coverage in `schemas.hpp` (~280 per-symbol briefs).
+  - Doxyfile + `make docs` target (new).
+  - Runtime `ChildRange` iteration tests replace the previous compile-time stubs.
+  - Pointer-identity zero-copy coverage extended to 8 types.
+  - Real move-semantics tests for 13 view types (replaced stub tests).
+  - CI matrix extended to `[gcc, clang] × [c++17, c++20]`.
+
+### Notes for downstream packagers
+
+This release removes exported symbols (`ros_box_as_cdr`, `ros_mask_as_cdr`).
+Per SemVer 2.0.0 this mandates a MAJOR version bump; the library's SONAME is
+therefore bumped from `libedgefirst_schemas.so.2` to `libedgefirst_schemas.so.3`.
+Distribution packagers maintaining their own SOVERSION mapping should treat
+3.0.0 as ABI-incompatible with 2.2.x. The 2.x and 3.x series can coexist on
+disk via the distinct SONAMEs.
+
 ## [2.2.1] - 2026-04-10
 
 ### Fixed
@@ -438,7 +581,8 @@ CDR serialization. No migration required.
 - Python build issues with wheel generation
 - Removed auxiliary files from ROS2 schemas not required for this project
 
-[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v2.2.1...HEAD
+[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/EdgeFirstAI/schemas/compare/v2.2.1...v3.0.0
 [2.2.1]: https://github.com/EdgeFirstAI/schemas/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/EdgeFirstAI/schemas/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/EdgeFirstAI/schemas/compare/v2.0.1...v2.1.0
