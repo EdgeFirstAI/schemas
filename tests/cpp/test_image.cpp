@@ -48,14 +48,29 @@ TEST_CASE("ImageView data is zero-copy", "[buffer_backed][image]") {
     auto view = ef::ImageView::from_cdr(cdr);
     REQUIRE(view.has_value());
 
-    // Zero-copy assertion: data() pointer must point INTO the cdr buffer
-    auto px = view->data();
-    CHECK(px.data() >= cdr.data());
-    CHECK(px.data() + px.size() <= cdr.data() + cdr.size());
+    // Compute the byte window of the CDR buffer as integers. Using uintptr_t
+    // for pointer-identity checks avoids two problems: (a) relational
+    // comparison of unrelated pointers is UB, so if a regression caused px
+    // or enc to land outside the buffer the comparison itself would be UB;
+    // (b) Catch2's StringMaker<char const*> specialisation would call
+    // strlen on raw char pointers during JUnit reporter formatting, reading
+    // past the end of the non-NUL-terminated CDR byte array under ASan.
+    const auto buf_start = reinterpret_cast<std::uintptr_t>(cdr.data());
+    const auto buf_end   = buf_start + cdr.size();
 
-    // String accessor also borrows from the CDR buffer
+    // Zero-copy assertion: data() must point INTO the cdr buffer.
+    auto px = view->data();
+    const auto px_start = reinterpret_cast<std::uintptr_t>(px.data());
+    const auto px_end   = px_start + px.size();
+    CHECK(px_start >= buf_start);
+    CHECK(px_end   <= buf_end);
+
+    // String accessor also borrows from the CDR buffer — check BOTH bounds.
     auto enc = view->encoding();
-    CHECK(enc.data() >= reinterpret_cast<const char*>(cdr.data()));
+    const auto enc_start = reinterpret_cast<std::uintptr_t>(enc.data());
+    const auto enc_end   = enc_start + enc.size();
+    CHECK(enc_start >= buf_start);
+    CHECK(enc_end   <= buf_end);
     CHECK(enc == "rgb8");
 }
 

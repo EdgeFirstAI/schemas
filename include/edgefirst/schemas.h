@@ -142,7 +142,17 @@ typedef struct ros_transform_stamped_t ros_transform_stamped_t;
 typedef struct ros_compressed_video_t ros_compressed_video_t;
 
 /* edgefirst_msgs */
-/** @brief Opaque buffer-backed view handle for edgefirst_msgs::Mask. */
+/**
+ * @brief Opaque view handle for an edgefirst_msgs::Mask.
+ *
+ * Handles may be either standalone-owned (returned by
+ * ros_mask_from_cdr() and freed via ros_mask_free()) or parent-borrowed
+ * (returned by ros_model_get_mask() — lifetime tied to the parent
+ * ros_model_t, must NOT be passed to ros_mask_free(); see Memory
+ * Management Rule 5). The same typedef covers both cases; ros_mask_free()
+ * internally detects borrowed handles and safely no-ops with errno=EINVAL
+ * instead of corrupting the parent's internal storage.
+ */
 typedef struct ros_mask_t ros_mask_t;
 /** @brief Opaque buffer-backed view handle for edgefirst_msgs::DmaBuffer. */
 typedef struct ros_dmabuffer_t ros_dmabuffer_t;
@@ -158,7 +168,17 @@ typedef struct ros_model_t ros_model_t;
 typedef struct ros_model_info_t ros_model_info_t;
 /** @brief Opaque buffer-backed view handle for edgefirst_msgs::Track. */
 typedef struct ros_track_t ros_track_t;
-/** @brief Opaque parent-borrowed view handle for a DetectBox inside a Detect or Model. */
+/**
+ * @brief Opaque view handle for an edgefirst_msgs::DetectBox.
+ *
+ * Handles may be either standalone-owned (returned by ros_box_from_cdr()
+ * and freed via ros_box_free()) or parent-borrowed (returned by
+ * ros_detect_get_box() / ros_model_get_box() — lifetime tied to the parent
+ * ros_detect_t / ros_model_t, must NOT be passed to ros_box_free(); see
+ * Memory Management Rule 5). The same typedef covers both cases;
+ * ros_box_free() internally detects borrowed handles and safely no-ops
+ * with errno=EINVAL instead of corrupting the parent's internal storage.
+ */
 typedef struct ros_box_t ros_box_t;
 /** @brief Opaque buffer-backed view handle for edgefirst_msgs::LocalTime. */
 typedef struct ros_local_time_t ros_local_time_t;

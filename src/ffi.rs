@@ -85,12 +85,23 @@ unsafe fn erase_lifetime(s: &[u8]) -> &'static [u8] {
 /// Erases the lifetime of a DetectBoxView to 'static.
 ///
 /// # Safety
-/// The caller must ensure the buffer backing the view's borrowed fields
-/// (`&str` and `&[u8]`) outlives every use of the returned value. This is
-/// satisfied when the view lives inside a `ros_box_t` that is either (a)
-/// created by `ros_box_from_cdr` whose input data pointer outlives the handle
-/// (documented C contract), or (b) stored inside a parent `ros_detect_t`/
-/// `ros_model_t` that owns the backing buffer.
+///
+/// The caller must ensure the CDR byte buffer backing the view's borrowed
+/// fields (`&str` and `&[u8]`) outlives every use of the returned value.
+/// In the FFI layer this is satisfied in two distinct scenarios:
+///
+/// (a) The view lives inside a `ros_box_t` created by `ros_box_from_cdr`.
+///     Here the backing bytes are the caller's `data` pointer, and the
+///     documented C contract (CAPI.md Rule 1a) requires `data` to outlive
+///     the returned handle.
+///
+/// (b) The view lives inside a `ros_detect_t` / `ros_model_t`'s
+///     `child_boxes` vector. The **parent** owns the child handle storage
+///     (the Vec), but the backing CDR bytes are still the caller's
+///     — the `data` pointer passed to the parent's `_from_cdr` must
+///     outlive both the parent handle and every child view materialised
+///     from it. Each child's `owned: false` tag prevents `ros_box_free`
+///     from attempting to deallocate it.
 #[inline]
 unsafe fn erase_box_view_lifetime(
     v: edgefirst_msgs::DetectBoxView<'_>,
@@ -101,8 +112,20 @@ unsafe fn erase_box_view_lifetime(
 /// Erases the lifetime of a MaskView to 'static.
 ///
 /// # Safety
-/// The caller must ensure the buffer backing the view's borrowed fields
-/// (`&str` and `&[u8]`) outlives every use of the returned value.
+///
+/// The caller must ensure the CDR byte buffer backing the view's borrowed
+/// fields (`&str` and `&[u8]`) outlives every use of the returned value.
+/// Same two-scenario contract as `erase_box_view_lifetime`:
+///
+/// (a) Inside a `ros_mask_t` from `ros_mask_from_cdr`, the caller's
+///     `data` buffer must outlive the returned handle.
+///
+/// (b) Inside a `ros_model_t`'s `child_masks` vector, the parent owns the
+///     child handle storage but the backing CDR bytes are still the
+///     caller's; the `data` pointer passed to `ros_model_from_cdr` must
+///     outlive both the parent and every child mask view materialised
+///     from it. Each child's `owned: false` tag prevents `ros_mask_free`
+///     from attempting to deallocate it.
 #[inline]
 unsafe fn erase_mask_view_lifetime(
     v: edgefirst_msgs::MaskView<'_>,
@@ -1203,6 +1226,14 @@ pub extern "C" fn ros_compressed_video_encode(
 
 pub struct ros_mask_t {
     view: edgefirst_msgs::MaskView<'static>,
+    /// `true` if this handle was heap-allocated by `ros_mask_from_cdr`
+    /// (and must be freed by `ros_mask_free`). `false` if this handle
+    /// lives inside a parent `ros_model_t`'s `child_masks` vector and
+    /// is borrowed from there; calling `ros_mask_free` on a borrowed
+    /// handle would `Box::from_raw` an address inside someone else's
+    /// allocation and corrupt the heap, so `ros_mask_free` checks this
+    /// flag and no-ops with `errno=EINVAL` when it's `false`.
+    owned: bool,
 }
 
 /// @brief Create a Mask view from a standalone CDR buffer.
@@ -1228,6 +1259,7 @@ pub extern "C" fn ros_mask_from_cdr(data: *const u8, len: usize) -> *mut ros_mas
             };
             Box::into_raw(Box::new(ros_mask_t {
                 view: unsafe { erase_mask_view_lifetime(view) },
+                owned: true,
             }))
         }
         Err(_) => {
@@ -1237,11 +1269,26 @@ pub extern "C" fn ros_mask_from_cdr(data: *const u8, len: usize) -> *mut ros_mas
     }
 }
 
+/// @brief Free a Mask handle obtained from `ros_mask_from_cdr`.
+///
+/// Safe to call with a NULL pointer. If the handle was obtained from
+/// `ros_model_get_mask` (a parent-borrowed child), this function does
+/// **not** free it — the parent `ros_model_t` owns the child storage,
+/// and freeing here would corrupt the parent's `child_masks` vector.
+/// In that case the function sets `errno=EINVAL` and returns without
+/// touching the pointer. Passing a borrowed handle here is an API
+/// misuse (Rule 5 in CAPI.md); this is defense-in-depth against it.
 #[no_mangle]
 pub extern "C" fn ros_mask_free(view: *mut ros_mask_t) {
-    if !view.is_null() {
-        unsafe {
+    if view.is_null() {
+        return;
+    }
+    unsafe {
+        if (*view).owned {
             drop(Box::from_raw(view));
+        } else {
+            // Parent-borrowed child — must not free.
+            set_errno(EINVAL);
         }
     }
 }
@@ -2052,10 +2099,12 @@ pub extern "C" fn ros_detect_from_cdr(data: *const u8, len: usize) -> *mut ros_d
     match edgefirst_msgs::Detect::from_cdr_collect_boxes(unsafe { erase_lifetime(slice) }) {
         Ok((v, box_views)) => {
             // box_views were collected during the single validation walk;
-            // no second pass over the CDR buffer is needed here.
+            // no second pass over the CDR buffer is needed here. Each child
+            // is marked `owned: false` so ros_box_free safely no-ops if a
+            // caller mistakenly casts away const and passes a borrowed child.
             let child_boxes: Vec<ros_box_t> = box_views
                 .into_iter()
-                .map(|bv| ros_box_t { view: bv })
+                .map(|bv| ros_box_t { view: bv, owned: false })
                 .collect();
             Box::into_raw(Box::new(ros_detect_t { inner: v, child_boxes }))
         }
@@ -2162,13 +2211,16 @@ pub extern "C" fn ros_model_from_cdr(data: *const u8, len: usize) -> *mut ros_mo
         Ok((v, box_views, mask_views)) => {
             // box_views and mask_views were collected during the single
             // validation walk; no second pass over the CDR buffer is needed.
+            // Each child is marked `owned: false` so ros_box_free /
+            // ros_mask_free safely no-op if a caller mistakenly casts
+            // away const and passes a borrowed child.
             let child_boxes: Vec<ros_box_t> = box_views
                 .into_iter()
-                .map(|bv| ros_box_t { view: bv })
+                .map(|bv| ros_box_t { view: bv, owned: false })
                 .collect();
             let child_masks: Vec<ros_mask_t> = mask_views
                 .into_iter()
-                .map(|mv| ros_mask_t { view: mv })
+                .map(|mv| ros_mask_t { view: mv, owned: false })
                 .collect();
             Box::into_raw(Box::new(ros_model_t { inner: v, child_boxes, child_masks }))
         }
@@ -2729,6 +2781,15 @@ pub extern "C" fn ros_track_get_lifetime(view: *const ros_track_t) -> i32 {
 
 pub struct ros_box_t {
     view: edgefirst_msgs::DetectBoxView<'static>,
+    /// `true` if this handle was heap-allocated by `ros_box_from_cdr`
+    /// (and must be freed by `ros_box_free`). `false` if this handle
+    /// lives inside a parent `ros_detect_t` / `ros_model_t`'s
+    /// `child_boxes` vector and is borrowed from there; calling
+    /// `ros_box_free` on a borrowed handle would `Box::from_raw` an
+    /// address inside someone else's allocation and corrupt the heap,
+    /// so `ros_box_free` checks this flag and no-ops with
+    /// `errno=EINVAL` when it's `false`.
+    owned: bool,
 }
 
 /// @brief Create a DetectBox view from a standalone CDR buffer.
@@ -2759,6 +2820,7 @@ pub extern "C" fn ros_box_from_cdr(data: *const u8, len: usize) -> *mut ros_box_
             };
             Box::into_raw(Box::new(ros_box_t {
                 view: unsafe { erase_box_view_lifetime(view) },
+                owned: true,
             }))
         }
         Err(_) => {
@@ -2768,11 +2830,27 @@ pub extern "C" fn ros_box_from_cdr(data: *const u8, len: usize) -> *mut ros_box_
     }
 }
 
+/// @brief Free a DetectBox handle obtained from `ros_box_from_cdr`.
+///
+/// Safe to call with a NULL pointer. If the handle was obtained from
+/// `ros_detect_get_box` / `ros_model_get_box` (a parent-borrowed
+/// child), this function does **not** free it — the parent
+/// `ros_detect_t` / `ros_model_t` owns the child storage, and freeing
+/// here would corrupt the parent's `child_boxes` vector. In that case
+/// the function sets `errno=EINVAL` and returns without touching the
+/// pointer. Passing a borrowed handle here is an API misuse (Rule 5
+/// in CAPI.md); this is defense-in-depth against it.
 #[no_mangle]
 pub extern "C" fn ros_box_free(view: *mut ros_box_t) {
-    if !view.is_null() {
-        unsafe {
+    if view.is_null() {
+        return;
+    }
+    unsafe {
+        if (*view).owned {
             drop(Box::from_raw(view));
+        } else {
+            // Parent-borrowed child — must not free.
+            set_errno(EINVAL);
         }
     }
 }

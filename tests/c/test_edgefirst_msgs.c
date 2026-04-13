@@ -613,6 +613,104 @@ Test(edgefirst_msgs, model_get_mask_out_of_bounds) {
 }
 
 // ============================================================================
+// Defensive ownership tag: ros_box_free / ros_mask_free on parent-borrowed
+// handles must safely no-op and set errno=EINVAL instead of corrupting the
+// parent's internal child vector. Hardening added in response to PR #15
+// review comments 7 and 8 (Copilot code review).
+// ============================================================================
+
+Test(memory_safety, ros_box_free_rejects_parent_borrowed) {
+    // Decode a Detect and obtain a parent-borrowed child box pointer.
+    ros_detect_t *parent = ros_detect_from_cdr(detect_multi_cdr,
+                                                sizeof(detect_multi_cdr));
+    cr_assert_not_null(parent);
+
+    const ros_box_t *borrowed = ros_detect_get_box(parent, 0);
+    cr_assert_not_null(borrowed);
+    cr_assert_str_eq(ros_box_get_label(borrowed), "a");
+
+    // Mistakenly cast away const and call ros_box_free. The defensive
+    // ownership tag must detect this, set errno=EINVAL, and NOT free
+    // the pointer (which would corrupt the parent's child_boxes Vec).
+    errno = 0;
+    ros_box_free((ros_box_t *) borrowed);
+    cr_assert_eq(errno, EINVAL,
+                 "ros_box_free on a parent-borrowed handle must set errno=EINVAL");
+
+    // The parent must still be intact — re-fetching the same child returns
+    // the same valid pointer with intact fields.
+    const ros_box_t *again = ros_detect_get_box(parent, 0);
+    cr_assert_not_null(again);
+    cr_assert_eq(again, borrowed, "parent-borrowed pointer must be stable");
+    cr_assert_str_eq(ros_box_get_label(again), "a");
+
+    // Parent free still works and releases all child storage cleanly.
+    ros_detect_free(parent);
+}
+
+Test(memory_safety, ros_box_free_still_frees_standalone) {
+    // Positive control: ros_box_free on a ros_box_from_cdr result still
+    // works exactly as before (the owned flag is true for standalone
+    // handles). This ensures the hardening did not break the happy path.
+    ros_box_t *owned = ros_box_from_cdr(box_cdr, sizeof(box_cdr));
+    cr_assert_not_null(owned);
+
+    errno = 0;
+    ros_box_free(owned);
+    // No errno expected on success — we can't read `owned` here (freed),
+    // but the test passing under ASan proves there was no double-free.
+    cr_assert_eq(errno, 0,
+                 "ros_box_free on a standalone handle must not set errno");
+}
+
+Test(memory_safety, ros_mask_free_rejects_parent_borrowed) {
+    // Decode a Model and obtain a parent-borrowed child mask pointer.
+    ros_model_t *parent = ros_model_from_cdr(model_cdr, sizeof(model_cdr));
+    cr_assert_not_null(parent);
+
+    const ros_mask_t *borrowed = ros_model_get_mask(parent, 0);
+    cr_assert_not_null(borrowed);
+    cr_assert_eq(ros_mask_get_height(borrowed), 2u);
+
+    // Mistakenly cast away const and call ros_mask_free. Must no-op and
+    // set errno=EINVAL.
+    errno = 0;
+    ros_mask_free((ros_mask_t *) borrowed);
+    cr_assert_eq(errno, EINVAL,
+                 "ros_mask_free on a parent-borrowed handle must set errno=EINVAL");
+
+    // Parent is still intact.
+    const ros_mask_t *again = ros_model_get_mask(parent, 0);
+    cr_assert_not_null(again);
+    cr_assert_eq(again, borrowed);
+    cr_assert_eq(ros_mask_get_height(again), 2u);
+
+    ros_model_free(parent);
+}
+
+Test(memory_safety, ros_mask_free_still_frees_standalone) {
+    // Positive control: verify a standalone mask decoded from a
+    // freshly-encoded CDR buffer is still correctly freed.
+    uint8_t *bytes = NULL;
+    size_t   len = 0;
+    uint8_t  mdata[] = {1, 2, 3, 4, 5, 6, 7, 8};
+    int rc = ros_mask_encode(&bytes, &len,
+                             2u, 4u, (uint32_t)sizeof(mdata),
+                             "mono8", mdata, sizeof(mdata), true);
+    cr_assert_eq(rc, 0);
+    cr_assert_not_null(bytes);
+
+    ros_mask_t *owned = ros_mask_from_cdr(bytes, len);
+    cr_assert_not_null(owned);
+
+    errno = 0;
+    ros_mask_free(owned);
+    cr_assert_eq(errno, 0);
+
+    ros_bytes_free(bytes, len);
+}
+
+// ============================================================================
 // Regression test for NULL-view out_len initialization (commits 3a14cbe, 991903f)
 //
 // Task #43: Verify that blob getters and as_cdr functions explicitly write 0 to

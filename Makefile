@@ -256,7 +256,7 @@ install: lib
 	@set -e; \
 	LIB='$(LIB_NAME)'; VERSION='$(VERSION_FULL)'; \
 	MAJOR='$(VERSION_MAJOR)'; MINOR='$(VERSION_MINOR)'; \
-	install -m 644 $(LIB_DIR)/$$LIB.so.$$VERSION $(LIBDIR)/$$LIB.so.$$VERSION; \
+	install -m 755 $(LIB_DIR)/$$LIB.so.$$VERSION $(LIBDIR)/$$LIB.so.$$VERSION; \
 	ln -sf $$LIB.so.$$VERSION        $(LIBDIR)/$$LIB.so.$$MAJOR.$$MINOR; \
 	ln -sf $$LIB.so.$$MAJOR.$$MINOR  $(LIBDIR)/$$LIB.so.$$MAJOR; \
 	ln -sf $$LIB.so.$$MAJOR          $(LIBDIR)/$$LIB.so

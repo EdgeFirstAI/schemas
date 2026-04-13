@@ -38,37 +38,55 @@ namespace ef = edgefirst::schemas;
 static std::atomic<std::size_t> g_new_count{0};
 static std::atomic<std::size_t> g_delete_count{0};
 
-// Custom operator new/delete family — all variants, including nothrow.
+// Custom operator new/delete family — every standard-library variant,
+// including the C++17 aligned-allocation overloads and nothrow forms.
 //
-// Every form is overridden so that all C++ heap allocations (including Catch2's
-// internal allocations via operator new(nothrow)) route through __builtin_malloc.
-// This keeps ASan's shadow bookkeeping self-consistent: every allocation tagged
-// by ASan as "malloc" is freed by a matching "free" in our operator delete.
-// The Rust FFI layer's ros_*_encode / ros_bytes_free calls go through libc
+// Every form is overridden so that all C++ heap allocations (including
+// Catch2's internal allocations and any aligned allocations the stdlib
+// may do) route through a counted malloc. This keeps ASan's shadow
+// bookkeeping self-consistent: every allocation tagged by ASan as
+// "malloc" is freed by a matching "free" in our operator delete. The
+// Rust FFI layer's ros_*_encode / ros_bytes_free calls go through libc
 // malloc/free directly and do not touch these interceptors.
+//
+// A `malloc(0)` call is permitted by POSIX to return NULL. To avoid
+// spurious `bad_alloc` in an allocation-counting test, we normalise
+// zero-sized requests to 1 byte before calling __builtin_malloc.
+
+static inline void* counted_malloc(std::size_t size) {
+    g_new_count.fetch_add(1, std::memory_order_relaxed);
+    if (size == 0) size = 1;  // malloc(0) may legally return NULL.
+    return __builtin_malloc(size);
+}
+
+static inline void* counted_aligned_malloc(std::size_t size, std::size_t align) {
+    g_new_count.fetch_add(1, std::memory_order_relaxed);
+    if (size == 0) size = 1;
+    // aligned_alloc requires size to be a multiple of alignment; round up.
+    std::size_t asize = (size + align - 1) & ~(align - 1);
+    return std::aligned_alloc(align, asize);
+}
+
+// ---- Plain operator new / delete ----
 
 void* operator new(std::size_t size) {
-    g_new_count.fetch_add(1, std::memory_order_relaxed);
-    void* p = __builtin_malloc(size);
+    void* p = counted_malloc(size);
     if (!p) throw std::bad_alloc();
     return p;
 }
 
 void* operator new[](std::size_t size) {
-    g_new_count.fetch_add(1, std::memory_order_relaxed);
-    void* p = __builtin_malloc(size);
+    void* p = counted_malloc(size);
     if (!p) throw std::bad_alloc();
     return p;
 }
 
 void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
-    g_new_count.fetch_add(1, std::memory_order_relaxed);
-    return __builtin_malloc(size);
+    return counted_malloc(size);
 }
 
 void* operator new[](std::size_t size, const std::nothrow_t&) noexcept {
-    g_new_count.fetch_add(1, std::memory_order_relaxed);
-    return __builtin_malloc(size);
+    return counted_malloc(size);
 }
 
 void operator delete(void* p) noexcept {
@@ -92,6 +110,52 @@ void operator delete(void* p, const std::nothrow_t&) noexcept {
 }
 
 void operator delete[](void* p, const std::nothrow_t&) noexcept {
+    if (p) { g_delete_count.fetch_add(1, std::memory_order_relaxed); __builtin_free(p); }
+}
+
+// ---- Aligned operator new / delete (C++17+) ----
+
+void* operator new(std::size_t size, std::align_val_t align) {
+    void* p = counted_aligned_malloc(size, static_cast<std::size_t>(align));
+    if (!p) throw std::bad_alloc();
+    return p;
+}
+
+void* operator new[](std::size_t size, std::align_val_t align) {
+    void* p = counted_aligned_malloc(size, static_cast<std::size_t>(align));
+    if (!p) throw std::bad_alloc();
+    return p;
+}
+
+void* operator new(std::size_t size, std::align_val_t align, const std::nothrow_t&) noexcept {
+    return counted_aligned_malloc(size, static_cast<std::size_t>(align));
+}
+
+void* operator new[](std::size_t size, std::align_val_t align, const std::nothrow_t&) noexcept {
+    return counted_aligned_malloc(size, static_cast<std::size_t>(align));
+}
+
+void operator delete(void* p, std::align_val_t) noexcept {
+    if (p) { g_delete_count.fetch_add(1, std::memory_order_relaxed); __builtin_free(p); }
+}
+
+void operator delete[](void* p, std::align_val_t) noexcept {
+    if (p) { g_delete_count.fetch_add(1, std::memory_order_relaxed); __builtin_free(p); }
+}
+
+void operator delete(void* p, std::size_t, std::align_val_t) noexcept {
+    if (p) { g_delete_count.fetch_add(1, std::memory_order_relaxed); __builtin_free(p); }
+}
+
+void operator delete[](void* p, std::size_t, std::align_val_t) noexcept {
+    if (p) { g_delete_count.fetch_add(1, std::memory_order_relaxed); __builtin_free(p); }
+}
+
+void operator delete(void* p, std::align_val_t, const std::nothrow_t&) noexcept {
+    if (p) { g_delete_count.fetch_add(1, std::memory_order_relaxed); __builtin_free(p); }
+}
+
+void operator delete[](void* p, std::align_val_t, const std::nothrow_t&) noexcept {
     if (p) { g_delete_count.fetch_add(1, std::memory_order_relaxed); __builtin_free(p); }
 }
 
