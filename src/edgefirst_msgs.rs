@@ -188,6 +188,24 @@ impl Mask<Vec<u8>> {
     }
 }
 
+impl Mask<&'static [u8]> {
+    /// Parse a standalone Mask CDR buffer and return a `'static`-lifetimed view.
+    ///
+    /// This is an FFI-oriented helper. Unlike the field-by-field copy path via
+    /// `Mask::from_cdr(...)` followed by accessor methods, the returned
+    /// `MaskView<'static>` borrows directly from the input buffer with the
+    /// buffer's native `'static` lifetime — no `mem::transmute` is required at
+    /// the FFI layer to widen method-returned references whose lifetimes are
+    /// tied to a temporary `&self`.
+    ///
+    /// The parse is a single pass: `scan_mask_element` consumes the fields
+    /// and produces the view directly, so there is no double-validation cost.
+    pub(crate) fn from_cdr_as_view(buf: &'static [u8]) -> Result<MaskView<'static>, CdrError> {
+        let mut c = CdrCursor::new(buf)?;
+        scan_mask_element(&mut c)
+    }
+}
+
 impl<B: AsRef<[u8]> + AsMut<[u8]>> Mask<B> {
     pub fn set_height(&mut self, h: u32) -> Result<(), CdrError> {
         wr_u32(self.buf.as_mut(), CDR_HEADER_SIZE, h)
@@ -914,6 +932,25 @@ pub(crate) fn size_box_element(s: &mut CdrSizer, label: &str, track_id: &str) {
     Time::size_cdr(s);
 }
 
+impl DetectBox<&'static [u8]> {
+    /// Parse a standalone DetectBox CDR buffer and return a `'static`-lifetimed
+    /// view.
+    ///
+    /// This is an FFI-oriented helper. Unlike the field-by-field copy path via
+    /// `DetectBox::from_cdr(...)` followed by accessor methods, the returned
+    /// `DetectBoxView<'static>` borrows directly from the input buffer with the
+    /// buffer's native `'static` lifetime — no `mem::transmute` is required at
+    /// the FFI layer to widen method-returned references whose lifetimes are
+    /// tied to a temporary `&self`.
+    ///
+    /// The parse is a single pass: `scan_box_element` consumes the fields and
+    /// produces the view directly, so there is no double-validation cost.
+    pub(crate) fn from_cdr_as_view(buf: &'static [u8]) -> Result<DetectBoxView<'static>, CdrError> {
+        let mut c = CdrCursor::new(buf)?;
+        scan_box_element(&mut c)
+    }
+}
+
 impl<B: AsRef<[u8]>> DetectBox<B> {
     pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
         let mut c = CdrCursor::new(buf.as_ref())?;
@@ -1068,7 +1105,10 @@ impl<B: AsRef<[u8]>> Detect<B> {
             scan_box_element(&mut c)?;
         }
         let o1 = c.offset();
-        Ok(Detect { offsets: [o0, o1], buf })
+        Ok(Detect {
+            offsets: [o0, o1],
+            buf,
+        })
     }
 
     #[inline]
@@ -1149,7 +1189,13 @@ impl Detect<&'static [u8]> {
             box_views.push(scan_box_element(&mut c)?);
         }
         let o1 = c.offset();
-        Ok((Detect { offsets: [o0, o1], buf }, box_views))
+        Ok((
+            Detect {
+                offsets: [o0, o1],
+                buf,
+            },
+            box_views,
+        ))
     }
 }
 
@@ -1232,7 +1278,10 @@ impl<B: AsRef<[u8]>> Model<B> {
             scan_mask_element(&mut c)?;
         }
         let o2 = c.offset();
-        Ok(Model { offsets: [o0, o1, o2], buf })
+        Ok(Model {
+            offsets: [o0, o1, o2],
+            buf,
+        })
     }
 
     #[inline]
@@ -1339,7 +1388,14 @@ impl Model<&'static [u8]> {
             mask_views.push(scan_mask_element(&mut c)?);
         }
         let o2 = c.offset();
-        Ok((Model { offsets: [o0, o1, o2], buf }, box_views, mask_views))
+        Ok((
+            Model {
+                offsets: [o0, o1, o2],
+                buf,
+            },
+            box_views,
+            mask_views,
+        ))
     }
 }
 
@@ -2187,8 +2243,7 @@ mod tests {
     /// `Detect::from_cdr(…).boxes()` path.
     #[test]
     fn detect_from_cdr_collect_boxes_matches_boxes() {
-        static BYTES: &[u8] =
-            include_bytes!("../testdata/cdr/edgefirst_msgs/Detect_multi.cdr");
+        static BYTES: &[u8] = include_bytes!("../testdata/cdr/edgefirst_msgs/Detect_multi.cdr");
 
         // Path 1: legacy two-pass (from_cdr then .boxes()).
         let detect_ref = Detect::from_cdr(BYTES).expect("reference decode");
@@ -2218,7 +2273,10 @@ mod tests {
             assert_eq!(a.distance, b.distance, "box[{i}].distance");
             assert_eq!(a.speed, b.speed, "box[{i}].speed");
             assert_eq!(a.track_id, b.track_id, "box[{i}].track_id");
-            assert_eq!(a.track_lifetime, b.track_lifetime, "box[{i}].track_lifetime");
+            assert_eq!(
+                a.track_lifetime, b.track_lifetime,
+                "box[{i}].track_lifetime"
+            );
             assert_eq!(
                 a.track_created.sec, b.track_created.sec,
                 "box[{i}].track_created.sec"
@@ -2235,8 +2293,7 @@ mod tests {
     /// `Model::from_cdr(…).boxes()` / `.masks()` path.
     #[test]
     fn model_from_cdr_collect_children_matches_boxes_and_masks() {
-        static BYTES: &[u8] =
-            include_bytes!("../testdata/cdr/edgefirst_msgs/Model.cdr");
+        static BYTES: &[u8] = include_bytes!("../testdata/cdr/edgefirst_msgs/Model.cdr");
 
         // Path 1: legacy two-pass.
         let model_ref = Model::from_cdr(BYTES).expect("reference decode");
@@ -2266,7 +2323,10 @@ mod tests {
             assert_eq!(a.distance, b.distance, "box[{i}].distance");
             assert_eq!(a.speed, b.speed, "box[{i}].speed");
             assert_eq!(a.track_id, b.track_id, "box[{i}].track_id");
-            assert_eq!(a.track_lifetime, b.track_lifetime, "box[{i}].track_lifetime");
+            assert_eq!(
+                a.track_lifetime, b.track_lifetime,
+                "box[{i}].track_lifetime"
+            );
             assert_eq!(
                 a.track_created.sec, b.track_created.sec,
                 "box[{i}].track_created.sec"
