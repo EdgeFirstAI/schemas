@@ -51,6 +51,7 @@ jobs:
             ros-${{ matrix.ros_distro }}-rosidl-default-generators \
             ros-${{ matrix.ros_distro }}-rosidl-default-runtime \
             ros-${{ matrix.ros_distro }}-std-msgs \
+            ros-${{ matrix.ros_distro }}-geometry-msgs \
             fakeroot \
             debhelper \
             devscripts
