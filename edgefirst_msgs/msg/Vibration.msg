@@ -32,7 +32,20 @@
 #   - ISO 20816-1 integration windows: 10-1000 Hz general,
 #     2-1000 Hz for low-speed machinery (<120 RPM).
 
+# Field order is chosen by descending alignment (Vector3→f32→u8→seq)
+# so every field after the Header sits at a constant CDR offset relative
+# to `vibration`. This eliminates position-dependent internal padding and
+# allows single-offset O(1) accessors in the generated bindings.
+
 std_msgs/Header header
+
+# Per-axis vibration magnitude in the chosen unit/statistic.
+# Unknown axis components: NaN (not 0.0).
+geometry_msgs/Vector3 vibration
+
+# Integration band (inclusive lower, inclusive upper). NaN = unknown.
+float32 band_lower_hz
+float32 band_upper_hz
 
 # Broadband statistic reported in `vibration`.
 uint8 MEASUREMENT_UNKNOWN      = 0
@@ -50,14 +63,6 @@ uint8 UNIT_DISPLACEMENT_UM   = 4
 uint8 UNIT_VELOCITY_IN_PER_S = 5
 uint8 UNIT_DISPLACEMENT_MIL  = 6  # 1 mil = 25.4 um
 uint8 unit
-
-# Integration band (inclusive lower, inclusive upper). NaN = unknown.
-float32 band_lower_hz
-float32 band_upper_hz
-
-# Per-axis vibration magnitude in the chosen unit/statistic.
-# Unknown axis components: NaN (not 0.0).
-geometry_msgs/Vector3 vibration
 
 # Per-axis accelerometer saturation counters (monotonic). Empty when
 # the source does not expose clipping data. MAVLink publishers emit

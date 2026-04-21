@@ -492,16 +492,16 @@ class Vibration(IdlStruct, typename='edgefirst_msgs/Vibration'):
     MAVLink publishers emit exactly 3 clipping entries (clipping_0/1/2).
     """
     header: Header = default_field(Header)
-    measurement_type: uint8 = 0
-    """Broadband statistic reported in `vibration` (see VibrationMeasurement)."""
-    unit: uint8 = 0
-    """Physical unit of `vibration` (see VibrationUnit)."""
+    vibration: Vector3 = default_field(Vector3)
+    """Per-axis vibration magnitude in the chosen unit/statistic."""
     band_lower_hz: float32 = 0.0
     """Integration band lower bound in Hz. NaN = unknown."""
     band_upper_hz: float32 = 0.0
     """Integration band upper bound in Hz. NaN = unknown."""
-    vibration: Vector3 = default_field(Vector3)
-    """Per-axis vibration magnitude in the chosen unit/statistic."""
+    measurement_type: uint8 = 0
+    """Broadband statistic reported in `vibration` (see VibrationMeasurement)."""
+    unit: uint8 = 0
+    """Physical unit of `vibration` (see VibrationUnit)."""
     clipping: sequence[uint32] = default_field([])
     """Per-axis accelerometer saturation counters (monotonic)."""
 
