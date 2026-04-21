@@ -2115,7 +2115,9 @@ impl<B: AsRef<[u8]>> Vibration<B> {
         c.read_u8()?; // measurement_type
         c.read_u8()?; // unit
         c.align(4);
-        let n = c.read_u32()? as usize;
+        // u32 = 4 bytes each; hardening check against pathological counts.
+        let raw = c.read_u32()?;
+        let n = c.check_seq_count(raw, 4)?;
         for _ in 0..n {
             c.read_u32()?;
         }

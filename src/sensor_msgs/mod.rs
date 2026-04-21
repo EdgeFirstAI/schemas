@@ -1480,12 +1480,15 @@ impl<B: AsRef<[u8]>> BatteryState<B> {
         c.read_u8()?; // power_supply_technology
         c.read_bool()?; // present
         let o1 = c.offset();
-        let cv_len = c.read_u32()? as usize;
+        // f32 = 4 bytes each; hardening check against pathological counts.
+        let raw = c.read_u32()?;
+        let cv_len = c.check_seq_count(raw, 4)?;
         for _ in 0..cv_len {
             c.read_f32()?;
         }
         let o2 = c.offset();
-        let ct_len = c.read_u32()? as usize;
+        let raw = c.read_u32()?;
+        let ct_len = c.check_seq_count(raw, 4)?;
         for _ in 0..ct_len {
             c.read_f32()?;
         }
