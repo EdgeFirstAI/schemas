@@ -23,6 +23,7 @@ import argparse
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import List
 
 from pycdr2 import IdlStruct
 from pycdr2.types import float64, int16, int32, uint32
@@ -50,7 +51,7 @@ FRAME_ID = "test_frame"
 
 
 _VERIFY_MODE = False
-_DIFFS: list[str] = []
+_DIFFS: List[str] = []
 
 
 def write_cdr(namespace: str, type_name: str, msg) -> None:
@@ -270,7 +271,7 @@ def gen_edgefirst_msgs():
                   height=2, width=4, length=0, encoding="",
                   mask=list(range(8)), boxed=False))
 
-    # CameraFrame — 9 variants covering raw, compressed, multi-plane, inlined.
+    # CameraFrame — 8 variants covering raw, compressed, multi-plane, inlined.
     def _plane(fd=0, offset=0, stride=0, size=0, used=None, data=None):
         return edgefirst_msgs.CameraPlane(
             fd=fd, offset=offset, stride=stride, size=size,

@@ -1382,7 +1382,11 @@ impl<B: AsRef<[u8]>> CameraFrame<B> {
         // min plane size: 5×u32 + 4-byte data seq count = 24 bytes
         let count = c.check_seq_count(raw_count, 24)?;
         for _ in 0..count {
-            scan_plane_element(&mut c)?;
+            let plane = scan_plane_element(&mut c)?;
+            if plane.fd < -1 || plane.used > plane.size || (plane.fd >= 0 && !plane.data.is_empty())
+            {
+                return Err(CdrError::InvalidHeader);
+            }
         }
 
         if width == 0 || height == 0 {
@@ -1523,7 +1527,12 @@ impl CameraFrame<&'static [u8]> {
         let count = c.check_seq_count(raw_count, 24)?;
         let mut planes = Vec::with_capacity(count);
         for _ in 0..count {
-            planes.push(scan_plane_element(&mut c)?);
+            let plane = scan_plane_element(&mut c)?;
+            if plane.fd < -1 || plane.used > plane.size || (plane.fd >= 0 && !plane.data.is_empty())
+            {
+                return Err(CdrError::InvalidHeader);
+            }
+            planes.push(plane);
         }
 
         if width == 0 || height == 0 {
@@ -2359,13 +2368,97 @@ mod tests {
             data: &[],
         };
         let cf = CameraFrame::new(
-            stamp, "cam", 0, 0, 1, 1, "rgb8", "", "", "", "", -1, &[plane],
+            stamp,
+            "cam",
+            0,
+            0,
+            1,
+            1,
+            "rgb8",
+            "",
+            "",
+            "",
+            "",
+            -1,
+            &[plane],
         )
         .unwrap();
         let mut bytes = cf.to_cdr();
         // CDR header: [0]=repr-id hi, [1]=repr-id lo, [2..4]=options.
         // Valid LE payload encoding uses 0x00 0x01; invert to 0x00 0x00 (BE).
         bytes[1] = 0x00;
+        assert!(CameraFrame::<&[u8]>::from_cdr(&bytes).is_err());
+    }
+
+    #[test]
+    fn camera_frame_decoder_rejects_fd_below_minus_one() {
+        // Build a valid single-plane frame (fd=1, size=1, used=1, data=[]) so
+        // the plane occupies the last 24 bytes of the CDR buffer. Flip `fd`
+        // to -5 and confirm the decoder's new contract check rejects it.
+        let stamp = Time::new(1, 0);
+        let plane = CameraPlaneView {
+            fd: 1,
+            offset: 0,
+            stride: 1,
+            size: 1,
+            used: 1,
+            data: &[],
+        };
+        let cf =
+            CameraFrame::new(stamp, "c", 0, 0, 1, 1, "rgb8", "", "", "", "", -1, &[plane]).unwrap();
+        let mut bytes = cf.to_cdr();
+        let fd_off = bytes.len() - 24;
+        bytes[fd_off..fd_off + 4].copy_from_slice(&(-5i32).to_le_bytes());
+        assert!(CameraFrame::<&[u8]>::from_cdr(&bytes).is_err());
+    }
+
+    #[test]
+    fn camera_frame_decoder_rejects_used_greater_than_size() {
+        // Same base frame; `used` is at [len-8 .. len-4] for the 24-byte
+        // trailing plane block. Overwrite with a value exceeding `size`.
+        let stamp = Time::new(1, 0);
+        let plane = CameraPlaneView {
+            fd: 1,
+            offset: 0,
+            stride: 1,
+            size: 1,
+            used: 1,
+            data: &[],
+        };
+        let cf =
+            CameraFrame::new(stamp, "c", 0, 0, 1, 1, "rgb8", "", "", "", "", -1, &[plane]).unwrap();
+        let mut bytes = cf.to_cdr();
+        let used_off = bytes.len() - 8;
+        bytes[used_off..used_off + 4].copy_from_slice(&99u32.to_le_bytes());
+        assert!(CameraFrame::<&[u8]>::from_cdr(&bytes).is_err());
+    }
+
+    #[test]
+    fn camera_frame_decoder_rejects_positive_fd_with_inline_data() {
+        // Start with a valid inlined-data plane (fd=-1, data non-empty) so
+        // `new` accepts it, then mutate `fd` to a non-negative value to
+        // trigger the decoder's `fd >= 0 && data non-empty` rejection.
+        // Uses a distinctive `stride` sentinel to locate the plane.
+        let stamp = Time::new(1, 0);
+        let data = [0x42u8, 0x43, 0x44, 0x45];
+        let plane = CameraPlaneView {
+            fd: -1,
+            offset: 0,
+            stride: 0xDEADBEEF,
+            size: 4,
+            used: 4,
+            data: &data,
+        };
+        let cf =
+            CameraFrame::new(stamp, "c", 0, 0, 1, 1, "rgb8", "", "", "", "", -1, &[plane]).unwrap();
+        let mut bytes = cf.to_cdr();
+        let needle = 0xDEADBEEFu32.to_le_bytes();
+        let stride_off = bytes
+            .windows(4)
+            .position(|w| w == needle)
+            .expect("stride sentinel");
+        let fd_off = stride_off - 8;
+        bytes[fd_off..fd_off + 4].copy_from_slice(&5i32.to_le_bytes());
         assert!(CameraFrame::<&[u8]>::from_cdr(&bytes).is_err());
     }
 

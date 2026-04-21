@@ -38,12 +38,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Python: `edgefirst.schemas.edgefirst_msgs.CameraFrame`,
     `CameraPlane` dataclasses.
 
-- **Seven golden CDR fixtures** for CameraFrame in
-  `testdata/cdr/edgefirst_msgs/`: single-plane RGB8, NV12 (shared fd),
-  I420 (three planes), planar RGB NCHW, split-fd MPLANE (distinct fd
-  per plane) with GPU fence, H.264 bitstream oversized buffer, and
-  inlined-data off-device bridge. Round-tripped in Rust, Python, C,
-  and C++ tests.
+- **Eight golden CDR fixtures** for CameraFrame in
+  `testdata/cdr/edgefirst_msgs/`: metadata-only `CameraFrame_empty`,
+  single-plane RGB8, NV12 (shared fd), I420 (three planes), planar
+  RGB NCHW, split-fd MPLANE (distinct fd per plane) with GPU fence,
+  H.264 bitstream oversized buffer, and inlined-data off-device
+  bridge. Round-tripped in Rust, Python, C, and C++ tests.
 
 - **Schema registry** registers `edgefirst_msgs/msg/CameraFrame` and
   `edgefirst_msgs/msg/CameraPlane`.

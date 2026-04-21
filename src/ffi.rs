@@ -1551,9 +1551,7 @@ pub extern "C" fn ros_camera_frame_free(view: *mut ros_camera_frame_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_frame_get_stamp_sec(
-    view: *const ros_camera_frame_t,
-) -> i32 {
+pub extern "C" fn ros_camera_frame_get_stamp_sec(view: *const ros_camera_frame_t) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -1561,9 +1559,7 @@ pub extern "C" fn ros_camera_frame_get_stamp_sec(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_frame_get_stamp_nanosec(
-    view: *const ros_camera_frame_t,
-) -> u32 {
+pub extern "C" fn ros_camera_frame_get_stamp_nanosec(view: *const ros_camera_frame_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -1571,9 +1567,7 @@ pub extern "C" fn ros_camera_frame_get_stamp_nanosec(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_frame_get_frame_id(
-    view: *const ros_camera_frame_t,
-) -> *const c_char {
+pub extern "C" fn ros_camera_frame_get_frame_id(view: *const ros_camera_frame_t) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -1613,9 +1607,7 @@ pub extern "C" fn ros_camera_frame_get_height(view: *const ros_camera_frame_t) -
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_frame_get_fence_fd(
-    view: *const ros_camera_frame_t,
-) -> i32 {
+pub extern "C" fn ros_camera_frame_get_fence_fd(view: *const ros_camera_frame_t) -> i32 {
     if view.is_null() {
         return -1;
     }
@@ -1623,9 +1615,7 @@ pub extern "C" fn ros_camera_frame_get_fence_fd(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_frame_get_format(
-    view: *const ros_camera_frame_t,
-) -> *const c_char {
+pub extern "C" fn ros_camera_frame_get_format(view: *const ros_camera_frame_t) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -1673,9 +1663,7 @@ pub extern "C" fn ros_camera_frame_get_color_range(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_frame_get_planes_len(
-    view: *const ros_camera_frame_t,
-) -> u32 {
+pub extern "C" fn ros_camera_frame_get_planes_len(view: *const ros_camera_frame_t) -> u32 {
     if view.is_null() {
         return 0;
     }
