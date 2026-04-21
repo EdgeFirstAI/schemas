@@ -4,7 +4,8 @@
 //! ROS 2 `geometry_msgs` message types.
 //!
 //! CdrFixed: `Vector3`, `Point`, `Point32`, `Quaternion`, `Pose`,
-//! `Pose2D`, `Transform`, `Accel`, `Twist`, `Inertia`
+//! `Pose2D`, `Transform`, `Accel`, `Twist`, `Inertia`,
+//! `PoseWithCovariance`, `TwistWithCovariance`
 //!
 //! Buffer-backed (stamped wrappers): `AccelStamped`, `TwistStamped`,
 //! `InertiaStamped`, `PointStamped`, `TransformStamped`
@@ -73,6 +74,20 @@ pub struct Accel {
 pub struct Twist {
     pub linear: Vector3,
     pub angular: Vector3,
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub struct PoseWithCovariance {
+    pub pose: Pose,
+    /// Row-major 6×6 covariance of (x, y, z, rotX, rotY, rotZ).
+    pub covariance: [f64; 36],
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub struct TwistWithCovariance {
+    pub twist: Twist,
+    /// Row-major 6×6 covariance of (x, y, z, rotX, rotY, rotZ).
+    pub covariance: [f64; 36],
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -266,6 +281,54 @@ impl CdrFixed for Twist {
     fn size_cdr(sizer: &mut CdrSizer) {
         Vector3::size_cdr(sizer);
         Vector3::size_cdr(sizer);
+    }
+}
+
+impl CdrFixed for PoseWithCovariance {
+    const CDR_SIZE: usize = 56 + 36 * 8; // Pose(56) + [f64; 36](288) = 344
+    fn read_cdr(cursor: &mut CdrCursor<'_>) -> Result<Self, CdrError> {
+        let pose = Pose::read_cdr(cursor)?;
+        let mut covariance = [0.0_f64; 36];
+        for slot in covariance.iter_mut() {
+            *slot = cursor.read_f64()?;
+        }
+        Ok(PoseWithCovariance { pose, covariance })
+    }
+    fn write_cdr(&self, writer: &mut CdrWriter<'_>) {
+        self.pose.write_cdr(writer);
+        for v in &self.covariance {
+            writer.write_f64(*v);
+        }
+    }
+    fn size_cdr(sizer: &mut CdrSizer) {
+        Pose::size_cdr(sizer);
+        for _ in 0..36 {
+            sizer.size_f64();
+        }
+    }
+}
+
+impl CdrFixed for TwistWithCovariance {
+    const CDR_SIZE: usize = 48 + 36 * 8; // Twist(48) + [f64; 36](288) = 336
+    fn read_cdr(cursor: &mut CdrCursor<'_>) -> Result<Self, CdrError> {
+        let twist = Twist::read_cdr(cursor)?;
+        let mut covariance = [0.0_f64; 36];
+        for slot in covariance.iter_mut() {
+            *slot = cursor.read_f64()?;
+        }
+        Ok(TwistWithCovariance { twist, covariance })
+    }
+    fn write_cdr(&self, writer: &mut CdrWriter<'_>) {
+        self.twist.write_cdr(writer);
+        for v in &self.covariance {
+            writer.write_f64(*v);
+        }
+    }
+    fn size_cdr(sizer: &mut CdrSizer) {
+        Twist::size_cdr(sizer);
+        for _ in 0..36 {
+            sizer.size_f64();
+        }
     }
 }
 

@@ -34,6 +34,7 @@ from edgefirst.schemas import (
     edgefirst_msgs,
     foxglove_msgs,
     geometry_msgs,
+    nav_msgs,
     sensor_msgs,
     std_msgs,
 )
@@ -162,6 +163,52 @@ def gen_geometry_msgs():
               geometry_msgs.TransformStamped(
                   header=header, child_frame_id="child_frame", transform=tf))
 
+    # PoseWithCovariance — Pose + 36 covariance slots; non-zero diag + off-diag
+    pose_cov = [0.0] * 36
+    for i in range(6):
+        pose_cov[i * 6 + i] = 0.1 * (i + 1)  # diagonal 0.1..0.6
+    pose_cov[1] = 0.01   # pose cov(x,y) cross-term
+    pose_cov[6] = 0.01
+    write_cdr("geometry_msgs", "PoseWithCovariance",
+              geometry_msgs.PoseWithCovariance(
+                  pose=geometry_msgs.Pose(position=pos, orientation=quat),
+                  covariance=pose_cov))
+
+    twist_cov = [0.0] * 36
+    for i in range(6):
+        twist_cov[i * 6 + i] = 0.02 * (i + 1)
+    twist_cov[7] = 0.001
+    write_cdr("geometry_msgs", "TwistWithCovariance",
+              geometry_msgs.TwistWithCovariance(
+                  twist=geometry_msgs.Twist(linear=lin, angular=ang),
+                  covariance=twist_cov))
+
+
+def gen_nav_msgs():
+    header = std_msgs.Header(stamp=STAMP, frame_id=FRAME_ID)
+    pos = geometry_msgs.Point(x=1.5, y=-2.5, z=3.0)
+    quat = geometry_msgs.Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+    lin = geometry_msgs.Vector3(x=1.0, y=2.0, z=3.0)
+    ang = geometry_msgs.Vector3(x=0.1, y=0.2, z=0.3)
+    pose_cov = [0.0] * 36
+    twist_cov = [0.0] * 36
+    for i in range(6):
+        pose_cov[i * 6 + i] = 0.1 * (i + 1)
+        twist_cov[i * 6 + i] = 0.02 * (i + 1)
+    pose_cov[1] = 0.01
+    pose_cov[6] = 0.01
+    twist_cov[7] = 0.001
+    write_cdr("nav_msgs", "Odometry",
+              nav_msgs.Odometry(
+                  header=header,
+                  child_frame_id="base_link",
+                  pose=geometry_msgs.PoseWithCovariance(
+                      pose=geometry_msgs.Pose(position=pos, orientation=quat),
+                      covariance=pose_cov),
+                  twist=geometry_msgs.TwistWithCovariance(
+                      twist=geometry_msgs.Twist(linear=lin, angular=ang),
+                      covariance=twist_cov)))
+
 
 def gen_std_msgs():
     write_cdr("std_msgs", "ColorRGBA",
@@ -236,6 +283,43 @@ def gen_sensor_msgs():
                   header=header, height=1, width=4, fields=fields,
                   is_bigendian=False, point_step=12, row_step=48,
                   data=list(pc_data), is_dense=True))
+
+    # MagneticField — Earth-field-magnitude sample
+    write_cdr("sensor_msgs", "MagneticField",
+              sensor_msgs.MagneticField(
+                  header=header,
+                  magnetic_field=geometry_msgs.Vector3(
+                      x=2.5e-5, y=-1.2e-5, z=4.1e-5),
+                  magnetic_field_covariance=[
+                      1e-10, 0.0, 0.0,
+                      0.0, 1e-10, 0.0,
+                      0.0, 0.0, 1e-10]))
+
+    # FluidPressure — standard atmospheric pressure in Pa
+    write_cdr("sensor_msgs", "FluidPressure",
+              sensor_msgs.FluidPressure(
+                  header=header, fluid_pressure=101325.0, variance=25.0))
+
+    # Temperature — 22.5 C with 0.01 C^2 variance
+    write_cdr("sensor_msgs", "Temperature",
+              sensor_msgs.Temperature(
+                  header=header, temperature=22.5, variance=0.01))
+
+    # BatteryState — 3S1P LiPo pack with full metadata
+    write_cdr("sensor_msgs", "BatteryState",
+              sensor_msgs.BatteryState(
+                  header=header,
+                  voltage=12.34, temperature=27.5, current=-2.1,
+                  charge=4.2, capacity=5.0, design_capacity=5.0,
+                  percentage=0.84,
+                  power_supply_status=2,       # DISCHARGING
+                  power_supply_health=1,       # GOOD
+                  power_supply_technology=3,   # LIPO
+                  present=True,
+                  cell_voltage=[4.11, 4.12, 4.10],
+                  cell_temperature=[27.1, 27.3, 27.4],
+                  location="battery0",
+                  serial_number="SN0123456"))
 
     # CameraInfo — minimal with plumb_bob distortion
     d_coeffs = [0.1, -0.2, 0.001, 0.002, 0.0]
@@ -510,6 +594,17 @@ def gen_edgefirst_msgs():
                   model_format="onnx",
                   model_name="mobilenet"))
 
+    # Vibration — MAVLink-style RMS in m/s^2 with 3 clipping counters
+    write_cdr("edgefirst_msgs", "Vibration",
+              edgefirst_msgs.Vibration(
+                  header=header,
+                  measurement_type=1,  # MEASUREMENT_RMS
+                  unit=1,              # UNIT_ACCEL_M_PER_S2
+                  band_lower_hz=10.0,
+                  band_upper_hz=1000.0,
+                  vibration=geometry_msgs.Vector3(x=0.42, y=0.51, z=0.37),
+                  clipping=[3, 1, 0]))
+
 
 def gen_foxglove_msgs():
     # CdrFixed types
@@ -595,6 +690,7 @@ def main():
         print("Generating golden CDR test files …")
     gen_builtin_interfaces()
     gen_geometry_msgs()
+    gen_nav_msgs()
     gen_std_msgs()
     gen_sensor_msgs()
     gen_edgefirst_msgs()

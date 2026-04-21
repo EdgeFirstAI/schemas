@@ -1174,36 +1174,545 @@ pub mod point_field {
     pub const FLOAT64: u8 = 8;
 }
 
+// ── MagneticField<B> ────────────────────────────────────────────────
+//
+// CDR layout: Header → offsets[0] (start of magnetic_field, 8-aligned),
+//   Vector3 magnetic_field (24 bytes), float64[9] covariance (72 bytes).
+// offsets[0] is captured from the cursor after Header+align(8) to avoid
+// the EDGEAI-1243 class of bug.
+
+pub struct MagneticField<B> {
+    buf: B,
+    offsets: [usize; 1],
+}
+
+impl<B: AsRef<[u8]>> MagneticField<B> {
+    pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
+        let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
+        let pre = header.end_offset();
+        let mut c = CdrCursor::resume(buf.as_ref(), pre);
+        c.align(8);
+        let o0 = c.offset();
+        Vector3::read_cdr(&mut c)?;
+        read_f64_array9(&mut c)?;
+        Ok(MagneticField { offsets: [o0], buf })
+    }
+
+    /// Returns a `Header` view by re-parsing the CDR buffer prefix.
+    pub fn header(&self) -> Header<&[u8]> {
+        Header::from_cdr(self.buf.as_ref()).expect("header bytes validated during from_cdr")
+    }
+    pub fn stamp(&self) -> Time {
+        rd_time(self.buf.as_ref(), CDR_HEADER_SIZE)
+    }
+    pub fn frame_id(&self) -> &str {
+        rd_string(self.buf.as_ref(), CDR_HEADER_SIZE + 8).0
+    }
+    pub fn magnetic_field(&self) -> Vector3 {
+        let mut c = CdrCursor::resume(self.buf.as_ref(), self.offsets[0]);
+        Vector3::read_cdr(&mut c).expect("magnetic_field validated during from_cdr")
+    }
+    pub fn magnetic_field_covariance(&self) -> [f64; 9] {
+        let mut c = CdrCursor::resume(self.buf.as_ref(), self.offsets[0] + 24);
+        read_f64_array9(&mut c).expect("covariance validated during from_cdr")
+    }
+    pub fn as_cdr(&self) -> &[u8] {
+        self.buf.as_ref()
+    }
+    pub fn to_cdr(&self) -> Vec<u8> {
+        self.buf.as_ref().to_vec()
+    }
+}
+
+impl MagneticField<Vec<u8>> {
+    pub fn new(
+        stamp: Time,
+        frame_id: &str,
+        magnetic_field: Vector3,
+        magnetic_field_covariance: [f64; 9],
+    ) -> Result<Self, CdrError> {
+        let mut sizer = CdrSizer::new();
+        Time::size_cdr(&mut sizer);
+        sizer.size_string(frame_id);
+        sizer.align(8);
+        let o0 = sizer.offset();
+        Vector3::size_cdr(&mut sizer);
+        size_f64_array9(&mut sizer);
+
+        let mut buf = vec![0u8; sizer.size()];
+        let mut w = CdrWriter::new(&mut buf)?;
+        stamp.write_cdr(&mut w);
+        w.write_string(frame_id);
+        magnetic_field.write_cdr(&mut w);
+        write_f64_array9(&mut w, &magnetic_field_covariance);
+        w.finish()?;
+
+        Ok(MagneticField { offsets: [o0], buf })
+    }
+
+    pub fn into_cdr(self) -> Vec<u8> {
+        self.buf
+    }
+}
+
+// ── FluidPressure<B> ────────────────────────────────────────────────
+//
+// CDR layout: Header → offsets[0] (start of fluid_pressure, 8-aligned),
+//   float64 fluid_pressure (8 bytes), float64 variance (8 bytes).
+
+pub struct FluidPressure<B> {
+    buf: B,
+    offsets: [usize; 1],
+}
+
+impl<B: AsRef<[u8]>> FluidPressure<B> {
+    pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
+        let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
+        let pre = header.end_offset();
+        let mut c = CdrCursor::resume(buf.as_ref(), pre);
+        c.align(8);
+        let o0 = c.offset();
+        c.read_f64()?; // fluid_pressure
+        c.read_f64()?; // variance
+        Ok(FluidPressure { offsets: [o0], buf })
+    }
+
+    pub fn header(&self) -> Header<&[u8]> {
+        Header::from_cdr(self.buf.as_ref()).expect("header bytes validated during from_cdr")
+    }
+    pub fn stamp(&self) -> Time {
+        rd_time(self.buf.as_ref(), CDR_HEADER_SIZE)
+    }
+    pub fn frame_id(&self) -> &str {
+        rd_string(self.buf.as_ref(), CDR_HEADER_SIZE + 8).0
+    }
+    pub fn fluid_pressure(&self) -> f64 {
+        rd_f64(self.buf.as_ref(), self.offsets[0])
+    }
+    pub fn variance(&self) -> f64 {
+        rd_f64(self.buf.as_ref(), self.offsets[0] + 8)
+    }
+    pub fn as_cdr(&self) -> &[u8] {
+        self.buf.as_ref()
+    }
+    pub fn to_cdr(&self) -> Vec<u8> {
+        self.buf.as_ref().to_vec()
+    }
+}
+
+impl FluidPressure<Vec<u8>> {
+    pub fn new(
+        stamp: Time,
+        frame_id: &str,
+        fluid_pressure: f64,
+        variance: f64,
+    ) -> Result<Self, CdrError> {
+        let mut sizer = CdrSizer::new();
+        Time::size_cdr(&mut sizer);
+        sizer.size_string(frame_id);
+        sizer.align(8);
+        let o0 = sizer.offset();
+        sizer.size_f64();
+        sizer.size_f64();
+
+        let mut buf = vec![0u8; sizer.size()];
+        let mut w = CdrWriter::new(&mut buf)?;
+        stamp.write_cdr(&mut w);
+        w.write_string(frame_id);
+        w.write_f64(fluid_pressure);
+        w.write_f64(variance);
+        w.finish()?;
+
+        Ok(FluidPressure { offsets: [o0], buf })
+    }
+
+    pub fn into_cdr(self) -> Vec<u8> {
+        self.buf
+    }
+}
+
+// ── Temperature<B> ──────────────────────────────────────────────────
+//
+// CDR layout: Header → offsets[0] (start of temperature, 8-aligned),
+//   float64 temperature (8 bytes), float64 variance (8 bytes).
+
+pub struct Temperature<B> {
+    buf: B,
+    offsets: [usize; 1],
+}
+
+impl<B: AsRef<[u8]>> Temperature<B> {
+    pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
+        let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
+        let pre = header.end_offset();
+        let mut c = CdrCursor::resume(buf.as_ref(), pre);
+        c.align(8);
+        let o0 = c.offset();
+        c.read_f64()?; // temperature
+        c.read_f64()?; // variance
+        Ok(Temperature { offsets: [o0], buf })
+    }
+
+    pub fn header(&self) -> Header<&[u8]> {
+        Header::from_cdr(self.buf.as_ref()).expect("header bytes validated during from_cdr")
+    }
+    pub fn stamp(&self) -> Time {
+        rd_time(self.buf.as_ref(), CDR_HEADER_SIZE)
+    }
+    pub fn frame_id(&self) -> &str {
+        rd_string(self.buf.as_ref(), CDR_HEADER_SIZE + 8).0
+    }
+    pub fn temperature(&self) -> f64 {
+        rd_f64(self.buf.as_ref(), self.offsets[0])
+    }
+    pub fn variance(&self) -> f64 {
+        rd_f64(self.buf.as_ref(), self.offsets[0] + 8)
+    }
+    pub fn as_cdr(&self) -> &[u8] {
+        self.buf.as_ref()
+    }
+    pub fn to_cdr(&self) -> Vec<u8> {
+        self.buf.as_ref().to_vec()
+    }
+}
+
+impl Temperature<Vec<u8>> {
+    pub fn new(
+        stamp: Time,
+        frame_id: &str,
+        temperature: f64,
+        variance: f64,
+    ) -> Result<Self, CdrError> {
+        let mut sizer = CdrSizer::new();
+        Time::size_cdr(&mut sizer);
+        sizer.size_string(frame_id);
+        sizer.align(8);
+        let o0 = sizer.offset();
+        sizer.size_f64();
+        sizer.size_f64();
+
+        let mut buf = vec![0u8; sizer.size()];
+        let mut w = CdrWriter::new(&mut buf)?;
+        stamp.write_cdr(&mut w);
+        w.write_string(frame_id);
+        w.write_f64(temperature);
+        w.write_f64(variance);
+        w.finish()?;
+
+        Ok(Temperature { offsets: [o0], buf })
+    }
+
+    pub fn into_cdr(self) -> Vec<u8> {
+        self.buf
+    }
+}
+
+// ── BatteryState<B> ─────────────────────────────────────────────────
+//
+// CDR layout: Header → offsets[0] (start of fixed scalars, 4-aligned),
+//   float32 voltage, temperature, current, charge, capacity,
+//   design_capacity, percentage (7×4 = 28 bytes),
+//   uint8 power_supply_status, power_supply_health,
+//   power_supply_technology, bool present (4 bytes, no trailing pad
+//   until next 4-aligned field),
+//   uint32 count + float32[] cell_voltage → offsets[1] (byte index of
+//     the seq count u32),
+//   uint32 count + float32[] cell_temperature → offsets[2],
+//   string location → offsets[3],
+//   string serial_number → offsets[4].
+
+/// `POWER_SUPPLY_STATUS_*` values for [`BatteryState::power_supply_status`].
+pub mod power_supply_status {
+    pub const UNKNOWN: u8 = 0;
+    pub const CHARGING: u8 = 1;
+    pub const DISCHARGING: u8 = 2;
+    pub const NOT_CHARGING: u8 = 3;
+    pub const FULL: u8 = 4;
+}
+
+/// `POWER_SUPPLY_HEALTH_*` values for [`BatteryState::power_supply_health`].
+pub mod power_supply_health {
+    pub const UNKNOWN: u8 = 0;
+    pub const GOOD: u8 = 1;
+    pub const OVERHEAT: u8 = 2;
+    pub const DEAD: u8 = 3;
+    pub const OVERVOLTAGE: u8 = 4;
+    pub const UNSPEC_FAILURE: u8 = 5;
+    pub const COLD: u8 = 6;
+    pub const WATCHDOG_TIMER_EXPIRE: u8 = 7;
+    pub const SAFETY_TIMER_EXPIRE: u8 = 8;
+}
+
+/// `POWER_SUPPLY_TECHNOLOGY_*` values for [`BatteryState::power_supply_technology`].
+pub mod power_supply_technology {
+    pub const UNKNOWN: u8 = 0;
+    pub const NIMH: u8 = 1;
+    pub const LION: u8 = 2;
+    pub const LIPO: u8 = 3;
+    pub const LIFE: u8 = 4;
+    pub const NICD: u8 = 5;
+    pub const LIMN: u8 = 6;
+}
+
+pub struct BatteryState<B> {
+    buf: B,
+    // [0]: voltage start (4-aligned after Header).
+    // [1]: start of cell_voltage seq-count u32.
+    // [2]: start of cell_temperature seq-count u32.
+    // [3]: start of location string.
+    // [4]: start of serial_number string.
+    offsets: [usize; 5],
+}
+
+impl<B: AsRef<[u8]>> BatteryState<B> {
+    pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
+        let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
+        let pre = header.end_offset();
+        let mut c = CdrCursor::resume(buf.as_ref(), pre);
+        c.align(4);
+        let o0 = c.offset();
+        // Seven f32 scalars
+        for _ in 0..7 {
+            c.read_f32()?;
+        }
+        c.read_u8()?; // power_supply_status
+        c.read_u8()?; // power_supply_health
+        c.read_u8()?; // power_supply_technology
+        c.read_bool()?; // present
+        let o1 = c.offset();
+        let cv_len = c.read_u32()? as usize;
+        for _ in 0..cv_len {
+            c.read_f32()?;
+        }
+        let o2 = c.offset();
+        let ct_len = c.read_u32()? as usize;
+        for _ in 0..ct_len {
+            c.read_f32()?;
+        }
+        let o3 = c.offset();
+        c.read_string()?; // location
+        let o4 = c.offset();
+        c.read_string()?; // serial_number
+        Ok(BatteryState {
+            offsets: [o0, o1, o2, o3, o4],
+            buf,
+        })
+    }
+
+    pub fn header(&self) -> Header<&[u8]> {
+        Header::from_cdr(self.buf.as_ref()).expect("header bytes validated during from_cdr")
+    }
+    pub fn stamp(&self) -> Time {
+        rd_time(self.buf.as_ref(), CDR_HEADER_SIZE)
+    }
+    pub fn frame_id(&self) -> &str {
+        rd_string(self.buf.as_ref(), CDR_HEADER_SIZE + 8).0
+    }
+    pub fn voltage(&self) -> f32 {
+        rd_f32(self.buf.as_ref(), self.offsets[0])
+    }
+    pub fn temperature(&self) -> f32 {
+        rd_f32(self.buf.as_ref(), self.offsets[0] + 4)
+    }
+    pub fn current(&self) -> f32 {
+        rd_f32(self.buf.as_ref(), self.offsets[0] + 8)
+    }
+    pub fn charge(&self) -> f32 {
+        rd_f32(self.buf.as_ref(), self.offsets[0] + 12)
+    }
+    pub fn capacity(&self) -> f32 {
+        rd_f32(self.buf.as_ref(), self.offsets[0] + 16)
+    }
+    pub fn design_capacity(&self) -> f32 {
+        rd_f32(self.buf.as_ref(), self.offsets[0] + 20)
+    }
+    pub fn percentage(&self) -> f32 {
+        rd_f32(self.buf.as_ref(), self.offsets[0] + 24)
+    }
+    pub fn power_supply_status(&self) -> u8 {
+        rd_u8(self.buf.as_ref(), self.offsets[0] + 28)
+    }
+    pub fn power_supply_health(&self) -> u8 {
+        rd_u8(self.buf.as_ref(), self.offsets[0] + 29)
+    }
+    pub fn power_supply_technology(&self) -> u8 {
+        rd_u8(self.buf.as_ref(), self.offsets[0] + 30)
+    }
+    pub fn present(&self) -> bool {
+        rd_bool(self.buf.as_ref(), self.offsets[0] + 31)
+    }
+    pub fn cell_voltage_len(&self) -> u32 {
+        rd_u32(self.buf.as_ref(), self.offsets[1])
+    }
+    pub fn cell_voltage(&self) -> Vec<f32> {
+        let mut c = CdrCursor::resume(self.buf.as_ref(), self.offsets[1]);
+        let n = c
+            .read_u32()
+            .expect("cell_voltage length validated during from_cdr") as usize;
+        let mut out = Vec::with_capacity(n);
+        for _ in 0..n {
+            out.push(
+                c.read_f32()
+                    .expect("cell_voltage element validated during from_cdr"),
+            );
+        }
+        out
+    }
+    pub fn cell_temperature_len(&self) -> u32 {
+        rd_u32(self.buf.as_ref(), self.offsets[2])
+    }
+    pub fn cell_temperature(&self) -> Vec<f32> {
+        let mut c = CdrCursor::resume(self.buf.as_ref(), self.offsets[2]);
+        let n = c
+            .read_u32()
+            .expect("cell_temperature length validated during from_cdr") as usize;
+        let mut out = Vec::with_capacity(n);
+        for _ in 0..n {
+            out.push(
+                c.read_f32()
+                    .expect("cell_temperature element validated during from_cdr"),
+            );
+        }
+        out
+    }
+    pub fn location(&self) -> &str {
+        rd_string(self.buf.as_ref(), self.offsets[3]).0
+    }
+    pub fn serial_number(&self) -> &str {
+        rd_string(self.buf.as_ref(), self.offsets[4]).0
+    }
+    pub fn as_cdr(&self) -> &[u8] {
+        self.buf.as_ref()
+    }
+    pub fn to_cdr(&self) -> Vec<u8> {
+        self.buf.as_ref().to_vec()
+    }
+}
+
+impl BatteryState<Vec<u8>> {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        stamp: Time,
+        frame_id: &str,
+        voltage: f32,
+        temperature: f32,
+        current: f32,
+        charge: f32,
+        capacity: f32,
+        design_capacity: f32,
+        percentage: f32,
+        power_supply_status: u8,
+        power_supply_health: u8,
+        power_supply_technology: u8,
+        present: bool,
+        cell_voltage: &[f32],
+        cell_temperature: &[f32],
+        location: &str,
+        serial_number: &str,
+    ) -> Result<Self, CdrError> {
+        let mut sizer = CdrSizer::new();
+        Time::size_cdr(&mut sizer);
+        sizer.size_string(frame_id);
+        sizer.align(4);
+        let o0 = sizer.offset();
+        for _ in 0..7 {
+            sizer.size_f32();
+        }
+        sizer.size_u8();
+        sizer.size_u8();
+        sizer.size_u8();
+        sizer.size_bool();
+        let o1 = sizer.offset();
+        sizer.size_u32();
+        for _ in cell_voltage {
+            sizer.size_f32();
+        }
+        let o2 = sizer.offset();
+        sizer.size_u32();
+        for _ in cell_temperature {
+            sizer.size_f32();
+        }
+        let o3 = sizer.offset();
+        sizer.size_string(location);
+        let o4 = sizer.offset();
+        sizer.size_string(serial_number);
+
+        let mut buf = vec![0u8; sizer.size()];
+        let mut w = CdrWriter::new(&mut buf)?;
+        stamp.write_cdr(&mut w);
+        w.write_string(frame_id);
+        w.write_f32(voltage);
+        w.write_f32(temperature);
+        w.write_f32(current);
+        w.write_f32(charge);
+        w.write_f32(capacity);
+        w.write_f32(design_capacity);
+        w.write_f32(percentage);
+        w.write_u8(power_supply_status);
+        w.write_u8(power_supply_health);
+        w.write_u8(power_supply_technology);
+        w.write_bool(present);
+        w.write_u32(cell_voltage.len() as u32);
+        for v in cell_voltage {
+            w.write_f32(*v);
+        }
+        w.write_u32(cell_temperature.len() as u32);
+        for v in cell_temperature {
+            w.write_f32(*v);
+        }
+        w.write_string(location);
+        w.write_string(serial_number);
+        w.finish()?;
+
+        Ok(BatteryState {
+            offsets: [o0, o1, o2, o3, o4],
+            buf,
+        })
+    }
+
+    pub fn into_cdr(self) -> Vec<u8> {
+        self.buf
+    }
+}
+
 // ── Registry ────────────────────────────────────────────────────────
 
 /// Check if a type name is supported by this module.
 pub fn is_type_supported(type_name: &str) -> bool {
     matches!(
         type_name,
-        "CameraInfo"
+        "BatteryState"
+            | "CameraInfo"
             | "CompressedImage"
+            | "FluidPressure"
             | "Image"
             | "Imu"
+            | "MagneticField"
             | "NavSatFix"
             | "NavSatStatus"
             | "PointCloud2"
             | "PointField"
             | "RegionOfInterest"
+            | "Temperature"
     )
 }
 
 /// List all type schema names in this module.
 pub fn list_types() -> &'static [&'static str] {
     &[
+        "sensor_msgs/msg/BatteryState",
         "sensor_msgs/msg/CameraInfo",
         "sensor_msgs/msg/CompressedImage",
+        "sensor_msgs/msg/FluidPressure",
         "sensor_msgs/msg/Image",
         "sensor_msgs/msg/Imu",
+        "sensor_msgs/msg/MagneticField",
         "sensor_msgs/msg/NavSatFix",
         "sensor_msgs/msg/NavSatStatus",
         "sensor_msgs/msg/PointCloud2",
         "sensor_msgs/msg/PointField",
         "sensor_msgs/msg/RegionOfInterest",
+        "sensor_msgs/msg/Temperature",
     ]
 }
 

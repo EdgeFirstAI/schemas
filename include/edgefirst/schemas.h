@@ -1627,6 +1627,208 @@ int16_t ros_local_time_get_timezone(const ros_local_time_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_local_time_as_cdr(const ros_local_time_t* view, size_t* out_len);
 
+/* =========================================================================
+ * geometry_msgs/PoseWithCovariance  (CdrFixed)
+ * Pose(56 B) + float64[36] covariance = 344 bytes on the wire.
+ * =========================================================================
+ */
+int32_t ros_pose_with_covariance_encode(
+    uint8_t* buf, size_t cap, size_t* written,
+    double px, double py, double pz,
+    double ox, double oy, double oz, double ow,
+    const double* covariance);
+
+int32_t ros_pose_with_covariance_decode(
+    const uint8_t* data, size_t len,
+    double* px, double* py, double* pz,
+    double* ox, double* oy, double* oz, double* ow,
+    double* covariance_out);
+
+/* =========================================================================
+ * geometry_msgs/TwistWithCovariance  (CdrFixed)
+ * Twist(48 B) + float64[36] covariance = 336 bytes on the wire.
+ * =========================================================================
+ */
+int32_t ros_twist_with_covariance_encode(
+    uint8_t* buf, size_t cap, size_t* written,
+    double lx, double ly, double lz,
+    double ax, double ay, double az,
+    const double* covariance);
+
+int32_t ros_twist_with_covariance_decode(
+    const uint8_t* data, size_t len,
+    double* lx, double* ly, double* lz,
+    double* ax, double* ay, double* az,
+    double* covariance_out);
+
+/* =========================================================================
+ * sensor_msgs/MagneticField  (buffer-backed, decode-only)
+ * =========================================================================
+ */
+typedef struct ros_magnetic_field_t ros_magnetic_field_t;
+
+ros_magnetic_field_t* ros_magnetic_field_from_cdr(const uint8_t* data, size_t len);
+void ros_magnetic_field_free(ros_magnetic_field_t* view);
+int32_t ros_magnetic_field_get_stamp_sec(const ros_magnetic_field_t* view);
+uint32_t ros_magnetic_field_get_stamp_nanosec(const ros_magnetic_field_t* view);
+const char* ros_magnetic_field_get_frame_id(const ros_magnetic_field_t* view);
+void ros_magnetic_field_get_magnetic_field(const ros_magnetic_field_t* view,
+                                           double* x, double* y, double* z);
+void ros_magnetic_field_get_magnetic_field_covariance(
+    const ros_magnetic_field_t* view, double* out);
+/** @brief Borrow raw CDR bytes from the handle. */
+const uint8_t* ros_magnetic_field_as_cdr(const ros_magnetic_field_t* view, size_t* out_len);
+
+/* =========================================================================
+ * sensor_msgs/FluidPressure  (buffer-backed, decode-only)
+ * =========================================================================
+ */
+typedef struct ros_fluid_pressure_t ros_fluid_pressure_t;
+
+ros_fluid_pressure_t* ros_fluid_pressure_from_cdr(const uint8_t* data, size_t len);
+void ros_fluid_pressure_free(ros_fluid_pressure_t* view);
+int32_t ros_fluid_pressure_get_stamp_sec(const ros_fluid_pressure_t* view);
+uint32_t ros_fluid_pressure_get_stamp_nanosec(const ros_fluid_pressure_t* view);
+const char* ros_fluid_pressure_get_frame_id(const ros_fluid_pressure_t* view);
+double ros_fluid_pressure_get_fluid_pressure(const ros_fluid_pressure_t* view);
+double ros_fluid_pressure_get_variance(const ros_fluid_pressure_t* view);
+const uint8_t* ros_fluid_pressure_as_cdr(const ros_fluid_pressure_t* view, size_t* out_len);
+
+/* =========================================================================
+ * sensor_msgs/Temperature  (buffer-backed, decode-only)
+ * =========================================================================
+ */
+typedef struct ros_temperature_t ros_temperature_t;
+
+ros_temperature_t* ros_temperature_from_cdr(const uint8_t* data, size_t len);
+void ros_temperature_free(ros_temperature_t* view);
+int32_t ros_temperature_get_stamp_sec(const ros_temperature_t* view);
+uint32_t ros_temperature_get_stamp_nanosec(const ros_temperature_t* view);
+const char* ros_temperature_get_frame_id(const ros_temperature_t* view);
+double ros_temperature_get_temperature(const ros_temperature_t* view);
+double ros_temperature_get_variance(const ros_temperature_t* view);
+const uint8_t* ros_temperature_as_cdr(const ros_temperature_t* view, size_t* out_len);
+
+/* =========================================================================
+ * sensor_msgs/BatteryState  (buffer-backed, decode-only)
+ * =========================================================================
+ */
+/** power_supply_status values. */
+#define ROS_BATTERY_STATE_POWER_SUPPLY_STATUS_UNKNOWN      0
+#define ROS_BATTERY_STATE_POWER_SUPPLY_STATUS_CHARGING     1
+#define ROS_BATTERY_STATE_POWER_SUPPLY_STATUS_DISCHARGING  2
+#define ROS_BATTERY_STATE_POWER_SUPPLY_STATUS_NOT_CHARGING 3
+#define ROS_BATTERY_STATE_POWER_SUPPLY_STATUS_FULL         4
+
+/** power_supply_health values. */
+#define ROS_BATTERY_STATE_POWER_SUPPLY_HEALTH_UNKNOWN               0
+#define ROS_BATTERY_STATE_POWER_SUPPLY_HEALTH_GOOD                  1
+#define ROS_BATTERY_STATE_POWER_SUPPLY_HEALTH_OVERHEAT              2
+#define ROS_BATTERY_STATE_POWER_SUPPLY_HEALTH_DEAD                  3
+#define ROS_BATTERY_STATE_POWER_SUPPLY_HEALTH_OVERVOLTAGE           4
+#define ROS_BATTERY_STATE_POWER_SUPPLY_HEALTH_UNSPEC_FAILURE        5
+#define ROS_BATTERY_STATE_POWER_SUPPLY_HEALTH_COLD                  6
+#define ROS_BATTERY_STATE_POWER_SUPPLY_HEALTH_WATCHDOG_TIMER_EXPIRE 7
+#define ROS_BATTERY_STATE_POWER_SUPPLY_HEALTH_SAFETY_TIMER_EXPIRE   8
+
+/** power_supply_technology values. */
+#define ROS_BATTERY_STATE_POWER_SUPPLY_TECHNOLOGY_UNKNOWN 0
+#define ROS_BATTERY_STATE_POWER_SUPPLY_TECHNOLOGY_NIMH    1
+#define ROS_BATTERY_STATE_POWER_SUPPLY_TECHNOLOGY_LION    2
+#define ROS_BATTERY_STATE_POWER_SUPPLY_TECHNOLOGY_LIPO    3
+#define ROS_BATTERY_STATE_POWER_SUPPLY_TECHNOLOGY_LIFE    4
+#define ROS_BATTERY_STATE_POWER_SUPPLY_TECHNOLOGY_NICD    5
+#define ROS_BATTERY_STATE_POWER_SUPPLY_TECHNOLOGY_LIMN    6
+
+typedef struct ros_battery_state_t ros_battery_state_t;
+
+ros_battery_state_t* ros_battery_state_from_cdr(const uint8_t* data, size_t len);
+void ros_battery_state_free(ros_battery_state_t* view);
+int32_t ros_battery_state_get_stamp_sec(const ros_battery_state_t* view);
+uint32_t ros_battery_state_get_stamp_nanosec(const ros_battery_state_t* view);
+const char* ros_battery_state_get_frame_id(const ros_battery_state_t* view);
+float ros_battery_state_get_voltage(const ros_battery_state_t* view);
+float ros_battery_state_get_temperature(const ros_battery_state_t* view);
+float ros_battery_state_get_current(const ros_battery_state_t* view);
+float ros_battery_state_get_charge(const ros_battery_state_t* view);
+float ros_battery_state_get_capacity(const ros_battery_state_t* view);
+float ros_battery_state_get_design_capacity(const ros_battery_state_t* view);
+float ros_battery_state_get_percentage(const ros_battery_state_t* view);
+uint8_t ros_battery_state_get_power_supply_status(const ros_battery_state_t* view);
+uint8_t ros_battery_state_get_power_supply_health(const ros_battery_state_t* view);
+uint8_t ros_battery_state_get_power_supply_technology(const ros_battery_state_t* view);
+bool ros_battery_state_get_present(const ros_battery_state_t* view);
+uint32_t ros_battery_state_get_cell_voltage_len(const ros_battery_state_t* view);
+/** Copy up to `cap` cell voltages into `out`; returns total element count. */
+uint32_t ros_battery_state_get_cell_voltage(const ros_battery_state_t* view,
+                                            float* out, size_t cap);
+uint32_t ros_battery_state_get_cell_temperature_len(const ros_battery_state_t* view);
+uint32_t ros_battery_state_get_cell_temperature(const ros_battery_state_t* view,
+                                                float* out, size_t cap);
+const char* ros_battery_state_get_location(const ros_battery_state_t* view);
+const char* ros_battery_state_get_serial_number(const ros_battery_state_t* view);
+const uint8_t* ros_battery_state_as_cdr(const ros_battery_state_t* view, size_t* out_len);
+
+/* =========================================================================
+ * nav_msgs/Odometry  (buffer-backed, decode-only)
+ * =========================================================================
+ */
+typedef struct ros_odometry_t ros_odometry_t;
+
+ros_odometry_t* ros_odometry_from_cdr(const uint8_t* data, size_t len);
+void ros_odometry_free(ros_odometry_t* view);
+int32_t ros_odometry_get_stamp_sec(const ros_odometry_t* view);
+uint32_t ros_odometry_get_stamp_nanosec(const ros_odometry_t* view);
+const char* ros_odometry_get_frame_id(const ros_odometry_t* view);
+const char* ros_odometry_get_child_frame_id(const ros_odometry_t* view);
+void ros_odometry_get_pose(const ros_odometry_t* view,
+                           double* px, double* py, double* pz,
+                           double* ox, double* oy, double* oz, double* ow);
+void ros_odometry_get_pose_covariance(const ros_odometry_t* view, double* out);
+void ros_odometry_get_twist(const ros_odometry_t* view,
+                            double* lx, double* ly, double* lz,
+                            double* ax, double* ay, double* az);
+void ros_odometry_get_twist_covariance(const ros_odometry_t* view, double* out);
+const uint8_t* ros_odometry_as_cdr(const ros_odometry_t* view, size_t* out_len);
+
+/* =========================================================================
+ * edgefirst_msgs/Vibration  (buffer-backed, decode-only)
+ * =========================================================================
+ */
+/** measurement_type values. */
+#define ROS_VIBRATION_MEASUREMENT_UNKNOWN      0
+#define ROS_VIBRATION_MEASUREMENT_RMS          1
+#define ROS_VIBRATION_MEASUREMENT_PEAK         2
+#define ROS_VIBRATION_MEASUREMENT_PEAK_TO_PEAK 3
+
+/** unit values. */
+#define ROS_VIBRATION_UNIT_UNKNOWN           0
+#define ROS_VIBRATION_UNIT_ACCEL_M_PER_S2    1
+#define ROS_VIBRATION_UNIT_ACCEL_G           2
+#define ROS_VIBRATION_UNIT_VELOCITY_MM_PER_S 3
+#define ROS_VIBRATION_UNIT_DISPLACEMENT_UM   4
+#define ROS_VIBRATION_UNIT_VELOCITY_IN_PER_S 5
+#define ROS_VIBRATION_UNIT_DISPLACEMENT_MIL  6
+
+typedef struct ros_vibration_t ros_vibration_t;
+
+ros_vibration_t* ros_vibration_from_cdr(const uint8_t* data, size_t len);
+void ros_vibration_free(ros_vibration_t* view);
+int32_t ros_vibration_get_stamp_sec(const ros_vibration_t* view);
+uint32_t ros_vibration_get_stamp_nanosec(const ros_vibration_t* view);
+const char* ros_vibration_get_frame_id(const ros_vibration_t* view);
+uint8_t ros_vibration_get_measurement_type(const ros_vibration_t* view);
+uint8_t ros_vibration_get_unit(const ros_vibration_t* view);
+float ros_vibration_get_band_lower_hz(const ros_vibration_t* view);
+float ros_vibration_get_band_upper_hz(const ros_vibration_t* view);
+void ros_vibration_get_vibration(const ros_vibration_t* view,
+                                 double* x, double* y, double* z);
+uint32_t ros_vibration_get_clipping_len(const ros_vibration_t* view);
+/** Copy up to `cap` clipping counters into `out`; returns total element count. */
+uint32_t ros_vibration_get_clipping(const ros_vibration_t* view,
+                                    uint32_t* out, size_t cap);
+const uint8_t* ros_vibration_as_cdr(const ros_vibration_t* view, size_t* out_len);
+
 #ifdef __cplusplus
 }
 #endif

@@ -312,3 +312,81 @@ Test(geometry_msgs, transform_stamped_getters_null) {
     cr_assert_null(ros_transform_stamped_get_frame_id(NULL));
     cr_assert_null(ros_transform_stamped_get_child_frame_id(NULL));
 }
+
+// ============================================================================
+// PoseWithCovariance Tests (CdrFixed — TOP2-770)
+// ============================================================================
+
+Test(geometry_msgs, pose_with_covariance_encode_decode_roundtrip) {
+    uint8_t buf[512];
+    size_t written = 0;
+    double cov_in[36] = {0};
+    for (int i = 0; i < 6; ++i) cov_in[i * 6 + i] = 0.1 * (i + 1);
+    cov_in[1] = 0.01;
+    cov_in[6] = 0.01;
+
+    int ret = ros_pose_with_covariance_encode(
+        buf, sizeof(buf), &written,
+        1.5, -2.5, 3.0,
+        0.0, 0.0, 0.0, 1.0,
+        cov_in);
+    cr_assert_eq(ret, 0);
+    cr_assert_gt(written, 0);
+
+    double px = 0, py = 0, pz = 0, ox = 0, oy = 0, oz = 0, ow = 0;
+    double cov_out[36] = {0};
+    ret = ros_pose_with_covariance_decode(buf, written,
+                                          &px, &py, &pz,
+                                          &ox, &oy, &oz, &ow,
+                                          cov_out);
+    cr_assert_eq(ret, 0);
+    cr_assert_float_eq(px, 1.5, 1e-12);
+    cr_assert_float_eq(py, -2.5, 1e-12);
+    cr_assert_float_eq(pz, 3.0, 1e-12);
+    cr_assert_float_eq(ow, 1.0, 1e-12);
+    cr_assert_float_eq(cov_out[0], 0.1, 1e-12);
+    cr_assert_float_eq(cov_out[35], 0.6, 1e-12);
+    cr_assert_float_eq(cov_out[1], 0.01, 1e-12);
+}
+
+Test(geometry_msgs, pose_with_covariance_encode_null_covariance) {
+    uint8_t buf[512];
+    size_t written = 0;
+    errno = 0;
+    int ret = ros_pose_with_covariance_encode(buf, sizeof(buf), &written,
+                                              0, 0, 0, 0, 0, 0, 1,
+                                              NULL);
+    cr_assert_eq(ret, -1);
+    cr_assert_eq(errno, EINVAL);
+}
+
+// ============================================================================
+// TwistWithCovariance Tests (CdrFixed — TOP2-770)
+// ============================================================================
+
+Test(geometry_msgs, twist_with_covariance_encode_decode_roundtrip) {
+    uint8_t buf[512];
+    size_t written = 0;
+    double cov_in[36] = {0};
+    for (int i = 0; i < 6; ++i) cov_in[i * 6 + i] = 0.02 * (i + 1);
+    cov_in[7] = 0.001;
+
+    int ret = ros_twist_with_covariance_encode(
+        buf, sizeof(buf), &written,
+        1.0, 2.0, 3.0,
+        0.1, 0.2, 0.3,
+        cov_in);
+    cr_assert_eq(ret, 0);
+
+    double lx = 0, ly = 0, lz = 0, ax = 0, ay = 0, az = 0;
+    double cov_out[36] = {0};
+    ret = ros_twist_with_covariance_decode(buf, written,
+                                           &lx, &ly, &lz,
+                                           &ax, &ay, &az,
+                                           cov_out);
+    cr_assert_eq(ret, 0);
+    cr_assert_float_eq(lx, 1.0, 1e-12);
+    cr_assert_float_eq(az, 0.3, 1e-12);
+    cr_assert_float_eq(cov_out[0], 0.02, 1e-12);
+    cr_assert_float_eq(cov_out[7], 0.001, 1e-12);
+}
