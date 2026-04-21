@@ -1321,6 +1321,29 @@ pub(crate) fn size_plane_element(s: &mut CdrSizer, data_len: usize) {
     s.size_bytes(data_len);
 }
 
+/// Validate a CameraPlane against the schema contract (see CameraPlane.msg).
+///
+/// Contract:
+///   - `fd >= -1` (only `-1` is a valid negative value; other negatives invalid)
+///   - `used <= size`
+///   - `fd >= 0`  => `data` empty (bytes live in DMA-BUF, not inlined)
+///   - `fd == -1` => `size as usize == data.len()` (inlined: size describes data)
+pub(crate) fn validate_plane(
+    fd: i32,
+    size: u32,
+    used: u32,
+    data_len: usize,
+) -> Result<(), CdrError> {
+    if fd < -1
+        || used > size
+        || (fd >= 0 && data_len != 0)
+        || (fd == -1 && size as usize != data_len)
+    {
+        return Err(CdrError::InvalidHeader);
+    }
+    Ok(())
+}
+
 /// Multi-plane video frame reference message.
 ///
 /// Replaces the single-plane `DmaBuffer` with a schema that supports planar
@@ -1383,10 +1406,7 @@ impl<B: AsRef<[u8]>> CameraFrame<B> {
         let count = c.check_seq_count(raw_count, 24)?;
         for _ in 0..count {
             let plane = scan_plane_element(&mut c)?;
-            if plane.fd < -1 || plane.used > plane.size || (plane.fd >= 0 && !plane.data.is_empty())
-            {
-                return Err(CdrError::InvalidHeader);
-            }
+            validate_plane(plane.fd, plane.size, plane.used, plane.data.len())?;
         }
 
         if width == 0 || height == 0 {
@@ -1528,10 +1548,7 @@ impl CameraFrame<&'static [u8]> {
         let mut planes = Vec::with_capacity(count);
         for _ in 0..count {
             let plane = scan_plane_element(&mut c)?;
-            if plane.fd < -1 || plane.used > plane.size || (plane.fd >= 0 && !plane.data.is_empty())
-            {
-                return Err(CdrError::InvalidHeader);
-            }
+            validate_plane(plane.fd, plane.size, plane.used, plane.data.len())?;
             planes.push(plane);
         }
 
@@ -1557,6 +1574,7 @@ impl CameraFrame<Vec<u8>> {
     /// - `plane.used <= plane.size`
     /// - `plane.fd >= -1` (only -1 is a valid negative sentinel)
     /// - when `plane.fd >= 0`, `plane.data` must be empty
+    /// - when `plane.fd == -1` (inlined), `plane.size as usize == plane.data.len()`
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         stamp: Time,
@@ -1577,15 +1595,7 @@ impl CameraFrame<Vec<u8>> {
             return Err(CdrError::InvalidHeader);
         }
         for p in planes {
-            if p.fd < -1 {
-                return Err(CdrError::InvalidHeader);
-            }
-            if p.used > p.size {
-                return Err(CdrError::InvalidHeader);
-            }
-            if p.fd >= 0 && !p.data.is_empty() {
-                return Err(CdrError::InvalidHeader);
-            }
+            validate_plane(p.fd, p.size, p.used, p.data.len())?;
         }
 
         let mut sizer = CdrSizer::new();
@@ -2430,6 +2440,79 @@ mod tests {
         let mut bytes = cf.to_cdr();
         let used_off = bytes.len() - 8;
         bytes[used_off..used_off + 4].copy_from_slice(&99u32.to_le_bytes());
+        assert!(CameraFrame::<&[u8]>::from_cdr(&bytes).is_err());
+    }
+
+    #[test]
+    fn camera_frame_rejects_inlined_size_mismatch() {
+        // fd == -1 requires size as usize == data.len() per CameraPlane.msg.
+        // `new` must reject the mismatch.
+        let data = [0x42u8, 0x43, 0x44, 0x45];
+        let plane = CameraPlaneView {
+            fd: -1,
+            offset: 0,
+            stride: 0,
+            size: 99, // does not match data.len() == 4
+            used: 4,
+            data: &data,
+        };
+        assert!(CameraFrame::new(
+            Time::new(0, 0),
+            "c",
+            0,
+            0,
+            1,
+            1,
+            "rgb8",
+            "",
+            "",
+            "",
+            "",
+            -1,
+            &[plane]
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn camera_frame_decoder_rejects_inlined_size_mismatch() {
+        // Start with a valid inlined-data plane (fd=-1, size==data.len()), then
+        // mutate `size` in the encoded CDR to break the invariant and confirm
+        // from_cdr rejects it.
+        let data = [0x42u8, 0x43, 0x44, 0x45];
+        let plane = CameraPlaneView {
+            fd: -1,
+            offset: 0,
+            stride: 0xDEADBEEF,
+            size: 4,
+            used: 4,
+            data: &data,
+        };
+        let cf = CameraFrame::new(
+            Time::new(1, 0),
+            "c",
+            0,
+            0,
+            1,
+            1,
+            "rgb8",
+            "",
+            "",
+            "",
+            "",
+            -1,
+            &[plane],
+        )
+        .unwrap();
+        let mut bytes = cf.to_cdr();
+        let needle = 0xDEADBEEFu32.to_le_bytes();
+        let stride_off = bytes
+            .windows(4)
+            .position(|w| w == needle)
+            .expect("stride sentinel");
+        // size is the u32 immediately after stride.
+        let size_off = stride_off + 4;
+        bytes[size_off..size_off + 4].copy_from_slice(&99u32.to_le_bytes());
         assert!(CameraFrame::<&[u8]>::from_cdr(&bytes).is_err());
     }
 
