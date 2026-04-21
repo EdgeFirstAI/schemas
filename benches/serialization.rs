@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright © 2025 Au-Zone Technologies. All Rights Reserved.
 
+// DmaBuffer benches kept through the 3.x deprecation window.
+#![allow(deprecated)]
+
 //! Comprehensive performance benchmarks for CDR serialization/deserialization.
 //!
 //! This benchmark suite measures serialization performance for EdgeFirst schemas,

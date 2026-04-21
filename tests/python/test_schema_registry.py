@@ -187,6 +187,8 @@ class TestCrossLanguageCompatibility:
         "geometry_msgs/msg/Quaternion",
         "foxglove_msgs/msg/CompressedVideo",
         "edgefirst_msgs/msg/Box",
+        "edgefirst_msgs/msg/CameraFrame",
+        "edgefirst_msgs/msg/CameraPlane",
         "edgefirst_msgs/msg/Detect",
         "edgefirst_msgs/msg/DmaBuffer",
         "edgefirst_msgs/msg/Mask",

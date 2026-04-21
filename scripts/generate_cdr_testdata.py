@@ -10,11 +10,20 @@ consumed by Rust integration tests in tests/cdr_golden.rs.
 
 Usage:
     source venv/bin/activate
-    python scripts/generate_cdr_testdata.py
+    python scripts/generate_cdr_testdata.py           # write fixtures
+    python scripts/generate_cdr_testdata.py --verify  # compare, exit 1 on diff
+
+`--verify` re-runs every generator in-memory and compares the result to the
+on-disk fixture. A silent pycdr2 upgrade that changes padding or alignment
+would otherwise overwrite the fixtures on the next `generate` invocation
+with no warning; --verify is the CI guard against that drift.
 """
 
+import argparse
+import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import List
 
 from pycdr2 import IdlStruct
 from pycdr2.types import float64, int16, int32, uint32
@@ -41,13 +50,33 @@ STAMP = builtin_interfaces.Time(sec=1234567890, nanosec=123456789)
 FRAME_ID = "test_frame"
 
 
+_VERIFY_MODE = False
+_DIFFS: List[str] = []
+
+
 def write_cdr(namespace: str, type_name: str, msg) -> None:
-    """Serialize *msg* to testdata/cdr/{namespace}/{type_name}.cdr."""
+    """Serialize *msg* to testdata/cdr/{namespace}/{type_name}.cdr.
+
+    In verify mode, compare against the on-disk fixture instead of writing
+    and record any mismatch in `_DIFFS`.
+    """
     out_dir = TESTDATA_CDR / namespace
-    out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{type_name}.cdr"
-    path.write_bytes(msg.serialize())
-    print(f"  {path.relative_to(TESTDATA_CDR.parent.parent)}")
+    fresh = msg.serialize()
+    rel = path.relative_to(TESTDATA_CDR.parent.parent)
+    if _VERIFY_MODE:
+        if not path.exists():
+            _DIFFS.append(f"MISSING  {rel}")
+        else:
+            disk = path.read_bytes()
+            if disk != fresh:
+                _DIFFS.append(
+                    f"DIFFER   {rel} (disk={len(disk)}B, fresh={len(fresh)}B)"
+                )
+        return
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(fresh)
+    print(f"  {rel}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -241,6 +270,102 @@ def gen_edgefirst_msgs():
               edgefirst_msgs.Mask(
                   height=2, width=4, length=0, encoding="",
                   mask=list(range(8)), boxed=False))
+
+    # CameraFrame — 8 variants covering raw, compressed, multi-plane, inlined.
+    def _plane(fd=0, offset=0, stride=0, size=0, used=None, data=None):
+        return edgefirst_msgs.CameraPlane(
+            fd=fd, offset=offset, stride=stride, size=size,
+            used=used if used is not None else size,
+            data=data if data is not None else [])
+
+    # Single-plane RGB8 1920x1080
+    write_cdr("edgefirst_msgs", "CameraFrame",
+              edgefirst_msgs.CameraFrame(
+                  header=header, seq=1, pid=1234, width=1920, height=1080,
+                  format="rgb8",
+                  color_space="srgb", color_transfer="srgb",
+                  color_encoding="", color_range="full", fence_fd=-1,
+                  planes=[_plane(fd=42, stride=5760, size=6_220_800)]))
+
+    # NV12 two-plane, shared fd
+    write_cdr("edgefirst_msgs", "CameraFrame_nv12",
+              edgefirst_msgs.CameraFrame(
+                  header=header, seq=2, pid=1234, width=1920, height=1080,
+                  format="NV12",
+                  color_space="bt709", color_transfer="bt709",
+                  color_encoding="bt709", color_range="limited", fence_fd=-1,
+                  planes=[
+                      _plane(fd=42, stride=1920, size=2_073_600),
+                      _plane(fd=42, offset=2_073_600, stride=1920, size=1_036_800),
+                  ]))
+
+    # I420 three-plane, shared fd
+    w, h = 1920, 1080
+    y_sz = w * h
+    uv_sz = (w // 2) * (h // 2)
+    write_cdr("edgefirst_msgs", "CameraFrame_i420",
+              edgefirst_msgs.CameraFrame(
+                  header=header, seq=3, pid=1234, width=w, height=h,
+                  format="I420",
+                  color_space="bt709", color_transfer="bt709",
+                  color_encoding="bt709", color_range="limited", fence_fd=-1,
+                  planes=[
+                      _plane(fd=42, stride=w, size=y_sz),
+                      _plane(fd=42, offset=y_sz, stride=w // 2, size=uv_sz),
+                      _plane(fd=42, offset=y_sz + uv_sz, stride=w // 2, size=uv_sz),
+                  ]))
+
+    # Planar RGB8 NCHW model input
+    n = 640 * 640
+    write_cdr("edgefirst_msgs", "CameraFrame_planar_nchw",
+              edgefirst_msgs.CameraFrame(
+                  header=header, seq=4, pid=1234, width=640, height=640,
+                  format="rgb8_planar_nchw",
+                  color_space="srgb", color_transfer="srgb",
+                  color_encoding="", color_range="full", fence_fd=-1,
+                  planes=[_plane(fd=50, offset=i * n, stride=640, size=n)
+                          for i in range(3)]))
+
+    # True V4L2 MPLANE — distinct fd per plane, plus a GPU fence
+    write_cdr("edgefirst_msgs", "CameraFrame_split_fd",
+              edgefirst_msgs.CameraFrame(
+                  header=header, seq=5, pid=1234, width=1920, height=1080,
+                  format="NV12",
+                  color_space="bt709", color_transfer="bt709",
+                  color_encoding="bt709", color_range="limited", fence_fd=77,
+                  planes=[
+                      _plane(fd=70, stride=1920, size=2_073_600),
+                      _plane(fd=71, stride=1920, size=1_036_800),
+                  ]))
+
+    # H.264 bitstream — oversized buffer, used << size
+    write_cdr("edgefirst_msgs", "CameraFrame_h264",
+              edgefirst_msgs.CameraFrame(
+                  header=header, seq=6, pid=1234, width=1920, height=1080,
+                  format="h264",
+                  color_space="bt709", color_transfer="bt709",
+                  color_encoding="bt709", color_range="limited", fence_fd=-1,
+                  planes=[_plane(fd=90, size=4_194_304, used=187_392)]))
+
+    # Off-device bridge — inlined data, no fd, pid=0
+    write_cdr("edgefirst_msgs", "CameraFrame_inlined",
+              edgefirst_msgs.CameraFrame(
+                  header=header, seq=7, pid=0, width=16, height=16,
+                  format="rgb8",
+                  color_space="srgb", color_transfer="srgb",
+                  color_encoding="", color_range="full", fence_fd=-1,
+                  planes=[_plane(fd=-1, stride=64, size=1024,
+                                 data=[i & 0xFF for i in range(1024)])]))
+
+    # Zero-plane metadata-only frame — exercises planes.len()==0 edge case
+    # which is distinct from the populated-planes path (empty seq-count walk
+    # in CDR, no scan_plane_element calls).
+    write_cdr("edgefirst_msgs", "CameraFrame_empty",
+              edgefirst_msgs.CameraFrame(
+                  header=header, seq=8, pid=0, width=1, height=1,
+                  format="", color_space="", color_transfer="",
+                  color_encoding="", color_range="", fence_fd=-1,
+                  planes=[]))
 
     # DmaBuffer
     write_cdr("edgefirst_msgs", "DmaBuffer",
@@ -454,7 +579,20 @@ def gen_rosgraph_msgs():
 # ═══════════════════════════════════════════════════════════════════════════
 
 def main():
-    print("Generating golden CDR test files …")
+    global _VERIFY_MODE
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--verify", action="store_true",
+        help="Re-encode in memory and compare to on-disk fixtures; "
+             "exit 1 on any mismatch without modifying files.",
+    )
+    args = parser.parse_args()
+    _VERIFY_MODE = args.verify
+
+    if _VERIFY_MODE:
+        print("Verifying golden CDR fixtures against fresh encodings …")
+    else:
+        print("Generating golden CDR test files …")
     gen_builtin_interfaces()
     gen_geometry_msgs()
     gen_std_msgs()
@@ -462,7 +600,21 @@ def main():
     gen_edgefirst_msgs()
     gen_foxglove_msgs()
     gen_rosgraph_msgs()
-    print("Done.")
+
+    if _VERIFY_MODE:
+        if _DIFFS:
+            print(f"\n{len(_DIFFS)} fixture(s) out of date:", file=sys.stderr)
+            for d in _DIFFS:
+                print(f"  {d}", file=sys.stderr)
+            print(
+                "\nRun `python scripts/generate_cdr_testdata.py` without "
+                "--verify to regenerate, then review the diffs in git.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        print("All fixtures match.")
+    else:
+        print("Done.")
 
 
 if __name__ == "__main__":

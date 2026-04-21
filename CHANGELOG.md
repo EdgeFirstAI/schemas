@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **CameraFrame / CameraPlane** — new multi-plane video frame schema
+  (`edgefirst_msgs/msg/CameraFrame`, `edgefirst_msgs/msg/CameraPlane`).
+  Supports planar formats (NV12, I420, planar RGB HWC/NCHW, signed i8
+  model inputs), hardware codec bitstreams (H.264/H.265/MJPEG with
+  `used < size`), DMA-fence sync fd, monotonic frame sequence counter,
+  four-axis colorimetry (primaries / transfer / encoding matrix / range),
+  and an off-device bridge path via per-plane inlined `data[]` when
+  `fd == -1`.
+
+  Bindings added in all four languages:
+
+  - Rust: `edgefirst_schemas::edgefirst_msgs::CameraFrame<B>`,
+    `CameraPlaneView`, plus `scan_plane_element` / `write_plane_element`
+    / `size_plane_element` helpers matching the `Detect` / `DetectBox`
+    precedent.
+  - C: `ros_camera_frame_t`, `ros_camera_plane_t`, and the
+    associated `ros_camera_frame_*` / `ros_camera_plane_*`
+    accessors. Parent-borrowed plane pointers protected by an
+    `owned=false` flag mirroring `ros_box_free` defense-in-depth.
+    (The `ros_` prefix is retained for consistency with the rest of
+    the 3.x C API; a full prefix normalization to per-namespace
+    prefixes — `edgefirst_*`, `foxglove_*`, `geometry_*`, etc. — is
+    planned for 4.0.0.)
+  - C++: `edgefirst::schemas::CameraFrameView`,
+    `edgefirst::schemas::detail::BorrowedCameraPlaneView`, with
+    `planes()` yielding a range over parent-borrowed plane views.
+  - Python: `edgefirst.schemas.edgefirst_msgs.CameraFrame`,
+    `CameraPlane` dataclasses.
+
+- **Eight golden CDR fixtures** for CameraFrame in
+  `testdata/cdr/edgefirst_msgs/`: metadata-only `CameraFrame_empty`,
+  single-plane RGB8, NV12 (shared fd), I420 (three planes), planar
+  RGB NCHW, split-fd MPLANE (distinct fd per plane) with GPU fence,
+  H.264 bitstream oversized buffer, and inlined-data off-device
+  bridge. Round-tripped in Rust, Python, C, and C++ tests.
+
+- **Schema registry** registers `edgefirst_msgs/msg/CameraFrame` and
+  `edgefirst_msgs/msg/CameraPlane`.
+
+### Deprecated
+
+- **`edgefirst_msgs/msg/DmaBuffer`** — superseded by `CameraFrame`.
+  Removed in 4.0.0. Deprecated APIs (all retained through 3.x):
+  - Rust: `DmaBuffer<B>`, `DmaBuffer::new`, `DmaBuffer::from_cdr`, and
+    the `pid` / `fd` / `width` / `height` / `stride` / `fourcc` /
+    `length` accessors.
+  - C: `ros_dmabuffer_t`, `ros_dmabuffer_from_cdr`,
+    `ros_dmabuffer_free`, `ros_dmabuffer_encode`, and all
+    `ros_dmabuffer_get_*` accessors.
+  - C++: `edgefirst::schemas::DmaBufferView`,
+    `edgefirst::schemas::DmaBuffer`.
+  - Python: `edgefirst.schemas.edgefirst_msgs.DmaBuffer`.
+
+### Notes
+
+- The canonical grammar for the `format` string (e.g. `"NV12"`,
+  `"rgb8_planar_nchw"`, `"h264"`, `"nv12:amlogic_fbc"`) is documented
+  separately in a follow-up design spec informed by edgefirst-camera,
+  HAL, and fusion-trainer consumer input.
+- New topics introduced by consumers of this schema should omit the
+  `rt/` prefix (e.g. `camera/frame`); the prefix is optional and is
+  being phased out project-wide.
+
 ## [3.0.0] - 2026-04-10
 
 This release introduces a header-only C++17 wrapper around the C API and

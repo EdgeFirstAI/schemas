@@ -1199,12 +1199,30 @@ struct MaskTraits {
     static constexpr std::string_view name = "ros_mask";
 };
 
+// DmaBufferTraits wraps deprecated C entry points. The DmaBufferView /
+// DmaBuffer class templates themselves carry [[deprecated]] at the class
+// level, so end users still get a warning; suppress the transitive
+// C-level warning here to keep the header clean on -Werror builds.
+#if defined(__GNUC__) || defined(__clang__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
 struct DmaBufferTraits {
     using handle_type = ros_dmabuffer_t;
     static constexpr auto from_cdr = ros_dmabuffer_from_cdr;
     static constexpr auto free     = ros_dmabuffer_free;
     static constexpr auto as_cdr   = ros_dmabuffer_as_cdr;
     static constexpr std::string_view name = "ros_dmabuffer";
+};
+#if defined(__GNUC__) || defined(__clang__)
+#  pragma GCC diagnostic pop
+#endif
+
+struct CameraFrameTraits {
+    using handle_type = ros_camera_frame_t;
+    static constexpr auto from_cdr = ros_camera_frame_from_cdr;
+    static constexpr auto free     = ros_camera_frame_free;
+    static constexpr std::string_view name = "ros_camera_frame";
 };
 
 struct LocalTimeTraits {
@@ -1502,6 +1520,54 @@ public:
 
 private:
     const ros_mask_t* handle_;
+};
+
+/**
+ * @internal
+ * @brief Non-owning accessor over a parent-borrowed
+ *        `ros_camera_plane_t*`.
+ *
+ * Yielded by `CameraFrameView::planes()` iteration. The handle is owned by
+ * the parent view and becomes invalid when the parent is destroyed. Must
+ * NOT call `ros_camera_plane_free`; lifetime is tied to the parent.
+ *
+ * @warning Do not store past the lifetime of the parent. `data()` borrows
+ *          directly into the parent's CDR buffer.
+ */
+class BorrowedCameraPlaneView {
+public:
+    BorrowedCameraPlaneView() = delete;
+    BorrowedCameraPlaneView(const BorrowedCameraPlaneView&) = default;
+    BorrowedCameraPlaneView& operator=(const BorrowedCameraPlaneView&) = delete;
+    BorrowedCameraPlaneView(BorrowedCameraPlaneView&&) = default;
+    BorrowedCameraPlaneView& operator=(BorrowedCameraPlaneView&&) = delete;
+
+    explicit BorrowedCameraPlaneView(const ros_camera_plane_t* h) noexcept
+        : handle_(h) {}
+
+    /// @brief DMA-BUF file descriptor, or -1 if the plane bytes are inlined.
+    [[nodiscard]] std::int32_t  fd()     const noexcept { return ros_camera_plane_get_fd(handle_); }
+    /// @brief Byte offset of the plane within the fd (0 when fd == -1).
+    [[nodiscard]] std::uint32_t offset() const noexcept { return ros_camera_plane_get_offset(handle_); }
+    /// @brief Bytes per line of the plane.
+    [[nodiscard]] std::uint32_t stride() const noexcept { return ros_camera_plane_get_stride(handle_); }
+    /// @brief Plane capacity in bytes (buffer span).
+    [[nodiscard]] std::uint32_t size()   const noexcept { return ros_camera_plane_get_size(handle_); }
+    /// @brief Valid payload bytes (<= size; strictly less for compressed
+    ///        bitstreams).
+    [[nodiscard]] std::uint32_t used()   const noexcept { return ros_camera_plane_get_used(handle_); }
+
+    /// @brief Inlined plane bytes (only non-empty when fd == -1).
+    /// @return span borrowing into the parent's CDR buffer; empty for
+    ///         fd-backed planes.
+    [[nodiscard]] span<const std::uint8_t> data() const noexcept {
+        std::size_t n = 0;
+        auto* p = ros_camera_plane_get_data(handle_, &n);
+        return {p, n};
+    }
+
+private:
+    const ros_camera_plane_t* handle_;
 };
 
 } // namespace detail
@@ -2209,7 +2275,12 @@ public:
  * @note Move-only.
  * @see DmaBuffer for the owning counterpart.
  */
-class DmaBufferView : public detail::ViewBase<DmaBufferView, detail::DmaBufferTraits> {
+#if defined(__GNUC__) || defined(__clang__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+class [[deprecated("Use CameraFrameView instead; DmaBufferView will be removed in 4.0.0")]]
+DmaBufferView : public detail::ViewBase<DmaBufferView, detail::DmaBufferTraits> {
     using Base = detail::ViewBase<DmaBufferView, detail::DmaBufferTraits>;
     friend Base;
     using Base::Base;
@@ -2274,7 +2345,8 @@ public:
  *
  * @see DmaBufferView for the non-owning counterpart.
  */
-class DmaBuffer : public detail::OwnedBase<DmaBuffer, detail::DmaBufferTraits> {
+class [[deprecated("Use CameraFrameView + inlined-data planes instead; DmaBuffer will be removed in 4.0.0")]]
+DmaBuffer : public detail::OwnedBase<DmaBuffer, detail::DmaBufferTraits> {
     using Base = detail::OwnedBase<DmaBuffer, detail::DmaBufferTraits>;
     friend Base;
 public:
@@ -2352,6 +2424,115 @@ public:
     /// @return The length value from the handle.
     [[nodiscard]] std::uint32_t length() const noexcept {
         return ros_dmabuffer_get_length(handle());
+    }
+};
+#if defined(__GNUC__) || defined(__clang__)
+#  pragma GCC diagnostic pop
+#endif
+
+// ---------------------------------------------------------------------------
+// edgefirst_msgs - CameraFrame (view-only, multi-plane)
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Non-owning, move-only view over an `edgefirst_msgs::CameraFrame`.
+ *
+ * Multi-plane video frame reference: DMA-BUF fds (one per plane) and/or
+ * inlined per-plane bytes (for off-device bridges), plus frame-level
+ * metadata (sequence counter, colorimetry, GPU fence fd). Supersedes
+ * `DmaBufferView` for all new code.
+ *
+ * View-only (no `ros_camera_frame_encode` in the C API).
+ *
+ * @warning Backing CDR buffer must outlive this view and every
+ *          `BorrowedCameraPlaneView` yielded by `planes()`.
+ * @note Move-only.
+ *
+ * @code{.cpp}
+ * namespace ef = edgefirst::schemas;
+ * auto cf = ef::CameraFrameView::from_cdr(payload);
+ * if (!cf) return;
+ * for (auto p : cf->planes()) {
+ *     if (p.fd() >= 0) mmap_plane(p.fd(), p.offset(), p.size(), p.used());
+ *     else             consume_inlined(p.data());
+ * }
+ * @endcode
+ */
+class CameraFrameView
+    : public detail::ViewBaseNoCdr<CameraFrameView, detail::CameraFrameTraits> {
+    using Base = detail::ViewBaseNoCdr<CameraFrameView, detail::CameraFrameTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+
+    /// @brief Message timestamp.
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_camera_frame_get_stamp_sec(handle()),
+                ros_camera_frame_get_stamp_nanosec(handle())};
+    }
+    /// @brief Coordinate frame identifier (borrowed from CDR buffer).
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_camera_frame_get_frame_id(handle());
+    }
+    /// @brief Monotonic frame index (from V4L2 sequence / libcamera).
+    [[nodiscard]] std::uint64_t seq() const noexcept {
+        return ros_camera_frame_get_seq(handle());
+    }
+    /// @brief Producer process id (0 when all planes inlined).
+    [[nodiscard]] std::uint32_t pid() const noexcept {
+        return ros_camera_frame_get_pid(handle());
+    }
+    /// @brief Image width in pixels.
+    [[nodiscard]] std::uint32_t width()  const noexcept {
+        return ros_camera_frame_get_width(handle());
+    }
+    /// @brief Image height in pixels.
+    [[nodiscard]] std::uint32_t height() const noexcept {
+        return ros_camera_frame_get_height(handle());
+    }
+    /// @brief DMA-fence sync_file fd (-1 = already signalled / no fence).
+    [[nodiscard]] std::int32_t fence_fd() const noexcept {
+        return ros_camera_frame_get_fence_fd(handle());
+    }
+
+    /// @brief Format descriptor (e.g. "NV12", "rgb8_planar_nchw", "h264").
+    [[nodiscard]] std::string_view format() const noexcept {
+        return ros_camera_frame_get_format(handle());
+    }
+    /// @brief Color primaries (e.g. "bt709", "srgb", "bt2020", "").
+    [[nodiscard]] std::string_view color_space() const noexcept {
+        return ros_camera_frame_get_color_space(handle());
+    }
+    /// @brief Transfer function (e.g. "bt709", "srgb", "pq", "hlg", "").
+    [[nodiscard]] std::string_view color_transfer() const noexcept {
+        return ros_camera_frame_get_color_transfer(handle());
+    }
+    /// @brief YCbCr encoding matrix (e.g. "bt601", "bt709", "bt2020", "").
+    [[nodiscard]] std::string_view color_encoding() const noexcept {
+        return ros_camera_frame_get_color_encoding(handle());
+    }
+    /// @brief Sample range ("full", "limited", or "" for unknown).
+    [[nodiscard]] std::string_view color_range() const noexcept {
+        return ros_camera_frame_get_color_range(handle());
+    }
+
+    /// @brief Number of planes.
+    [[nodiscard]] std::uint32_t planes_len() const noexcept {
+        return ros_camera_frame_get_planes_len(handle());
+    }
+
+    /// @brief Range adaptor over the planes.
+    /// @return A `detail::ChildRange` yielding `detail::BorrowedCameraPlaneView`
+    ///         elements; each borrows into this view's CDR buffer.
+    [[nodiscard]] auto planes() const noexcept {
+        return detail::ChildRange<ros_camera_frame_t,
+                                   detail::BorrowedCameraPlaneView,
+                                   decltype(&ros_camera_frame_get_plane)>{
+            handle(),
+            ros_camera_frame_get_planes_len(handle()),
+            ros_camera_frame_get_plane
+        };
     }
 };
 

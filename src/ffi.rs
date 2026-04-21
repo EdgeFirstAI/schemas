@@ -1336,15 +1336,20 @@ pub extern "C" fn ros_mask_encode(
 }
 
 // =============================================================================
-// DmaBuffer (buffer-backed)
+// DmaBuffer (buffer-backed) — DEPRECATED, use CameraFrame instead
 // =============================================================================
-
+//
+// The `ros_dmabuffer_*` C API is kept for binary compatibility throughout the
+// 3.x series and will be removed in 4.0.0. New code should use the
+// `ros_camera_frame_*` API defined below.
+#[allow(deprecated)]
 pub struct ros_dmabuffer_t(edgefirst_msgs::DmaBuffer<&'static [u8]>);
 
 /// @brief Create a DmaBuffer view from CDR bytes.
 /// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
 /// @param len Length of data
 /// @return Opaque handle or NULL on error (errno set)
+#[allow(deprecated)]
 #[no_mangle]
 pub extern "C" fn ros_dmabuffer_from_cdr(data: *const u8, len: usize) -> *mut ros_dmabuffer_t {
     check_null_ret_null!(data);
@@ -1447,6 +1452,7 @@ pub extern "C" fn ros_dmabuffer_get_length(view: *const ros_dmabuffer_t) -> u32 
     unsafe { (*view).0.length() }
 }
 
+#[allow(deprecated)]
 #[no_mangle]
 pub extern "C" fn ros_dmabuffer_encode(
     out_bytes: *mut *mut u8,
@@ -1481,6 +1487,300 @@ pub extern "C" fn ros_dmabuffer_encode(
         }
     };
     return_cdr_bytes(v.into_cdr(), out_bytes, out_len)
+}
+
+// =============================================================================
+// CameraFrame / CameraPlane (buffer-backed, multi-plane)
+// =============================================================================
+//
+// CameraFrame supersedes DmaBuffer. Child planes are pre-materialized at
+// `from_cdr` time into `child_planes`, mirroring the Detect → Box pattern.
+
+/// Opaque handle for a single CameraPlane view.
+///
+/// Either heap-allocated directly (standalone, unused today) or borrowed from
+/// a parent `ros_camera_frame_t`. The `owned` flag keeps
+/// `ros_camera_plane_free` safe if a caller mistakenly frees a borrowed
+/// child.
+pub struct ros_camera_plane_t {
+    view: edgefirst_msgs::CameraPlaneView<'static>,
+    owned: bool,
+}
+
+pub struct ros_camera_frame_t {
+    inner: edgefirst_msgs::CameraFrame<&'static [u8]>,
+    child_planes: Vec<ros_camera_plane_t>,
+}
+
+/// @brief Create a CameraFrame view from CDR bytes.
+/// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+/// @param len Length of data
+/// @return Opaque handle or NULL on error (errno set to EINVAL or EBADMSG)
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut ros_camera_frame_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match edgefirst_msgs::CameraFrame::from_cdr_collect_planes(unsafe { erase_lifetime(slice) }) {
+        Ok((inner, plane_views)) => {
+            let child_planes: Vec<ros_camera_plane_t> = plane_views
+                .into_iter()
+                .map(|view| ros_camera_plane_t { view, owned: false })
+                .collect();
+            Box::into_raw(Box::new(ros_camera_frame_t {
+                inner,
+                child_planes,
+            }))
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_free(view: *mut ros_camera_frame_t) {
+    if !view.is_null() {
+        unsafe {
+            drop(Box::from_raw(view));
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_get_stamp_sec(view: *const ros_camera_frame_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).inner.stamp().sec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_get_stamp_nanosec(view: *const ros_camera_frame_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).inner.stamp().nanosec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_get_frame_id(view: *const ros_camera_frame_t) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).inner.frame_id() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_get_seq(view: *const ros_camera_frame_t) -> u64 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).inner.seq() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_get_pid(view: *const ros_camera_frame_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).inner.pid() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_get_width(view: *const ros_camera_frame_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).inner.width() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_get_height(view: *const ros_camera_frame_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).inner.height() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_get_fence_fd(view: *const ros_camera_frame_t) -> i32 {
+    if view.is_null() {
+        return -1;
+    }
+    unsafe { (*view).inner.fence_fd() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_get_format(view: *const ros_camera_frame_t) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).inner.format() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_get_color_space(
+    view: *const ros_camera_frame_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).inner.color_space() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_get_color_transfer(
+    view: *const ros_camera_frame_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).inner.color_transfer() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_get_color_encoding(
+    view: *const ros_camera_frame_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).inner.color_encoding() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_get_color_range(
+    view: *const ros_camera_frame_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).inner.color_range() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_get_planes_len(view: *const ros_camera_frame_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).child_planes.len() as u32 }
+}
+
+/// @brief Get a borrowed view of the i-th plane.
+///
+/// The returned pointer is NOT a separately-owned handle: do NOT pass it to
+/// `ros_camera_plane_free()`. It becomes invalid when the parent
+/// `ros_camera_frame_t` handle is freed, and the CDR buffer passed to
+/// `ros_camera_frame_from_cdr` must remain valid as well.
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_get_plane(
+    view: *const ros_camera_frame_t,
+    index: u32,
+) -> *const ros_camera_plane_t {
+    if view.is_null() {
+        set_errno(EINVAL);
+        return ptr::null();
+    }
+    let v = unsafe { &*view };
+    let idx = index as usize;
+    if idx >= v.child_planes.len() {
+        set_errno(EINVAL);
+        return ptr::null();
+    }
+    &v.child_planes[idx] as *const ros_camera_plane_t
+}
+
+/// @brief Free a CameraPlane handle.
+///
+/// Safe to call with NULL. If the handle is parent-borrowed (via
+/// `ros_camera_frame_get_plane`), this no-ops with `errno=EINVAL`
+/// — the parent owns it.
+#[no_mangle]
+pub extern "C" fn ros_camera_plane_free(view: *mut ros_camera_plane_t) {
+    if view.is_null() {
+        return;
+    }
+    unsafe {
+        if (*view).owned {
+            drop(Box::from_raw(view));
+        } else {
+            set_errno(EINVAL);
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_plane_get_fd(view: *const ros_camera_plane_t) -> i32 {
+    if view.is_null() {
+        return -1;
+    }
+    unsafe { (*view).view.fd }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_plane_get_offset(view: *const ros_camera_plane_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).view.offset }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_plane_get_stride(view: *const ros_camera_plane_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).view.stride }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_plane_get_size(view: *const ros_camera_plane_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).view.size }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_plane_get_used(view: *const ros_camera_plane_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).view.used }
+}
+
+/// @brief Get the inlined plane data (only populated when fd == -1).
+/// @param out_len Pointer to usize receiving the byte length (may be NULL).
+/// @return Pointer to the plane bytes inside the parent's CDR buffer, or
+///         NULL if the plane has no inlined data / invalid handle.
+#[no_mangle]
+pub extern "C" fn ros_camera_plane_get_data(
+    view: *const ros_camera_plane_t,
+    out_len: *mut usize,
+) -> *const u8 {
+    if view.is_null() {
+        if !out_len.is_null() {
+            unsafe {
+                *out_len = 0;
+            }
+        }
+        return ptr::null();
+    }
+    let data = unsafe { (*view).view.data };
+    if !out_len.is_null() {
+        unsafe {
+            *out_len = data.len();
+        }
+    }
+    if data.is_empty() {
+        ptr::null()
+    } else {
+        data.as_ptr()
+    }
 }
 
 // =============================================================================

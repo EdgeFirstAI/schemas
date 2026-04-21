@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright © 2025 Au-Zone Technologies. All Rights Reserved.
 
+// MCAP tests still cover DmaBuffer for the deprecation window. Allow
+// the internal usages; downstream consumers still get the warning.
+#![allow(deprecated)]
+
 //! MCAP tests for real-world CDR validation.
 //!
 //! These tests validate that EdgeFirst Schemas can correctly deserialize

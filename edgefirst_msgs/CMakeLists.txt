@@ -11,6 +11,8 @@ find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   msg/Box.msg
+  msg/CameraFrame.msg
+  msg/CameraPlane.msg
   msg/Date.msg
   msg/Detect.msg
   msg/DmaBuffer.msg

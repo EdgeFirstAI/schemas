@@ -624,8 +624,13 @@ TEST_CASE("Mask move semantics", "[buffer_backed][mask]") {
 }
 
 // ============================================================================
-// edgefirst_msgs - DmaBuffer
+// edgefirst_msgs - DmaBuffer (deprecated in 3.1.0, removed in 4.0.0)
 // ============================================================================
+// Tests kept through the deprecation window; new code should use CameraFrame.
+// GCC/Clang diagnostic suppression mirrors the Rust #[allow(deprecated)] on
+// internal DmaBuffer test paths.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 TEST_CASE("DmaBuffer encode+view roundtrip", "[buffer_backed][dmabuffer]") {
     auto buf = ef::DmaBuffer::encode(
@@ -935,3 +940,5 @@ TEST_CASE("BoxView track_created accessor", "[buffer_backed][box][track_created]
     CHECK(tc.sec     == 95);
     CHECK(tc.nanosec == 0u);
 }
+
+#pragma GCC diagnostic pop
