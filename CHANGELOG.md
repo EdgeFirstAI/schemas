@@ -73,9 +73,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   which landed in a non-bug region by coincidence.
 
 - **`CdrFixed` trait docs** now warn that `CDR_SIZE` is only a reliable
-  constant for types with non-decreasing internal field alignment.
-  `NavSatStatus` is the sole counterexample in the crate and is marked
-  with an in-source warning flagging the position-dependent size.
+  constant for types whose alignment requirements do not increase within
+  the type. `NavSatStatus` is the sole counterexample in the crate and
+  is marked with an in-source warning flagging the position-dependent
+  size.
 
 ### Deprecated
 
