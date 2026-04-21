@@ -53,8 +53,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`NavSatFix` accessor alignment bug (EDGEAI-1243).** `latitude()`,
   `longitude()`, `altitude()`, `position_covariance()`, and
   `position_covariance_type()` returned wrong values when the
-  `frame_id` string length caused `offsets[0]` to land at a CDR-relative
-  position ≡ 1 (mod 8) — e.g. `frame_id = "gps_link"` (8 chars, the
+  `frame_id` string length caused `offsets[0]` to land at an absolute
+  buffer offset ≡ 1 (mod 8) — e.g. `frame_id = "gps_link"` (8 chars, the
   canonical ROS GPS frame). Root cause: `fixed_base` used
   `cdr_align(offsets[0] + NavSatStatus::CDR_SIZE, 8)` assuming
   `NavSatStatus` is always 4 bytes, but `int8 + uint16` collapses to
