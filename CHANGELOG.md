@@ -48,6 +48,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Schema registry** registers `edgefirst_msgs/msg/CameraFrame` and
   `edgefirst_msgs/msg/CameraPlane`.
 
+### Fixed
+
+- **`NavSatFix` accessor alignment bug (EDGEAI-1243).** `latitude()`,
+  `longitude()`, `altitude()`, `position_covariance()`, and
+  `position_covariance_type()` returned wrong values when the
+  `frame_id` string length caused `offsets[0]` to land at a CDR-relative
+  position ≡ 1 (mod 8) — e.g. `frame_id = "gps_link"` (8 chars, the
+  canonical ROS GPS frame). Root cause: `fixed_base` used
+  `cdr_align(offsets[0] + NavSatStatus::CDR_SIZE, 8)` assuming
+  `NavSatStatus` is always 4 bytes, but `int8 + uint16` collapses to
+  3 bytes at odd CDR-relative start positions. Fixed by capturing the
+  true post-`NavSatStatus` position from the cursor during `from_cdr`
+  / `new` into `offsets[1]`, mirroring the pattern used elsewhere in
+  the crate (`CameraFrame::planes_pos`, `CompressedImage::offsets[1]`).
+
+  The on-wire bytes produced by `NavSatFix::new(...).to_cdr()` were
+  always correct — any spec-compliant CDR decoder read them correctly.
+  The defect was confined to the in-crate offset-math accessor shortcut.
+
+  Regression test `navsatfix_accessors_robust_across_frame_id_alignments`
+  sweeps `frame_id` lengths 0..=16 (every mod-8 residue). Previous
+  golden coverage used a single `frame_id = "test_frame"` (10 chars)
+  which landed in a non-bug region by coincidence.
+
+- **`CdrFixed` trait docs** now warn that `CDR_SIZE` is only a reliable
+  constant for types with non-decreasing internal field alignment.
+  `NavSatStatus` is the sole counterexample in the crate and is marked
+  with an in-source warning flagging the position-dependent size.
+
 ### Deprecated
 
 - **`edgefirst_msgs/msg/DmaBuffer`** — superseded by `CameraFrame`.

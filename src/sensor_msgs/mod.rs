@@ -28,6 +28,11 @@ pub struct NavSatStatus {
 }
 
 impl CdrFixed for NavSatStatus {
+    // WARNING: position-dependent. 4 bytes only when embedded at an even
+    // CDR-relative offset; 3 bytes at odd relative offsets (no pre-u16 pad).
+    // Do NOT compute post-field positions as `offsets[0] + CDR_SIZE` — use
+    // a cursor-captured offset instead. See CdrFixed trait docs and
+    // NavSatFix::from_cdr for the correct pattern. EDGEAI-1243.
     const CDR_SIZE: usize = 4; // i8(1) + pad(1) + u16(2)
     fn read_cdr(cursor: &mut CdrCursor<'_>) -> Result<Self, CdrError> {
         let status = cursor.read_i8()?;
@@ -588,13 +593,21 @@ impl Imu<Vec<u8>> {
 
 // ── NavSatFix<B> ────────────────────────────────────────────────────
 //
-// CDR layout: Header → offsets[0], then:
-//   NavSatStatus(4) + pad(4) + latitude(f64) + longitude(f64) + altitude(f64)
+// CDR layout: Header → offsets[0] (status start), then:
+//   NavSatStatus (3 or 4 bytes — internal padding depends on start parity)
+//   + pad to 8 → offsets[1] (latitude start)
+//   + latitude(f64) + longitude(f64) + altitude(f64)
 //   + position_covariance([f64;9]) + position_covariance_type(u8)
+//
+// `offsets[1]` must be captured from the cursor, not derived from
+// `offsets[0] + NavSatStatus::CDR_SIZE`, because CDR_SIZE is 4 only when
+// offsets[0] lands at an even CDR-relative position; at odd relative
+// positions the `int8`+`uint16` pair occupies 3 bytes (no pre-u16 pad).
+// See EDGEAI-1243.
 
 pub struct NavSatFix<B> {
     buf: B,
-    offsets: [usize; 1],
+    offsets: [usize; 2],
 }
 
 impl<B: AsRef<[u8]>> NavSatFix<B> {
@@ -603,12 +616,17 @@ impl<B: AsRef<[u8]>> NavSatFix<B> {
         let o0 = header.end_offset();
         let mut c = CdrCursor::resume(buf.as_ref(), o0);
         NavSatStatus::read_cdr(&mut c)?;
+        c.align(8);
+        let o1 = c.offset();
         c.read_f64()?; // latitude
         c.read_f64()?; // longitude
         c.read_f64()?; // altitude
         read_f64_array9(&mut c)?; // position_covariance
         c.read_u8()?; // position_covariance_type
-        Ok(NavSatFix { offsets: [o0], buf })
+        Ok(NavSatFix {
+            offsets: [o0, o1],
+            buf,
+        })
     }
 
     /// Returns a `Header` view (re-parses CDR prefix; prefer `stamp()`/`frame_id()`).
@@ -627,10 +645,11 @@ impl<B: AsRef<[u8]>> NavSatFix<B> {
         NavSatStatus::read_cdr(&mut c).expect("status field validated during from_cdr")
     }
 
-    // NavSatFix fixed layout after status (NavSatStatus=4):
+    // NavSatFix fixed layout (starting at offsets[1]):
     //   lat(8), lon(8), alt(8), pos_cov[9](72), pos_cov_type(1)
+    #[inline]
     fn fixed_base(&self) -> usize {
-        cdr_align(self.offsets[0] + 4, 8)
+        self.offsets[1]
     }
 
     pub fn latitude(&self) -> f64 {
@@ -676,6 +695,8 @@ impl NavSatFix<Vec<u8>> {
         sizer.size_string(frame_id);
         let o0 = sizer.offset();
         NavSatStatus::size_cdr(&mut sizer);
+        sizer.align(8);
+        let o1 = sizer.offset();
         sizer.size_f64(); // latitude
         sizer.size_f64(); // longitude
         sizer.size_f64(); // altitude
@@ -694,7 +715,10 @@ impl NavSatFix<Vec<u8>> {
         w.write_u8(position_covariance_type);
         w.finish()?;
 
-        Ok(NavSatFix { offsets: [o0], buf })
+        Ok(NavSatFix {
+            offsets: [o0, o1],
+            buf,
+        })
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
@@ -1479,5 +1503,85 @@ mod tests {
         assert_eq!(decoded.distortion_model(), "plumb_bob");
         assert_eq!(decoded.d_len(), 5);
         assert_eq!(decoded.binning_x(), 1);
+    }
+
+    // EDGEAI-1243 regression: NavSatFix accessors must return the encoded
+    // values for every valid `frame_id` length, not just the one used in the
+    // golden fixture. The pre-fix `fixed_base = cdr_align(offsets[0] + 4, 8)`
+    // formula was wrong whenever the CDR-relative position of `offsets[0]`
+    // landed at a residue that made `NavSatStatus` occupy 3 bytes rather
+    // than 4. Sweep frame_id lengths 0..=16 to cover every mod-8 residue.
+    #[test]
+    fn navsatfix_accessors_robust_across_frame_id_alignments() {
+        let lat = 43.6532_f64;
+        let lon = -79.3832_f64;
+        let alt = 150.0_f64;
+        let cov = [0.1, 0.0, 0.0, 0.0, 0.2, 0.0, 0.0, 0.0, 0.3_f64];
+        let cov_type = 2_u8;
+        let status = NavSatStatus {
+            status: 0,
+            service: 1,
+        };
+        for len in 0..=16_usize {
+            let frame_id: String = "x".repeat(len);
+            let fix = NavSatFix::new(
+                Time::new(1, 0),
+                &frame_id,
+                status,
+                lat,
+                lon,
+                alt,
+                cov,
+                cov_type,
+            )
+            .unwrap();
+            let bytes = fix.to_cdr();
+            let view = NavSatFix::from_cdr(&bytes[..]).unwrap();
+            assert_eq!(view.frame_id(), frame_id, "frame_id at len={len}");
+            let rx_status = view.status();
+            assert_eq!(rx_status.status, 0, "status.status at len={len}");
+            assert_eq!(rx_status.service, 1, "status.service at len={len}");
+            assert_eq!(view.latitude(), lat, "latitude at len={len}");
+            assert_eq!(view.longitude(), lon, "longitude at len={len}");
+            assert_eq!(view.altitude(), alt, "altitude at len={len}");
+            assert_eq!(
+                view.position_covariance(),
+                cov,
+                "position_covariance at len={len}"
+            );
+            assert_eq!(
+                view.position_covariance_type(),
+                cov_type,
+                "position_covariance_type at len={len}"
+            );
+        }
+    }
+
+    // Direct reproduction of the EDGEAI-1243 bug report: `"gps_link"`
+    // (8-char frame_id) is the canonical ROS 2 GPS frame and was the
+    // original trigger. Kept alongside the parametric sweep so the
+    // connection to the JIRA is explicit.
+    #[test]
+    fn navsatfix_gps_link_frame_id_regression() {
+        let status = NavSatStatus {
+            status: 0,
+            service: 1,
+        };
+        let fix = NavSatFix::new(
+            Time::new(0, 0),
+            "gps_link",
+            status,
+            43.6532,
+            -79.3832,
+            150.0,
+            [0.0; 9],
+            0,
+        )
+        .unwrap();
+        let bytes = fix.to_cdr();
+        let rx = NavSatFix::from_cdr(&bytes[..]).unwrap();
+        assert_eq!(rx.latitude(), 43.6532);
+        assert_eq!(rx.longitude(), -79.3832);
+        assert_eq!(rx.altitude(), 150.0);
     }
 }

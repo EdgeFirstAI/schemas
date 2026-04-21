@@ -703,8 +703,29 @@ impl CdrSizer {
 /// Types implementing this trait are `Copy` and have a constant CDR wire size.
 /// They can be embedded in buffer-backed composite types without needing
 /// offset tables.
+///
+/// # When `CDR_SIZE` is truly constant
+///
+/// `CDR_SIZE` is only a reliable constant when the type's fields have
+/// **non-decreasing internal alignment** (e.g. `Time { i32, u32 }`,
+/// `Quaternion { 4×f64 }`, `Date { u16, u8, u8 }`). In that case the layout
+/// depends only on the start offset, not on internal padding.
+///
+/// A type whose first field is narrower than a later field with stricter
+/// alignment (e.g. `int8` followed by `uint16`) has **position-dependent
+/// internal padding** — its true wire size varies with the CDR-relative
+/// start position. `NavSatStatus { i8, u16 }` is the sole such type in this
+/// crate and occupies 3 or 4 bytes depending on start parity. `CDR_SIZE = 4`
+/// is only correct when the embedding offset is even (CDR-relative).
+///
+/// Offset-math accessors in buffer-backed composite types
+/// (`fixed_base = offsets[0] + T::CDR_SIZE`) are therefore **unsafe** to use
+/// with such types. Instead, capture the true post-field position from the
+/// cursor during `from_cdr` into an offset slot. See `NavSatFix` (EDGEAI-1243)
+/// for the reference pattern.
 pub trait CdrFixed: Copy + Sized {
-    /// The wire size of this type in CDR (not counting any encapsulation header).
+    /// The wire size of this type in CDR (not counting any encapsulation
+    /// header). See the trait-level docs for when this value is reliable.
     const CDR_SIZE: usize;
 
     /// Read this type from the cursor (cursor is already past the CDR header).
