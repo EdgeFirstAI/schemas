@@ -707,9 +707,11 @@ impl CdrSizer {
 /// # When `CDR_SIZE` is truly constant
 ///
 /// `CDR_SIZE` is only a reliable constant when the type's fields have
-/// **non-decreasing internal alignment** (e.g. `Time { i32, u32 }`,
+/// **non-increasing alignment requirements** — that is, later fields never
+/// require stricter alignment than earlier ones (e.g. `Time { i32, u32 }`,
 /// `Quaternion { 4×f64 }`, `Date { u16, u8, u8 }`). In that case the layout
-/// depends only on the start offset, not on internal padding.
+/// depends only on the start offset, not on position-dependent internal
+/// padding.
 ///
 /// A type whose first field is narrower than a later field with stricter
 /// alignment (e.g. `int8` followed by `uint16`) has **position-dependent
