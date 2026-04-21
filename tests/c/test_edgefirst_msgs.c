@@ -12,9 +12,31 @@
 
 #include <criterion/criterion.h>
 #include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 #include "edgefirst/schemas.h"
+
+// Load a golden CDR fixture from testdata/ at runtime. Returns a malloc'd
+// buffer (caller frees) and writes length via *out_len. Prefer this to
+// hex-embedding additional CameraFrame variants — keeps the C suite in
+// lock-step with the Python generator without bloating the test source.
+static uint8_t *load_fixture(const char *relpath, size_t *out_len) {
+    FILE *f = fopen(relpath, "rb");
+    if (!f) return NULL;
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (sz <= 0) { fclose(f); return NULL; }
+    uint8_t *buf = (uint8_t *) malloc((size_t) sz);
+    if (!buf) { fclose(f); return NULL; }
+    size_t got = fread(buf, 1, (size_t) sz, f);
+    fclose(f);
+    if (got != (size_t) sz) { free(buf); return NULL; }
+    *out_len = got;
+    return buf;
+}
 
 // ============================================================================
 // Track Tests (buffer-backed — no encode)
@@ -211,7 +233,15 @@ Test(edgefirst_msgs, mask_getters_null) {
 
 // ============================================================================
 // DmaBuffer Tests (buffer-backed — has encode)
+//
+// DmaBuffer is deprecated in 3.1.0 and removed in 4.0.0. The test suite keeps
+// coverage alive through the 3.x line to catch regressions while the API
+// still ships; the deprecation warnings that would otherwise break -Werror
+// are suppressed locally so that consumer code remains exposed to them.
 // ============================================================================
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 Test(edgefirst_msgs, dmabuffer_encode_from_cdr_roundtrip) {
     uint8_t *bytes = NULL;
@@ -271,6 +301,8 @@ Test(edgefirst_msgs, dmabuffer_getters_null) {
     cr_assert_eq(ros_dmabuffer_get_fourcc(NULL), 0);
     cr_assert_eq(ros_dmabuffer_get_length(NULL), 0);
 }
+
+#pragma GCC diagnostic pop
 
 // ============================================================================
 // RadarCube Tests (buffer-backed — no encode)
@@ -807,7 +839,10 @@ Test(memory_safety, blob_getters_null_view_initializes_out_len) {
 
     // ros_dmabuffer_as_cdr: NULL view must initialize out_len to 0
     out_len = 0xDEADBEEF;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     data_ptr = ros_dmabuffer_as_cdr(NULL, &out_len);
+#pragma GCC diagnostic pop
     cr_assert_null(data_ptr, "ros_dmabuffer_as_cdr should return NULL for NULL view");
     cr_assert_eq(out_len, 0, "ros_dmabuffer_as_cdr must initialize out_len to 0 on NULL view");
 
@@ -860,4 +895,248 @@ Test(memory_safety, blob_getters_null_view_initializes_out_len) {
     const uint8_t *layout_ptr = ros_radar_cube_get_layout(NULL, &out_len);
     cr_assert_null(layout_ptr, "ros_radar_cube_get_layout should return NULL for NULL view");
     cr_assert_eq(out_len, 0, "ros_radar_cube_get_layout must initialize out_len to 0 on NULL view");
+}
+
+// ============================================================================
+// CameraFrame / CameraPlane Tests (buffer-backed, multi-plane, no encode)
+// ============================================================================
+//
+// Uses inlined bytes from testdata/cdr/edgefirst_msgs/CameraFrame_nv12.cdr.
+// Encoding a full NV12 frame descriptor: seq=2, pid=1234, 1920x1080, NV12,
+// BT.709 limited range, no fence, two shared-fd planes (Y then UV).
+
+static const uint8_t camera_frame_nv12_cdr[] = {
+    0x00,0x01,0x00,0x00,0xd2,0x02,0x96,0x49,0x15,0xcd,0x5b,0x07,0x0b,0x00,0x00,0x00,
+    0x74,0x65,0x73,0x74,0x5f,0x66,0x72,0x61,0x6d,0x65,0x00,0x00,0x02,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0xd2,0x04,0x00,0x00,0x80,0x07,0x00,0x00,0x38,0x04,0x00,0x00,
+    0x05,0x00,0x00,0x00,0x4e,0x56,0x31,0x32,0x00,0x00,0x00,0x00,0x06,0x00,0x00,0x00,
+    0x62,0x74,0x37,0x30,0x39,0x00,0x00,0x00,0x06,0x00,0x00,0x00,0x62,0x74,0x37,0x30,
+    0x39,0x00,0x00,0x00,0x06,0x00,0x00,0x00,0x62,0x74,0x37,0x30,0x39,0x00,0x00,0x00,
+    0x08,0x00,0x00,0x00,0x6c,0x69,0x6d,0x69,0x74,0x65,0x64,0x00,0xff,0xff,0xff,0xff,
+    0x02,0x00,0x00,0x00,0x2a,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x80,0x07,0x00,0x00,
+    0x00,0xa4,0x1f,0x00,0x00,0xa4,0x1f,0x00,0x00,0x00,0x00,0x00,0x2a,0x00,0x00,0x00,
+    0x00,0xa4,0x1f,0x00,0x80,0x07,0x00,0x00,0x00,0xd2,0x0f,0x00,0x00,0xd2,0x0f,0x00,
+    0x00,0x00,0x00,0x00,
+};
+
+Test(edgefirst_msgs, camera_frame_from_cdr_null) {
+    errno = 0;
+    ros_camera_frame_t *h = ros_camera_frame_from_cdr(NULL, 100);
+    cr_assert_null(h);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(edgefirst_msgs, camera_frame_from_cdr_invalid) {
+    uint8_t bad[] = {0xDE, 0xAD, 0xBE, 0xEF};
+    errno = 0;
+    ros_camera_frame_t *h = ros_camera_frame_from_cdr(bad, sizeof(bad));
+    cr_assert_null(h);
+    cr_assert_eq(errno, EBADMSG);
+}
+
+Test(edgefirst_msgs, camera_frame_free_null) {
+    ros_camera_frame_free(NULL);
+}
+
+Test(edgefirst_msgs, camera_frame_getters_null) {
+    cr_assert_eq(ros_camera_frame_get_seq(NULL), 0u);
+    cr_assert_eq(ros_camera_frame_get_pid(NULL), 0u);
+    cr_assert_eq(ros_camera_frame_get_width(NULL), 0u);
+    cr_assert_eq(ros_camera_frame_get_height(NULL), 0u);
+    cr_assert_eq(ros_camera_frame_get_fence_fd(NULL), -1);
+    cr_assert_null(ros_camera_frame_get_format(NULL));
+    cr_assert_null(ros_camera_frame_get_frame_id(NULL));
+    cr_assert_eq(ros_camera_frame_get_planes_len(NULL), 0u);
+}
+
+Test(edgefirst_msgs, camera_frame_nv12_decode) {
+    ros_camera_frame_t *h =
+        ros_camera_frame_from_cdr(camera_frame_nv12_cdr,
+                                         sizeof(camera_frame_nv12_cdr));
+    cr_assert_not_null(h);
+
+    cr_assert_eq(ros_camera_frame_get_seq(h), 2u);
+    cr_assert_eq(ros_camera_frame_get_pid(h), 1234u);
+    cr_assert_eq(ros_camera_frame_get_width(h), 1920u);
+    cr_assert_eq(ros_camera_frame_get_height(h), 1080u);
+    cr_assert_eq(ros_camera_frame_get_fence_fd(h), -1);
+    cr_assert_str_eq(ros_camera_frame_get_format(h), "NV12");
+    cr_assert_str_eq(ros_camera_frame_get_color_space(h), "bt709");
+    cr_assert_str_eq(ros_camera_frame_get_color_transfer(h), "bt709");
+    cr_assert_str_eq(ros_camera_frame_get_color_encoding(h), "bt709");
+    cr_assert_str_eq(ros_camera_frame_get_color_range(h), "limited");
+    cr_assert_eq(ros_camera_frame_get_planes_len(h), 2u);
+
+    const ros_camera_plane_t *y = ros_camera_frame_get_plane(h, 0);
+    cr_assert_not_null(y);
+    cr_assert_eq(ros_camera_plane_get_fd(y), 42);
+    cr_assert_eq(ros_camera_plane_get_offset(y), 0u);
+    cr_assert_eq(ros_camera_plane_get_stride(y), 1920u);
+    cr_assert_eq(ros_camera_plane_get_size(y), 2073600u);
+    cr_assert_eq(ros_camera_plane_get_used(y), 2073600u);
+
+    const ros_camera_plane_t *uv = ros_camera_frame_get_plane(h, 1);
+    cr_assert_not_null(uv);
+    cr_assert_eq(ros_camera_plane_get_offset(uv), 2073600u);
+    cr_assert_eq(ros_camera_plane_get_size(uv), 1036800u);
+
+    // Shared-fd NV12: both planes reference fd 42.
+    cr_assert_eq(ros_camera_plane_get_fd(uv),
+                 ros_camera_plane_get_fd(y));
+
+    // For fd-backed planes data[] is empty.
+    size_t data_len = 0xDEADBEEF;
+    const uint8_t *data = ros_camera_plane_get_data(y, &data_len);
+    cr_assert_null(data);
+    cr_assert_eq(data_len, 0u);
+
+    ros_camera_frame_free(h);
+}
+
+Test(edgefirst_msgs, camera_frame_get_plane_out_of_bounds) {
+    ros_camera_frame_t *h =
+        ros_camera_frame_from_cdr(camera_frame_nv12_cdr,
+                                         sizeof(camera_frame_nv12_cdr));
+    cr_assert_not_null(h);
+    errno = 0;
+    const ros_camera_plane_t *p = ros_camera_frame_get_plane(h, 99);
+    cr_assert_null(p);
+    cr_assert_eq(errno, EINVAL);
+    ros_camera_frame_free(h);
+}
+
+Test(memory_safety, ros_camera_plane_free_rejects_parent_borrowed) {
+    ros_camera_frame_t *parent =
+        ros_camera_frame_from_cdr(camera_frame_nv12_cdr,
+                                         sizeof(camera_frame_nv12_cdr));
+    cr_assert_not_null(parent);
+    const ros_camera_plane_t *borrowed =
+        ros_camera_frame_get_plane(parent, 0);
+    cr_assert_not_null(borrowed);
+
+    errno = 0;
+    ros_camera_plane_free((ros_camera_plane_t *) borrowed);
+    cr_assert_eq(errno, EINVAL,
+                 "freeing a parent-borrowed plane must no-op with errno=EINVAL");
+
+    // Parent still intact.
+    const ros_camera_plane_t *again =
+        ros_camera_frame_get_plane(parent, 0);
+    cr_assert_eq(again, borrowed);
+    cr_assert_eq(ros_camera_plane_get_fd(again), 42);
+
+    ros_camera_frame_free(parent);
+}
+
+// -- Additional CameraFrame fixture coverage ---------------------------------
+// The NV12 case above lives as an inlined byte array for self-containment;
+// i420 / h264 / split_fd / inlined / empty / planar_nchw are loaded at
+// runtime from testdata/ to keep the C suite in sync with the Python
+// generator without copy/pasting five more hex blobs.
+
+Test(edgefirst_msgs, camera_frame_i420_three_planes) {
+    size_t len = 0;
+    uint8_t *b = load_fixture("testdata/cdr/edgefirst_msgs/CameraFrame_i420.cdr",
+                              &len);
+    cr_assert_not_null(b, "fixture missing — run scripts/generate_cdr_testdata.py");
+    ros_camera_frame_t *h = ros_camera_frame_from_cdr(b, len);
+    cr_assert_not_null(h);
+    cr_assert_str_eq(ros_camera_frame_get_format(h), "I420");
+    cr_assert_eq(ros_camera_frame_get_planes_len(h), 3u);
+    // Y plane full resolution, U/V planes quarter-size (chroma subsampled).
+    cr_assert_eq(ros_camera_plane_get_size(ros_camera_frame_get_plane(h, 0)),
+                 1920u * 1080u);
+    cr_assert_eq(ros_camera_plane_get_size(ros_camera_frame_get_plane(h, 1)),
+                 (1920u / 2u) * (1080u / 2u));
+    cr_assert_eq(ros_camera_plane_get_size(ros_camera_frame_get_plane(h, 2)),
+                 (1920u / 2u) * (1080u / 2u));
+    ros_camera_frame_free(h);
+    free(b);
+}
+
+Test(edgefirst_msgs, camera_frame_h264_used_lt_size) {
+    size_t len = 0;
+    uint8_t *b = load_fixture("testdata/cdr/edgefirst_msgs/CameraFrame_h264.cdr",
+                              &len);
+    cr_assert_not_null(b);
+    ros_camera_frame_t *h = ros_camera_frame_from_cdr(b, len);
+    cr_assert_not_null(h);
+    cr_assert_str_eq(ros_camera_frame_get_format(h), "h264");
+    cr_assert_eq(ros_camera_frame_get_planes_len(h), 1u);
+    const ros_camera_plane_t *p = ros_camera_frame_get_plane(h, 0);
+    // The defining property of a codec bitstream: valid payload is a
+    // subset of the allocated DMA buffer.
+    cr_assert_lt(ros_camera_plane_get_used(p),
+                 ros_camera_plane_get_size(p),
+                 "h264 payload must be strictly smaller than its buffer");
+    ros_camera_frame_free(h);
+    free(b);
+}
+
+Test(edgefirst_msgs, camera_frame_split_fd_distinct_fds_and_fence) {
+    size_t len = 0;
+    uint8_t *b = load_fixture(
+        "testdata/cdr/edgefirst_msgs/CameraFrame_split_fd.cdr", &len);
+    cr_assert_not_null(b);
+    ros_camera_frame_t *h = ros_camera_frame_from_cdr(b, len);
+    cr_assert_not_null(h);
+    cr_assert_eq(ros_camera_frame_get_fence_fd(h), 77);
+    cr_assert_eq(ros_camera_frame_get_planes_len(h), 2u);
+    int y_fd = ros_camera_plane_get_fd(ros_camera_frame_get_plane(h, 0));
+    int uv_fd = ros_camera_plane_get_fd(ros_camera_frame_get_plane(h, 1));
+    cr_assert_neq(y_fd, uv_fd, "V4L2 MPLANE delivers distinct fds per plane");
+    ros_camera_frame_free(h);
+    free(b);
+}
+
+Test(edgefirst_msgs, camera_frame_inlined_bridge) {
+    size_t len = 0;
+    uint8_t *b = load_fixture(
+        "testdata/cdr/edgefirst_msgs/CameraFrame_inlined.cdr", &len);
+    cr_assert_not_null(b);
+    ros_camera_frame_t *h = ros_camera_frame_from_cdr(b, len);
+    cr_assert_not_null(h);
+    cr_assert_eq(ros_camera_frame_get_pid(h), 0u,
+                 "off-device bridges signal pid=0");
+    const ros_camera_plane_t *p = ros_camera_frame_get_plane(h, 0);
+    cr_assert_eq(ros_camera_plane_get_fd(p), -1,
+                 "fd=-1 selects inlined payload path");
+    size_t data_len = 0;
+    const uint8_t *data = ros_camera_plane_get_data(p, &data_len);
+    cr_assert_not_null(data);
+    cr_assert_eq(data_len, 1024u);
+    cr_assert_eq(data[0], 0x00);
+    cr_assert_eq(data[255], 0xFF);
+    cr_assert_eq(data[256], 0x00);  // i & 0xFF wraps
+    ros_camera_frame_free(h);
+    free(b);
+}
+
+Test(edgefirst_msgs, camera_frame_planar_nchw) {
+    size_t len = 0;
+    uint8_t *b = load_fixture(
+        "testdata/cdr/edgefirst_msgs/CameraFrame_planar_nchw.cdr", &len);
+    cr_assert_not_null(b);
+    ros_camera_frame_t *h = ros_camera_frame_from_cdr(b, len);
+    cr_assert_not_null(h);
+    cr_assert_str_eq(ros_camera_frame_get_format(h), "rgb8_planar_nchw");
+    cr_assert_eq(ros_camera_frame_get_planes_len(h), 3u);
+    ros_camera_frame_free(h);
+    free(b);
+}
+
+Test(edgefirst_msgs, camera_frame_empty_metadata_only) {
+    // Zero-plane frame: num_planes == 0 is valid (metadata-only frame).
+    size_t len = 0;
+    uint8_t *b = load_fixture(
+        "testdata/cdr/edgefirst_msgs/CameraFrame_empty.cdr", &len);
+    cr_assert_not_null(b);
+    ros_camera_frame_t *h = ros_camera_frame_from_cdr(b, len);
+    cr_assert_not_null(h);
+    cr_assert_eq(ros_camera_frame_get_planes_len(h), 0u);
+    errno = 0;
+    cr_assert_null(ros_camera_frame_get_plane(h, 0));
+    cr_assert_eq(errno, EINVAL);
+    ros_camera_frame_free(h);
+    free(b);
 }

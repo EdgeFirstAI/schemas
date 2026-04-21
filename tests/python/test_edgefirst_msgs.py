@@ -338,19 +338,106 @@ class TestDmaBuffer:
             (0x3231564E, "NV12"),  # NV12
         ]
         for fourcc, _ in formats:
-            buf = edgefirst_msgs.DmaBuffer(
-                header=sample_header,
-                pid=1000,
-                fd=5,
-                width=640,
-                height=480,
-                stride=640 * 2,
-                fourcc=fourcc,
-                length=640 * 480 * 2,
-            )
+            with pytest.warns(DeprecationWarning):
+                buf = edgefirst_msgs.DmaBuffer(
+                    header=sample_header,
+                    pid=1000,
+                    fd=5,
+                    width=640,
+                    height=480,
+                    stride=640 * 2,
+                    fourcc=fourcc,
+                    length=640 * 480 * 2,
+                )
             data = buf.serialize()
-            restored = edgefirst_msgs.DmaBuffer.deserialize(data)
+            with pytest.warns(DeprecationWarning):
+                restored = edgefirst_msgs.DmaBuffer.deserialize(data)
             assert restored.fourcc == fourcc
+
+    def test_dmabuffer_emits_deprecation_warning(self, sample_header):
+        """DmaBuffer must emit DeprecationWarning on instantiation so downstream
+        consumers get a runtime signal matching the Rust/C++ compile-time
+        deprecation. Removed in 4.0.0."""
+        with pytest.warns(DeprecationWarning, match="edgefirst_msgs.CameraFrame"):
+            edgefirst_msgs.DmaBuffer(
+                header=sample_header,
+                pid=1,
+                fd=-1,
+                width=16,
+                height=16,
+                stride=16,
+                fourcc=0,
+                length=16 * 16,
+            )
+
+
+class TestCameraFrame:
+    """Tests for CameraFrame / CameraPlane messages."""
+
+    def test_camera_frame_round_trip_empty(self, sample_header):
+        cf = edgefirst_msgs.CameraFrame(
+            header=sample_header,
+            seq=1, pid=1234, width=1920, height=1080,
+            format="NV12",
+            color_space="bt709", color_transfer="bt709",
+            color_encoding="bt709", color_range="limited",
+            fence_fd=-1, planes=[],
+        )
+        data = cf.serialize()
+        r = edgefirst_msgs.CameraFrame.deserialize(data)
+        assert r.seq == 1
+        assert r.width == 1920
+        assert r.format == "NV12"
+        assert r.color_range == "limited"
+        assert len(r.planes) == 0
+
+    def test_camera_frame_two_planes(self, sample_header):
+        y = edgefirst_msgs.CameraPlane(
+            fd=42, offset=0, stride=1920, size=2_073_600, used=2_073_600)
+        uv = edgefirst_msgs.CameraPlane(
+            fd=42, offset=2_073_600, stride=1920, size=1_036_800, used=1_036_800)
+        cf = edgefirst_msgs.CameraFrame(
+            header=sample_header, seq=2, pid=1234, width=1920, height=1080,
+            format="NV12",
+            color_space="bt709", color_transfer="bt709",
+            color_encoding="bt709", color_range="limited", fence_fd=-1,
+            planes=[y, uv])
+        r = edgefirst_msgs.CameraFrame.deserialize(cf.serialize())
+        assert len(r.planes) == 2
+        assert r.planes[1].offset == 2_073_600
+
+    def test_camera_plane_inlined_data(self, sample_header):
+        payload = list(range(256)) * 4
+        p = edgefirst_msgs.CameraPlane(
+            fd=-1, offset=0, stride=64, size=1024, used=1024, data=payload)
+        cf = edgefirst_msgs.CameraFrame(
+            header=sample_header, seq=7, pid=0, width=16, height=16,
+            format="rgb8",
+            color_space="srgb", color_transfer="srgb",
+            color_encoding="", color_range="full", fence_fd=-1,
+            planes=[p])
+        r = edgefirst_msgs.CameraFrame.deserialize(cf.serialize())
+        assert r.planes[0].fd == -1
+        assert list(r.planes[0].data[:4]) == [0, 1, 2, 3]
+        assert len(r.planes[0].data) == 1024
+
+    @pytest.mark.parametrize("variant", [
+        "CameraFrame",
+        "CameraFrame_nv12",
+        "CameraFrame_i420",
+        "CameraFrame_planar_nchw",
+        "CameraFrame_split_fd",
+        "CameraFrame_h264",
+        "CameraFrame_inlined",
+        "CameraFrame_empty",
+    ])
+    def test_camera_frame_golden_round_trip(self, variant):
+        """Deserialize a golden fixture and re-serialize byte-for-byte."""
+        from pathlib import Path
+        path = Path(__file__).resolve().parents[2] / "testdata" / "cdr" / "edgefirst_msgs" / f"{variant}.cdr"
+        data = path.read_bytes()
+        cf = edgefirst_msgs.CameraFrame.deserialize(data)
+        assert cf.serialize() == data, f"{variant} did not round-trip identically"
 
 
 class TestRadarCube:

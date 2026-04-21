@@ -1,7 +1,7 @@
 # EdgeFirst Perception Schemas - Architecture
 
-**Version:** 2.0
-**Last Updated:** March 2026
+**Version:** 3.1.0
+**Last Updated:** April 2026
 **Target Audience:** Developers implementing or integrating EdgeFirst Perception
 
 ---
@@ -110,7 +110,8 @@ EdgeFirst Perception Schemas
     ├── Detect (object detection results)
     ├── Box (2D bounding box)
     ├── Track (object tracking)
-    ├── DmaBuffer (zero-copy hardware buffers)
+    ├── CameraFrame / CameraPlane (zero-copy multi-plane video)
+    ├── DmaBuffer (deprecated — use CameraFrame)
     ├── RadarCube (raw radar FFT data)
     ├── RadarInfo (radar configuration)
     ├── Model (inference metadata)
@@ -158,7 +159,9 @@ edgefirst_msgs/msg/
 ├── Box.msg
 ├── Detect.msg
 ├── Track.msg
-├── DmaBuffer.msg
+├── CameraFrame.msg
+├── CameraPlane.msg
+├── DmaBuffer.msg       # DEPRECATED — removed in 4.0.0
 ├── RadarCube.msg
 ├── RadarInfo.msg
 ├── Model.msg
@@ -265,6 +268,26 @@ for field in pcd.fields_iter() {
 **PointCloud Access Layer** (`src/sensor_msgs/pointcloud.rs`):
 
 Two-tier zero-copy access over PointCloud2 data buffers — see [PointCloud Access Layer](#pointcloud-access-layer) below.
+
+### C API Prefix Convention
+
+All 3.x C-API symbols share the `ros_*` prefix regardless of which message
+namespace the type originates from — e.g. `ros_camera_info_t` (sensor_msgs),
+`ros_compressed_video_t` (foxglove_msgs), `ros_detect_t` (edgefirst_msgs).
+This is a historical artifact: early development treated every ROS-ecosystem
+type as belonging to a single `ros_` namespace.
+
+The correct convention is a per-namespace prefix matching the `.msg` source:
+`sensor_*`, `foxglove_*`, `edgefirst_*`, `geometry_*`, `std_*`. New C symbols
+added during the 3.x line (e.g. the CameraFrame / CameraPlane pair in 3.1.0)
+continue to use `ros_*` for within-release consistency — mixing conventions
+inside 3.x would be worse than retaining the wart.
+
+A full rename of all ~220 C symbols to their namespace-correct prefixes is
+planned for **4.0.0**, which is already a breaking boundary (DmaBuffer
+removal, SOVERSION bump). Rust, C++, and Python surfaces already use
+per-namespace module paths (`edgefirst_schemas::foxglove_msgs::...`) and are
+unaffected by the C API rename.
 
 ### Python Implementation
 
@@ -485,9 +508,53 @@ zenoh-bridge-ros2dds -c bridge_config.json
 
 ## Zero-Copy DMA Buffers
 
-### DmaBuffer Message
+### CameraFrame / CameraPlane (current)
 
-The `DmaBuffer` message enables zero-copy sharing of hardware buffers (camera ISP, NPU outputs).
+The `CameraFrame` message (with its `CameraPlane[] planes` array) is the current schema for zero-copy sharing of hardware video frames across processes. It supersedes the single-plane `DmaBuffer` (see *Deprecated: DmaBuffer* below) and supports:
+
+- Multi-plane formats (NV12, I420, planar RGB HWC/NCHW) via one `CameraPlane` per plane, each with its own `fd` / `offset` / `stride` / `size` / `used`.
+- Hardware codec bitstreams (H.264/H.265/MJPEG) where the DMA buffer is oversized relative to the valid payload — consumer reads `[0, used)`, not `[0, size)`.
+- GPU pipeline synchronization via `fence_fd` — a `sync_file` fd that consumers `pidfd_getfd` into their process and `poll(POLLIN)` before touching pixels. `-1` means no fence needed.
+- Frame sequence counter (`seq`) for reliable drop detection.
+- Four-axis colorimetry (`color_space` / `color_transfer` / `color_encoding` / `color_range`) matching V4L2 / libcamera / DRM vocabulary.
+- Off-device bridging: when `fd == -1`, the plane's bytes are inlined in `data[]`, so a sidecar can publish a self-contained `CameraFrame` across host boundaries where `pidfd_getfd` is not usable.
+
+**Typical consumer flow (raw NV12 from camera service):**
+
+```rust
+let cf = CameraFrame::from_cdr(&payload)?;
+// (1) wait for GPU/DMA completion if the producer set a fence
+if cf.fence_fd() >= 0 {
+    let local = pidfd_getfd(cf.pid(), cf.fence_fd())?;
+    poll(local, POLLIN, timeout)?;
+}
+// (2) mmap each plane and process its valid payload
+for plane in cf.planes() {
+    if plane.fd >= 0 {
+        let local_fd = pidfd_getfd(cf.pid(), plane.fd)?;
+        let ptr = mmap(plane.size, PROT_READ, MAP_SHARED, local_fd, plane.offset as off_t)?;
+        process(unsafe { std::slice::from_raw_parts(ptr, plane.used as usize) });
+        munmap(ptr, plane.size as usize)?;
+    } else {
+        // fd == -1: bytes are inlined (off-device bridge path)
+        process(plane.data);
+    }
+}
+```
+
+**Producer language.** CameraFrame is **view-only from C and C++**; there is
+no `ros_camera_frame_encode` in the C API and the C++ wrapper mirrors that
+shape. Producers are expected to live in Rust (`CameraFrame::new`) or Python
+(`edgefirst.schemas.edgefirst_msgs.CameraFrame`); consumers are supported in
+all four languages. This is a deliberate simplification — embedded camera
+services already compose via Rust or sidecar processes, and a multi-plane
+C encoder would carry significantly more argument surface than the existing
+DmaBuffer encode function. If a C/C++ producer need emerges, adding
+`ros_camera_frame_encode` is additive.
+
+### Deprecated: DmaBuffer
+
+The `DmaBuffer` message is deprecated as of 3.1.0 and will be removed in 4.0.0. It remains fully functional throughout the 3.x series. A single-plane `CameraFrame` with `planes.len() == 1` is semantically equivalent to `DmaBuffer` for raw-frame consumers, plus the additional metadata (sequence, fence, colorimetry) that `DmaBuffer` lacked.
 
 **Message Definition** (`edgefirst_msgs/msg/DmaBuffer.msg`):
 
@@ -597,7 +664,8 @@ The consumer application will not be able to call `pidfd_getfd` if it runs at a 
 | **CDR infrastructure** | `src/cdr.rs` | Zero-copy CDR1-LE: CdrCursor, CdrWriter, CdrSizer, CdrFixed |
 | **PointCloud2 message** | `src/sensor_msgs/mod.rs` | Buffer-backed PointCloud2 with field iteration |
 | **PointCloud access** | `src/sensor_msgs/pointcloud.rs` | DynPointCloud, PointCloud\<P\>, define_point! |
-| **DmaBuffer** | `src/edgefirst_msgs.rs` | Zero-copy DMA buffer sharing |
+| **CameraFrame / CameraPlane** | `src/edgefirst_msgs.rs` | Zero-copy multi-plane video frames |
+| **DmaBuffer** | `src/edgefirst_msgs.rs` | Single-plane DMA buffer (deprecated, removed in 4.0.0) |
 | **Detect message** | `src/edgefirst_msgs.rs` | Object detection results |
 | **C API (FFI)** | `src/ffi.rs` | C bindings, header via cbindgen |
 | **Schema registry** | `src/schema_registry.rs` | Runtime type lookup by ROS2 schema name |

@@ -1,3 +1,8 @@
+// DmaBuffer / DmaBufferView deprecated in 3.1.0; tests retained through
+// the deprecation window.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 /**
  * @file test_zero_copy.cpp
  * @brief Pointer-identity and allocation-counting invariant tests for the C++ wrapper.
@@ -747,3 +752,5 @@ TEST_CASE("BorrowedMaskView field access allocates zero heap memory", "[zero_cop
     INFO("BorrowedMaskView field access alloc delta: " << delta);
     CHECK(delta == 0);
 }
+
+#pragma GCC diagnostic pop

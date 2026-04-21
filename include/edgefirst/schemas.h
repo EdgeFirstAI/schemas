@@ -154,8 +154,18 @@ typedef struct ros_compressed_video_t ros_compressed_video_t;
  * instead of corrupting the parent's internal storage.
  */
 typedef struct ros_mask_t ros_mask_t;
-/** @brief Opaque buffer-backed view handle for edgefirst_msgs::DmaBuffer. */
+/**
+ * @brief Opaque buffer-backed view handle for edgefirst_msgs::DmaBuffer.
+ *
+ * @deprecated Use ros_camera_frame_t (see below). DmaBuffer is
+ * deprecated as of 3.1.0 and will be removed in 4.0.0. CameraFrame adds
+ * multi-plane support, compressed bitstream handling, GPU fences, frame
+ * sequence counter, colorimetry, and off-device inline-data bridges.
+ */
 typedef struct ros_dmabuffer_t ros_dmabuffer_t;
+/* typedef itself cannot carry a portable deprecation attribute across C
+ * dialects; individual functions below carry the attribute so any consumer
+ * call site triggers the compile-time warning. */
 /** @brief Opaque buffer-backed view handle for edgefirst_msgs::RadarCube. */
 typedef struct ros_radar_cube_t ros_radar_cube_t;
 /** @brief Opaque buffer-backed view handle for edgefirst_msgs::RadarInfo. */
@@ -182,6 +192,18 @@ typedef struct ros_track_t ros_track_t;
 typedef struct ros_box_t ros_box_t;
 /** @brief Opaque buffer-backed view handle for edgefirst_msgs::LocalTime. */
 typedef struct ros_local_time_t ros_local_time_t;
+/** @brief Opaque buffer-backed view handle for edgefirst_msgs::CameraFrame. */
+typedef struct ros_camera_frame_t ros_camera_frame_t;
+/**
+ * @brief Opaque view handle for an edgefirst_msgs::CameraPlane.
+ *
+ * Returned by ros_camera_frame_get_plane() as a parent-borrowed handle:
+ * lifetime is tied to the parent ros_camera_frame_t, and the handle
+ * MUST NOT be passed to ros_camera_plane_free() (see Memory Management
+ * Rule 5). The free function detects borrowed handles and safely no-ops
+ * with errno=EINVAL.
+ */
+typedef struct ros_camera_plane_t ros_camera_plane_t;
 
 /* ============================================================================
  * Memory Management
@@ -840,42 +862,55 @@ int ros_mask_encode(uint8_t** out_bytes, size_t* out_len,
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
+__attribute__((deprecated("Use CameraFrame (ros_camera_frame_t) instead; removed in 4.0.0.")))
 ros_dmabuffer_t* ros_dmabuffer_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a DmaBuffer view handle. */
+__attribute__((deprecated("Use CameraFrame (ros_camera_frame_t) instead; removed in 4.0.0.")))
 void ros_dmabuffer_free(ros_dmabuffer_t* view);
 
 /** @brief Get stamp seconds. */
+__attribute__((deprecated("Use CameraFrame (ros_camera_frame_t) instead; removed in 4.0.0.")))
 int32_t ros_dmabuffer_get_stamp_sec(const ros_dmabuffer_t* view);
 
 /** @brief Get stamp nanoseconds. */
+__attribute__((deprecated("Use CameraFrame (ros_camera_frame_t) instead; removed in 4.0.0.")))
 uint32_t ros_dmabuffer_get_stamp_nanosec(const ros_dmabuffer_t* view);
 
 /** @brief Get frame_id (borrowed). */
+__attribute__((deprecated("Use CameraFrame (ros_camera_frame_t) instead; removed in 4.0.0.")))
 const char* ros_dmabuffer_get_frame_id(const ros_dmabuffer_t* view);
 
 /** @brief Get process ID. */
+__attribute__((deprecated("Use CameraFrame (ros_camera_frame_t) instead; removed in 4.0.0.")))
 uint32_t ros_dmabuffer_get_pid(const ros_dmabuffer_t* view);
 
 /** @brief Get file descriptor. */
+__attribute__((deprecated("Use CameraFrame (ros_camera_frame_t) instead; removed in 4.0.0.")))
 int32_t ros_dmabuffer_get_fd(const ros_dmabuffer_t* view);
 
 /** @brief Get buffer width. */
+__attribute__((deprecated("Use CameraFrame (ros_camera_frame_t) instead; removed in 4.0.0.")))
 uint32_t ros_dmabuffer_get_width(const ros_dmabuffer_t* view);
 
 /** @brief Get buffer height. */
+__attribute__((deprecated("Use CameraFrame (ros_camera_frame_t) instead; removed in 4.0.0.")))
 uint32_t ros_dmabuffer_get_height(const ros_dmabuffer_t* view);
 
 /** @brief Get buffer stride. */
+__attribute__((deprecated("Use CameraFrame (ros_camera_frame_t) instead; removed in 4.0.0.")))
 uint32_t ros_dmabuffer_get_stride(const ros_dmabuffer_t* view);
 
 /** @brief Get FourCC pixel format code. */
+__attribute__((deprecated("Use CameraFrame (ros_camera_frame_t) instead; removed in 4.0.0.")))
 uint32_t ros_dmabuffer_get_fourcc(const ros_dmabuffer_t* view);
 
 /** @brief Get buffer length in bytes. */
+__attribute__((deprecated("Use CameraFrame (ros_camera_frame_t) instead; removed in 4.0.0.")))
 uint32_t ros_dmabuffer_get_length(const ros_dmabuffer_t* view);
 
 /** @brief Borrow raw CDR bytes from the handle. */
+__attribute__((deprecated("Use CameraFrame (ros_camera_frame_t) instead; removed in 4.0.0.")))
 const uint8_t* ros_dmabuffer_as_cdr(const ros_dmabuffer_t* view, size_t* out_len);
 
 /**
@@ -894,12 +929,105 @@ const uint8_t* ros_dmabuffer_as_cdr(const ros_dmabuffer_t* view, size_t* out_len
  * @param length Buffer length in bytes
  * @return 0 on success, -1 on error
  */
+__attribute__((deprecated("Use CameraFrame (ros_camera_frame_t) instead; removed in 4.0.0.")))
 int ros_dmabuffer_encode(uint8_t** out_bytes, size_t* out_len,
                          int32_t stamp_sec, uint32_t stamp_nanosec,
                          const char* frame_id,
                          uint32_t pid, int32_t fd,
                          uint32_t width, uint32_t height,
                          uint32_t stride, uint32_t fourcc, uint32_t length);
+
+/* ============================================================================
+ * edgefirst_msgs - CameraFrame / CameraPlane (buffer-backed, multi-plane)
+ * ========================================================================= */
+
+/**
+ * @brief Create a CameraFrame view from CDR bytes.
+ * @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+ * @param len Length of data
+ * @return Opaque handle or NULL on error (errno set to EINVAL or EBADMSG)
+ */
+ros_camera_frame_t* ros_camera_frame_from_cdr(const uint8_t* data, size_t len);
+
+/** @brief Free a CameraFrame view handle. Safe to call with NULL. */
+void ros_camera_frame_free(ros_camera_frame_t* view);
+
+/** @brief Get stamp seconds. */
+int32_t  ros_camera_frame_get_stamp_sec(const ros_camera_frame_t* view);
+/** @brief Get stamp nanoseconds. */
+uint32_t ros_camera_frame_get_stamp_nanosec(const ros_camera_frame_t* view);
+/** @brief Get coordinate frame id (borrowed from CDR buffer). */
+const char* ros_camera_frame_get_frame_id(const ros_camera_frame_t* view);
+
+/** @brief Get monotonic frame index (V4L2 sequence / libcamera Request.sequence). */
+uint64_t ros_camera_frame_get_seq(const ros_camera_frame_t* view);
+/** @brief Get producer process id (0 when all planes use inlined data). */
+uint32_t ros_camera_frame_get_pid(const ros_camera_frame_t* view);
+/** @brief Get image width in pixels. */
+uint32_t ros_camera_frame_get_width(const ros_camera_frame_t* view);
+/** @brief Get image height in pixels. */
+uint32_t ros_camera_frame_get_height(const ros_camera_frame_t* view);
+/** @brief Get DMA-fence sync_file fd (-1 = no fence / already signalled). */
+int32_t  ros_camera_frame_get_fence_fd(const ros_camera_frame_t* view);
+
+/** @brief Get format descriptor string (borrowed, e.g. "NV12", "h264"). */
+const char* ros_camera_frame_get_format(const ros_camera_frame_t* view);
+/** @brief Get color_space string (borrowed). */
+const char* ros_camera_frame_get_color_space(const ros_camera_frame_t* view);
+/** @brief Get color_transfer string (borrowed). */
+const char* ros_camera_frame_get_color_transfer(const ros_camera_frame_t* view);
+/** @brief Get color_encoding string (borrowed). */
+const char* ros_camera_frame_get_color_encoding(const ros_camera_frame_t* view);
+/** @brief Get color_range string (borrowed). */
+const char* ros_camera_frame_get_color_range(const ros_camera_frame_t* view);
+
+/** @brief Get the number of planes in this frame. */
+uint32_t ros_camera_frame_get_planes_len(const ros_camera_frame_t* view);
+
+/**
+ * @brief Get a borrowed view of the i-th plane.
+ * @param view CameraFrame handle
+ * @param index Zero-based plane index (< ros_camera_frame_get_planes_len)
+ * @return Borrowed pointer whose lifetime is tied to the parent CameraFrame
+ *         handle, or NULL on error (errno set to EINVAL).
+ *
+ * The returned pointer is NOT a separately-owned handle: do NOT pass it to
+ * ros_camera_plane_free(). It becomes invalid when the parent
+ * ros_camera_frame_t handle is freed; the parent's CDR buffer must
+ * also remain valid for as long as the returned pointer is used.
+ */
+const ros_camera_plane_t* ros_camera_frame_get_plane(
+    const ros_camera_frame_t* view, uint32_t index);
+
+/**
+ * @brief Free a CameraPlane handle. Safe to call with NULL.
+ *
+ * Parent-borrowed handles (obtained from ros_camera_frame_get_plane())
+ * must NOT be freed via this function; doing so sets errno=EINVAL and is a
+ * no-op (defense-in-depth against API misuse).
+ */
+void ros_camera_plane_free(ros_camera_plane_t* view);
+
+/** @brief Get plane fd (-1 = inlined in data[], no DMA-BUF). */
+int32_t  ros_camera_plane_get_fd(const ros_camera_plane_t* view);
+/** @brief Get plane byte offset within fd (ignored when fd == -1). */
+uint32_t ros_camera_plane_get_offset(const ros_camera_plane_t* view);
+/** @brief Get plane row stride in bytes. */
+uint32_t ros_camera_plane_get_stride(const ros_camera_plane_t* view);
+/** @brief Get plane capacity in bytes (buffer span). */
+uint32_t ros_camera_plane_get_size(const ros_camera_plane_t* view);
+/** @brief Get valid payload byte count (used <= size). */
+uint32_t ros_camera_plane_get_used(const ros_camera_plane_t* view);
+
+/**
+ * @brief Get inlined plane data (only populated when fd == -1).
+ * @param view CameraPlane handle
+ * @param out_len Pointer to usize receiving the byte length (may be NULL)
+ * @return Pointer to plane bytes inside the parent's CDR buffer, or NULL if
+ *         the plane has no inlined data or the handle is invalid.
+ */
+const uint8_t* ros_camera_plane_get_data(
+    const ros_camera_plane_t* view, size_t* out_len);
 
 /* ============================================================================
  * sensor_msgs - Imu (buffer-backed)

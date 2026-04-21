@@ -1,0 +1,123 @@
+/**
+ * @file test_camera_frame.cpp
+ * @brief C++ tests for CameraFrameView / BorrowedCameraPlaneView
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * Copyright (c) 2026 Au-Zone Technologies. All Rights Reserved.
+ */
+
+#define CATCH_CONFIG_MAIN
+#include "catch.hpp"
+#include <edgefirst/schemas.hpp>
+
+#include <cstdint>
+#include <string_view>
+#include <vector>
+
+namespace ef = edgefirst::schemas;
+
+// Golden CDR bytes — NV12 fixture, produced by Python and mirrored here
+// so the test stays self-contained (no filesystem dependency in the unit
+// test binary). Matches testdata/cdr/edgefirst_msgs/CameraFrame_nv12.cdr.
+//
+// seq=2, pid=1234, 1920x1080, NV12, bt709/bt709/bt709/limited, fence=-1,
+// planes=[{fd=42, offset=0, stride=1920, size=2073600, used=2073600},
+//         {fd=42, offset=2073600, stride=1920, size=1036800, used=1036800}]
+static constexpr std::uint8_t kCameraFrameNv12[] = {
+    0x00,0x01,0x00,0x00,0xd2,0x02,0x96,0x49,0x15,0xcd,0x5b,0x07,0x0b,0x00,0x00,0x00,
+    0x74,0x65,0x73,0x74,0x5f,0x66,0x72,0x61,0x6d,0x65,0x00,0x00,0x02,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0xd2,0x04,0x00,0x00,0x80,0x07,0x00,0x00,0x38,0x04,0x00,0x00,
+    0x05,0x00,0x00,0x00,0x4e,0x56,0x31,0x32,0x00,0x00,0x00,0x00,0x06,0x00,0x00,0x00,
+    0x62,0x74,0x37,0x30,0x39,0x00,0x00,0x00,0x06,0x00,0x00,0x00,0x62,0x74,0x37,0x30,
+    0x39,0x00,0x00,0x00,0x06,0x00,0x00,0x00,0x62,0x74,0x37,0x30,0x39,0x00,0x00,0x00,
+    0x08,0x00,0x00,0x00,0x6c,0x69,0x6d,0x69,0x74,0x65,0x64,0x00,0xff,0xff,0xff,0xff,
+    0x02,0x00,0x00,0x00,0x2a,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x80,0x07,0x00,0x00,
+    0x00,0xa4,0x1f,0x00,0x00,0xa4,0x1f,0x00,0x00,0x00,0x00,0x00,0x2a,0x00,0x00,0x00,
+    0x00,0xa4,0x1f,0x00,0x80,0x07,0x00,0x00,0x00,0xd2,0x0f,0x00,0x00,0xd2,0x0f,0x00,
+    0x00,0x00,0x00,0x00,
+};
+
+TEST_CASE("CameraFrameView decodes NV12 fixture", "[camera_frame]") {
+    auto cf = ef::CameraFrameView::from_cdr(
+        ef::span<const std::uint8_t>{kCameraFrameNv12, sizeof(kCameraFrameNv12)});
+    REQUIRE(cf.has_value());
+
+    CHECK(cf->seq() == 2u);
+    CHECK(cf->pid() == 1234u);
+    CHECK(cf->width() == 1920u);
+    CHECK(cf->height() == 1080u);
+    CHECK(cf->fence_fd() == -1);
+    CHECK(cf->format() == "NV12");
+    CHECK(cf->color_space() == "bt709");
+    CHECK(cf->color_transfer() == "bt709");
+    CHECK(cf->color_encoding() == "bt709");
+    CHECK(cf->color_range() == "limited");
+    CHECK(cf->planes_len() == 2u);
+}
+
+TEST_CASE("CameraFrameView planes() iterates planes in order", "[camera_frame][iteration]") {
+    auto cf = ef::CameraFrameView::from_cdr(
+        ef::span<const std::uint8_t>{kCameraFrameNv12, sizeof(kCameraFrameNv12)});
+    REQUIRE(cf.has_value());
+
+    std::vector<std::int32_t>  fds;
+    std::vector<std::uint32_t> offsets;
+    std::vector<std::uint32_t> sizes;
+    for (auto plane : cf->planes()) {
+        fds.push_back(plane.fd());
+        offsets.push_back(plane.offset());
+        sizes.push_back(plane.size());
+        // For fd-backed planes, `data()` must be empty.
+        CHECK(plane.data().empty());
+        CHECK(plane.used() == plane.size());
+    }
+
+    REQUIRE(fds.size() == 2);
+    CHECK(fds[0] == 42);
+    CHECK(fds[1] == 42);
+    CHECK(offsets[0] == 0u);
+    CHECK(offsets[1] == 2073600u);
+    CHECK(sizes[0] == 2073600u);
+    CHECK(sizes[1] == 1036800u);
+}
+
+TEST_CASE("CameraFrameView is move-only, not copyable", "[camera_frame][lifetime]") {
+    // Compile-time verification — also documents intent.
+    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<ef::CameraFrameView>);
+    STATIC_REQUIRE_FALSE(std::is_copy_assignable_v<ef::CameraFrameView>);
+    STATIC_REQUIRE(std::is_move_constructible_v<ef::CameraFrameView>);
+    STATIC_REQUIRE(std::is_move_assignable_v<ef::CameraFrameView>);
+}
+
+TEST_CASE("CameraFrameView rejects invalid CDR", "[camera_frame][errors]") {
+    std::uint8_t bad[] = {0xDE, 0xAD, 0xBE, 0xEF};
+    auto cf = ef::CameraFrameView::from_cdr(
+        ef::span<const std::uint8_t>{bad, sizeof(bad)});
+    CHECK_FALSE(cf.has_value());
+}
+
+// Zero-plane metadata-only frame — exercises the planes.len()==0 path
+// (distinct CDR sequence walk that short-circuits on empty count).
+// Matches testdata/cdr/edgefirst_msgs/CameraFrame_empty.cdr.
+static constexpr std::uint8_t kCameraFrameEmpty[] = {
+    0x00,0x01,0x00,0x00,0xd2,0x02,0x96,0x49,0x15,0xcd,0x5b,0x07,0x0b,0x00,0x00,0x00,
+    0x74,0x65,0x73,0x74,0x5f,0x66,0x72,0x61,0x6d,0x65,0x00,0x00,0x08,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x00,0x00,0x00,
+    0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xff,0xff,0xff,0xff,0x00,0x00,0x00,0x00,
+};
+
+TEST_CASE("CameraFrameView decodes zero-plane metadata-only frame",
+          "[camera_frame][edge_cases]") {
+    auto cf = ef::CameraFrameView::from_cdr(
+        ef::span<const std::uint8_t>{kCameraFrameEmpty, sizeof(kCameraFrameEmpty)});
+    REQUIRE(cf.has_value());
+    CHECK(cf->seq() == 8u);
+    CHECK(cf->width() == 1u);
+    CHECK(cf->height() == 1u);
+    CHECK(cf->planes_len() == 0u);
+    std::size_t count = 0;
+    for (auto _ : cf->planes()) { (void)_; ++count; }
+    CHECK(count == 0u);
+}

@@ -13,6 +13,11 @@
  *  - Self-move does not corrupt state.
  */
 
+// DmaBuffer / DmaBufferView are deprecated in 3.1.0; these tests stay
+// in place through the deprecation window.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 #define CATCH_CONFIG_MAIN
 #include "catch.hpp"
 #include <edgefirst/schemas.hpp>
@@ -490,3 +495,5 @@ TEST_CASE("Time is trivially copyable: copy and original are independent", "[lif
     t2.sec = 999;
     CHECK(t1.sec == 100);  // t1 unaffected by modification of t2
 }
+
+#pragma GCC diagnostic pop

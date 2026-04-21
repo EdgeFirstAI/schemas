@@ -275,12 +275,23 @@ pub(crate) fn size_mask_element(s: &mut CdrSizer, encoding: &str, mask_len: usiz
 // CDR layout: Header → offsets[0], then:
 //   pid(u32) + fd(i32) + width(u32) + height(u32)
 //   + stride(u32) + fourcc(u32) + length(u32) = 28 bytes
+//
+// DEPRECATED since 3.1.0: use CameraFrame instead. Will be removed in 4.0.0.
 
+#[deprecated(
+    since = "3.1.0",
+    note = "Use CameraFrame / CameraPlane for multi-plane support, colorimetry, \
+            GPU fences, and off-device bridging. DmaBuffer will be removed in 4.0.0."
+)]
 pub struct DmaBuffer<B> {
     buf: B,
     offsets: [usize; 1],
 }
 
+// The DmaBuffer impls remain until 4.0.0; allow(deprecated) here so the
+// crate's own use of the deprecated struct (fields, methods) compiles
+// cleanly. User code still gets the deprecation warning.
+#[allow(deprecated)]
 impl<B: AsRef<[u8]>> DmaBuffer<B> {
     pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
         let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
@@ -359,6 +370,7 @@ impl<B: AsRef<[u8]>> DmaBuffer<B> {
     }
 }
 
+#[allow(deprecated)]
 impl DmaBuffer<Vec<u8>> {
     pub fn new(
         stamp: Time,
@@ -1245,6 +1257,379 @@ impl Detect<Vec<u8>> {
     }
 }
 
+// ── CameraFrame / CameraPlane — edgefirst_msgs/msg/CameraFrame ──────
+//
+// CameraFrame CDR layout:
+//   Header → offsets[0], then
+//     sequence(u64) + pid(u32) + width(u32) + height(u32)
+//     + format(string) + color_space(string) + color_transfer(string)
+//     + color_encoding(string) + color_range(string)
+//     + fence_fd(i32)
+//     + planes(seq<CameraPlane>) → offsets[1]
+//
+// CameraPlane element layout (variable-sized due to trailing data[]):
+//   fd(i32) + offset(u32) + stride(u32) + size(u32) + used(u32) + data(seq<u8>)
+
+/// Zero-copy view of a single CameraPlane element, borrowed from a CDR buffer.
+///
+/// `fd == -1` signals that the plane's bytes are inlined in `data`; any other
+/// negative fd is invalid. When `fd >= 0`, `data` must be empty.
+#[derive(Copy, Clone, Debug)]
+pub struct CameraPlaneView<'a> {
+    pub fd: i32,
+    pub offset: u32,
+    pub stride: u32,
+    pub size: u32,
+    pub used: u32,
+    pub data: &'a [u8],
+}
+
+pub(crate) fn scan_plane_element<'a>(
+    c: &mut CdrCursor<'a>,
+) -> Result<CameraPlaneView<'a>, CdrError> {
+    let fd = c.read_i32()?;
+    let offset = c.read_u32()?;
+    let stride = c.read_u32()?;
+    let size = c.read_u32()?;
+    let used = c.read_u32()?;
+    let data = c.read_bytes()?;
+    Ok(CameraPlaneView {
+        fd,
+        offset,
+        stride,
+        size,
+        used,
+        data,
+    })
+}
+
+pub(crate) fn write_plane_element(w: &mut CdrWriter<'_>, p: &CameraPlaneView<'_>) {
+    w.write_i32(p.fd);
+    w.write_u32(p.offset);
+    w.write_u32(p.stride);
+    w.write_u32(p.size);
+    w.write_u32(p.used);
+    w.write_bytes(p.data);
+}
+
+pub(crate) fn size_plane_element(s: &mut CdrSizer, data_len: usize) {
+    s.size_i32();
+    s.size_u32();
+    s.size_u32();
+    s.size_u32();
+    s.size_u32();
+    s.size_bytes(data_len);
+}
+
+/// Multi-plane video frame reference message.
+///
+/// Replaces the single-plane `DmaBuffer` with a schema that supports planar
+/// formats (NV12, I420, planar RGB NCHW), hardware codec bitstreams (H.264
+/// with `used` < `size`), GPU fence synchronization, and off-device bridging
+/// via inlined per-plane bytes.
+///
+/// # Example
+///
+/// ```
+/// use edgefirst_schemas::edgefirst_msgs::{CameraFrame, CameraPlaneView};
+/// use edgefirst_schemas::builtin_interfaces::Time;
+///
+/// let y = CameraPlaneView {
+///     fd: 42, offset: 0, stride: 1920,
+///     size: 2_073_600, used: 2_073_600, data: &[],
+/// };
+/// let uv = CameraPlaneView {
+///     fd: 42, offset: 2_073_600, stride: 1920,
+///     size: 1_036_800, used: 1_036_800, data: &[],
+/// };
+/// let cf = CameraFrame::new(
+///     Time::new(1, 0), "cam0",
+///     /*seq*/ 1, /*pid*/ 1234, /*w*/ 1920, /*h*/ 1080,
+///     "NV12", "bt709", "bt709", "bt709", "limited",
+///     /*fence_fd*/ -1, &[y, uv],
+/// ).unwrap();
+/// let view = CameraFrame::<&[u8]>::from_cdr(cf.as_cdr()).unwrap();
+/// assert_eq!(view.format(), "NV12");
+/// assert_eq!(view.planes().len(), 2);
+/// ```
+pub struct CameraFrame<B> {
+    buf: B,
+    // [0]: after Header (start of `seq`).
+    // [1]: position of the `planes` sequence-count u32 prefix (the field
+    // immediately after fence_fd). Caching this avoids rescanning the five
+    // variable-length colorimetry strings on every `planes()`/`num_planes()`
+    // call — important for high-frame-rate consumers.
+    offsets: [usize; 2],
+}
+
+impl<B: AsRef<[u8]>> CameraFrame<B> {
+    pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
+        let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
+        let o0 = header.end_offset();
+        let mut c = CdrCursor::resume(buf.as_ref(), o0);
+        c.read_u64()?; // seq
+        c.read_u32()?; // pid
+        let width = c.read_u32()?;
+        let height = c.read_u32()?;
+        c.read_string()?; // format
+        c.read_string()?; // color_space
+        c.read_string()?; // color_transfer
+        c.read_string()?; // color_encoding
+        c.read_string()?; // color_range
+        c.read_i32()?; // fence_fd
+        let planes_pos = c.offset();
+        let raw_count = c.read_u32()?;
+        // min plane size: 5×u32 + 4-byte data seq count = 24 bytes
+        let count = c.check_seq_count(raw_count, 24)?;
+        for _ in 0..count {
+            scan_plane_element(&mut c)?;
+        }
+
+        if width == 0 || height == 0 {
+            return Err(CdrError::InvalidHeader);
+        }
+
+        Ok(CameraFrame {
+            offsets: [o0, planes_pos],
+            buf,
+        })
+    }
+
+    #[inline]
+    /// Returns a `Header` view by re-parsing the CDR buffer prefix.
+    /// Prefer `stamp()` / `frame_id()` for direct O(1) field access.
+    pub fn header(&self) -> Header<&[u8]> {
+        Header::from_cdr(self.buf.as_ref()).expect("header bytes validated during from_cdr")
+    }
+    #[inline]
+    pub fn stamp(&self) -> Time {
+        rd_time(self.buf.as_ref(), CDR_HEADER_SIZE)
+    }
+    #[inline]
+    pub fn frame_id(&self) -> &str {
+        rd_string(self.buf.as_ref(), CDR_HEADER_SIZE + 8).0
+    }
+
+    #[inline]
+    pub fn seq(&self) -> u64 {
+        // u64 needs 8-byte alignment relative to CDR data start.
+        rd_u64(self.buf.as_ref(), cdr_align(self.offsets[0], 8))
+    }
+    #[inline]
+    pub fn pid(&self) -> u32 {
+        rd_u32(self.buf.as_ref(), cdr_align(self.offsets[0], 8) + 8)
+    }
+    #[inline]
+    pub fn width(&self) -> u32 {
+        rd_u32(self.buf.as_ref(), cdr_align(self.offsets[0], 8) + 12)
+    }
+    #[inline]
+    pub fn height(&self) -> u32 {
+        rd_u32(self.buf.as_ref(), cdr_align(self.offsets[0], 8) + 16)
+    }
+
+    fn strings_start(&self) -> usize {
+        // Position of `format` string length prefix.
+        cdr_align(self.offsets[0], 8) + 20
+    }
+
+    /// Walk format + 4 color strings, returning each string and the fence_fd
+    /// that follows. String accessors unavoidably re-walk preceding strings
+    /// because CDR string lengths are variable; plane access uses the cached
+    /// `offsets[1]` and does not hit this path.
+    fn scan_strings_and_fence(&self) -> (&str, &str, &str, &str, &str, i32) {
+        let b = self.buf.as_ref();
+        let (format, p1) = rd_string(b, self.strings_start());
+        let (cs, p2) = rd_string(b, p1);
+        let (ct, p3) = rd_string(b, p2);
+        let (ce, p4) = rd_string(b, p3);
+        let (cr, p5) = rd_string(b, p4);
+        let fence_fd = rd_i32(b, align(p5, 4));
+        (format, cs, ct, ce, cr, fence_fd)
+    }
+
+    #[inline]
+    pub fn format(&self) -> &str {
+        self.scan_strings_and_fence().0
+    }
+    #[inline]
+    pub fn color_space(&self) -> &str {
+        self.scan_strings_and_fence().1
+    }
+    #[inline]
+    pub fn color_transfer(&self) -> &str {
+        self.scan_strings_and_fence().2
+    }
+    #[inline]
+    pub fn color_encoding(&self) -> &str {
+        self.scan_strings_and_fence().3
+    }
+    #[inline]
+    pub fn color_range(&self) -> &str {
+        self.scan_strings_and_fence().4
+    }
+    #[inline]
+    pub fn fence_fd(&self) -> i32 {
+        self.scan_strings_and_fence().5
+    }
+
+    /// Number of planes in the sequence. O(1) via cached `offsets[1]`.
+    #[inline]
+    pub fn num_planes(&self) -> u32 {
+        rd_u32(self.buf.as_ref(), self.offsets[1])
+    }
+
+    /// Collect all plane views by walking the CDR sequence. O(n_planes) via
+    /// cached `offsets[1]` — does not rescan the colorimetry strings.
+    pub fn planes(&self) -> Vec<CameraPlaneView<'_>> {
+        let b = self.buf.as_ref();
+        let count = rd_u32(b, self.offsets[1]) as usize;
+        let mut c = CdrCursor::resume(b, self.offsets[1] + 4);
+        (0..count)
+            .map(|_| scan_plane_element(&mut c).expect("planes validated during from_cdr"))
+            .collect()
+    }
+
+    #[inline]
+    pub fn as_cdr(&self) -> &[u8] {
+        self.buf.as_ref()
+    }
+    pub fn to_cdr(&self) -> Vec<u8> {
+        self.buf.as_ref().to_vec()
+    }
+}
+
+impl CameraFrame<&'static [u8]> {
+    /// Parse and simultaneously collect plane views for the FFI layer,
+    /// avoiding a second walk after `from_cdr`. Mirrors `Detect::from_cdr_collect_boxes`.
+    pub(crate) fn from_cdr_collect_planes(
+        buf: &'static [u8],
+    ) -> Result<(Self, Vec<CameraPlaneView<'static>>), CdrError> {
+        let header = Header::<&[u8]>::from_cdr(buf)?;
+        let o0 = header.end_offset();
+        let mut c = CdrCursor::resume(buf, o0);
+        c.read_u64()?;
+        c.read_u32()?;
+        let width = c.read_u32()?;
+        let height = c.read_u32()?;
+        c.read_string()?;
+        c.read_string()?;
+        c.read_string()?;
+        c.read_string()?;
+        c.read_string()?;
+        c.read_i32()?;
+        let planes_pos = c.offset();
+        let raw_count = c.read_u32()?;
+        let count = c.check_seq_count(raw_count, 24)?;
+        let mut planes = Vec::with_capacity(count);
+        for _ in 0..count {
+            planes.push(scan_plane_element(&mut c)?);
+        }
+
+        if width == 0 || height == 0 {
+            return Err(CdrError::InvalidHeader);
+        }
+
+        Ok((
+            CameraFrame {
+                offsets: [o0, planes_pos],
+                buf,
+            },
+            planes,
+        ))
+    }
+}
+
+impl CameraFrame<Vec<u8>> {
+    /// Build a new CameraFrame, serializing its fields into a fresh CDR buffer.
+    ///
+    /// Enforces the schema contracts:
+    /// - `width > 0` and `height > 0`
+    /// - `plane.used <= plane.size`
+    /// - `plane.fd >= -1` (only -1 is a valid negative sentinel)
+    /// - when `plane.fd >= 0`, `plane.data` must be empty
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        stamp: Time,
+        frame_id: &str,
+        seq: u64,
+        pid: u32,
+        width: u32,
+        height: u32,
+        format: &str,
+        color_space: &str,
+        color_transfer: &str,
+        color_encoding: &str,
+        color_range: &str,
+        fence_fd: i32,
+        planes: &[CameraPlaneView<'_>],
+    ) -> Result<Self, CdrError> {
+        if width == 0 || height == 0 {
+            return Err(CdrError::InvalidHeader);
+        }
+        for p in planes {
+            if p.fd < -1 {
+                return Err(CdrError::InvalidHeader);
+            }
+            if p.used > p.size {
+                return Err(CdrError::InvalidHeader);
+            }
+            if p.fd >= 0 && !p.data.is_empty() {
+                return Err(CdrError::InvalidHeader);
+            }
+        }
+
+        let mut sizer = CdrSizer::new();
+        Time::size_cdr(&mut sizer);
+        sizer.size_string(frame_id);
+        let o0 = sizer.offset();
+        sizer.size_u64();
+        sizer.size_u32();
+        sizer.size_u32();
+        sizer.size_u32();
+        sizer.size_string(format);
+        sizer.size_string(color_space);
+        sizer.size_string(color_transfer);
+        sizer.size_string(color_encoding);
+        sizer.size_string(color_range);
+        sizer.size_i32();
+        let planes_pos = sizer.offset();
+        sizer.size_u32();
+        for p in planes {
+            size_plane_element(&mut sizer, p.data.len());
+        }
+
+        let mut buf = vec![0u8; sizer.size()];
+        let mut w = CdrWriter::new(&mut buf)?;
+        stamp.write_cdr(&mut w);
+        w.write_string(frame_id);
+        w.write_u64(seq);
+        w.write_u32(pid);
+        w.write_u32(width);
+        w.write_u32(height);
+        w.write_string(format);
+        w.write_string(color_space);
+        w.write_string(color_transfer);
+        w.write_string(color_encoding);
+        w.write_string(color_range);
+        w.write_i32(fence_fd);
+        w.write_u32(planes.len() as u32);
+        for p in planes {
+            write_plane_element(&mut w, p);
+        }
+        w.finish()?;
+
+        Ok(CameraFrame {
+            offsets: [o0, planes_pos],
+            buf,
+        })
+    }
+
+    pub fn into_cdr(self) -> Vec<u8> {
+        self.buf
+    }
+}
+
 // ── Model<B> — edgefirst_msgs/msg/Model ─────────────────────────────
 //
 // CDR layout: Header → offsets[0],
@@ -1650,6 +2035,8 @@ pub fn is_type_supported(type_name: &str) -> bool {
     matches!(
         type_name,
         "Box"
+            | "CameraFrame"
+            | "CameraPlane"
             | "Date"
             | "Detect"
             | "DmaBuffer"
@@ -1667,6 +2054,8 @@ pub fn is_type_supported(type_name: &str) -> bool {
 pub fn list_types() -> &'static [&'static str] {
     &[
         "edgefirst_msgs/msg/Box",
+        "edgefirst_msgs/msg/CameraFrame",
+        "edgefirst_msgs/msg/CameraPlane",
         "edgefirst_msgs/msg/Date",
         "edgefirst_msgs/msg/Detect",
         "edgefirst_msgs/msg/DmaBuffer",
@@ -1736,6 +2125,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn dmabuf_roundtrip() {
         let dmabuf = DmaBuffer::new(
             Time::new(100, 0),
@@ -1763,6 +2153,228 @@ mod tests {
         let decoded = DmaBuffer::from_cdr(bytes).unwrap();
         assert_eq!(decoded.pid(), 12345);
         assert_eq!(decoded.fd(), 42);
+    }
+
+    #[test]
+    fn camera_frame_roundtrip_empty() {
+        let cf = CameraFrame::new(
+            Time::new(1, 0),
+            "cam0",
+            42,
+            1234,
+            1920,
+            1080,
+            "NV12",
+            "bt709",
+            "bt709",
+            "bt709",
+            "limited",
+            -1,
+            &[],
+        )
+        .unwrap();
+        assert_eq!(cf.seq(), 42);
+        assert_eq!(cf.pid(), 1234);
+        assert_eq!(cf.width(), 1920);
+        assert_eq!(cf.height(), 1080);
+        assert_eq!(cf.format(), "NV12");
+        assert_eq!(cf.color_space(), "bt709");
+        assert_eq!(cf.color_range(), "limited");
+        assert_eq!(cf.fence_fd(), -1);
+        assert_eq!(cf.num_planes(), 0);
+
+        let bytes = cf.to_cdr();
+        let decoded = CameraFrame::<&[u8]>::from_cdr(&bytes[..]).unwrap();
+        assert_eq!(decoded.seq(), 42);
+        assert_eq!(decoded.format(), "NV12");
+        assert_eq!(decoded.num_planes(), 0);
+    }
+
+    #[test]
+    fn camera_frame_roundtrip_two_planes() {
+        let y = CameraPlaneView {
+            fd: 42,
+            offset: 0,
+            stride: 1920,
+            size: 2_073_600,
+            used: 2_073_600,
+            data: &[],
+        };
+        let uv = CameraPlaneView {
+            fd: 42,
+            offset: 2_073_600,
+            stride: 1920,
+            size: 1_036_800,
+            used: 1_036_800,
+            data: &[],
+        };
+        let cf = CameraFrame::new(
+            Time::new(2, 0),
+            "cam0",
+            100,
+            1234,
+            1920,
+            1080,
+            "NV12",
+            "bt709",
+            "bt709",
+            "bt709",
+            "limited",
+            77,
+            &[y, uv],
+        )
+        .unwrap();
+
+        let bytes = cf.to_cdr();
+        let decoded = CameraFrame::<&[u8]>::from_cdr(&bytes[..]).unwrap();
+        assert_eq!(decoded.fence_fd(), 77);
+        assert_eq!(decoded.num_planes(), 2);
+        let planes = decoded.planes();
+        assert_eq!(planes.len(), 2);
+        assert_eq!(planes[0].fd, 42);
+        assert_eq!(planes[0].offset, 0);
+        assert_eq!(planes[1].offset, 2_073_600);
+        assert_eq!(planes[0].used, planes[0].size);
+    }
+
+    #[test]
+    fn camera_frame_inlined_data_roundtrip() {
+        let data: Vec<u8> = (0..32u8).collect();
+        let plane = CameraPlaneView {
+            fd: -1,
+            offset: 0,
+            stride: 16,
+            size: 32,
+            used: 32,
+            data: &data,
+        };
+        let cf = CameraFrame::new(
+            Time::new(3, 0),
+            "bridge",
+            1,
+            0,
+            2,
+            16,
+            "rgb8",
+            "srgb",
+            "srgb",
+            "",
+            "full",
+            -1,
+            &[plane],
+        )
+        .unwrap();
+        let decoded = CameraFrame::<&[u8]>::from_cdr(cf.as_cdr()).unwrap();
+        let planes = decoded.planes();
+        assert_eq!(planes[0].fd, -1);
+        assert_eq!(planes[0].data.len(), 32);
+        assert_eq!(planes[0].data[0], 0);
+        assert_eq!(planes[0].data[31], 31);
+    }
+
+    #[test]
+    fn camera_frame_contract_rejections() {
+        let stamp = Time::new(0, 0);
+        // Zero width rejected
+        assert!(CameraFrame::new(stamp, "c", 0, 0, 0, 1, "rgb8", "", "", "", "", -1, &[]).is_err());
+        // Zero height rejected
+        assert!(CameraFrame::new(stamp, "c", 0, 0, 1, 0, "rgb8", "", "", "", "", -1, &[]).is_err());
+        // used > size rejected
+        let bad_plane = CameraPlaneView {
+            fd: 1,
+            offset: 0,
+            stride: 1,
+            size: 1,
+            used: 2,
+            data: &[],
+        };
+        assert!(CameraFrame::new(
+            stamp,
+            "c",
+            0,
+            0,
+            1,
+            1,
+            "rgb8",
+            "",
+            "",
+            "",
+            "",
+            -1,
+            &[bad_plane]
+        )
+        .is_err());
+        // fd < -1 rejected
+        let bad_fd = CameraPlaneView {
+            fd: -5,
+            offset: 0,
+            stride: 1,
+            size: 1,
+            used: 1,
+            data: &[],
+        };
+        assert!(CameraFrame::new(
+            stamp,
+            "c",
+            0,
+            0,
+            1,
+            1,
+            "rgb8",
+            "",
+            "",
+            "",
+            "",
+            -1,
+            &[bad_fd]
+        )
+        .is_err());
+        // fd >= 0 with non-empty data rejected
+        let data = vec![1u8];
+        let both = CameraPlaneView {
+            fd: 5,
+            offset: 0,
+            stride: 1,
+            size: 1,
+            used: 1,
+            data: &data,
+        };
+        assert!(
+            CameraFrame::new(stamp, "c", 0, 0, 1, 1, "rgb8", "", "", "", "", -1, &[both]).is_err()
+        );
+    }
+
+    #[test]
+    fn camera_frame_rejects_wrong_endianness() {
+        // Build a valid single-plane frame, flip the CDR endianness marker
+        // from little-endian (0x0001) to big-endian (0x0100) and confirm
+        // from_cdr rejects it with an error rather than decoding garbage.
+        let stamp = Time::new(1, 0);
+        let plane = CameraPlaneView {
+            fd: 1,
+            offset: 0,
+            stride: 1,
+            size: 1,
+            used: 1,
+            data: &[],
+        };
+        let cf = CameraFrame::new(
+            stamp, "cam", 0, 0, 1, 1, "rgb8", "", "", "", "", -1, &[plane],
+        )
+        .unwrap();
+        let mut bytes = cf.to_cdr();
+        // CDR header: [0]=repr-id hi, [1]=repr-id lo, [2..4]=options.
+        // Valid LE payload encoding uses 0x00 0x01; invert to 0x00 0x00 (BE).
+        bytes[1] = 0x00;
+        assert!(CameraFrame::<&[u8]>::from_cdr(&bytes).is_err());
+    }
+
+    #[test]
+    fn camera_frame_registered_in_type_list() {
+        assert!(is_type_supported("CameraFrame"));
+        assert!(is_type_supported("CameraPlane"));
+        assert!(list_types().contains(&"edgefirst_msgs/msg/CameraFrame"));
+        assert!(list_types().contains(&"edgefirst_msgs/msg/CameraPlane"));
     }
 
     #[test]

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright © 2025 Au-Zone Technologies. All Rights Reserved.
 
+import warnings
 from dataclasses import dataclass
 from enum import Enum
 
@@ -129,6 +130,53 @@ class Box(IdlStruct, typename='edgefirst_msgs/Box'):
     """
     object tracking, each track includes ID and lifetime information
     """
+
+
+@dataclass
+class CameraPlane(IdlStruct, typename='edgefirst_msgs/CameraPlane'):
+    """
+    Descriptor for a single image plane within a CameraFrame.
+
+    Two exclusive delivery modes:
+      * fd >= 0  : plane bytes live in DMA-BUF; consumer uses offset/size/used
+                   to mmap. `data` MUST be empty.
+      * fd == -1 : plane bytes are inlined in `data`; offset is ignored;
+                   size and used describe `data` length.
+    """
+    fd: int32 = -1
+    offset: uint32 = 0
+    stride: uint32 = 0
+    size: uint32 = 0
+    used: uint32 = 0
+    data: sequence[uint8] = default_field([])
+
+
+@dataclass
+class CameraFrame(IdlStruct, typename='edgefirst_msgs/CameraFrame'):
+    """
+    Multi-plane video frame reference.
+
+    Carries DMA-BUF file descriptors and/or inlined bytes to one or more image
+    planes, plus frame-level metadata. Supersedes the single-plane DmaBuffer
+    message (deprecated in 3.1.0, removed in 4.0.0).
+
+    Supports raw video, planar model inputs (NV12, I420, RGB planar NCHW),
+    hardware codec bitstreams (H.264/H.265/MJPEG with used < size), GPU fence
+    synchronization (fence_fd), and off-device bridging via per-plane inlined
+    `data` with fd == -1.
+    """
+    header: Header = default_field(Header)
+    seq: uint64 = 0
+    pid: uint32 = 0
+    width: uint32 = 0
+    height: uint32 = 0
+    format: str = ''
+    color_space: str = ''
+    color_transfer: str = ''
+    color_encoding: str = ''
+    color_range: str = ''
+    fence_fd: int32 = -1
+    planes: sequence[CameraPlane] = default_field([])
 
 
 @dataclass
@@ -268,8 +316,27 @@ class Detect(IdlStruct, typename='Detect'):
     """
 
 
+_DMABUFFER_DEPRECATION = (
+    "edgefirst_msgs.DmaBuffer is deprecated since 3.1.0 and will be removed "
+    "in 4.0.0; use edgefirst_msgs.CameraFrame instead."
+)
+
+
 @dataclass
 class DmaBuffer(IdlStruct, typename='DmaBuffer'):
+    """DEPRECATED since 3.1.0; use :class:`CameraFrame` instead.
+
+    Removed in 4.0.0. CameraFrame adds multi-plane support (NV12, I420, planar
+    RGB NCHW), compressed bitstream handling (used < size), GPU fence
+    synchronization, frame sequence counter, colorimetry metadata, and an
+    off-device bridge path via inlined per-plane bytes.
+
+    Instantiation and decoding via :meth:`deserialize` emit a
+    :class:`DeprecationWarning`.
+    """
+
+    def __post_init__(self):
+        warnings.warn(_DMABUFFER_DEPRECATION, DeprecationWarning, stacklevel=2)
     header: Header = default_field(Header)
     """
     Metadata including timestamp and coordinate frame
@@ -394,6 +461,8 @@ class RadarInfo(IdlStruct, typename='edgefirst_msgs/RadarInfo'):
 # Schema registry support
 _TYPES = {
     "Box": Box,
+    "CameraFrame": CameraFrame,
+    "CameraPlane": CameraPlane,
     "Date": Date,
     "Detect": Detect,
     "DmaBuffer": DmaBuffer,
