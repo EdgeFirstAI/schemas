@@ -2158,6 +2158,11 @@ impl<B: AsRef<[u8]>> Vibration<B> {
     pub fn clipping_len(&self) -> u32 {
         rd_u32(self.buf.as_ref(), self.offsets[0] + 36)
     }
+    /// Byte offset of the `clipping` sequence (u32 count, then elements).
+    /// Exposed for allocation-free decoders (e.g. FFI).
+    pub fn clipping_seq_offset(&self) -> usize {
+        self.offsets[0] + 36
+    }
     pub fn clipping(&self) -> Vec<u32> {
         let mut c = CdrCursor::resume(self.buf.as_ref(), self.offsets[0] + 36);
         let n = c

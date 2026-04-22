@@ -1547,6 +1547,11 @@ impl<B: AsRef<[u8]>> BatteryState<B> {
     pub fn cell_voltage_len(&self) -> u32 {
         rd_u32(self.buf.as_ref(), self.offsets[1])
     }
+    /// Byte offset of the `cell_voltage` sequence (u32 count, then elements).
+    /// Exposed for allocation-free decoders (e.g. FFI).
+    pub fn cell_voltage_seq_offset(&self) -> usize {
+        self.offsets[1]
+    }
     pub fn cell_voltage(&self) -> Vec<f32> {
         let mut c = CdrCursor::resume(self.buf.as_ref(), self.offsets[1]);
         let n = c
@@ -1563,6 +1568,11 @@ impl<B: AsRef<[u8]>> BatteryState<B> {
     }
     pub fn cell_temperature_len(&self) -> u32 {
         rd_u32(self.buf.as_ref(), self.offsets[2])
+    }
+    /// Byte offset of the `cell_temperature` sequence (u32 count, then elements).
+    /// Exposed for allocation-free decoders (e.g. FFI).
+    pub fn cell_temperature_seq_offset(&self) -> usize {
+        self.offsets[2]
     }
     pub fn cell_temperature(&self) -> Vec<f32> {
         let mut c = CdrCursor::resume(self.buf.as_ref(), self.offsets[2]);

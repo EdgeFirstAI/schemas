@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 namespace ef = edgefirst::schemas;
@@ -24,9 +25,10 @@ namespace ef = edgefirst::schemas;
 static std::vector<std::uint8_t> load_fixture(const std::string& relpath) {
     std::FILE* f = std::fopen(relpath.c_str(), "rb");
     REQUIRE(f != nullptr);
-    std::fseek(f, 0, SEEK_END);
+    REQUIRE(std::fseek(f, 0, SEEK_END) == 0);
     long sz = std::ftell(f);
-    std::fseek(f, 0, SEEK_SET);
+    REQUIRE(sz >= 0);
+    REQUIRE(std::fseek(f, 0, SEEK_SET) == 0);
     std::vector<std::uint8_t> buf(static_cast<std::size_t>(sz));
     std::size_t got = std::fread(buf.data(), 1, buf.size(), f);
     std::fclose(f);

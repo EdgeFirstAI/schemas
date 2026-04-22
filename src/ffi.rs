@@ -688,6 +688,63 @@ pub extern "C" fn ros_nav_sat_status_decode(
 // Buffer-backed view types — macro for common boilerplate
 // =============================================================================
 
+/// Decode a little-endian CDR sequence of `f32` in-place into a caller buffer.
+///
+/// `seq_off` points at the 4-byte element count; the elements follow
+/// immediately (no alignment padding: f32 aligns to 4, matching the count).
+/// Returns the element count regardless of `out`/`cap`. Allocation-free.
+fn copy_le_f32_seq(data: &[u8], seq_off: usize, out: *mut f32, cap: usize) -> u32 {
+    let Some(len_end) = seq_off.checked_add(4) else {
+        return 0;
+    };
+    if len_end > data.len() {
+        return 0;
+    }
+    let n = u32::from_le_bytes(data[seq_off..len_end].try_into().unwrap()) as usize;
+    if !out.is_null() && cap > 0 {
+        let copy_n = n.min(cap);
+        let elems = match len_end.checked_add(copy_n.saturating_mul(4)) {
+            Some(e) if e <= data.len() => &data[len_end..e],
+            _ => return n as u32,
+        };
+        for i in 0..copy_n {
+            let b = i * 4;
+            let val = f32::from_le_bytes([elems[b], elems[b + 1], elems[b + 2], elems[b + 3]]);
+            unsafe {
+                *out.add(i) = val;
+            }
+        }
+    }
+    n as u32
+}
+
+/// Decode a little-endian CDR sequence of `u32` in-place into a caller buffer.
+/// Same layout assumptions as [`copy_le_f32_seq`]. Allocation-free.
+fn copy_le_u32_seq(data: &[u8], seq_off: usize, out: *mut u32, cap: usize) -> u32 {
+    let Some(len_end) = seq_off.checked_add(4) else {
+        return 0;
+    };
+    if len_end > data.len() {
+        return 0;
+    }
+    let n = u32::from_le_bytes(data[seq_off..len_end].try_into().unwrap()) as usize;
+    if !out.is_null() && cap > 0 {
+        let copy_n = n.min(cap);
+        let elems = match len_end.checked_add(copy_n.saturating_mul(4)) {
+            Some(e) if e <= data.len() => &data[len_end..e],
+            _ => return n as u32,
+        };
+        for i in 0..copy_n {
+            let b = i * 4;
+            let val = u32::from_le_bytes([elems[b], elems[b + 1], elems[b + 2], elems[b + 3]]);
+            unsafe {
+                *out.add(i) = val;
+            }
+        }
+    }
+    n as u32
+}
+
 /// Helper to return CDR bytes from an owned view (encode result).
 /// Leaks the Vec as a raw pointer; caller must use ros_bytes_free().
 fn return_cdr_bytes(cdr: Vec<u8>, out_bytes: *mut *mut u8, out_len: *mut usize) -> i32 {
@@ -3967,6 +4024,9 @@ pub extern "C" fn ros_battery_state_get_cell_voltage_len(view: *const ros_batter
 }
 
 /// Copy up to `cap` cell voltages into `out`; returns the total element count.
+///
+/// Allocation-free: decodes directly from the backing CDR slice using the
+/// cached sequence offset.
 #[no_mangle]
 pub extern "C" fn ros_battery_state_get_cell_voltage(
     view: *const ros_battery_state_t,
@@ -3976,15 +4036,8 @@ pub extern "C" fn ros_battery_state_get_cell_voltage(
     if view.is_null() {
         return 0;
     }
-    let cells = unsafe { (*view).0.cell_voltage() };
-    let n = cells.len();
-    if !out.is_null() && cap > 0 {
-        let copy_n = n.min(cap);
-        unsafe {
-            ptr::copy_nonoverlapping(cells.as_ptr(), out, copy_n);
-        }
-    }
-    n as u32
+    let msg = unsafe { &(*view).0 };
+    copy_le_f32_seq(msg.as_cdr(), msg.cell_voltage_seq_offset(), out, cap)
 }
 
 #[no_mangle]
@@ -3997,6 +4050,10 @@ pub extern "C" fn ros_battery_state_get_cell_temperature_len(
     unsafe { (*view).0.cell_temperature_len() }
 }
 
+/// Copy up to `cap` cell temperatures into `out`; returns the total element count.
+///
+/// Allocation-free: decodes directly from the backing CDR slice using the
+/// cached sequence offset.
 #[no_mangle]
 pub extern "C" fn ros_battery_state_get_cell_temperature(
     view: *const ros_battery_state_t,
@@ -4006,15 +4063,8 @@ pub extern "C" fn ros_battery_state_get_cell_temperature(
     if view.is_null() {
         return 0;
     }
-    let cells = unsafe { (*view).0.cell_temperature() };
-    let n = cells.len();
-    if !out.is_null() && cap > 0 {
-        let copy_n = n.min(cap);
-        unsafe {
-            ptr::copy_nonoverlapping(cells.as_ptr(), out, copy_n);
-        }
-    }
-    n as u32
+    let msg = unsafe { &(*view).0 };
+    copy_le_f32_seq(msg.as_cdr(), msg.cell_temperature_seq_offset(), out, cap)
 }
 
 #[no_mangle]
@@ -4315,6 +4365,9 @@ pub extern "C" fn ros_vibration_get_clipping_len(view: *const ros_vibration_t) -
 }
 
 /// Copy up to `cap` clipping counters into `out`; returns the total element count.
+///
+/// Allocation-free: decodes directly from the backing CDR slice using the
+/// cached sequence offset.
 #[no_mangle]
 pub extern "C" fn ros_vibration_get_clipping(
     view: *const ros_vibration_t,
@@ -4324,13 +4377,6 @@ pub extern "C" fn ros_vibration_get_clipping(
     if view.is_null() {
         return 0;
     }
-    let cl = unsafe { (*view).0.clipping() };
-    let n = cl.len();
-    if !out.is_null() && cap > 0 {
-        let copy_n = n.min(cap);
-        unsafe {
-            ptr::copy_nonoverlapping(cl.as_ptr(), out, copy_n);
-        }
-    }
-    n as u32
+    let msg = unsafe { &(*view).0 };
+    copy_le_u32_seq(msg.as_cdr(), msg.clipping_seq_offset(), out, cap)
 }
