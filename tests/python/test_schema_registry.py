@@ -173,18 +173,25 @@ class TestCrossLanguageCompatibility:
 
     # List of schemas that must match between Python and Rust
     COMMON_SCHEMAS = [
+        "sensor_msgs/msg/BatteryState",
         "sensor_msgs/msg/CameraInfo",
         "sensor_msgs/msg/CompressedImage",
+        "sensor_msgs/msg/FluidPressure",
         "sensor_msgs/msg/Image",
         "sensor_msgs/msg/Imu",
+        "sensor_msgs/msg/MagneticField",
         "sensor_msgs/msg/NavSatFix",
         "sensor_msgs/msg/PointCloud2",
+        "sensor_msgs/msg/Temperature",
         "geometry_msgs/msg/Pose",
+        "geometry_msgs/msg/PoseWithCovariance",
         "geometry_msgs/msg/Transform",
         "geometry_msgs/msg/TransformStamped",
         "geometry_msgs/msg/Twist",
+        "geometry_msgs/msg/TwistWithCovariance",
         "geometry_msgs/msg/Vector3",
         "geometry_msgs/msg/Quaternion",
+        "nav_msgs/msg/Odometry",
         "foxglove_msgs/msg/CompressedVideo",
         "edgefirst_msgs/msg/Box",
         "edgefirst_msgs/msg/CameraFrame",
@@ -195,6 +202,7 @@ class TestCrossLanguageCompatibility:
         "edgefirst_msgs/msg/ModelInfo",
         "edgefirst_msgs/msg/RadarCube",
         "edgefirst_msgs/msg/RadarInfo",
+        "edgefirst_msgs/msg/Vibration",
         "edgefirst_msgs/msg/Track",
     ]
 

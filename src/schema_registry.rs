@@ -23,7 +23,8 @@
 //! ```
 
 use crate::{
-    builtin_interfaces, edgefirst_msgs, foxglove_msgs, geometry_msgs, sensor_msgs, std_msgs,
+    builtin_interfaces, edgefirst_msgs, foxglove_msgs, geometry_msgs, nav_msgs, sensor_msgs,
+    std_msgs,
 };
 
 /// Trait for types that have a schema name.
@@ -86,6 +87,7 @@ pub fn is_supported(schema: &str) -> bool {
         "builtin_interfaces" => builtin_interfaces::is_type_supported(type_name),
         "std_msgs" => std_msgs::is_type_supported(type_name),
         "geometry_msgs" => geometry_msgs::is_type_supported(type_name),
+        "nav_msgs" => nav_msgs::is_type_supported(type_name),
         "sensor_msgs" => sensor_msgs::is_type_supported(type_name),
         "foxglove_msgs" => foxglove_msgs::is_type_supported(type_name),
         "edgefirst_msgs" => edgefirst_msgs::is_type_supported(type_name),
@@ -102,6 +104,7 @@ pub fn list_schemas() -> Vec<&'static str> {
     schemas.extend(builtin_interfaces::list_types().iter().copied());
     schemas.extend(std_msgs::list_types().iter().copied());
     schemas.extend(geometry_msgs::list_types().iter().copied());
+    schemas.extend(nav_msgs::list_types().iter().copied());
     schemas.extend(sensor_msgs::list_types().iter().copied());
     schemas.extend(foxglove_msgs::list_types().iter().copied());
     schemas.extend(edgefirst_msgs::list_types().iter().copied());

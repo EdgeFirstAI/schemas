@@ -8,6 +8,8 @@
 
 #include <criterion/criterion.h>
 #include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 #include "edgefirst/schemas.h"
@@ -331,4 +333,110 @@ Test(sensor_msgs, camera_info_getters_null) {
     cr_assert_null(ros_camera_info_get_distortion_model(NULL));
     cr_assert_eq(ros_camera_info_get_binning_x(NULL), 0);
     cr_assert_eq(ros_camera_info_get_binning_y(NULL), 0);
+}
+
+// ============================================================================
+// MagneticField / FluidPressure / Temperature / BatteryState (TOP2-770)
+// ============================================================================
+
+static uint8_t *_load_fixture_sm(const char *relpath, size_t *out_len) {
+    FILE *f = fopen(relpath, "rb");
+    if (!f) return NULL;
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (sz <= 0) { fclose(f); return NULL; }
+    uint8_t *buf = (uint8_t *) malloc((size_t) sz);
+    size_t got = fread(buf, 1, (size_t) sz, f);
+    fclose(f);
+    if (got != (size_t) sz) { free(buf); return NULL; }
+    *out_len = got;
+    return buf;
+}
+
+Test(sensor_msgs, magnetic_field_from_golden_fixture) {
+    size_t len = 0;
+    uint8_t *b = _load_fixture_sm("testdata/cdr/sensor_msgs/MagneticField.cdr", &len);
+    cr_assert_not_null(b, "failed to load MagneticField fixture");
+    ros_magnetic_field_t *v = ros_magnetic_field_from_cdr(b, len);
+    cr_assert_not_null(v);
+    cr_assert_str_eq(ros_magnetic_field_get_frame_id(v), "test_frame");
+    double x = 0, y = 0, z = 0;
+    ros_magnetic_field_get_magnetic_field(v, &x, &y, &z);
+    cr_assert_float_eq(x, 2.5e-5, 1e-12);
+    cr_assert_float_eq(y, -1.2e-5, 1e-12);
+    cr_assert_float_eq(z, 4.1e-5, 1e-12);
+    double cov[9] = {0};
+    ros_magnetic_field_get_magnetic_field_covariance(v, cov);
+    cr_assert_float_eq(cov[0], 1e-10, 1e-20);
+    ros_magnetic_field_free(v);
+    free(b);
+}
+
+Test(sensor_msgs, magnetic_field_from_cdr_null) {
+    errno = 0;
+    cr_assert_null(ros_magnetic_field_from_cdr(NULL, 100));
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(sensor_msgs, fluid_pressure_from_golden_fixture) {
+    size_t len = 0;
+    uint8_t *b = _load_fixture_sm("testdata/cdr/sensor_msgs/FluidPressure.cdr", &len);
+    cr_assert_not_null(b);
+    ros_fluid_pressure_t *v = ros_fluid_pressure_from_cdr(b, len);
+    cr_assert_not_null(v);
+    cr_assert_str_eq(ros_fluid_pressure_get_frame_id(v), "test_frame");
+    cr_assert_float_eq(ros_fluid_pressure_get_fluid_pressure(v), 101325.0, 1e-9);
+    cr_assert_float_eq(ros_fluid_pressure_get_variance(v), 25.0, 1e-9);
+    ros_fluid_pressure_free(v);
+    free(b);
+}
+
+Test(sensor_msgs, temperature_from_golden_fixture) {
+    size_t len = 0;
+    uint8_t *b = _load_fixture_sm("testdata/cdr/sensor_msgs/Temperature.cdr", &len);
+    cr_assert_not_null(b);
+    ros_temperature_t *v = ros_temperature_from_cdr(b, len);
+    cr_assert_not_null(v);
+    cr_assert_str_eq(ros_temperature_get_frame_id(v), "test_frame");
+    cr_assert_float_eq(ros_temperature_get_temperature(v), 22.5, 1e-12);
+    cr_assert_float_eq(ros_temperature_get_variance(v), 0.01, 1e-12);
+    ros_temperature_free(v);
+    free(b);
+}
+
+Test(sensor_msgs, battery_state_from_golden_fixture) {
+    size_t len = 0;
+    uint8_t *b = _load_fixture_sm("testdata/cdr/sensor_msgs/BatteryState.cdr", &len);
+    cr_assert_not_null(b);
+    ros_battery_state_t *v = ros_battery_state_from_cdr(b, len);
+    cr_assert_not_null(v);
+    cr_assert_str_eq(ros_battery_state_get_frame_id(v), "test_frame");
+    cr_assert_float_eq(ros_battery_state_get_voltage(v), 12.34f, 1e-5);
+    cr_assert_float_eq(ros_battery_state_get_percentage(v), 0.84f, 1e-5);
+    cr_assert_eq(ros_battery_state_get_power_supply_status(v),
+                 ROS_BATTERY_STATE_POWER_SUPPLY_STATUS_DISCHARGING);
+    cr_assert_eq(ros_battery_state_get_power_supply_technology(v),
+                 ROS_BATTERY_STATE_POWER_SUPPLY_TECHNOLOGY_LIPO);
+    cr_assert(ros_battery_state_get_present(v));
+
+    cr_assert_eq(ros_battery_state_get_cell_voltage_len(v), 3);
+    float cells[4] = {0};
+    uint32_t n = ros_battery_state_get_cell_voltage(v, cells, 4);
+    cr_assert_eq(n, 3);
+    cr_assert_float_eq(cells[0], 4.11f, 1e-5);
+    cr_assert_float_eq(cells[2], 4.10f, 1e-5);
+
+    cr_assert_str_eq(ros_battery_state_get_location(v), "battery0");
+    cr_assert_str_eq(ros_battery_state_get_serial_number(v), "SN0123456");
+
+    ros_battery_state_free(v);
+    free(b);
+}
+
+Test(sensor_msgs, new_types_free_null_ok) {
+    ros_magnetic_field_free(NULL);
+    ros_fluid_pressure_free(NULL);
+    ros_temperature_free(NULL);
+    ros_battery_state_free(NULL);
 }

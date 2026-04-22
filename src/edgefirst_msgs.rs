@@ -2047,6 +2047,196 @@ impl ModelInfo<Vec<u8>> {
     }
 }
 
+// ── Vibration<B> ────────────────────────────────────────────────────
+//
+// CDR layout: Header → pad to 8 → offsets[0] (Vector3 vibration start),
+//   Vector3 vibration (24 bytes),
+//   float32 band_lower_hz, float32 band_upper_hz,
+//   uint8 measurement_type, uint8 unit,
+//   pad to 4 → uint32 count + uint32[] clipping.
+//
+// offsets contains a single cached value:
+//   offsets[0] = aligned start of `vibration`.
+//
+// All remaining fields are accessed at fixed compile-time-constant
+// deltas from offsets[0] (including the clipping sequence count/data)
+// because fields are ordered by descending alignment, sidestepping the
+// EDGEAI-1243 class of bug entirely.
+
+/// `measurement_type` enum values for [`Vibration`].
+pub mod vibration_measurement {
+    pub const UNKNOWN: u8 = 0;
+    pub const RMS: u8 = 1;
+    pub const PEAK: u8 = 2;
+    pub const PEAK_TO_PEAK: u8 = 3;
+}
+
+/// `unit` enum values for [`Vibration`].
+pub mod vibration_unit {
+    pub const UNKNOWN: u8 = 0;
+    pub const ACCEL_M_PER_S2: u8 = 1;
+    pub const ACCEL_G: u8 = 2;
+    pub const VELOCITY_MM_PER_S: u8 = 3;
+    pub const DISPLACEMENT_UM: u8 = 4;
+    pub const VELOCITY_IN_PER_S: u8 = 5;
+    pub const DISPLACEMENT_MIL: u8 = 6;
+}
+
+pub struct Vibration<B> {
+    buf: B,
+    // offsets[0]: Vector3 `vibration` start (8-aligned after Header).
+    //
+    // Fields laid out by descending alignment (Vector3 → f32 → u8 → seq),
+    // so every subsequent field sits at a compile-time-constant delta
+    // from offsets[0]:
+    //
+    //   vibration           offsets[0]       (24 B)
+    //   band_lower_hz       offsets[0] + 24  (f32)
+    //   band_upper_hz       offsets[0] + 28  (f32)
+    //   measurement_type    offsets[0] + 32  (u8)
+    //   unit                offsets[0] + 33  (u8)
+    //   [ 2 bytes constant pad to 4-align ]
+    //   clipping seq-count  offsets[0] + 36  (u32)
+    //
+    // The 2-byte pad between `unit` and `clipping` is invariant because
+    // offsets[0] is 8-aligned (hence 4-aligned relative to CDR payload
+    // start). No position-dependent padding anywhere.
+    offsets: [usize; 1],
+}
+
+impl<B: AsRef<[u8]>> Vibration<B> {
+    pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
+        use crate::geometry_msgs::Vector3;
+        let header = crate::std_msgs::Header::<&[u8]>::from_cdr(buf.as_ref())?;
+        let pre = header.end_offset();
+        let mut c = CdrCursor::resume(buf.as_ref(), pre);
+        c.align(8);
+        let o0 = c.offset();
+        Vector3::read_cdr(&mut c)?;
+        c.read_f32()?; // band_lower_hz
+        c.read_f32()?; // band_upper_hz
+        c.read_u8()?; // measurement_type
+        c.read_u8()?; // unit
+        c.align(4);
+        // u32 = 4 bytes each; hardening check against pathological counts.
+        let raw = c.read_u32()?;
+        let n = c.check_seq_count(raw, 4)?;
+        for _ in 0..n {
+            c.read_u32()?;
+        }
+        Ok(Vibration { offsets: [o0], buf })
+    }
+
+    /// Returns a `Header` view by re-parsing the CDR buffer prefix.
+    pub fn header(&self) -> crate::std_msgs::Header<&[u8]> {
+        crate::std_msgs::Header::from_cdr(self.buf.as_ref())
+            .expect("header bytes validated during from_cdr")
+    }
+    pub fn stamp(&self) -> crate::builtin_interfaces::Time {
+        rd_time(self.buf.as_ref(), CDR_HEADER_SIZE)
+    }
+    pub fn frame_id(&self) -> &str {
+        rd_string(self.buf.as_ref(), CDR_HEADER_SIZE + 8).0
+    }
+    pub fn vibration(&self) -> crate::geometry_msgs::Vector3 {
+        let mut c = CdrCursor::resume(self.buf.as_ref(), self.offsets[0]);
+        crate::geometry_msgs::Vector3::read_cdr(&mut c)
+            .expect("vibration validated during from_cdr")
+    }
+    pub fn band_lower_hz(&self) -> f32 {
+        rd_f32(self.buf.as_ref(), self.offsets[0] + 24)
+    }
+    pub fn band_upper_hz(&self) -> f32 {
+        rd_f32(self.buf.as_ref(), self.offsets[0] + 28)
+    }
+    pub fn measurement_type(&self) -> u8 {
+        rd_u8(self.buf.as_ref(), self.offsets[0] + 32)
+    }
+    pub fn unit(&self) -> u8 {
+        rd_u8(self.buf.as_ref(), self.offsets[0] + 33)
+    }
+    pub fn clipping_len(&self) -> u32 {
+        rd_u32(self.buf.as_ref(), self.offsets[0] + 36)
+    }
+    /// Byte offset of the `clipping` sequence (u32 count, then elements).
+    /// Exposed for allocation-free decoders (e.g. FFI).
+    pub fn clipping_seq_offset(&self) -> usize {
+        self.offsets[0] + 36
+    }
+    pub fn clipping(&self) -> Vec<u32> {
+        let mut c = CdrCursor::resume(self.buf.as_ref(), self.offsets[0] + 36);
+        let n = c
+            .read_u32()
+            .expect("clipping length validated during from_cdr") as usize;
+        let mut out = Vec::with_capacity(n);
+        for _ in 0..n {
+            out.push(
+                c.read_u32()
+                    .expect("clipping element validated during from_cdr"),
+            );
+        }
+        out
+    }
+    pub fn as_cdr(&self) -> &[u8] {
+        self.buf.as_ref()
+    }
+    pub fn to_cdr(&self) -> Vec<u8> {
+        self.buf.as_ref().to_vec()
+    }
+}
+
+impl Vibration<Vec<u8>> {
+    pub fn new(
+        stamp: crate::builtin_interfaces::Time,
+        frame_id: &str,
+        measurement_type: u8,
+        unit: u8,
+        band_lower_hz: f32,
+        band_upper_hz: f32,
+        vibration: crate::geometry_msgs::Vector3,
+        clipping: &[u32],
+    ) -> Result<Self, CdrError> {
+        use crate::builtin_interfaces::Time;
+        use crate::geometry_msgs::Vector3;
+        let mut sizer = CdrSizer::new();
+        Time::size_cdr(&mut sizer);
+        sizer.size_string(frame_id);
+        sizer.align(8);
+        let o0 = sizer.offset();
+        Vector3::size_cdr(&mut sizer);
+        sizer.size_f32();
+        sizer.size_f32();
+        sizer.size_u8();
+        sizer.size_u8();
+        sizer.align(4);
+        sizer.size_u32();
+        for _ in clipping {
+            sizer.size_u32();
+        }
+
+        let mut buf = vec![0u8; sizer.size()];
+        let mut w = CdrWriter::new(&mut buf)?;
+        stamp.write_cdr(&mut w);
+        w.write_string(frame_id);
+        vibration.write_cdr(&mut w);
+        w.write_f32(band_lower_hz);
+        w.write_f32(band_upper_hz);
+        w.write_u8(measurement_type);
+        w.write_u8(unit);
+        w.write_u32(clipping.len() as u32);
+        for v in clipping {
+            w.write_u32(*v);
+        }
+        w.finish()?;
+
+        Ok(Vibration { offsets: [o0], buf })
+    }
+
+    pub fn into_cdr(self) -> Vec<u8> {
+        self.buf
+    }
+}
+
 // ── Registry ────────────────────────────────────────────────────────
 
 /// Check if a type name is supported by this module.
@@ -2066,6 +2256,7 @@ pub fn is_type_supported(type_name: &str) -> bool {
             | "RadarCube"
             | "RadarInfo"
             | "Track"
+            | "Vibration"
     )
 }
 
@@ -2085,6 +2276,7 @@ pub fn list_types() -> &'static [&'static str] {
         "edgefirst_msgs/msg/RadarCube",
         "edgefirst_msgs/msg/RadarInfo",
         "edgefirst_msgs/msg/Track",
+        "edgefirst_msgs/msg/Vibration",
     ]
 }
 

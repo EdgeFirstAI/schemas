@@ -9,6 +9,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **UAV telemetry schemas (TOP2-770)** — seven ROS 2 common_interfaces
+  types plus one new EdgeFirst type, all with full Rust / Python /
+  C / C++ surface and golden CDR fixtures:
+
+  - `sensor_msgs/msg/MagneticField` — Header + Vector3 + float64[9].
+  - `sensor_msgs/msg/FluidPressure` — Header + float64 + variance.
+  - `sensor_msgs/msg/Temperature` — Header + float64 + variance.
+  - `sensor_msgs/msg/BatteryState` — Header + 7 f32 + 3 enum u8 + bool
+    + 2 f32 sequences + 2 strings. `POWER_SUPPLY_STATUS_*`,
+    `POWER_SUPPLY_HEALTH_*`, `POWER_SUPPLY_TECHNOLOGY_*` constants
+    exposed in all four languages.
+  - `nav_msgs/msg/Odometry` (new module) — Header + child_frame_id +
+    `PoseWithCovariance` + `TwistWithCovariance`.
+  - `geometry_msgs/msg/PoseWithCovariance` — `CdrFixed` (344 B).
+  - `geometry_msgs/msg/TwistWithCovariance` — `CdrFixed` (336 B).
+  - `edgefirst_msgs/msg/Vibration` (new schema) — Header + 2 u8 enums
+    (`MEASUREMENT_*`, `UNIT_*`) + f32 band + `Vector3 vibration` +
+    `uint32[] clipping`. Generalizes MAVLink VIBRATION, ArduPilot
+    VIBE, PX4 `vehicle_imu_status`, and ISO 10816/20816 industrial
+    broadband vibration sensors. Drives the `adis-uav-mavlink`
+    bridge's `flight/vibration` topic (TOP2-766).
+
+  Bindings across all four languages:
+
+  - Rust: `edgefirst_schemas::sensor_msgs::{MagneticField,
+    FluidPressure, Temperature, BatteryState}`,
+    `edgefirst_schemas::nav_msgs::Odometry`,
+    `edgefirst_schemas::edgefirst_msgs::Vibration`,
+    `geometry_msgs::{PoseWithCovariance, TwistWithCovariance}`.
+  - C: `ros_<type>_t` + `ros_<type>_from_cdr` / `_free` /
+    `_get_*` / `_as_cdr` accessors for buffer-backed types; `encode` /
+    `decode` pair for CdrFixed types. `ros_*` prefix retained for
+    consistency with the rest of the 3.x C API (per-namespace prefix
+    normalization deferred to 4.0.0).
+  - C++: header-only view classes `MagneticFieldView`,
+    `FluidPressureView`, `TemperatureView`, `BatteryStateView`,
+    `OdometryView`, `VibrationView` (move-only, non-owning), plus
+    value classes `PoseWithCovariance`, `TwistWithCovariance`.
+    `BatteryStateView` and `VibrationView` expose their constants as
+    `static constexpr` members.
+  - Python: dataclasses already present in
+    `edgefirst.schemas.{sensor_msgs, nav_msgs, geometry_msgs}`;
+    `edgefirst.schemas.edgefirst_msgs.Vibration` added with
+    `VibrationMeasurement` and `VibrationUnit` enums.
+
+  All six Header-prefixed buffer-backed types ship with a parametric
+  `frame_id`-length sweep test (lengths 0..=16) to lock in freedom
+  from the EDGEAI-1243 class of alignment bug.
+
 - **CameraFrame / CameraPlane** — new multi-plane video frame schema
   (`edgefirst_msgs/msg/CameraFrame`, `edgefirst_msgs/msg/CameraPlane`).
   Supports planar formats (NV12, I420, planar RGB HWC/NCHW, signed i8

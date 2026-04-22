@@ -724,6 +724,96 @@ public:
     }
 };
 
+/// @brief ROS 2 `geometry_msgs::PoseWithCovariance` — Pose plus a 6×6
+///        row-major covariance matrix over (x, y, z, rotX, rotY, rotZ).
+class PoseWithCovariance {
+public:
+    Pose pose{};
+    std::array<double, 36> covariance{};
+
+    constexpr PoseWithCovariance() noexcept = default;
+    PoseWithCovariance(Pose p, std::array<double, 36> cov) noexcept
+        : pose(p), covariance(cov) {}
+
+    [[nodiscard]] static expected<PoseWithCovariance, Error>
+    decode(span<const std::uint8_t> data) noexcept {
+        PoseWithCovariance t;
+        if (ros_pose_with_covariance_decode(data.data(), data.size(),
+                                            &t.pose.px, &t.pose.py, &t.pose.pz,
+                                            &t.pose.ox, &t.pose.oy, &t.pose.oz, &t.pose.ow,
+                                            t.covariance.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_pose_with_covariance_decode"));
+        return t;
+    }
+
+    [[nodiscard]] expected<std::size_t, Error>
+    encode(span<std::uint8_t> out) const noexcept {
+        std::size_t written = 0;
+        if (ros_pose_with_covariance_encode(out.data(), out.size(), &written,
+                                            pose.px, pose.py, pose.pz,
+                                            pose.ox, pose.oy, pose.oz, pose.ow,
+                                            covariance.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_pose_with_covariance_encode"));
+        return written;
+    }
+
+    [[nodiscard]] expected<std::size_t, Error>
+    encoded_size() const noexcept {
+        std::size_t written = 0;
+        if (ros_pose_with_covariance_encode(nullptr, 0, &written,
+                                            pose.px, pose.py, pose.pz,
+                                            pose.ox, pose.oy, pose.oz, pose.ow,
+                                            covariance.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_pose_with_covariance_encode"));
+        return written;
+    }
+};
+
+/// @brief ROS 2 `geometry_msgs::TwistWithCovariance` — Twist plus a 6×6
+///        row-major covariance matrix over (x, y, z, rotX, rotY, rotZ).
+class TwistWithCovariance {
+public:
+    Twist twist{};
+    std::array<double, 36> covariance{};
+
+    constexpr TwistWithCovariance() noexcept = default;
+    TwistWithCovariance(Twist t, std::array<double, 36> cov) noexcept
+        : twist(t), covariance(cov) {}
+
+    [[nodiscard]] static expected<TwistWithCovariance, Error>
+    decode(span<const std::uint8_t> data) noexcept {
+        TwistWithCovariance t;
+        if (ros_twist_with_covariance_decode(data.data(), data.size(),
+                                             &t.twist.lx, &t.twist.ly, &t.twist.lz,
+                                             &t.twist.ax, &t.twist.ay, &t.twist.az,
+                                             t.covariance.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_twist_with_covariance_decode"));
+        return t;
+    }
+
+    [[nodiscard]] expected<std::size_t, Error>
+    encode(span<std::uint8_t> out) const noexcept {
+        std::size_t written = 0;
+        if (ros_twist_with_covariance_encode(out.data(), out.size(), &written,
+                                             twist.lx, twist.ly, twist.lz,
+                                             twist.ax, twist.ay, twist.az,
+                                             covariance.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_twist_with_covariance_encode"));
+        return written;
+    }
+
+    [[nodiscard]] expected<std::size_t, Error>
+    encoded_size() const noexcept {
+        std::size_t written = 0;
+        if (ros_twist_with_covariance_encode(nullptr, 0, &written,
+                                             twist.lx, twist.ly, twist.lz,
+                                             twist.ax, twist.ay, twist.az,
+                                             covariance.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_twist_with_covariance_encode"));
+        return written;
+    }
+};
+
 /// @brief ROS 2 `geometry_msgs::Accel` — linear and angular acceleration of
 ///        a rigid body in free space (m/s² and rad/s²).
 class Accel {
@@ -1305,6 +1395,54 @@ struct ModelInfoTraits {
     static constexpr auto free     = ros_model_info_free;
     static constexpr auto as_cdr   = ros_model_info_as_cdr;
     static constexpr std::string_view name = "ros_model_info";
+};
+
+struct MagneticFieldTraits {
+    using handle_type = ros_magnetic_field_t;
+    static constexpr auto from_cdr = ros_magnetic_field_from_cdr;
+    static constexpr auto free     = ros_magnetic_field_free;
+    static constexpr auto as_cdr   = ros_magnetic_field_as_cdr;
+    static constexpr std::string_view name = "ros_magnetic_field";
+};
+
+struct FluidPressureTraits {
+    using handle_type = ros_fluid_pressure_t;
+    static constexpr auto from_cdr = ros_fluid_pressure_from_cdr;
+    static constexpr auto free     = ros_fluid_pressure_free;
+    static constexpr auto as_cdr   = ros_fluid_pressure_as_cdr;
+    static constexpr std::string_view name = "ros_fluid_pressure";
+};
+
+struct TemperatureTraits {
+    using handle_type = ros_temperature_t;
+    static constexpr auto from_cdr = ros_temperature_from_cdr;
+    static constexpr auto free     = ros_temperature_free;
+    static constexpr auto as_cdr   = ros_temperature_as_cdr;
+    static constexpr std::string_view name = "ros_temperature";
+};
+
+struct BatteryStateTraits {
+    using handle_type = ros_battery_state_t;
+    static constexpr auto from_cdr = ros_battery_state_from_cdr;
+    static constexpr auto free     = ros_battery_state_free;
+    static constexpr auto as_cdr   = ros_battery_state_as_cdr;
+    static constexpr std::string_view name = "ros_battery_state";
+};
+
+struct OdometryTraits {
+    using handle_type = ros_odometry_t;
+    static constexpr auto from_cdr = ros_odometry_from_cdr;
+    static constexpr auto free     = ros_odometry_free;
+    static constexpr auto as_cdr   = ros_odometry_as_cdr;
+    static constexpr std::string_view name = "ros_odometry";
+};
+
+struct VibrationTraits {
+    using handle_type = ros_vibration_t;
+    static constexpr auto from_cdr = ros_vibration_from_cdr;
+    static constexpr auto free     = ros_vibration_free;
+    static constexpr auto as_cdr   = ros_vibration_as_cdr;
+    static constexpr std::string_view name = "ros_vibration";
 };
 
 /**
@@ -3350,6 +3488,296 @@ public:
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view label(std::uint32_t index) const noexcept {
         return ros_model_info_get_label(handle(), index);
+    }
+};
+
+// ---------------------------------------------------------------------------
+// sensor_msgs - MagneticField (view-only)
+// ---------------------------------------------------------------------------
+
+/// @brief Non-owning, move-only view over a `sensor_msgs::MagneticField`.
+class MagneticFieldView
+    : public detail::ViewBase<MagneticFieldView, detail::MagneticFieldTraits> {
+    using Base = detail::ViewBase<MagneticFieldView, detail::MagneticFieldTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_magnetic_field_get_stamp_sec(handle()),
+                ros_magnetic_field_get_stamp_nanosec(handle())};
+    }
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_magnetic_field_get_frame_id(handle());
+    }
+    [[nodiscard]] Vector3 magnetic_field() const noexcept {
+        Vector3 v;
+        ros_magnetic_field_get_magnetic_field(handle(), &v.x, &v.y, &v.z);
+        return v;
+    }
+    [[nodiscard]] std::array<double, 9> magnetic_field_covariance() const noexcept {
+        std::array<double, 9> cov{};
+        ros_magnetic_field_get_magnetic_field_covariance(handle(), cov.data());
+        return cov;
+    }
+};
+
+// ---------------------------------------------------------------------------
+// sensor_msgs - FluidPressure (view-only)
+// ---------------------------------------------------------------------------
+
+class FluidPressureView
+    : public detail::ViewBase<FluidPressureView, detail::FluidPressureTraits> {
+    using Base = detail::ViewBase<FluidPressureView, detail::FluidPressureTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_fluid_pressure_get_stamp_sec(handle()),
+                ros_fluid_pressure_get_stamp_nanosec(handle())};
+    }
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_fluid_pressure_get_frame_id(handle());
+    }
+    [[nodiscard]] double fluid_pressure() const noexcept {
+        return ros_fluid_pressure_get_fluid_pressure(handle());
+    }
+    [[nodiscard]] double variance() const noexcept {
+        return ros_fluid_pressure_get_variance(handle());
+    }
+};
+
+// ---------------------------------------------------------------------------
+// sensor_msgs - Temperature (view-only)
+// ---------------------------------------------------------------------------
+
+class TemperatureView
+    : public detail::ViewBase<TemperatureView, detail::TemperatureTraits> {
+    using Base = detail::ViewBase<TemperatureView, detail::TemperatureTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_temperature_get_stamp_sec(handle()),
+                ros_temperature_get_stamp_nanosec(handle())};
+    }
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_temperature_get_frame_id(handle());
+    }
+    [[nodiscard]] double temperature() const noexcept {
+        return ros_temperature_get_temperature(handle());
+    }
+    [[nodiscard]] double variance() const noexcept {
+        return ros_temperature_get_variance(handle());
+    }
+};
+
+// ---------------------------------------------------------------------------
+// sensor_msgs - BatteryState (view-only)
+// ---------------------------------------------------------------------------
+
+class BatteryStateView
+    : public detail::ViewBase<BatteryStateView, detail::BatteryStateTraits> {
+    using Base = detail::ViewBase<BatteryStateView, detail::BatteryStateTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    // power_supply_status
+    static constexpr std::uint8_t POWER_SUPPLY_STATUS_UNKNOWN      = 0;
+    static constexpr std::uint8_t POWER_SUPPLY_STATUS_CHARGING     = 1;
+    static constexpr std::uint8_t POWER_SUPPLY_STATUS_DISCHARGING  = 2;
+    static constexpr std::uint8_t POWER_SUPPLY_STATUS_NOT_CHARGING = 3;
+    static constexpr std::uint8_t POWER_SUPPLY_STATUS_FULL         = 4;
+
+    // power_supply_health
+    static constexpr std::uint8_t POWER_SUPPLY_HEALTH_UNKNOWN               = 0;
+    static constexpr std::uint8_t POWER_SUPPLY_HEALTH_GOOD                  = 1;
+    static constexpr std::uint8_t POWER_SUPPLY_HEALTH_OVERHEAT              = 2;
+    static constexpr std::uint8_t POWER_SUPPLY_HEALTH_DEAD                  = 3;
+    static constexpr std::uint8_t POWER_SUPPLY_HEALTH_OVERVOLTAGE           = 4;
+    static constexpr std::uint8_t POWER_SUPPLY_HEALTH_UNSPEC_FAILURE        = 5;
+    static constexpr std::uint8_t POWER_SUPPLY_HEALTH_COLD                  = 6;
+    static constexpr std::uint8_t POWER_SUPPLY_HEALTH_WATCHDOG_TIMER_EXPIRE = 7;
+    static constexpr std::uint8_t POWER_SUPPLY_HEALTH_SAFETY_TIMER_EXPIRE   = 8;
+
+    // power_supply_technology
+    static constexpr std::uint8_t POWER_SUPPLY_TECHNOLOGY_UNKNOWN = 0;
+    static constexpr std::uint8_t POWER_SUPPLY_TECHNOLOGY_NIMH    = 1;
+    static constexpr std::uint8_t POWER_SUPPLY_TECHNOLOGY_LION    = 2;
+    static constexpr std::uint8_t POWER_SUPPLY_TECHNOLOGY_LIPO    = 3;
+    static constexpr std::uint8_t POWER_SUPPLY_TECHNOLOGY_LIFE    = 4;
+    static constexpr std::uint8_t POWER_SUPPLY_TECHNOLOGY_NICD    = 5;
+    static constexpr std::uint8_t POWER_SUPPLY_TECHNOLOGY_LIMN    = 6;
+
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_battery_state_get_stamp_sec(handle()),
+                ros_battery_state_get_stamp_nanosec(handle())};
+    }
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_battery_state_get_frame_id(handle());
+    }
+    [[nodiscard]] float voltage() const noexcept {
+        return ros_battery_state_get_voltage(handle());
+    }
+    [[nodiscard]] float temperature() const noexcept {
+        return ros_battery_state_get_temperature(handle());
+    }
+    [[nodiscard]] float current() const noexcept {
+        return ros_battery_state_get_current(handle());
+    }
+    [[nodiscard]] float charge() const noexcept {
+        return ros_battery_state_get_charge(handle());
+    }
+    [[nodiscard]] float capacity() const noexcept {
+        return ros_battery_state_get_capacity(handle());
+    }
+    [[nodiscard]] float design_capacity() const noexcept {
+        return ros_battery_state_get_design_capacity(handle());
+    }
+    [[nodiscard]] float percentage() const noexcept {
+        return ros_battery_state_get_percentage(handle());
+    }
+    [[nodiscard]] std::uint8_t power_supply_status() const noexcept {
+        return ros_battery_state_get_power_supply_status(handle());
+    }
+    [[nodiscard]] std::uint8_t power_supply_health() const noexcept {
+        return ros_battery_state_get_power_supply_health(handle());
+    }
+    [[nodiscard]] std::uint8_t power_supply_technology() const noexcept {
+        return ros_battery_state_get_power_supply_technology(handle());
+    }
+    [[nodiscard]] bool present() const noexcept {
+        return ros_battery_state_get_present(handle());
+    }
+    [[nodiscard]] std::uint32_t cell_voltage_len() const noexcept {
+        return ros_battery_state_get_cell_voltage_len(handle());
+    }
+    /// @brief Copy up to `out.size()` cell voltages; returns total count.
+    std::uint32_t cell_voltage(span<float> out) const noexcept {
+        return ros_battery_state_get_cell_voltage(handle(), out.data(), out.size());
+    }
+    [[nodiscard]] std::uint32_t cell_temperature_len() const noexcept {
+        return ros_battery_state_get_cell_temperature_len(handle());
+    }
+    std::uint32_t cell_temperature(span<float> out) const noexcept {
+        return ros_battery_state_get_cell_temperature(handle(), out.data(), out.size());
+    }
+    [[nodiscard]] std::string_view location() const noexcept {
+        return ros_battery_state_get_location(handle());
+    }
+    [[nodiscard]] std::string_view serial_number() const noexcept {
+        return ros_battery_state_get_serial_number(handle());
+    }
+};
+
+// ---------------------------------------------------------------------------
+// nav_msgs - Odometry (view-only)
+// ---------------------------------------------------------------------------
+
+class OdometryView : public detail::ViewBase<OdometryView, detail::OdometryTraits> {
+    using Base = detail::ViewBase<OdometryView, detail::OdometryTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_odometry_get_stamp_sec(handle()),
+                ros_odometry_get_stamp_nanosec(handle())};
+    }
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_odometry_get_frame_id(handle());
+    }
+    [[nodiscard]] std::string_view child_frame_id() const noexcept {
+        return ros_odometry_get_child_frame_id(handle());
+    }
+    [[nodiscard]] PoseWithCovariance pose() const noexcept {
+        PoseWithCovariance p;
+        ros_odometry_get_pose(handle(),
+                              &p.pose.px, &p.pose.py, &p.pose.pz,
+                              &p.pose.ox, &p.pose.oy, &p.pose.oz, &p.pose.ow);
+        ros_odometry_get_pose_covariance(handle(), p.covariance.data());
+        return p;
+    }
+    [[nodiscard]] TwistWithCovariance twist() const noexcept {
+        TwistWithCovariance t;
+        ros_odometry_get_twist(handle(),
+                               &t.twist.lx, &t.twist.ly, &t.twist.lz,
+                               &t.twist.ax, &t.twist.ay, &t.twist.az);
+        ros_odometry_get_twist_covariance(handle(), t.covariance.data());
+        return t;
+    }
+};
+
+// ---------------------------------------------------------------------------
+// edgefirst_msgs - Vibration (view-only)
+// ---------------------------------------------------------------------------
+
+class VibrationView : public detail::ViewBase<VibrationView, detail::VibrationTraits> {
+    using Base = detail::ViewBase<VibrationView, detail::VibrationTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    // measurement_type
+    static constexpr std::uint8_t MEASUREMENT_UNKNOWN      = 0;
+    static constexpr std::uint8_t MEASUREMENT_RMS          = 1;
+    static constexpr std::uint8_t MEASUREMENT_PEAK         = 2;
+    static constexpr std::uint8_t MEASUREMENT_PEAK_TO_PEAK = 3;
+
+    // unit
+    static constexpr std::uint8_t UNIT_UNKNOWN           = 0;
+    static constexpr std::uint8_t UNIT_ACCEL_M_PER_S2    = 1;
+    static constexpr std::uint8_t UNIT_ACCEL_G           = 2;
+    static constexpr std::uint8_t UNIT_VELOCITY_MM_PER_S = 3;
+    static constexpr std::uint8_t UNIT_DISPLACEMENT_UM   = 4;
+    static constexpr std::uint8_t UNIT_VELOCITY_IN_PER_S = 5;
+    static constexpr std::uint8_t UNIT_DISPLACEMENT_MIL  = 6;
+
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_vibration_get_stamp_sec(handle()),
+                ros_vibration_get_stamp_nanosec(handle())};
+    }
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_vibration_get_frame_id(handle());
+    }
+    [[nodiscard]] std::uint8_t measurement_type() const noexcept {
+        return ros_vibration_get_measurement_type(handle());
+    }
+    [[nodiscard]] std::uint8_t unit() const noexcept {
+        return ros_vibration_get_unit(handle());
+    }
+    [[nodiscard]] float band_lower_hz() const noexcept {
+        return ros_vibration_get_band_lower_hz(handle());
+    }
+    [[nodiscard]] float band_upper_hz() const noexcept {
+        return ros_vibration_get_band_upper_hz(handle());
+    }
+    [[nodiscard]] Vector3 vibration() const noexcept {
+        Vector3 v;
+        ros_vibration_get_vibration(handle(), &v.x, &v.y, &v.z);
+        return v;
+    }
+    [[nodiscard]] std::uint32_t clipping_len() const noexcept {
+        return ros_vibration_get_clipping_len(handle());
+    }
+    /// @brief Copy up to `out.size()` clipping counters; returns total count.
+    std::uint32_t clipping(span<std::uint32_t> out) const noexcept {
+        return ros_vibration_get_clipping(handle(), out.data(), out.size());
     }
 };
 

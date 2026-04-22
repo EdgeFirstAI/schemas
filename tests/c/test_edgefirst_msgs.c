@@ -1140,3 +1140,61 @@ Test(edgefirst_msgs, camera_frame_empty_metadata_only) {
     ros_camera_frame_free(h);
     free(b);
 }
+
+// ============================================================================
+// Vibration Tests (TOP2-770)
+// ============================================================================
+
+Test(edgefirst_msgs, vibration_from_golden_fixture) {
+    size_t len = 0;
+    uint8_t *b = load_fixture("testdata/cdr/edgefirst_msgs/Vibration.cdr", &len);
+    cr_assert_not_null(b, "failed to load Vibration fixture");
+    ros_vibration_t *v = ros_vibration_from_cdr(b, len);
+    cr_assert_not_null(v);
+    cr_assert_str_eq(ros_vibration_get_frame_id(v), "test_frame");
+    cr_assert_eq(ros_vibration_get_measurement_type(v),
+                 ROS_VIBRATION_MEASUREMENT_RMS);
+    cr_assert_eq(ros_vibration_get_unit(v), ROS_VIBRATION_UNIT_ACCEL_M_PER_S2);
+    cr_assert_float_eq(ros_vibration_get_band_lower_hz(v), 10.0f, 1e-5);
+    cr_assert_float_eq(ros_vibration_get_band_upper_hz(v), 1000.0f, 1e-5);
+    double x = 0, y = 0, z = 0;
+    ros_vibration_get_vibration(v, &x, &y, &z);
+    cr_assert_float_eq(x, 0.42, 1e-12);
+    cr_assert_float_eq(y, 0.51, 1e-12);
+    cr_assert_float_eq(z, 0.37, 1e-12);
+    cr_assert_eq(ros_vibration_get_clipping_len(v), 3);
+    uint32_t cl[4] = {0};
+    uint32_t n = ros_vibration_get_clipping(v, cl, 4);
+    cr_assert_eq(n, 3);
+    cr_assert_eq(cl[0], 3);
+    cr_assert_eq(cl[1], 1);
+    cr_assert_eq(cl[2], 0);
+    ros_vibration_free(v);
+    free(b);
+}
+
+Test(edgefirst_msgs, vibration_from_cdr_null) {
+    errno = 0;
+    cr_assert_null(ros_vibration_from_cdr(NULL, 100));
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(edgefirst_msgs, vibration_from_cdr_invalid) {
+    uint8_t bad[] = {0xDE, 0xAD, 0xBE, 0xEF};
+    errno = 0;
+    cr_assert_null(ros_vibration_from_cdr(bad, sizeof(bad)));
+    cr_assert_eq(errno, EBADMSG);
+}
+
+Test(edgefirst_msgs, vibration_free_null) {
+    ros_vibration_free(NULL);
+}
+
+Test(edgefirst_msgs, vibration_getters_null) {
+    cr_assert_eq(ros_vibration_get_stamp_sec(NULL), 0);
+    cr_assert_eq(ros_vibration_get_unit(NULL), 0);
+    cr_assert_eq(ros_vibration_get_clipping_len(NULL), 0);
+    cr_assert_eq(ros_vibration_get_clipping(NULL, NULL, 0), 0);
+    cr_assert_null(ros_vibration_get_frame_id(NULL));
+    ros_vibration_get_vibration(NULL, NULL, NULL, NULL);
+}

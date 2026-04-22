@@ -35,6 +35,7 @@ use crate::cdr::{self, CdrFixed};
 use crate::edgefirst_msgs;
 use crate::foxglove_msgs;
 use crate::geometry_msgs::{self, *};
+use crate::nav_msgs;
 use crate::sensor_msgs::{self, NavSatStatus};
 use crate::std_msgs;
 
@@ -686,6 +687,63 @@ pub extern "C" fn ros_nav_sat_status_decode(
 // =============================================================================
 // Buffer-backed view types — macro for common boilerplate
 // =============================================================================
+
+/// Decode a little-endian CDR sequence of `f32` in-place into a caller buffer.
+///
+/// `seq_off` points at the 4-byte element count; the elements follow
+/// immediately (no alignment padding: f32 aligns to 4, matching the count).
+/// Returns the element count regardless of `out`/`cap`. Allocation-free.
+fn copy_le_f32_seq(data: &[u8], seq_off: usize, out: *mut f32, cap: usize) -> u32 {
+    let Some(len_end) = seq_off.checked_add(4) else {
+        return 0;
+    };
+    if len_end > data.len() {
+        return 0;
+    }
+    let n = u32::from_le_bytes(data[seq_off..len_end].try_into().unwrap()) as usize;
+    if !out.is_null() && cap > 0 {
+        let copy_n = n.min(cap);
+        let elems = match len_end.checked_add(copy_n.saturating_mul(4)) {
+            Some(e) if e <= data.len() => &data[len_end..e],
+            _ => return n as u32,
+        };
+        for i in 0..copy_n {
+            let b = i * 4;
+            let val = f32::from_le_bytes([elems[b], elems[b + 1], elems[b + 2], elems[b + 3]]);
+            unsafe {
+                *out.add(i) = val;
+            }
+        }
+    }
+    n as u32
+}
+
+/// Decode a little-endian CDR sequence of `u32` in-place into a caller buffer.
+/// Same layout assumptions as [`copy_le_f32_seq`]. Allocation-free.
+fn copy_le_u32_seq(data: &[u8], seq_off: usize, out: *mut u32, cap: usize) -> u32 {
+    let Some(len_end) = seq_off.checked_add(4) else {
+        return 0;
+    };
+    if len_end > data.len() {
+        return 0;
+    }
+    let n = u32::from_le_bytes(data[seq_off..len_end].try_into().unwrap()) as usize;
+    if !out.is_null() && cap > 0 {
+        let copy_n = n.min(cap);
+        let elems = match len_end.checked_add(copy_n.saturating_mul(4)) {
+            Some(e) if e <= data.len() => &data[len_end..e],
+            _ => return n as u32,
+        };
+        for i in 0..copy_n {
+            let b = i * 4;
+            let val = u32::from_le_bytes([elems[b], elems[b + 1], elems[b + 2], elems[b + 3]]);
+            unsafe {
+                *out.add(i) = val;
+            }
+        }
+    }
+    n as u32
+}
 
 /// Helper to return CDR bytes from an owned view (encode result).
 /// Leaks the Vec as a raw pointer; caller must use ros_bytes_free().
@@ -3345,6 +3403,12 @@ impl_as_cdr!(ros_point_cloud2_as_cdr, ros_point_cloud2_t);
 impl_as_cdr!(ros_camera_info_as_cdr, ros_camera_info_t);
 impl_as_cdr!(ros_track_as_cdr, ros_track_t);
 impl_as_cdr!(ros_local_time_as_cdr, ros_local_time_t);
+impl_as_cdr!(ros_magnetic_field_as_cdr, ros_magnetic_field_t);
+impl_as_cdr!(ros_fluid_pressure_as_cdr, ros_fluid_pressure_t);
+impl_as_cdr!(ros_temperature_as_cdr, ros_temperature_t);
+impl_as_cdr!(ros_battery_state_as_cdr, ros_battery_state_t);
+impl_as_cdr!(ros_odometry_as_cdr, ros_odometry_t);
+impl_as_cdr!(ros_vibration_as_cdr, ros_vibration_t);
 
 // ros_detect_t and ros_model_t use named fields, so they need manual as_cdr impls.
 
@@ -3389,3 +3453,930 @@ pub extern "C" fn ros_model_as_cdr(view: *const ros_model_t, out_len: *mut usize
 // ros_box_as_cdr and ros_mask_as_cdr have been removed. Forwarding an embedded
 // child box/mask as a standalone CDR would require re-encoding, which violates
 // the zero-copy contract. See CAPI.md for details.
+
+// =============================================================================
+// PoseWithCovariance (CdrFixed)
+// =============================================================================
+
+#[no_mangle]
+pub extern "C" fn ros_pose_with_covariance_encode(
+    buf: *mut u8,
+    cap: usize,
+    written: *mut usize,
+    px: f64,
+    py: f64,
+    pz: f64,
+    ox: f64,
+    oy: f64,
+    oz: f64,
+    ow: f64,
+    covariance: *const f64,
+) -> i32 {
+    if covariance.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let mut cov = [0.0_f64; 36];
+    unsafe {
+        ptr::copy_nonoverlapping(covariance, cov.as_mut_ptr(), 36);
+    }
+    let val = PoseWithCovariance {
+        pose: Pose {
+            position: Point {
+                x: px,
+                y: py,
+                z: pz,
+            },
+            orientation: Quaternion {
+                x: ox,
+                y: oy,
+                z: oz,
+                w: ow,
+            },
+        },
+        covariance: cov,
+    };
+    encode_fixed_to_buf(&val, buf, cap, written)
+}
+
+#[no_mangle]
+pub extern "C" fn ros_pose_with_covariance_decode(
+    data: *const u8,
+    len: usize,
+    px: *mut f64,
+    py: *mut f64,
+    pz: *mut f64,
+    ox: *mut f64,
+    oy: *mut f64,
+    oz: *mut f64,
+    ow: *mut f64,
+    covariance_out: *mut f64,
+) -> i32 {
+    match decode_fixed_from_buf::<PoseWithCovariance>(data, len) {
+        Ok(v) => unsafe {
+            if !px.is_null() {
+                *px = v.pose.position.x;
+            }
+            if !py.is_null() {
+                *py = v.pose.position.y;
+            }
+            if !pz.is_null() {
+                *pz = v.pose.position.z;
+            }
+            if !ox.is_null() {
+                *ox = v.pose.orientation.x;
+            }
+            if !oy.is_null() {
+                *oy = v.pose.orientation.y;
+            }
+            if !oz.is_null() {
+                *oz = v.pose.orientation.z;
+            }
+            if !ow.is_null() {
+                *ow = v.pose.orientation.w;
+            }
+            if !covariance_out.is_null() {
+                ptr::copy_nonoverlapping(v.covariance.as_ptr(), covariance_out, 36);
+            }
+            0
+        },
+        Err(()) => -1,
+    }
+}
+
+// =============================================================================
+// TwistWithCovariance (CdrFixed)
+// =============================================================================
+
+#[no_mangle]
+pub extern "C" fn ros_twist_with_covariance_encode(
+    buf: *mut u8,
+    cap: usize,
+    written: *mut usize,
+    lx: f64,
+    ly: f64,
+    lz: f64,
+    ax: f64,
+    ay: f64,
+    az: f64,
+    covariance: *const f64,
+) -> i32 {
+    if covariance.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let mut cov = [0.0_f64; 36];
+    unsafe {
+        ptr::copy_nonoverlapping(covariance, cov.as_mut_ptr(), 36);
+    }
+    let val = TwistWithCovariance {
+        twist: Twist {
+            linear: Vector3 {
+                x: lx,
+                y: ly,
+                z: lz,
+            },
+            angular: Vector3 {
+                x: ax,
+                y: ay,
+                z: az,
+            },
+        },
+        covariance: cov,
+    };
+    encode_fixed_to_buf(&val, buf, cap, written)
+}
+
+#[no_mangle]
+pub extern "C" fn ros_twist_with_covariance_decode(
+    data: *const u8,
+    len: usize,
+    lx: *mut f64,
+    ly: *mut f64,
+    lz: *mut f64,
+    ax: *mut f64,
+    ay: *mut f64,
+    az: *mut f64,
+    covariance_out: *mut f64,
+) -> i32 {
+    match decode_fixed_from_buf::<TwistWithCovariance>(data, len) {
+        Ok(v) => unsafe {
+            if !lx.is_null() {
+                *lx = v.twist.linear.x;
+            }
+            if !ly.is_null() {
+                *ly = v.twist.linear.y;
+            }
+            if !lz.is_null() {
+                *lz = v.twist.linear.z;
+            }
+            if !ax.is_null() {
+                *ax = v.twist.angular.x;
+            }
+            if !ay.is_null() {
+                *ay = v.twist.angular.y;
+            }
+            if !az.is_null() {
+                *az = v.twist.angular.z;
+            }
+            if !covariance_out.is_null() {
+                ptr::copy_nonoverlapping(v.covariance.as_ptr(), covariance_out, 36);
+            }
+            0
+        },
+        Err(()) => -1,
+    }
+}
+
+// =============================================================================
+// MagneticField (buffer-backed)
+// =============================================================================
+
+pub struct ros_magnetic_field_t(sensor_msgs::MagneticField<&'static [u8]>);
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut ros_magnetic_field_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match sensor_msgs::MagneticField::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_magnetic_field_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_free(view: *mut ros_magnetic_field_t) {
+    if !view.is_null() {
+        unsafe {
+            drop(Box::from_raw(view));
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_get_stamp_sec(view: *const ros_magnetic_field_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_get_stamp_nanosec(view: *const ros_magnetic_field_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_get_frame_id(
+    view: *const ros_magnetic_field_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_get_magnetic_field(
+    view: *const ros_magnetic_field_t,
+    x: *mut f64,
+    y: *mut f64,
+    z: *mut f64,
+) {
+    if view.is_null() {
+        return;
+    }
+    let v = unsafe { (*view).0.magnetic_field() };
+    unsafe {
+        if !x.is_null() {
+            *x = v.x;
+        }
+        if !y.is_null() {
+            *y = v.y;
+        }
+        if !z.is_null() {
+            *z = v.z;
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_get_magnetic_field_covariance(
+    view: *const ros_magnetic_field_t,
+    out: *mut f64,
+) {
+    if view.is_null() || out.is_null() {
+        return;
+    }
+    let cov = unsafe { (*view).0.magnetic_field_covariance() };
+    unsafe {
+        ptr::copy_nonoverlapping(cov.as_ptr(), out, 9);
+    }
+}
+
+// =============================================================================
+// FluidPressure (buffer-backed)
+// =============================================================================
+
+pub struct ros_fluid_pressure_t(sensor_msgs::FluidPressure<&'static [u8]>);
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut ros_fluid_pressure_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match sensor_msgs::FluidPressure::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_fluid_pressure_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_free(view: *mut ros_fluid_pressure_t) {
+    if !view.is_null() {
+        unsafe {
+            drop(Box::from_raw(view));
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_get_stamp_sec(view: *const ros_fluid_pressure_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_get_stamp_nanosec(view: *const ros_fluid_pressure_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_get_frame_id(
+    view: *const ros_fluid_pressure_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_get_fluid_pressure(view: *const ros_fluid_pressure_t) -> f64 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.fluid_pressure() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_get_variance(view: *const ros_fluid_pressure_t) -> f64 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.variance() }
+}
+
+// =============================================================================
+// Temperature (buffer-backed)
+// =============================================================================
+
+pub struct ros_temperature_t(sensor_msgs::Temperature<&'static [u8]>);
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_from_cdr(data: *const u8, len: usize) -> *mut ros_temperature_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match sensor_msgs::Temperature::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_temperature_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_free(view: *mut ros_temperature_t) {
+    if !view.is_null() {
+        unsafe {
+            drop(Box::from_raw(view));
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_get_stamp_sec(view: *const ros_temperature_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_get_stamp_nanosec(view: *const ros_temperature_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_get_frame_id(view: *const ros_temperature_t) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_get_temperature(view: *const ros_temperature_t) -> f64 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.temperature() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_get_variance(view: *const ros_temperature_t) -> f64 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.variance() }
+}
+
+// =============================================================================
+// BatteryState (buffer-backed)
+// =============================================================================
+
+pub struct ros_battery_state_t(sensor_msgs::BatteryState<&'static [u8]>);
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut ros_battery_state_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match sensor_msgs::BatteryState::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_battery_state_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_free(view: *mut ros_battery_state_t) {
+    if !view.is_null() {
+        unsafe {
+            drop(Box::from_raw(view));
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_get_stamp_sec(view: *const ros_battery_state_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_get_stamp_nanosec(view: *const ros_battery_state_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_get_frame_id(
+    view: *const ros_battery_state_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_get_voltage(view: *const ros_battery_state_t) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.voltage() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_get_temperature(view: *const ros_battery_state_t) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.temperature() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_get_current(view: *const ros_battery_state_t) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.current() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_get_charge(view: *const ros_battery_state_t) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.charge() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_get_capacity(view: *const ros_battery_state_t) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.capacity() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_get_design_capacity(view: *const ros_battery_state_t) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.design_capacity() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_get_percentage(view: *const ros_battery_state_t) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.percentage() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_get_power_supply_status(
+    view: *const ros_battery_state_t,
+) -> u8 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.power_supply_status() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_get_power_supply_health(
+    view: *const ros_battery_state_t,
+) -> u8 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.power_supply_health() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_get_power_supply_technology(
+    view: *const ros_battery_state_t,
+) -> u8 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.power_supply_technology() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_get_present(view: *const ros_battery_state_t) -> bool {
+    if view.is_null() {
+        return false;
+    }
+    unsafe { (*view).0.present() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_get_cell_voltage_len(view: *const ros_battery_state_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.cell_voltage_len() }
+}
+
+/// Copy up to `cap` cell voltages into `out`; returns the total element count.
+///
+/// Allocation-free: decodes directly from the backing CDR slice using the
+/// cached sequence offset.
+#[no_mangle]
+pub extern "C" fn ros_battery_state_get_cell_voltage(
+    view: *const ros_battery_state_t,
+    out: *mut f32,
+    cap: usize,
+) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    let msg = unsafe { &(*view).0 };
+    copy_le_f32_seq(msg.as_cdr(), msg.cell_voltage_seq_offset(), out, cap)
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_get_cell_temperature_len(
+    view: *const ros_battery_state_t,
+) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.cell_temperature_len() }
+}
+
+/// Copy up to `cap` cell temperatures into `out`; returns the total element count.
+///
+/// Allocation-free: decodes directly from the backing CDR slice using the
+/// cached sequence offset.
+#[no_mangle]
+pub extern "C" fn ros_battery_state_get_cell_temperature(
+    view: *const ros_battery_state_t,
+    out: *mut f32,
+    cap: usize,
+) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    let msg = unsafe { &(*view).0 };
+    copy_le_f32_seq(msg.as_cdr(), msg.cell_temperature_seq_offset(), out, cap)
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_get_location(
+    view: *const ros_battery_state_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.location() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_get_serial_number(
+    view: *const ros_battery_state_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.serial_number() })
+}
+
+// =============================================================================
+// Odometry (buffer-backed)
+// =============================================================================
+
+pub struct ros_odometry_t(nav_msgs::Odometry<&'static [u8]>);
+
+#[no_mangle]
+pub extern "C" fn ros_odometry_from_cdr(data: *const u8, len: usize) -> *mut ros_odometry_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match nav_msgs::Odometry::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_odometry_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_odometry_free(view: *mut ros_odometry_t) {
+    if !view.is_null() {
+        unsafe {
+            drop(Box::from_raw(view));
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_odometry_get_stamp_sec(view: *const ros_odometry_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_odometry_get_stamp_nanosec(view: *const ros_odometry_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_odometry_get_frame_id(view: *const ros_odometry_t) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_odometry_get_child_frame_id(view: *const ros_odometry_t) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.child_frame_id() })
+}
+
+/// Write pose position (x,y,z) + orientation (x,y,z,w) out.
+#[no_mangle]
+pub extern "C" fn ros_odometry_get_pose(
+    view: *const ros_odometry_t,
+    px: *mut f64,
+    py: *mut f64,
+    pz: *mut f64,
+    ox: *mut f64,
+    oy: *mut f64,
+    oz: *mut f64,
+    ow: *mut f64,
+) {
+    if view.is_null() {
+        return;
+    }
+    let p = unsafe { (*view).0.pose() };
+    unsafe {
+        if !px.is_null() {
+            *px = p.pose.position.x;
+        }
+        if !py.is_null() {
+            *py = p.pose.position.y;
+        }
+        if !pz.is_null() {
+            *pz = p.pose.position.z;
+        }
+        if !ox.is_null() {
+            *ox = p.pose.orientation.x;
+        }
+        if !oy.is_null() {
+            *oy = p.pose.orientation.y;
+        }
+        if !oz.is_null() {
+            *oz = p.pose.orientation.z;
+        }
+        if !ow.is_null() {
+            *ow = p.pose.orientation.w;
+        }
+    }
+}
+
+/// Write 36-element pose covariance.
+#[no_mangle]
+pub extern "C" fn ros_odometry_get_pose_covariance(view: *const ros_odometry_t, out: *mut f64) {
+    if view.is_null() || out.is_null() {
+        return;
+    }
+    let p = unsafe { (*view).0.pose() };
+    unsafe {
+        ptr::copy_nonoverlapping(p.covariance.as_ptr(), out, 36);
+    }
+}
+
+/// Write twist linear (x,y,z) + angular (x,y,z).
+#[no_mangle]
+pub extern "C" fn ros_odometry_get_twist(
+    view: *const ros_odometry_t,
+    lx: *mut f64,
+    ly: *mut f64,
+    lz: *mut f64,
+    ax: *mut f64,
+    ay: *mut f64,
+    az: *mut f64,
+) {
+    if view.is_null() {
+        return;
+    }
+    let t = unsafe { (*view).0.twist() };
+    unsafe {
+        if !lx.is_null() {
+            *lx = t.twist.linear.x;
+        }
+        if !ly.is_null() {
+            *ly = t.twist.linear.y;
+        }
+        if !lz.is_null() {
+            *lz = t.twist.linear.z;
+        }
+        if !ax.is_null() {
+            *ax = t.twist.angular.x;
+        }
+        if !ay.is_null() {
+            *ay = t.twist.angular.y;
+        }
+        if !az.is_null() {
+            *az = t.twist.angular.z;
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_odometry_get_twist_covariance(view: *const ros_odometry_t, out: *mut f64) {
+    if view.is_null() || out.is_null() {
+        return;
+    }
+    let t = unsafe { (*view).0.twist() };
+    unsafe {
+        ptr::copy_nonoverlapping(t.covariance.as_ptr(), out, 36);
+    }
+}
+
+// =============================================================================
+// Vibration (buffer-backed)
+// =============================================================================
+
+pub struct ros_vibration_t(edgefirst_msgs::Vibration<&'static [u8]>);
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_from_cdr(data: *const u8, len: usize) -> *mut ros_vibration_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match edgefirst_msgs::Vibration::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_vibration_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_free(view: *mut ros_vibration_t) {
+    if !view.is_null() {
+        unsafe {
+            drop(Box::from_raw(view));
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_get_stamp_sec(view: *const ros_vibration_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_get_stamp_nanosec(view: *const ros_vibration_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_get_frame_id(view: *const ros_vibration_t) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_get_measurement_type(view: *const ros_vibration_t) -> u8 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.measurement_type() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_get_unit(view: *const ros_vibration_t) -> u8 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.unit() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_get_band_lower_hz(view: *const ros_vibration_t) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.band_lower_hz() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_get_band_upper_hz(view: *const ros_vibration_t) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.band_upper_hz() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_get_vibration(
+    view: *const ros_vibration_t,
+    x: *mut f64,
+    y: *mut f64,
+    z: *mut f64,
+) {
+    if view.is_null() {
+        return;
+    }
+    let v = unsafe { (*view).0.vibration() };
+    unsafe {
+        if !x.is_null() {
+            *x = v.x;
+        }
+        if !y.is_null() {
+            *y = v.y;
+        }
+        if !z.is_null() {
+            *z = v.z;
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_get_clipping_len(view: *const ros_vibration_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.clipping_len() }
+}
+
+/// Copy up to `cap` clipping counters into `out`; returns the total element count.
+///
+/// Allocation-free: decodes directly from the backing CDR slice using the
+/// cached sequence offset.
+#[no_mangle]
+pub extern "C" fn ros_vibration_get_clipping(
+    view: *const ros_vibration_t,
+    out: *mut u32,
+    cap: usize,
+) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    let msg = unsafe { &(*view).0 };
+    copy_le_u32_seq(msg.as_cdr(), msg.clipping_seq_offset(), out, cap)
+}

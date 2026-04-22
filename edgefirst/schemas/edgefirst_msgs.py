@@ -11,6 +11,7 @@ from pycdr2.types import (float32, int16, int32, sequence, uint8, uint16,
 
 from . import default_field
 from .builtin_interfaces import Duration, Time
+from .geometry_msgs import Vector3
 from .std_msgs import Header
 
 class model_info(Enum):
@@ -458,6 +459,53 @@ class RadarInfo(IdlStruct, typename='edgefirst_msgs/RadarInfo'):
     """True if the radar is configured to output radar cubes."""
 
 
+class VibrationMeasurement(Enum):
+    """measurement_type enum values for Vibration."""
+    MEASUREMENT_UNKNOWN = 0
+    MEASUREMENT_RMS = 1
+    MEASUREMENT_PEAK = 2
+    MEASUREMENT_PEAK_TO_PEAK = 3
+
+
+class VibrationUnit(Enum):
+    """unit enum values for Vibration."""
+    UNIT_UNKNOWN = 0
+    UNIT_ACCEL_M_PER_S2 = 1
+    UNIT_ACCEL_G = 2
+    UNIT_VELOCITY_MM_PER_S = 3
+    UNIT_DISPLACEMENT_UM = 4
+    UNIT_VELOCITY_IN_PER_S = 5
+    UNIT_DISPLACEMENT_MIL = 6
+
+
+@dataclass
+class Vibration(IdlStruct, typename='edgefirst_msgs/Vibration'):
+    """
+    Per-axis vibration magnitude with explicit measurement semantics
+    (RMS/Peak/Peak-to-Peak), physical unit, and integration band.
+
+    Generalizes MAVLink VIBRATION, ArduPilot VIBE, PX4 vehicle_imu_status,
+    and industrial ISO 10816/20816 broadband vibration sensors.
+
+    Unknown scalars: NaN. Unknown enums: *_UNKNOWN (value 0).
+    Publishers without clipping source: clipping = [] (empty).
+    MAVLink publishers emit exactly 3 clipping entries (clipping_0/1/2).
+    """
+    header: Header = default_field(Header)
+    vibration: Vector3 = default_field(Vector3)
+    """Per-axis vibration magnitude in the chosen unit/statistic."""
+    band_lower_hz: float32 = float("nan")
+    """Integration band lower bound in Hz. NaN = unknown."""
+    band_upper_hz: float32 = float("nan")
+    """Integration band upper bound in Hz. NaN = unknown."""
+    measurement_type: uint8 = 0
+    """Broadband statistic reported in `vibration` (see VibrationMeasurement)."""
+    unit: uint8 = 0
+    """Physical unit of `vibration` (see VibrationUnit)."""
+    clipping: sequence[uint32] = default_field([])
+    """Per-axis accelerometer saturation counters (monotonic)."""
+
+
 # Schema registry support
 _TYPES = {
     "Box": Box,
@@ -473,6 +521,7 @@ _TYPES = {
     "RadarCube": RadarCube,
     "RadarInfo": RadarInfo,
     "Track": Track,
+    "Vibration": Vibration,
 }
 
 

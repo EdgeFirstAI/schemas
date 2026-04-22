@@ -27,8 +27,10 @@ use edgefirst_schemas::foxglove_msgs::{
     FoxgloveTextAnnotationView,
 };
 use edgefirst_schemas::geometry_msgs::{
-    self, Accel, Inertia, Point, Point32, Pose, Pose2D, Quaternion, Transform, Twist, Vector3,
+    self, Accel, Inertia, Point, Point32, Pose, Pose2D, PoseWithCovariance, Quaternion, Transform,
+    Twist, TwistWithCovariance, Vector3,
 };
+use edgefirst_schemas::nav_msgs;
 use edgefirst_schemas::rosgraph_msgs::Clock;
 use edgefirst_schemas::sensor_msgs::{self, NavSatStatus, PointFieldView, RegionOfInterest};
 use edgefirst_schemas::std_msgs::{self, ColorRGBA};
@@ -2077,4 +2079,436 @@ fn golden_rosgraph_msgs_clock() {
     let re: Clock = decode_fixed(&encode_fixed(&m).unwrap()).unwrap();
     assert_eq!(re.clock.sec, 0);
     assert_eq!(re.clock.nanosec, c.clock.nanosec);
+}
+
+// ── geometry_msgs/PoseWithCovariance, TwistWithCovariance ─────────────────
+
+fn pose_cov_expected() -> [f64; 36] {
+    let mut cov = [0.0_f64; 36];
+    for i in 0..6 {
+        cov[i * 6 + i] = 0.1 * (i as f64 + 1.0);
+    }
+    cov[1] = 0.01;
+    cov[6] = 0.01;
+    cov
+}
+
+fn twist_cov_expected() -> [f64; 36] {
+    let mut cov = [0.0_f64; 36];
+    for i in 0..6 {
+        cov[i * 6 + i] = 0.02 * (i as f64 + 1.0);
+    }
+    cov[7] = 0.001;
+    cov
+}
+
+#[test]
+fn golden_geometry_msgs_pose_with_covariance() {
+    let golden = read_golden("geometry_msgs", "PoseWithCovariance");
+    let p: PoseWithCovariance = decode_fixed(&golden).unwrap();
+    assert_eq!(p.pose.position.x, 1.5);
+    assert_eq!(p.pose.orientation.w, 1.0);
+    assert_eq!(p.covariance, pose_cov_expected());
+    let built = PoseWithCovariance {
+        pose: Pose {
+            position: Point {
+                x: 1.5,
+                y: -2.5,
+                z: 3.0,
+            },
+            orientation: Quaternion {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                w: 1.0,
+            },
+        },
+        covariance: pose_cov_expected(),
+    };
+    assert_eq!(encode_fixed(&built).unwrap(), golden);
+}
+
+#[test]
+fn golden_geometry_msgs_twist_with_covariance() {
+    let golden = read_golden("geometry_msgs", "TwistWithCovariance");
+    let t: TwistWithCovariance = decode_fixed(&golden).unwrap();
+    assert_eq!(t.twist.linear.x, 1.0);
+    assert_eq!(t.twist.angular.z, 0.3);
+    assert_eq!(t.covariance, twist_cov_expected());
+    let built = TwistWithCovariance {
+        twist: Twist {
+            linear: Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            angular: Vector3 {
+                x: 0.1,
+                y: 0.2,
+                z: 0.3,
+            },
+        },
+        covariance: twist_cov_expected(),
+    };
+    assert_eq!(encode_fixed(&built).unwrap(), golden);
+}
+
+// ── sensor_msgs/MagneticField, FluidPressure, Temperature, BatteryState ──
+
+#[test]
+fn golden_sensor_msgs_magnetic_field() {
+    let golden = read_golden("sensor_msgs", "MagneticField");
+    let view = sensor_msgs::MagneticField::from_cdr(&golden[..]).unwrap();
+    assert_eq!(view.stamp(), STAMP);
+    assert_eq!(view.frame_id(), FRAME_ID);
+    let mf = view.magnetic_field();
+    assert_eq!(mf.x, 2.5e-5);
+    assert_eq!(mf.y, -1.2e-5);
+    assert_eq!(mf.z, 4.1e-5);
+    let cov = view.magnetic_field_covariance();
+    assert_eq!(cov[0], 1e-10);
+    assert_eq!(cov[4], 1e-10);
+    assert_eq!(cov[8], 1e-10);
+    let built = sensor_msgs::MagneticField::new(
+        STAMP,
+        FRAME_ID,
+        Vector3 {
+            x: 2.5e-5,
+            y: -1.2e-5,
+            z: 4.1e-5,
+        },
+        [1e-10, 0.0, 0.0, 0.0, 1e-10, 0.0, 0.0, 0.0, 1e-10],
+    )
+    .unwrap();
+    assert_eq!(built.to_cdr(), golden);
+}
+
+#[test]
+fn golden_sensor_msgs_fluid_pressure() {
+    let golden = read_golden("sensor_msgs", "FluidPressure");
+    let view = sensor_msgs::FluidPressure::from_cdr(&golden[..]).unwrap();
+    assert_eq!(view.stamp(), STAMP);
+    assert_eq!(view.frame_id(), FRAME_ID);
+    assert_eq!(view.fluid_pressure(), 101325.0);
+    assert_eq!(view.variance(), 25.0);
+    let built = sensor_msgs::FluidPressure::new(STAMP, FRAME_ID, 101325.0, 25.0).unwrap();
+    assert_eq!(built.to_cdr(), golden);
+}
+
+#[test]
+fn golden_sensor_msgs_temperature() {
+    let golden = read_golden("sensor_msgs", "Temperature");
+    let view = sensor_msgs::Temperature::from_cdr(&golden[..]).unwrap();
+    assert_eq!(view.stamp(), STAMP);
+    assert_eq!(view.frame_id(), FRAME_ID);
+    assert_eq!(view.temperature(), 22.5);
+    assert_eq!(view.variance(), 0.01);
+    let built = sensor_msgs::Temperature::new(STAMP, FRAME_ID, 22.5, 0.01).unwrap();
+    assert_eq!(built.to_cdr(), golden);
+}
+
+#[test]
+fn golden_sensor_msgs_battery_state() {
+    let golden = read_golden("sensor_msgs", "BatteryState");
+    let view = sensor_msgs::BatteryState::from_cdr(&golden[..]).unwrap();
+    assert_eq!(view.stamp(), STAMP);
+    assert_eq!(view.frame_id(), FRAME_ID);
+    assert_eq!(view.voltage(), 12.34);
+    assert_eq!(view.temperature(), 27.5);
+    assert_eq!(view.current(), -2.1);
+    assert_eq!(view.charge(), 4.2);
+    assert_eq!(view.capacity(), 5.0);
+    assert_eq!(view.design_capacity(), 5.0);
+    assert_eq!(view.percentage(), 0.84);
+    assert_eq!(view.power_supply_status(), 2);
+    assert_eq!(view.power_supply_health(), 1);
+    assert_eq!(view.power_supply_technology(), 3);
+    assert!(view.present());
+    assert_eq!(view.cell_voltage(), vec![4.11, 4.12, 4.10]);
+    assert_eq!(view.cell_temperature(), vec![27.1, 27.3, 27.4]);
+    assert_eq!(view.location(), "battery0");
+    assert_eq!(view.serial_number(), "SN0123456");
+    let built = sensor_msgs::BatteryState::new(
+        STAMP,
+        FRAME_ID,
+        12.34,
+        27.5,
+        -2.1,
+        4.2,
+        5.0,
+        5.0,
+        0.84,
+        2,
+        1,
+        3,
+        true,
+        &[4.11, 4.12, 4.10],
+        &[27.1, 27.3, 27.4],
+        "battery0",
+        "SN0123456",
+    )
+    .unwrap();
+    assert_eq!(built.to_cdr(), golden);
+}
+
+// ── nav_msgs/Odometry ───────────────────────────────────────────────────
+
+#[test]
+fn golden_nav_msgs_odometry() {
+    let golden = read_golden("nav_msgs", "Odometry");
+    let view = nav_msgs::Odometry::from_cdr(&golden[..]).unwrap();
+    assert_eq!(view.stamp(), STAMP);
+    assert_eq!(view.frame_id(), FRAME_ID);
+    assert_eq!(view.child_frame_id(), "base_link");
+    let p = view.pose();
+    assert_eq!(p.pose.position.x, 1.5);
+    assert_eq!(p.covariance, pose_cov_expected());
+    let t = view.twist();
+    assert_eq!(t.twist.linear.x, 1.0);
+    assert_eq!(t.covariance, twist_cov_expected());
+    let built = nav_msgs::Odometry::new(
+        STAMP,
+        FRAME_ID,
+        "base_link",
+        PoseWithCovariance {
+            pose: Pose {
+                position: Point {
+                    x: 1.5,
+                    y: -2.5,
+                    z: 3.0,
+                },
+                orientation: Quaternion {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                    w: 1.0,
+                },
+            },
+            covariance: pose_cov_expected(),
+        },
+        TwistWithCovariance {
+            twist: Twist {
+                linear: Vector3 {
+                    x: 1.0,
+                    y: 2.0,
+                    z: 3.0,
+                },
+                angular: Vector3 {
+                    x: 0.1,
+                    y: 0.2,
+                    z: 0.3,
+                },
+            },
+            covariance: twist_cov_expected(),
+        },
+    )
+    .unwrap();
+    assert_eq!(built.to_cdr(), golden);
+}
+
+// ── edgefirst_msgs/Vibration ────────────────────────────────────────────
+
+#[test]
+fn golden_edgefirst_msgs_vibration() {
+    let golden = read_golden("edgefirst_msgs", "Vibration");
+    let view = edgefirst_msgs::Vibration::from_cdr(&golden[..]).unwrap();
+    assert_eq!(view.stamp(), STAMP);
+    assert_eq!(view.frame_id(), FRAME_ID);
+    assert_eq!(view.measurement_type(), 1);
+    assert_eq!(view.unit(), 1);
+    assert_eq!(view.band_lower_hz(), 10.0);
+    assert_eq!(view.band_upper_hz(), 1000.0);
+    let v = view.vibration();
+    assert_eq!(v.x, 0.42);
+    assert_eq!(v.y, 0.51);
+    assert_eq!(v.z, 0.37);
+    assert_eq!(view.clipping(), vec![3, 1, 0]);
+    let built = edgefirst_msgs::Vibration::new(
+        STAMP,
+        FRAME_ID,
+        1,
+        1,
+        10.0,
+        1000.0,
+        Vector3 {
+            x: 0.42,
+            y: 0.51,
+            z: 0.37,
+        },
+        &[3, 1, 0],
+    )
+    .unwrap();
+    assert_eq!(built.to_cdr(), golden);
+}
+
+// ── EDGEAI-1243 alignment regression prevention ────────────────────────
+// Every Header-prefixed buffer-backed type MUST read back the values it
+// encoded for every `frame_id` length. Sweeping 0..=16 covers every
+// CDR-relative mod-8 residue of the first post-Header offset.
+
+#[test]
+fn frame_id_alignment_sweep_magnetic_field() {
+    let mf = Vector3 {
+        x: 1.0,
+        y: 2.0,
+        z: 3.0,
+    };
+    let cov = [0.1_f64, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+    for len in 0..=16_usize {
+        let fid: String = "x".repeat(len);
+        let built = sensor_msgs::MagneticField::new(STAMP, &fid, mf, cov).unwrap();
+        let bytes = built.to_cdr();
+        let view = sensor_msgs::MagneticField::from_cdr(&bytes[..]).unwrap();
+        assert_eq!(view.frame_id(), fid, "frame_id at len={len}");
+        assert_eq!(view.magnetic_field(), mf, "magnetic_field at len={len}");
+        assert_eq!(
+            view.magnetic_field_covariance(),
+            cov,
+            "covariance at len={len}"
+        );
+    }
+}
+
+#[test]
+fn frame_id_alignment_sweep_fluid_pressure() {
+    for len in 0..=16_usize {
+        let fid: String = "x".repeat(len);
+        let built = sensor_msgs::FluidPressure::new(STAMP, &fid, 101_234.5, 0.5).unwrap();
+        let bytes = built.to_cdr();
+        let view = sensor_msgs::FluidPressure::from_cdr(&bytes[..]).unwrap();
+        assert_eq!(view.frame_id(), fid, "frame_id at len={len}");
+        assert_eq!(view.fluid_pressure(), 101_234.5, "pressure at len={len}");
+        assert_eq!(view.variance(), 0.5, "variance at len={len}");
+    }
+}
+
+#[test]
+fn frame_id_alignment_sweep_temperature() {
+    for len in 0..=16_usize {
+        let fid: String = "x".repeat(len);
+        let built = sensor_msgs::Temperature::new(STAMP, &fid, 21.25, 0.03).unwrap();
+        let bytes = built.to_cdr();
+        let view = sensor_msgs::Temperature::from_cdr(&bytes[..]).unwrap();
+        assert_eq!(view.frame_id(), fid, "frame_id at len={len}");
+        assert_eq!(view.temperature(), 21.25, "temperature at len={len}");
+        assert_eq!(view.variance(), 0.03, "variance at len={len}");
+    }
+}
+
+#[test]
+fn frame_id_alignment_sweep_battery_state() {
+    for len in 0..=16_usize {
+        let fid: String = "x".repeat(len);
+        let built = sensor_msgs::BatteryState::new(
+            STAMP,
+            &fid,
+            12.0,
+            25.5,
+            -1.5,
+            3.2,
+            4.0,
+            4.0,
+            0.8,
+            2,
+            1,
+            3,
+            true,
+            &[4.01, 4.02, 4.03],
+            &[25.1, 25.2, 25.3],
+            "slot0",
+            "SN0001",
+        )
+        .unwrap();
+        let bytes = built.to_cdr();
+        let view = sensor_msgs::BatteryState::from_cdr(&bytes[..]).unwrap();
+        assert_eq!(view.frame_id(), fid, "frame_id at len={len}");
+        assert_eq!(view.voltage(), 12.0, "voltage at len={len}");
+        assert_eq!(view.percentage(), 0.8, "percentage at len={len}");
+        assert_eq!(
+            view.cell_voltage(),
+            vec![4.01, 4.02, 4.03],
+            "cell_voltage at len={len}"
+        );
+        assert_eq!(view.location(), "slot0", "location at len={len}");
+        assert_eq!(view.serial_number(), "SN0001", "serial at len={len}");
+    }
+}
+
+#[test]
+fn frame_id_alignment_sweep_odometry() {
+    let pose = PoseWithCovariance {
+        pose: Pose {
+            position: Point {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            orientation: Quaternion {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                w: 1.0,
+            },
+        },
+        covariance: pose_cov_expected(),
+    };
+    let twist = TwistWithCovariance {
+        twist: Twist {
+            linear: Vector3 {
+                x: 0.5,
+                y: 0.25,
+                z: 0.125,
+            },
+            angular: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.1,
+            },
+        },
+        covariance: twist_cov_expected(),
+    };
+    for len in 0..=16_usize {
+        let fid: String = "f".repeat(len);
+        let built = nav_msgs::Odometry::new(STAMP, &fid, "child", pose, twist).unwrap();
+        let bytes = built.to_cdr();
+        let view = nav_msgs::Odometry::from_cdr(&bytes[..]).unwrap();
+        assert_eq!(view.frame_id(), fid, "frame_id at len={len}");
+        assert_eq!(view.child_frame_id(), "child", "child at len={len}");
+        assert_eq!(view.pose().pose.position.x, 1.0, "pose.x at len={len}");
+        assert_eq!(
+            view.pose().covariance,
+            pose_cov_expected(),
+            "pose.cov at len={len}"
+        );
+        assert_eq!(view.twist().twist.linear.x, 0.5, "twist.x at len={len}");
+        assert_eq!(
+            view.twist().covariance,
+            twist_cov_expected(),
+            "twist.cov at len={len}"
+        );
+    }
+}
+
+#[test]
+fn frame_id_alignment_sweep_vibration() {
+    let vib = Vector3 {
+        x: 0.1,
+        y: 0.2,
+        z: 0.3,
+    };
+    for len in 0..=16_usize {
+        let fid: String = "v".repeat(len);
+        let built =
+            edgefirst_msgs::Vibration::new(STAMP, &fid, 1, 1, 10.0, 1000.0, vib, &[1, 2, 3])
+                .unwrap();
+        let bytes = built.to_cdr();
+        let view = edgefirst_msgs::Vibration::from_cdr(&bytes[..]).unwrap();
+        assert_eq!(view.frame_id(), fid, "frame_id at len={len}");
+        assert_eq!(view.measurement_type(), 1, "measurement_type at len={len}");
+        assert_eq!(view.unit(), 1, "unit at len={len}");
+        assert_eq!(view.band_lower_hz(), 10.0, "band_lower at len={len}");
+        assert_eq!(view.band_upper_hz(), 1000.0, "band_upper at len={len}");
+        assert_eq!(view.vibration(), vib, "vibration at len={len}");
+        assert_eq!(view.clipping(), vec![1, 2, 3], "clipping at len={len}");
+    }
 }

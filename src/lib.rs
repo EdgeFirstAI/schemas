@@ -32,6 +32,8 @@ pub mod foxglove_msgs;
 
 /// ROS 2 geometry message types.
 pub mod geometry_msgs;
+/// ROS 2 navigation message types.
+pub mod nav_msgs;
 /// ROS 2 sensor message types.
 pub mod sensor_msgs;
 /// ROS 2 standard message types (Header, ColorRGBA).
