@@ -15,16 +15,19 @@ use crate::std_msgs::Header;
 // CDR layout: Header → pre, then:
 //   string child_frame_id → offsets[0] (start of child_frame_id)
 //   pad to 8 → offsets[1] (start of PoseWithCovariance)
-//   PoseWithCovariance pose (344 bytes, all f64-aligned)
-//   TwistWithCovariance twist (336 bytes, all f64-aligned)
+//   PoseWithCovariance pose  → offsets[2] captured after pose decode,
+//                              i.e. start of TwistWithCovariance
+//   TwistWithCovariance twist
 //
 // offsets[1] is captured from the cursor after aligning to 8 because
 // `child_frame_id` is a variable-length string; PoseWithCovariance
 // starts with a Point (f64 first), so an explicit align-to-8 is needed.
+// offsets[2] is captured from the cursor after pose decode so `twist()`
+// doesn't depend on `PoseWithCovariance::CDR_SIZE` layout arithmetic.
 
 pub struct Odometry<B> {
     buf: B,
-    offsets: [usize; 2],
+    offsets: [usize; 3],
 }
 
 impl<B: AsRef<[u8]>> Odometry<B> {
@@ -37,9 +40,10 @@ impl<B: AsRef<[u8]>> Odometry<B> {
         c.align(8);
         let o1 = c.offset();
         PoseWithCovariance::read_cdr(&mut c)?;
+        let o2 = c.offset();
         TwistWithCovariance::read_cdr(&mut c)?;
         Ok(Odometry {
-            offsets: [o0, o1],
+            offsets: [o0, o1, o2],
             buf,
         })
     }
@@ -62,12 +66,7 @@ impl<B: AsRef<[u8]>> Odometry<B> {
         PoseWithCovariance::read_cdr(&mut c).expect("pose validated during from_cdr")
     }
     pub fn twist(&self) -> TwistWithCovariance {
-        // PoseWithCovariance::CDR_SIZE is 344 bytes, all f64-aligned,
-        // so the twist starts exactly offsets[1] + 344.
-        let mut c = CdrCursor::resume(
-            self.buf.as_ref(),
-            self.offsets[1] + PoseWithCovariance::CDR_SIZE,
-        );
+        let mut c = CdrCursor::resume(self.buf.as_ref(), self.offsets[2]);
         TwistWithCovariance::read_cdr(&mut c).expect("twist validated during from_cdr")
     }
     pub fn as_cdr(&self) -> &[u8] {
@@ -94,6 +93,7 @@ impl Odometry<Vec<u8>> {
         sizer.align(8);
         let o1 = sizer.offset();
         PoseWithCovariance::size_cdr(&mut sizer);
+        let o2 = sizer.offset();
         TwistWithCovariance::size_cdr(&mut sizer);
 
         let mut buf = vec![0u8; sizer.size()];
@@ -106,7 +106,7 @@ impl Odometry<Vec<u8>> {
         w.finish()?;
 
         Ok(Odometry {
-            offsets: [o0, o1],
+            offsets: [o0, o1, o2],
             buf,
         })
     }

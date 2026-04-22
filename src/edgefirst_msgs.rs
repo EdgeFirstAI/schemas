@@ -2049,16 +2049,19 @@ impl ModelInfo<Vec<u8>> {
 
 // ── Vibration<B> ────────────────────────────────────────────────────
 //
-// CDR layout: Header → offsets[0] (measurement_type start, 1-aligned),
-//   uint8 measurement_type, uint8 unit,
-//   pad to 4 → (internal) float32 band_lower_hz, band_upper_hz (8 bytes),
-//   pad to 8 → offsets[1] (Vector3 vibration start),
+// CDR layout: Header → pad to 8 → offsets[0] (Vector3 vibration start),
 //   Vector3 vibration (24 bytes),
-//   uint32 count + uint32[] clipping → offsets[2] (seq-count u32 start).
+//   float32 band_lower_hz, float32 band_upper_hz,
+//   uint8 measurement_type, uint8 unit,
+//   pad to 4 → uint32 count + uint32[] clipping.
 //
-// offsets[1] caches the aligned Vector3 start to sidestep the
-// EDGEAI-1243 class of bug; offsets[2] caches the clipping seq start
-// so num_clipping()/clipping() are O(1).
+// offsets contains a single cached value:
+//   offsets[0] = aligned start of `vibration`.
+//
+// All remaining fields are accessed at fixed compile-time-constant
+// deltas from offsets[0] (including the clipping sequence count/data)
+// because fields are ordered by descending alignment, sidestepping the
+// EDGEAI-1243 class of bug entirely.
 
 /// `measurement_type` enum values for [`Vibration`].
 pub mod vibration_measurement {

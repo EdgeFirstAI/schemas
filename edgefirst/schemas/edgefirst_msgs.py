@@ -494,9 +494,9 @@ class Vibration(IdlStruct, typename='edgefirst_msgs/Vibration'):
     header: Header = default_field(Header)
     vibration: Vector3 = default_field(Vector3)
     """Per-axis vibration magnitude in the chosen unit/statistic."""
-    band_lower_hz: float32 = 0.0
+    band_lower_hz: float32 = float("nan")
     """Integration band lower bound in Hz. NaN = unknown."""
-    band_upper_hz: float32 = 0.0
+    band_upper_hz: float32 = float("nan")
     """Integration band upper bound in Hz. NaN = unknown."""
     measurement_type: uint8 = 0
     """Broadband statistic reported in `vibration` (see VibrationMeasurement)."""
