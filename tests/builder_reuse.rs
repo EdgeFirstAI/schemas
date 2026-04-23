@@ -134,3 +134,122 @@ fn image_encode_into_slice_errors_when_too_small() {
     // The buffer must be untouched on error.
     assert!(tiny.iter().all(|&b| b == 0xAB), "buffer mutated on error");
 }
+
+#[test]
+fn camera_frame_encode_into_vec_reuses_allocation() {
+    use edgefirst_schemas::edgefirst_msgs::{CameraFrame, CameraPlaneView};
+
+    let y_data = vec![0u8; 1024];
+    let y_plane = CameraPlaneView {
+        fd: -1,
+        offset: 0,
+        stride: 32,
+        size: 1024,
+        used: 1024,
+        data: &y_data,
+    };
+    let planes = [y_plane];
+
+    let mut b = CameraFrame::builder();
+    b.stamp(Time::new(0, 0))
+        .frame_id("cam")
+        .seq(0)
+        .pid(1)
+        .width(32)
+        .height(32)
+        .format("MONO8")
+        .color_space("")
+        .color_transfer("")
+        .color_encoding("")
+        .color_range("")
+        .fence_fd(-1)
+        .planes(&planes);
+
+    let mut buf = Vec::new();
+    b.encode_into_vec(&mut buf).expect("first encode");
+    let cap_after_first = buf.capacity();
+    assert!(cap_after_first > 0);
+
+    for _ in 0..50 {
+        b.encode_into_vec(&mut buf).expect("subsequent encode");
+    }
+
+    assert_eq!(
+        buf.capacity(),
+        cap_after_first,
+        "capacity must not grow across identical encodes",
+    );
+}
+
+#[test]
+fn camera_frame_builder_slice_too_small() {
+    use edgefirst_schemas::edgefirst_msgs::{CameraFrame, CameraPlaneView};
+
+    let data = vec![0u8; 16];
+    let plane = CameraPlaneView {
+        fd: -1,
+        offset: 0,
+        stride: 4,
+        size: 16,
+        used: 16,
+        data: &data,
+    };
+    let planes = [plane];
+
+    let mut b = CameraFrame::builder();
+    b.stamp(Time::new(0, 0))
+        .frame_id("cam")
+        .width(4)
+        .height(4)
+        .format("MONO8")
+        .planes(&planes);
+
+    let mut tiny = [0xABu8; 4];
+    let err = b
+        .encode_into_slice(&mut tiny)
+        .expect_err("must error on undersized buffer");
+    match err {
+        CdrError::BufferTooShort { .. } => {}
+        other => panic!("expected BufferTooShort, got {:?}", other),
+    }
+    assert!(tiny.iter().all(|&b| b == 0xAB), "buffer mutated on error");
+}
+
+#[test]
+fn pointcloud2_encode_into_vec_reuses_allocation() {
+    use edgefirst_schemas::sensor_msgs::{PointCloud2, PointFieldView};
+
+    let fields = [
+        PointFieldView { name: "x", offset: 0, datatype: 7, count: 1 },
+        PointFieldView { name: "y", offset: 4, datatype: 7, count: 1 },
+        PointFieldView { name: "z", offset: 8, datatype: 7, count: 1 },
+    ];
+    let data = vec![0u8; 1200]; // 100 points × 12 bytes
+
+    let mut b = PointCloud2::builder();
+    b.stamp(Time::new(0, 0))
+        .frame_id("lidar")
+        .height(1)
+        .width(100)
+        .fields(&fields)
+        .is_bigendian(false)
+        .point_step(12)
+        .row_step(1200)
+        .data(&data)
+        .is_dense(true);
+
+    let mut buf = Vec::new();
+    b.encode_into_vec(&mut buf).expect("first encode");
+    let cap_after_first = buf.capacity();
+    assert!(cap_after_first > 0);
+
+    for _ in 0..50 {
+        b.encode_into_vec(&mut buf).expect("subsequent encode");
+    }
+
+    assert_eq!(
+        buf.capacity(),
+        cap_after_first,
+        "capacity must not grow across identical encodes",
+    );
+}
