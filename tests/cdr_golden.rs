@@ -2523,8 +2523,8 @@ fn image_builder_byte_parity_with_new() {
     let encoding = "rgb8";
     let pixels: Vec<u8> = (0..24u8).collect();
 
-    let via_new = Image::new(stamp, frame_id, 2, 4, encoding, 0, 12, &pixels)
-        .expect("new() succeeds");
+    let via_new =
+        Image::new(stamp, frame_id, 2, 4, encoding, 0, 12, &pixels).expect("new() succeeds");
 
     let via_builder = Image::builder()
         .stamp(stamp)
@@ -2637,16 +2637,29 @@ fn pointcloud2_builder_byte_parity_with_new() {
 
     let stamp = Time::new(7, 42);
     let fields = [
-        PointFieldView { name: "x", offset: 0, datatype: 7, count: 1 },
-        PointFieldView { name: "y", offset: 4, datatype: 7, count: 1 },
-        PointFieldView { name: "z", offset: 8, datatype: 7, count: 1 },
+        PointFieldView {
+            name: "x",
+            offset: 0,
+            datatype: 7,
+            count: 1,
+        },
+        PointFieldView {
+            name: "y",
+            offset: 4,
+            datatype: 7,
+            count: 1,
+        },
+        PointFieldView {
+            name: "z",
+            offset: 8,
+            datatype: 7,
+            count: 1,
+        },
     ];
     let data: Vec<u8> = (0..48u8).collect(); // 4 points × 12 bytes
 
-    let via_new = PointCloud2::new(
-        stamp, "lidar", 1, 4, &fields, false, 12, 48, &data, true,
-    )
-    .expect("new() succeeds");
+    let via_new = PointCloud2::new(stamp, "lidar", 1, 4, &fields, false, 12, 48, &data, true)
+        .expect("new() succeeds");
 
     let via_builder = PointCloud2::builder()
         .stamp(stamp)

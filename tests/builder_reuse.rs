@@ -69,7 +69,10 @@ fn image_encode_into_vec_shrinks_len_when_payload_smaller() {
     b.height(2).width(2).step(2).data(&small_pixels);
     b.encode_into_vec(&mut buf).expect("small encode");
 
-    assert!(buf.len() < large_len, "len must shrink to small payload size");
+    assert!(
+        buf.len() < large_len,
+        "len must shrink to small payload size"
+    );
     assert_eq!(
         buf.capacity(),
         large_cap,
@@ -220,9 +223,24 @@ fn pointcloud2_encode_into_vec_reuses_allocation() {
     use edgefirst_schemas::sensor_msgs::{PointCloud2, PointFieldView};
 
     let fields = [
-        PointFieldView { name: "x", offset: 0, datatype: 7, count: 1 },
-        PointFieldView { name: "y", offset: 4, datatype: 7, count: 1 },
-        PointFieldView { name: "z", offset: 8, datatype: 7, count: 1 },
+        PointFieldView {
+            name: "x",
+            offset: 0,
+            datatype: 7,
+            count: 1,
+        },
+        PointFieldView {
+            name: "y",
+            offset: 4,
+            datatype: 7,
+            count: 1,
+        },
+        PointFieldView {
+            name: "z",
+            offset: 8,
+            datatype: 7,
+            count: 1,
+        },
     ];
     let data = vec![0u8; 1200]; // 100 points × 12 bytes
 
