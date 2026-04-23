@@ -1647,6 +1647,196 @@ impl CameraFrame<Vec<u8>> {
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
+
+    /// Start a new `CameraFrameBuilder` with zero-valued defaults and
+    /// `fence_fd = -1` (the "no fence" sentinel).
+    ///
+    /// Generic in `'a` so the compiler infers it from subsequent
+    /// `.planes(...)` borrows rather than forcing `'static`.
+    pub fn builder<'a>() -> CameraFrameBuilder<'a> {
+        CameraFrameBuilder::new()
+    }
+}
+
+// ── CameraFrameBuilder<'a> ──────────────────────────────────────────
+
+/// Builder for `CameraFrame<Vec<u8>>` with buffer-reuse finalizers.
+///
+/// `planes` is borrowed from a caller-owned slice for the lifetime of the
+/// builder. Each `CameraPlaneView` in that slice itself borrows its `data`
+/// from caller memory — all borrows must remain valid until `build()`,
+/// `encode_into_vec()`, or `encode_into_slice()` is called.
+pub struct CameraFrameBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    seq: u64,
+    pid: u32,
+    width: u32,
+    height: u32,
+    format: std::borrow::Cow<'a, str>,
+    color_space: std::borrow::Cow<'a, str>,
+    color_transfer: std::borrow::Cow<'a, str>,
+    color_encoding: std::borrow::Cow<'a, str>,
+    color_range: std::borrow::Cow<'a, str>,
+    fence_fd: i32,
+    planes: &'a [CameraPlaneView<'a>],
+}
+
+impl<'a> Default for CameraFrameBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            seq: 0,
+            pid: 0,
+            width: 0,
+            height: 0,
+            format: std::borrow::Cow::Borrowed(""),
+            color_space: std::borrow::Cow::Borrowed(""),
+            color_transfer: std::borrow::Cow::Borrowed(""),
+            color_encoding: std::borrow::Cow::Borrowed(""),
+            color_range: std::borrow::Cow::Borrowed(""),
+            fence_fd: -1,
+            planes: &[],
+        }
+    }
+}
+
+impl<'a> CameraFrameBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn seq(&mut self, v: u64) -> &mut Self {
+        self.seq = v;
+        self
+    }
+    pub fn pid(&mut self, v: u32) -> &mut Self {
+        self.pid = v;
+        self
+    }
+    pub fn width(&mut self, v: u32) -> &mut Self {
+        self.width = v;
+        self
+    }
+    pub fn height(&mut self, v: u32) -> &mut Self {
+        self.height = v;
+        self
+    }
+    pub fn format(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.format = s.into();
+        self
+    }
+    pub fn color_space(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.color_space = s.into();
+        self
+    }
+    pub fn color_transfer(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.color_transfer = s.into();
+        self
+    }
+    pub fn color_encoding(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.color_encoding = s.into();
+        self
+    }
+    pub fn color_range(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.color_range = s.into();
+        self
+    }
+    pub fn fence_fd(&mut self, v: i32) -> &mut Self {
+        self.fence_fd = v;
+        self
+    }
+    pub fn planes(&mut self, p: &'a [CameraPlaneView<'a>]) -> &mut Self {
+        self.planes = p;
+        self
+    }
+
+    fn validate(&self) -> Result<(), CdrError> {
+        if self.width == 0 || self.height == 0 {
+            return Err(CdrError::InvalidHeader);
+        }
+        for p in self.planes {
+            validate_plane(p.fd, p.size, p.used, p.data.len())?;
+        }
+        Ok(())
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.size_u64(); // seq
+        s.size_u32(); // pid
+        s.size_u32(); // width
+        s.size_u32(); // height
+        s.size_string(&self.format);
+        s.size_string(&self.color_space);
+        s.size_string(&self.color_transfer);
+        s.size_string(&self.color_encoding);
+        s.size_string(&self.color_range);
+        s.size_i32(); // fence_fd
+        s.size_u32(); // planes count
+        for p in self.planes {
+            size_plane_element(&mut s, p.data.len());
+        }
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.write_u64(self.seq);
+        w.write_u32(self.pid);
+        w.write_u32(self.width);
+        w.write_u32(self.height);
+        w.write_string(&self.format);
+        w.write_string(&self.color_space);
+        w.write_string(&self.color_transfer);
+        w.write_string(&self.color_encoding);
+        w.write_string(&self.color_range);
+        w.write_i32(self.fence_fd);
+        w.write_u32(self.planes.len() as u32);
+        for p in self.planes {
+            write_plane_element(&mut w, p);
+        }
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<CameraFrame<Vec<u8>>, CdrError> {
+        self.validate()?;
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        CameraFrame::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        self.validate()?;
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        self.validate()?;
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
+    }
 }
 
 // ── Model<B> — edgefirst_msgs/msg/Model ─────────────────────────────

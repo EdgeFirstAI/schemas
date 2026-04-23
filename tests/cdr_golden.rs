@@ -2544,3 +2544,88 @@ fn image_builder_byte_parity_with_new() {
         "builder and new() must produce identical CDR bytes",
     );
 }
+
+#[test]
+fn camera_frame_builder_byte_parity_with_new() {
+    use edgefirst_schemas::builtin_interfaces::Time;
+    use edgefirst_schemas::edgefirst_msgs::{CameraFrame, CameraPlaneView};
+
+    let stamp = Time::new(42, 123_456_789);
+    let y_data: Vec<u8> = (0..16u8).collect();
+    let uv_data: Vec<u8> = (16..24u8).collect();
+
+    let y_plane = CameraPlaneView {
+        fd: -1,
+        offset: 0,
+        stride: 4,
+        size: 16,
+        used: 16,
+        data: &y_data,
+    };
+    let uv_plane = CameraPlaneView {
+        fd: -1,
+        offset: 0,
+        stride: 4,
+        size: 8,
+        used: 8,
+        data: &uv_data,
+    };
+    let planes = [y_plane, uv_plane];
+
+    let via_new = CameraFrame::new(
+        stamp,
+        "camera_link",
+        0xDEAD_BEEF_CAFEu64,
+        1234,
+        4,
+        4,
+        "NV12",
+        "bt709",
+        "iec61966-2-1",
+        "mpeg",
+        "limited",
+        7,
+        &planes,
+    )
+    .expect("new() succeeds");
+
+    let via_builder = CameraFrame::builder()
+        .stamp(stamp)
+        .frame_id("camera_link")
+        .seq(0xDEAD_BEEF_CAFEu64)
+        .pid(1234)
+        .width(4)
+        .height(4)
+        .format("NV12")
+        .color_space("bt709")
+        .color_transfer("iec61966-2-1")
+        .color_encoding("mpeg")
+        .color_range("limited")
+        .fence_fd(7)
+        .planes(&planes)
+        .build()
+        .expect("builder.build() succeeds");
+
+    assert_eq!(
+        via_new.as_cdr(),
+        via_builder.as_cdr(),
+        "builder and new() must produce identical CDR bytes",
+    );
+}
+
+#[test]
+fn camera_frame_builder_validation_matches_new() {
+    use edgefirst_schemas::builtin_interfaces::Time;
+    use edgefirst_schemas::edgefirst_msgs::CameraFrame;
+
+    // width == 0 must fail at build() just as it does at new().
+    let result = CameraFrame::builder()
+        .stamp(Time::new(0, 0))
+        .frame_id("cam")
+        .width(0) // invalid
+        .height(1)
+        .format("NV12")
+        .build();
+    assert!(result.is_err(), "width=0 must error");
+    let _ = result.err(); // type is CdrError; matching exact variant is not required here
+}
