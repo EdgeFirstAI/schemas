@@ -237,6 +237,55 @@ assert_eq!(view.frame_id(), "camera"); // reads directly from buffer
 - `pycdr2`: CDR encoding/decoding
 - `dataclasses`: Python 3.7+ for message types
 
+### Publisher Buffer Reuse (Builder Pattern)
+
+Buffer-backed message types expose a `Foo::builder()` entry point that
+returns a `FooBuilder<'a>`. The builder holds field values (strings as
+`Cow<'a, str>`, bulk data as `&'a [u8]`) and offers three finalizers:
+
+- `build() -> Result<Foo<Vec<u8>>, CdrError>` — allocates a fresh buffer.
+  Drop-in replacement for the legacy `Foo::new(...)` constructor.
+- `encode_into_vec(&mut Vec<u8>) -> Result<(), CdrError>` — resizes the
+  caller's `Vec` to exactly the encoded size and writes into it. Reuses
+  existing allocation when capacity suffices. After return, `buf.len()`
+  is the CDR size and `&buf[..]` is a complete CDR message.
+- `encode_into_slice(&mut [u8]) -> Result<usize, CdrError>` — writes into
+  a fixed-capacity slice, returning the number of bytes written. Errors
+  with `BufferTooShort` when the slice is smaller than the required size;
+  nothing is mutated in the error case.
+
+Setters return `&mut Self`, supporting both the chained one-shot style
+and the named-builder reuse style without a separate consuming variant:
+
+```rust
+// One-shot: chained on the temporary (same mechanism as std::process::Command)
+let img = Image::builder()
+    .stamp(now())
+    .frame_id("camera")
+    .height(h).width(w).encoding("rgb8").step(stride)
+    .data(&pixels)
+    .build()?;
+
+// Reuse: set metadata once, overwrite hot fields per frame, reuse cdr_buf
+let mut b = Image::builder();
+b.frame_id("camera").height(h).width(w).encoding("rgb8").step(stride);
+let mut cdr_buf = Vec::new();
+loop {
+    b.stamp(now()).data(&pixels);
+    b.encode_into_vec(&mut cdr_buf)?;
+    publish(&cdr_buf);
+}
+```
+
+In Phase 1 the pattern is applied to `Image`, `CameraFrame`, and
+`PointCloud2` as a proof of shape. Phase 2 extends it to the remaining
+buffer-backed message types and introduces the C FFI surface.
+
+**Important:** the bulk-data borrow (`data: &'a [u8]`) must not alias the
+destination `&mut Vec<u8>`. Typical publishers keep pixel / point-cloud
+data in a separate allocation from the CDR buffer, which satisfies this
+trivially. Aliasing is not detected at compile time.
+
 ---
 
 ## Language Bindings
