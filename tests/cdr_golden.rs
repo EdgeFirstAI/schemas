@@ -2512,3 +2512,35 @@ fn frame_id_alignment_sweep_vibration() {
         assert_eq!(view.clipping(), vec![1, 2, 3], "clipping at len={len}");
     }
 }
+
+#[test]
+fn image_builder_byte_parity_with_new() {
+    use edgefirst_schemas::builtin_interfaces::Time;
+    use edgefirst_schemas::sensor_msgs::Image;
+
+    let stamp = Time::new(1234, 567_891_234);
+    let frame_id = "camera_link";
+    let encoding = "rgb8";
+    let pixels: Vec<u8> = (0..24u8).collect();
+
+    let via_new = Image::new(stamp, frame_id, 2, 4, encoding, 0, 12, &pixels)
+        .expect("new() succeeds");
+
+    let via_builder = Image::builder()
+        .stamp(stamp)
+        .frame_id(frame_id)
+        .height(2)
+        .width(4)
+        .encoding(encoding)
+        .is_bigendian(0)
+        .step(12)
+        .data(&pixels)
+        .build()
+        .expect("builder.build() succeeds");
+
+    assert_eq!(
+        via_new.as_cdr(),
+        via_builder.as_cdr(),
+        "builder and new() must produce identical CDR bytes",
+    );
+}

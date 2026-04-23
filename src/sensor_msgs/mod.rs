@@ -439,6 +439,15 @@ impl Image<Vec<u8>> {
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
+
+    /// Start a new `ImageBuilder` with zero-valued defaults.
+    ///
+    /// Returned with a generic lifetime parameter `'a` so the compiler
+    /// infers it from subsequent setter calls — `.data(&local_pixels)`
+    /// binds `'a` to the caller's scope without forcing `'static`.
+    pub fn builder<'a>() -> ImageBuilder<'a> {
+        ImageBuilder::new()
+    }
 }
 
 impl<B: AsRef<[u8]> + AsMut<[u8]>> Image<B> {
@@ -465,6 +474,135 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Image<B> {
     pub fn set_step(&mut self, v: u32) -> Result<(), CdrError> {
         let p = align(self.offsets[1] + 1, 4);
         wr_u32(self.buf.as_mut(), p, v)
+    }
+}
+
+// ── ImageBuilder<'a> ────────────────────────────────────────────────
+
+/// Builder for `Image<Vec<u8>>` with buffer-reuse finalizers.
+///
+/// Strings use `Cow<'a, str>` so that `frame_id("lit")` borrows a `&'static str`
+/// and `frame_id(owned)` takes ownership. Bulk `data` is always borrowed for
+/// zero-copy input semantics; the borrow must remain valid until `build()`,
+/// `encode_into_vec()`, or `encode_into_slice()` is called.
+pub struct ImageBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    height: u32,
+    width: u32,
+    encoding: std::borrow::Cow<'a, str>,
+    is_bigendian: u8,
+    step: u32,
+    data: &'a [u8],
+}
+
+impl<'a> Default for ImageBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            height: 0,
+            width: 0,
+            encoding: std::borrow::Cow::Borrowed(""),
+            is_bigendian: 0,
+            step: 0,
+            data: &[],
+        }
+    }
+}
+
+impl<'a> ImageBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn height(&mut self, h: u32) -> &mut Self {
+        self.height = h;
+        self
+    }
+    pub fn width(&mut self, w: u32) -> &mut Self {
+        self.width = w;
+        self
+    }
+    pub fn encoding(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.encoding = s.into();
+        self
+    }
+    pub fn is_bigendian(&mut self, v: u8) -> &mut Self {
+        self.is_bigendian = v;
+        self
+    }
+    pub fn step(&mut self, v: u32) -> &mut Self {
+        self.step = v;
+        self
+    }
+    pub fn data(&mut self, d: &'a [u8]) -> &mut Self {
+        self.data = d;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.size_u32(); // height
+        s.size_u32(); // width
+        s.size_string(&self.encoding);
+        s.size_u8(); // is_bigendian
+        s.size_u32(); // step
+        s.size_bytes(self.data.len());
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.write_u32(self.height);
+        w.write_u32(self.width);
+        w.write_string(&self.encoding);
+        w.write_u8(self.is_bigendian);
+        w.write_u32(self.step);
+        w.write_bytes(self.data);
+        w.finish()
+    }
+
+    /// Allocate a fresh `Vec<u8>` and return a fully-parsed `Image<Vec<u8>>`.
+    pub fn build(&self) -> Result<Image<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        Image::from_cdr(buf)
+    }
+
+    /// Serialize into the caller's `Vec<u8>`, resizing to exactly the encoded
+    /// size. After return, `buf.len()` is the CDR size and `&buf[..]` is a
+    /// complete CDR message. Reuses existing allocation when capacity suffices.
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    /// Serialize into `buf` and return bytes written. Errors with
+    /// `BufferTooShort` when `buf` is smaller than the required size; nothing
+    /// is mutated in that case.
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
