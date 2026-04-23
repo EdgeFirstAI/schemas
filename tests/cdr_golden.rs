@@ -2629,3 +2629,42 @@ fn camera_frame_builder_validation_matches_new() {
     assert!(result.is_err(), "width=0 must error");
     let _ = result.err(); // type is CdrError; matching exact variant is not required here
 }
+
+#[test]
+fn pointcloud2_builder_byte_parity_with_new() {
+    use edgefirst_schemas::builtin_interfaces::Time;
+    use edgefirst_schemas::sensor_msgs::{PointCloud2, PointFieldView};
+
+    let stamp = Time::new(7, 42);
+    let fields = [
+        PointFieldView { name: "x", offset: 0, datatype: 7, count: 1 },
+        PointFieldView { name: "y", offset: 4, datatype: 7, count: 1 },
+        PointFieldView { name: "z", offset: 8, datatype: 7, count: 1 },
+    ];
+    let data: Vec<u8> = (0..48u8).collect(); // 4 points × 12 bytes
+
+    let via_new = PointCloud2::new(
+        stamp, "lidar", 1, 4, &fields, false, 12, 48, &data, true,
+    )
+    .expect("new() succeeds");
+
+    let via_builder = PointCloud2::builder()
+        .stamp(stamp)
+        .frame_id("lidar")
+        .height(1)
+        .width(4)
+        .fields(&fields)
+        .is_bigendian(false)
+        .point_step(12)
+        .row_step(48)
+        .data(&data)
+        .is_dense(true)
+        .build()
+        .expect("builder.build() succeeds");
+
+    assert_eq!(
+        via_new.as_cdr(),
+        via_builder.as_cdr(),
+        "builder and new() must produce identical CDR bytes",
+    );
+}

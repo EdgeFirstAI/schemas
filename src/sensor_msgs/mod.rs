@@ -1133,6 +1133,157 @@ impl PointCloud2<Vec<u8>> {
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
+
+    /// Start a new `PointCloud2Builder` with zero-valued defaults.
+    ///
+    /// Generic in `'a` so the compiler infers it from subsequent
+    /// `.fields(...)` / `.data(...)` borrows rather than forcing `'static`.
+    pub fn builder<'a>() -> PointCloud2Builder<'a> {
+        PointCloud2Builder::new()
+    }
+}
+
+// ── PointCloud2Builder<'a> ──────────────────────────────────────────
+
+/// Builder for `PointCloud2<Vec<u8>>` with buffer-reuse finalizers.
+///
+/// `fields` and `data` are borrowed from caller-owned memory. Each
+/// `PointFieldView` in the slice borrows its `name` field as well.
+/// All borrows must remain valid until a finalizer is called.
+pub struct PointCloud2Builder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    height: u32,
+    width: u32,
+    fields: &'a [PointFieldView<'a>],
+    is_bigendian: bool,
+    point_step: u32,
+    row_step: u32,
+    data: &'a [u8],
+    is_dense: bool,
+}
+
+impl<'a> Default for PointCloud2Builder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            height: 0,
+            width: 0,
+            fields: &[],
+            is_bigendian: false,
+            point_step: 0,
+            row_step: 0,
+            data: &[],
+            is_dense: false,
+        }
+    }
+}
+
+impl<'a> PointCloud2Builder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn height(&mut self, v: u32) -> &mut Self {
+        self.height = v;
+        self
+    }
+    pub fn width(&mut self, v: u32) -> &mut Self {
+        self.width = v;
+        self
+    }
+    pub fn fields(&mut self, f: &'a [PointFieldView<'a>]) -> &mut Self {
+        self.fields = f;
+        self
+    }
+    pub fn is_bigendian(&mut self, v: bool) -> &mut Self {
+        self.is_bigendian = v;
+        self
+    }
+    pub fn point_step(&mut self, v: u32) -> &mut Self {
+        self.point_step = v;
+        self
+    }
+    pub fn row_step(&mut self, v: u32) -> &mut Self {
+        self.row_step = v;
+        self
+    }
+    pub fn data(&mut self, d: &'a [u8]) -> &mut Self {
+        self.data = d;
+        self
+    }
+    pub fn is_dense(&mut self, v: bool) -> &mut Self {
+        self.is_dense = v;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.size_u32(); // height
+        s.size_u32(); // width
+        s.size_u32(); // fields count
+        for f in self.fields {
+            size_point_field_element(&mut s, f.name);
+        }
+        s.size_bool(); // is_bigendian
+        s.size_u32(); // point_step
+        s.size_u32(); // row_step
+        s.size_bytes(self.data.len());
+        s.size_bool(); // is_dense
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.write_u32(self.height);
+        w.write_u32(self.width);
+        w.write_u32(self.fields.len() as u32);
+        for f in self.fields {
+            write_point_field_element(&mut w, f);
+        }
+        w.write_bool(self.is_bigendian);
+        w.write_u32(self.point_step);
+        w.write_u32(self.row_step);
+        w.write_bytes(self.data);
+        w.write_bool(self.is_dense);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<PointCloud2<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        PointCloud2::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
+    }
 }
 
 // ── CameraInfo<B> ───────────────────────────────────────────────────
