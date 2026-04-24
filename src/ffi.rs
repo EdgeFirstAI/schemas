@@ -1110,14 +1110,19 @@ pub extern "C" fn ros_compressed_image_encode(
     } else {
         unsafe { slice::from_raw_parts(data, data_len) }
     };
-    let v =
-        match sensor_msgs::CompressedImage::new(Time::new(stamp_sec, stamp_nanosec), fid, fmt, d) {
-            Ok(v) => v,
-            Err(_) => {
-                set_errno(EBADMSG);
-                return -1;
-            }
-        };
+    let v = match sensor_msgs::CompressedImage::builder()
+        .stamp(Time::new(stamp_sec, stamp_nanosec))
+        .frame_id(fid)
+        .format(fmt)
+        .data(d)
+        .build()
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
     return_cdr_bytes(v.into_cdr(), out_bytes, out_len)
 }
 

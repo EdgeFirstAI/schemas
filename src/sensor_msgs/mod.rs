@@ -271,6 +271,10 @@ impl<B: AsRef<[u8]>> CompressedImage<B> {
 }
 
 impl CompressedImage<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use CompressedImage::builder() for allocation-free buffer reuse; CompressedImage::new will be removed in 4.0"
+    )]
     pub fn new(stamp: Time, frame_id: &str, format: &str, data: &[u8]) -> Result<Self, CdrError> {
         let mut sizer = CdrSizer::new();
         Time::size_cdr(&mut sizer);
@@ -297,6 +301,103 @@ impl CompressedImage<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `CompressedImageBuilder` with zero-valued defaults.
+    ///
+    /// Generic in `'a` so the compiler infers it from subsequent setter
+    /// borrows rather than forcing `'static`.
+    pub fn builder<'a>() -> CompressedImageBuilder<'a> {
+        CompressedImageBuilder::new()
+    }
+}
+
+// ── CompressedImageBuilder<'a> ──────────────────────────────────────
+
+/// Builder for `CompressedImage<Vec<u8>>` with buffer-reuse finalizers.
+pub struct CompressedImageBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    format: std::borrow::Cow<'a, str>,
+    data: &'a [u8],
+}
+
+impl<'a> Default for CompressedImageBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            format: std::borrow::Cow::Borrowed(""),
+            data: &[],
+        }
+    }
+}
+
+impl<'a> CompressedImageBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn format(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.format = s.into();
+        self
+    }
+    pub fn data(&mut self, d: &'a [u8]) -> &mut Self {
+        self.data = d;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.size_string(&self.format);
+        s.size_bytes(self.data.len());
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.write_string(&self.format);
+        w.write_bytes(self.data);
+        w.finish()
+    }
+
+    /// Allocate a fresh `Vec<u8>` and return a fully-parsed `CompressedImage<Vec<u8>>`.
+    pub fn build(&self) -> Result<CompressedImage<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        CompressedImage::from_cdr(buf)
+    }
+
+    /// Serialize into the caller's `Vec<u8>`, resizing to exactly the encoded size.
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    /// Serialize into `buf` and return bytes written. Errors with `BufferTooShort`
+    /// when `buf` is smaller than the required size; nothing is mutated in that case.
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -692,6 +793,10 @@ impl<B: AsRef<[u8]>> Imu<B> {
 }
 
 impl Imu<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use Imu::builder() for allocation-free buffer reuse; Imu::new will be removed in 4.0"
+    )]
     pub fn new(
         stamp: Time,
         frame_id: &str,
@@ -730,6 +835,141 @@ impl Imu<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `ImuBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> ImuBuilder<'a> {
+        ImuBuilder::new()
+    }
+}
+
+// ── ImuBuilder<'a> ──────────────────────────────────────────────────
+
+/// Builder for `Imu<Vec<u8>>` with buffer-reuse finalizers.
+pub struct ImuBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    orientation: Quaternion,
+    orientation_covariance: [f64; 9],
+    angular_velocity: Vector3,
+    angular_velocity_covariance: [f64; 9],
+    linear_acceleration: Vector3,
+    linear_acceleration_covariance: [f64; 9],
+}
+
+impl<'a> Default for ImuBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            orientation: Quaternion {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                w: 0.0,
+            },
+            orientation_covariance: [0.0; 9],
+            angular_velocity: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            angular_velocity_covariance: [0.0; 9],
+            linear_acceleration: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            linear_acceleration_covariance: [0.0; 9],
+        }
+    }
+}
+
+impl<'a> ImuBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn orientation(&mut self, q: Quaternion) -> &mut Self {
+        self.orientation = q;
+        self
+    }
+    pub fn orientation_covariance(&mut self, c: [f64; 9]) -> &mut Self {
+        self.orientation_covariance = c;
+        self
+    }
+    pub fn angular_velocity(&mut self, v: Vector3) -> &mut Self {
+        self.angular_velocity = v;
+        self
+    }
+    pub fn angular_velocity_covariance(&mut self, c: [f64; 9]) -> &mut Self {
+        self.angular_velocity_covariance = c;
+        self
+    }
+    pub fn linear_acceleration(&mut self, v: Vector3) -> &mut Self {
+        self.linear_acceleration = v;
+        self
+    }
+    pub fn linear_acceleration_covariance(&mut self, c: [f64; 9]) -> &mut Self {
+        self.linear_acceleration_covariance = c;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        Quaternion::size_cdr(&mut s);
+        size_f64_array9(&mut s);
+        Vector3::size_cdr(&mut s);
+        size_f64_array9(&mut s);
+        Vector3::size_cdr(&mut s);
+        size_f64_array9(&mut s);
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        self.orientation.write_cdr(&mut w);
+        write_f64_array9(&mut w, &self.orientation_covariance);
+        self.angular_velocity.write_cdr(&mut w);
+        write_f64_array9(&mut w, &self.angular_velocity_covariance);
+        self.linear_acceleration.write_cdr(&mut w);
+        write_f64_array9(&mut w, &self.linear_acceleration_covariance);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<Imu<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        Imu::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -822,6 +1062,10 @@ impl<B: AsRef<[u8]>> NavSatFix<B> {
 }
 
 impl NavSatFix<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use NavSatFix::builder() for allocation-free buffer reuse; NavSatFix::new will be removed in 4.0"
+    )]
     pub fn new(
         stamp: Time,
         frame_id: &str,
@@ -865,6 +1109,132 @@ impl NavSatFix<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `NavSatFixBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> NavSatFixBuilder<'a> {
+        NavSatFixBuilder::new()
+    }
+}
+
+// ── NavSatFixBuilder<'a> ────────────────────────────────────────────
+
+/// Builder for `NavSatFix<Vec<u8>>` with buffer-reuse finalizers.
+pub struct NavSatFixBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    status: NavSatStatus,
+    latitude: f64,
+    longitude: f64,
+    altitude: f64,
+    position_covariance: [f64; 9],
+    position_covariance_type: u8,
+}
+
+impl<'a> Default for NavSatFixBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            status: NavSatStatus {
+                status: 0,
+                service: 0,
+            },
+            latitude: 0.0,
+            longitude: 0.0,
+            altitude: 0.0,
+            position_covariance: [0.0; 9],
+            position_covariance_type: 0,
+        }
+    }
+}
+
+impl<'a> NavSatFixBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn status(&mut self, s: NavSatStatus) -> &mut Self {
+        self.status = s;
+        self
+    }
+    pub fn latitude(&mut self, v: f64) -> &mut Self {
+        self.latitude = v;
+        self
+    }
+    pub fn longitude(&mut self, v: f64) -> &mut Self {
+        self.longitude = v;
+        self
+    }
+    pub fn altitude(&mut self, v: f64) -> &mut Self {
+        self.altitude = v;
+        self
+    }
+    pub fn position_covariance(&mut self, c: [f64; 9]) -> &mut Self {
+        self.position_covariance = c;
+        self
+    }
+    pub fn position_covariance_type(&mut self, v: u8) -> &mut Self {
+        self.position_covariance_type = v;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        NavSatStatus::size_cdr(&mut s);
+        s.align(8);
+        s.size_f64(); // latitude
+        s.size_f64(); // longitude
+        s.size_f64(); // altitude
+        size_f64_array9(&mut s);
+        s.size_u8(); // position_covariance_type
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        self.status.write_cdr(&mut w);
+        w.write_f64(self.latitude);
+        w.write_f64(self.longitude);
+        w.write_f64(self.altitude);
+        write_f64_array9(&mut w, &self.position_covariance);
+        w.write_u8(self.position_covariance_type);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<NavSatFix<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        NavSatFix::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -927,6 +1297,10 @@ impl<B: AsRef<[u8]>> PointField<B> {
 }
 
 impl PointField<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use PointField::builder() for allocation-free buffer reuse; PointField::new will be removed in 4.0"
+    )]
     pub fn new(name: &str, offset: u32, datatype: u8, count: u32) -> Result<Self, CdrError> {
         let mut sizer = CdrSizer::new();
         sizer.size_string(name);
@@ -948,6 +1322,96 @@ impl PointField<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `PointFieldBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> PointFieldBuilder<'a> {
+        PointFieldBuilder::new()
+    }
+}
+
+// ── PointFieldBuilder<'a> ───────────────────────────────────────────
+
+/// Builder for `PointField<Vec<u8>>` with buffer-reuse finalizers.
+pub struct PointFieldBuilder<'a> {
+    name: std::borrow::Cow<'a, str>,
+    offset: u32,
+    datatype: u8,
+    count: u32,
+}
+
+impl<'a> Default for PointFieldBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            name: std::borrow::Cow::Borrowed(""),
+            offset: 0,
+            datatype: 0,
+            count: 0,
+        }
+    }
+}
+
+impl<'a> PointFieldBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn name(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.name = s.into();
+        self
+    }
+    pub fn offset(&mut self, v: u32) -> &mut Self {
+        self.offset = v;
+        self
+    }
+    pub fn datatype(&mut self, v: u8) -> &mut Self {
+        self.datatype = v;
+        self
+    }
+    pub fn count(&mut self, v: u32) -> &mut Self {
+        self.count = v;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        s.size_string(&self.name);
+        s.size_u32();
+        s.size_u8();
+        s.size_u32();
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        w.write_string(&self.name);
+        w.write_u32(self.offset);
+        w.write_u8(self.datatype);
+        w.write_u32(self.count);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<PointField<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        PointField::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -1404,6 +1868,11 @@ impl<B: AsRef<[u8]>> CameraInfo<B> {
 }
 
 impl CameraInfo<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use CameraInfo::builder() for allocation-free buffer reuse; CameraInfo::new will be removed in 4.0"
+    )]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         stamp: Time,
         frame_id: &str,
@@ -1461,6 +1930,171 @@ impl CameraInfo<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `CameraInfoBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> CameraInfoBuilder<'a> {
+        CameraInfoBuilder::new()
+    }
+}
+
+// ── CameraInfoBuilder<'a> ───────────────────────────────────────────
+
+/// Builder for `CameraInfo<Vec<u8>>` with buffer-reuse finalizers.
+///
+/// `d` is borrowed for zero-copy input. `k`, `r`, `p` are fixed-size
+/// arrays stored by value. All other fields are owned/copied.
+pub struct CameraInfoBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    height: u32,
+    width: u32,
+    distortion_model: std::borrow::Cow<'a, str>,
+    d: &'a [f64],
+    k: [f64; 9],
+    r: [f64; 9],
+    p: [f64; 12],
+    binning_x: u32,
+    binning_y: u32,
+    roi: RegionOfInterest,
+}
+
+impl<'a> Default for CameraInfoBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            height: 0,
+            width: 0,
+            distortion_model: std::borrow::Cow::Borrowed(""),
+            d: &[],
+            k: [0.0; 9],
+            r: [0.0; 9],
+            p: [0.0; 12],
+            binning_x: 0,
+            binning_y: 0,
+            roi: RegionOfInterest {
+                x_offset: 0,
+                y_offset: 0,
+                height: 0,
+                width: 0,
+                do_rectify: false,
+            },
+        }
+    }
+}
+
+impl<'a> CameraInfoBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn height(&mut self, v: u32) -> &mut Self {
+        self.height = v;
+        self
+    }
+    pub fn width(&mut self, v: u32) -> &mut Self {
+        self.width = v;
+        self
+    }
+    pub fn distortion_model(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.distortion_model = s.into();
+        self
+    }
+    pub fn d(&mut self, d: &'a [f64]) -> &mut Self {
+        self.d = d;
+        self
+    }
+    pub fn k(&mut self, k: [f64; 9]) -> &mut Self {
+        self.k = k;
+        self
+    }
+    pub fn r(&mut self, r: [f64; 9]) -> &mut Self {
+        self.r = r;
+        self
+    }
+    pub fn p(&mut self, p: [f64; 12]) -> &mut Self {
+        self.p = p;
+        self
+    }
+    pub fn binning_x(&mut self, v: u32) -> &mut Self {
+        self.binning_x = v;
+        self
+    }
+    pub fn binning_y(&mut self, v: u32) -> &mut Self {
+        self.binning_y = v;
+        self
+    }
+    pub fn roi(&mut self, r: RegionOfInterest) -> &mut Self {
+        self.roi = r;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.size_u32(); // height
+        s.size_u32(); // width
+        s.size_string(&self.distortion_model);
+        s.size_u32();
+        s.size_seq_8(self.d.len());
+        size_f64_array9(&mut s);
+        size_f64_array9(&mut s);
+        size_f64_array12(&mut s);
+        s.size_u32(); // binning_x
+        s.size_u32(); // binning_y
+        RegionOfInterest::size_cdr(&mut s);
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.write_u32(self.height);
+        w.write_u32(self.width);
+        w.write_string(&self.distortion_model);
+        w.write_u32(self.d.len() as u32);
+        w.write_slice_f64(self.d);
+        write_f64_array9(&mut w, &self.k);
+        write_f64_array9(&mut w, &self.r);
+        write_f64_array12(&mut w, &self.p);
+        w.write_u32(self.binning_x);
+        w.write_u32(self.binning_y);
+        self.roi.write_cdr(&mut w);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<CameraInfo<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        CameraInfo::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -1546,6 +2180,10 @@ impl<B: AsRef<[u8]>> MagneticField<B> {
 }
 
 impl MagneticField<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use MagneticField::builder() for allocation-free buffer reuse; MagneticField::new will be removed in 4.0"
+    )]
     pub fn new(
         stamp: Time,
         frame_id: &str,
@@ -1573,6 +2211,101 @@ impl MagneticField<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `MagneticFieldBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> MagneticFieldBuilder<'a> {
+        MagneticFieldBuilder::new()
+    }
+}
+
+// ── MagneticFieldBuilder<'a> ────────────────────────────────────────
+
+/// Builder for `MagneticField<Vec<u8>>` with buffer-reuse finalizers.
+pub struct MagneticFieldBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    magnetic_field: Vector3,
+    magnetic_field_covariance: [f64; 9],
+}
+
+impl<'a> Default for MagneticFieldBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            magnetic_field: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            magnetic_field_covariance: [0.0; 9],
+        }
+    }
+}
+
+impl<'a> MagneticFieldBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn magnetic_field(&mut self, v: Vector3) -> &mut Self {
+        self.magnetic_field = v;
+        self
+    }
+    pub fn magnetic_field_covariance(&mut self, c: [f64; 9]) -> &mut Self {
+        self.magnetic_field_covariance = c;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.align(8);
+        Vector3::size_cdr(&mut s);
+        size_f64_array9(&mut s);
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        self.magnetic_field.write_cdr(&mut w);
+        write_f64_array9(&mut w, &self.magnetic_field_covariance);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<MagneticField<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        MagneticField::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -1622,6 +2355,10 @@ impl<B: AsRef<[u8]>> FluidPressure<B> {
 }
 
 impl FluidPressure<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use FluidPressure::builder() for allocation-free buffer reuse; FluidPressure::new will be removed in 4.0"
+    )]
     pub fn new(
         stamp: Time,
         frame_id: &str,
@@ -1649,6 +2386,97 @@ impl FluidPressure<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `FluidPressureBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> FluidPressureBuilder<'a> {
+        FluidPressureBuilder::new()
+    }
+}
+
+// ── FluidPressureBuilder<'a> ────────────────────────────────────────
+
+/// Builder for `FluidPressure<Vec<u8>>` with buffer-reuse finalizers.
+pub struct FluidPressureBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    fluid_pressure: f64,
+    variance: f64,
+}
+
+impl<'a> Default for FluidPressureBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            fluid_pressure: 0.0,
+            variance: 0.0,
+        }
+    }
+}
+
+impl<'a> FluidPressureBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn fluid_pressure(&mut self, v: f64) -> &mut Self {
+        self.fluid_pressure = v;
+        self
+    }
+    pub fn variance(&mut self, v: f64) -> &mut Self {
+        self.variance = v;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.align(8);
+        s.size_f64();
+        s.size_f64();
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.write_f64(self.fluid_pressure);
+        w.write_f64(self.variance);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<FluidPressure<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        FluidPressure::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -1698,6 +2526,10 @@ impl<B: AsRef<[u8]>> Temperature<B> {
 }
 
 impl Temperature<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use Temperature::builder() for allocation-free buffer reuse; Temperature::new will be removed in 4.0"
+    )]
     pub fn new(
         stamp: Time,
         frame_id: &str,
@@ -1725,6 +2557,97 @@ impl Temperature<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `TemperatureBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> TemperatureBuilder<'a> {
+        TemperatureBuilder::new()
+    }
+}
+
+// ── TemperatureBuilder<'a> ──────────────────────────────────────────
+
+/// Builder for `Temperature<Vec<u8>>` with buffer-reuse finalizers.
+pub struct TemperatureBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    temperature: f64,
+    variance: f64,
+}
+
+impl<'a> Default for TemperatureBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            temperature: 0.0,
+            variance: 0.0,
+        }
+    }
+}
+
+impl<'a> TemperatureBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn temperature(&mut self, v: f64) -> &mut Self {
+        self.temperature = v;
+        self
+    }
+    pub fn variance(&mut self, v: f64) -> &mut Self {
+        self.variance = v;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.align(8);
+        s.size_f64();
+        s.size_f64();
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.write_f64(self.temperature);
+        w.write_f64(self.variance);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<Temperature<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        Temperature::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -1924,6 +2847,10 @@ impl<B: AsRef<[u8]>> BatteryState<B> {
 }
 
 impl BatteryState<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use BatteryState::builder() for allocation-free buffer reuse; BatteryState::new will be removed in 4.0"
+    )]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         stamp: Time,
@@ -2006,6 +2933,212 @@ impl BatteryState<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `BatteryStateBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> BatteryStateBuilder<'a> {
+        BatteryStateBuilder::new()
+    }
+}
+
+// ── BatteryStateBuilder<'a> ─────────────────────────────────────────
+
+/// Builder for `BatteryState<Vec<u8>>` with buffer-reuse finalizers.
+///
+/// The two `f32` sequences (`cell_voltage`, `cell_temperature`) are
+/// borrowed for zero-copy input; both strings use `Cow<'a, str>`.
+pub struct BatteryStateBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    voltage: f32,
+    temperature: f32,
+    current: f32,
+    charge: f32,
+    capacity: f32,
+    design_capacity: f32,
+    percentage: f32,
+    power_supply_status: u8,
+    power_supply_health: u8,
+    power_supply_technology: u8,
+    present: bool,
+    cell_voltage: &'a [f32],
+    cell_temperature: &'a [f32],
+    location: std::borrow::Cow<'a, str>,
+    serial_number: std::borrow::Cow<'a, str>,
+}
+
+impl<'a> Default for BatteryStateBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            voltage: 0.0,
+            temperature: 0.0,
+            current: 0.0,
+            charge: 0.0,
+            capacity: 0.0,
+            design_capacity: 0.0,
+            percentage: 0.0,
+            power_supply_status: 0,
+            power_supply_health: 0,
+            power_supply_technology: 0,
+            present: false,
+            cell_voltage: &[],
+            cell_temperature: &[],
+            location: std::borrow::Cow::Borrowed(""),
+            serial_number: std::borrow::Cow::Borrowed(""),
+        }
+    }
+}
+
+impl<'a> BatteryStateBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn voltage(&mut self, v: f32) -> &mut Self {
+        self.voltage = v;
+        self
+    }
+    pub fn temperature(&mut self, v: f32) -> &mut Self {
+        self.temperature = v;
+        self
+    }
+    pub fn current(&mut self, v: f32) -> &mut Self {
+        self.current = v;
+        self
+    }
+    pub fn charge(&mut self, v: f32) -> &mut Self {
+        self.charge = v;
+        self
+    }
+    pub fn capacity(&mut self, v: f32) -> &mut Self {
+        self.capacity = v;
+        self
+    }
+    pub fn design_capacity(&mut self, v: f32) -> &mut Self {
+        self.design_capacity = v;
+        self
+    }
+    pub fn percentage(&mut self, v: f32) -> &mut Self {
+        self.percentage = v;
+        self
+    }
+    pub fn power_supply_status(&mut self, v: u8) -> &mut Self {
+        self.power_supply_status = v;
+        self
+    }
+    pub fn power_supply_health(&mut self, v: u8) -> &mut Self {
+        self.power_supply_health = v;
+        self
+    }
+    pub fn power_supply_technology(&mut self, v: u8) -> &mut Self {
+        self.power_supply_technology = v;
+        self
+    }
+    pub fn present(&mut self, v: bool) -> &mut Self {
+        self.present = v;
+        self
+    }
+    pub fn cell_voltage(&mut self, v: &'a [f32]) -> &mut Self {
+        self.cell_voltage = v;
+        self
+    }
+    pub fn cell_temperature(&mut self, v: &'a [f32]) -> &mut Self {
+        self.cell_temperature = v;
+        self
+    }
+    pub fn location(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.location = s.into();
+        self
+    }
+    pub fn serial_number(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.serial_number = s.into();
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.align(4);
+        for _ in 0..7 {
+            s.size_f32();
+        }
+        s.size_u8();
+        s.size_u8();
+        s.size_u8();
+        s.size_bool();
+        s.size_u32();
+        for _ in self.cell_voltage {
+            s.size_f32();
+        }
+        s.size_u32();
+        for _ in self.cell_temperature {
+            s.size_f32();
+        }
+        s.size_string(&self.location);
+        s.size_string(&self.serial_number);
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.write_f32(self.voltage);
+        w.write_f32(self.temperature);
+        w.write_f32(self.current);
+        w.write_f32(self.charge);
+        w.write_f32(self.capacity);
+        w.write_f32(self.design_capacity);
+        w.write_f32(self.percentage);
+        w.write_u8(self.power_supply_status);
+        w.write_u8(self.power_supply_health);
+        w.write_u8(self.power_supply_technology);
+        w.write_bool(self.present);
+        w.write_u32(self.cell_voltage.len() as u32);
+        for v in self.cell_voltage {
+            w.write_f32(*v);
+        }
+        w.write_u32(self.cell_temperature.len() as u32);
+        for v in self.cell_temperature {
+            w.write_f32(*v);
+        }
+        w.write_string(&self.location);
+        w.write_string(&self.serial_number);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<BatteryState<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        BatteryState::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
