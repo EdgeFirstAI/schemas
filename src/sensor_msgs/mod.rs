@@ -973,6 +973,66 @@ impl<'a> ImuBuilder<'a> {
     }
 }
 
+impl<B: AsRef<[u8]> + AsMut<[u8]>> Imu<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_orientation(&mut self, q: Quaternion) -> Result<(), CdrError> {
+        let p = self.fixed_base();
+        let b = self.buf.as_mut();
+        wr_f64(b, p, q.x)?;
+        wr_f64(b, p + 8, q.y)?;
+        wr_f64(b, p + 16, q.z)?;
+        wr_f64(b, p + 24, q.w)
+    }
+
+    pub fn set_orientation_covariance(&mut self, c: [f64; 9]) -> Result<(), CdrError> {
+        let p = self.fixed_base() + 32;
+        let b = self.buf.as_mut();
+        for (i, v) in c.iter().enumerate() {
+            wr_f64(b, p + i * 8, *v)?;
+        }
+        Ok(())
+    }
+
+    pub fn set_angular_velocity(&mut self, v: Vector3) -> Result<(), CdrError> {
+        let p = self.fixed_base() + 104;
+        let b = self.buf.as_mut();
+        wr_f64(b, p, v.x)?;
+        wr_f64(b, p + 8, v.y)?;
+        wr_f64(b, p + 16, v.z)
+    }
+
+    pub fn set_angular_velocity_covariance(&mut self, c: [f64; 9]) -> Result<(), CdrError> {
+        let p = self.fixed_base() + 128;
+        let b = self.buf.as_mut();
+        for (i, v) in c.iter().enumerate() {
+            wr_f64(b, p + i * 8, *v)?;
+        }
+        Ok(())
+    }
+
+    pub fn set_linear_acceleration(&mut self, v: Vector3) -> Result<(), CdrError> {
+        let p = self.fixed_base() + 200;
+        let b = self.buf.as_mut();
+        wr_f64(b, p, v.x)?;
+        wr_f64(b, p + 8, v.y)?;
+        wr_f64(b, p + 16, v.z)
+    }
+
+    pub fn set_linear_acceleration_covariance(&mut self, c: [f64; 9]) -> Result<(), CdrError> {
+        let p = self.fixed_base() + 224;
+        let b = self.buf.as_mut();
+        for (i, v) in c.iter().enumerate() {
+            wr_f64(b, p + i * 8, *v)?;
+        }
+        Ok(())
+    }
+}
+
 // ── NavSatFix<B> ────────────────────────────────────────────────────
 //
 // CDR layout: Header → offsets[0] (status start), then:
@@ -1238,6 +1298,57 @@ impl<'a> NavSatFixBuilder<'a> {
     }
 }
 
+impl<B: AsRef<[u8]> + AsMut<[u8]>> NavSatFix<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    /// Set the embedded `NavSatStatus`.
+    ///
+    /// The u16 `service` field is CDR-aligned to 2 bytes relative to the
+    /// enclosing message header, so its byte offset depends on the parity
+    /// of `offsets[0]`. We mirror the reader's cursor logic via
+    /// [`cdr_align`] — see EDGEAI-1243.
+    pub fn set_status(&mut self, s: NavSatStatus) -> Result<(), CdrError> {
+        let status_pos = self.offsets[0];
+        let service_pos = cdr_align(status_pos + 1, 2);
+        let b = self.buf.as_mut();
+        wr_i8(b, status_pos, s.status)?;
+        wr_u16(b, service_pos, s.service)
+    }
+
+    pub fn set_latitude(&mut self, v: f64) -> Result<(), CdrError> {
+        let p = self.fixed_base();
+        wr_f64(self.buf.as_mut(), p, v)
+    }
+
+    pub fn set_longitude(&mut self, v: f64) -> Result<(), CdrError> {
+        let p = self.fixed_base() + 8;
+        wr_f64(self.buf.as_mut(), p, v)
+    }
+
+    pub fn set_altitude(&mut self, v: f64) -> Result<(), CdrError> {
+        let p = self.fixed_base() + 16;
+        wr_f64(self.buf.as_mut(), p, v)
+    }
+
+    pub fn set_position_covariance(&mut self, c: [f64; 9]) -> Result<(), CdrError> {
+        let p = self.fixed_base() + 24;
+        let b = self.buf.as_mut();
+        for (i, v) in c.iter().enumerate() {
+            wr_f64(b, p + i * 8, *v)?;
+        }
+        Ok(())
+    }
+
+    pub fn set_position_covariance_type(&mut self, v: u8) -> Result<(), CdrError> {
+        let p = self.fixed_base() + 96;
+        wr_u8(self.buf.as_mut(), p, v)
+    }
+}
+
 // ── PointField<B> ───────────────────────────────────────────────────
 //
 // CDR layout: name (string) → offsets[0], then offset(u32), datatype(u8), count(u32)
@@ -1412,6 +1523,30 @@ impl<'a> PointFieldBuilder<'a> {
         }
         self.write_into(&mut buf[..need])?;
         Ok(need)
+    }
+}
+
+impl<B: AsRef<[u8]> + AsMut<[u8]>> PointField<B> {
+    /// Byte offset of the `offset` u32 field (4-aligned relative to CDR header).
+    #[inline]
+    fn offset_pos(&self) -> usize {
+        cdr_align(self.offsets[0], 4)
+    }
+
+    pub fn set_offset(&mut self, v: u32) -> Result<(), CdrError> {
+        let p = self.offset_pos();
+        wr_u32(self.buf.as_mut(), p, v)
+    }
+
+    pub fn set_datatype(&mut self, v: u8) -> Result<(), CdrError> {
+        let p = self.offset_pos() + 4;
+        wr_u8(self.buf.as_mut(), p, v)
+    }
+
+    pub fn set_count(&mut self, v: u32) -> Result<(), CdrError> {
+        // datatype(u8) followed by count(u32) with 4-byte alignment.
+        let p = cdr_align(self.offset_pos() + 5, 4);
+        wr_u32(self.buf.as_mut(), p, v)
     }
 }
 
@@ -1758,6 +1893,42 @@ impl<'a> PointCloud2Builder<'a> {
     }
 }
 
+impl<B: AsRef<[u8]> + AsMut<[u8]>> PointCloud2<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_height(&mut self, h: u32) -> Result<(), CdrError> {
+        let p = align(self.offsets[0], 4);
+        wr_u32(self.buf.as_mut(), p, h)
+    }
+
+    pub fn set_width(&mut self, w: u32) -> Result<(), CdrError> {
+        let p = align(self.offsets[0], 4) + 4;
+        wr_u32(self.buf.as_mut(), p, w)
+    }
+
+    pub fn set_is_bigendian(&mut self, v: bool) -> Result<(), CdrError> {
+        wr_bool(self.buf.as_mut(), self.offsets[1], v)
+    }
+
+    pub fn set_point_step(&mut self, v: u32) -> Result<(), CdrError> {
+        let p = align(self.offsets[1] + 1, 4);
+        wr_u32(self.buf.as_mut(), p, v)
+    }
+
+    pub fn set_row_step(&mut self, v: u32) -> Result<(), CdrError> {
+        let p = align(self.offsets[1] + 1, 4) + 4;
+        wr_u32(self.buf.as_mut(), p, v)
+    }
+
+    pub fn set_is_dense(&mut self, v: bool) -> Result<(), CdrError> {
+        wr_bool(self.buf.as_mut(), self.offsets[2], v)
+    }
+}
+
 // ── CameraInfo<B> ───────────────────────────────────────────────────
 //
 // CDR layout: Header → offsets[0],
@@ -2098,6 +2269,71 @@ impl<'a> CameraInfoBuilder<'a> {
     }
 }
 
+impl<B: AsRef<[u8]> + AsMut<[u8]>> CameraInfo<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_height(&mut self, h: u32) -> Result<(), CdrError> {
+        let p = align(self.offsets[0], 4);
+        wr_u32(self.buf.as_mut(), p, h)
+    }
+
+    pub fn set_width(&mut self, w: u32) -> Result<(), CdrError> {
+        let p = align(self.offsets[0], 4) + 4;
+        wr_u32(self.buf.as_mut(), p, w)
+    }
+
+    pub fn set_k(&mut self, k: [f64; 9]) -> Result<(), CdrError> {
+        let p = self.fixed_base();
+        let b = self.buf.as_mut();
+        for (i, v) in k.iter().enumerate() {
+            wr_f64(b, p + i * 8, *v)?;
+        }
+        Ok(())
+    }
+
+    pub fn set_r(&mut self, r: [f64; 9]) -> Result<(), CdrError> {
+        let p = self.fixed_base() + 72;
+        let b = self.buf.as_mut();
+        for (i, v) in r.iter().enumerate() {
+            wr_f64(b, p + i * 8, *v)?;
+        }
+        Ok(())
+    }
+
+    pub fn set_p(&mut self, p_mat: [f64; 12]) -> Result<(), CdrError> {
+        let p = self.fixed_base() + 144;
+        let b = self.buf.as_mut();
+        for (i, v) in p_mat.iter().enumerate() {
+            wr_f64(b, p + i * 8, *v)?;
+        }
+        Ok(())
+    }
+
+    pub fn set_binning_x(&mut self, v: u32) -> Result<(), CdrError> {
+        let p = self.fixed_base() + 240;
+        wr_u32(self.buf.as_mut(), p, v)
+    }
+
+    pub fn set_binning_y(&mut self, v: u32) -> Result<(), CdrError> {
+        let p = self.fixed_base() + 244;
+        wr_u32(self.buf.as_mut(), p, v)
+    }
+
+    pub fn set_roi(&mut self, r: RegionOfInterest) -> Result<(), CdrError> {
+        let p = self.fixed_base() + 248;
+        let b = self.buf.as_mut();
+        wr_u32(b, p, r.x_offset)?;
+        wr_u32(b, p + 4, r.y_offset)?;
+        wr_u32(b, p + 8, r.height)?;
+        wr_u32(b, p + 12, r.width)?;
+        wr_bool(b, p + 16, r.do_rectify)
+    }
+}
+
 // ── Constants ───────────────────────────────────────────────────────
 
 pub mod nav_sat_fix {
@@ -2309,6 +2545,31 @@ impl<'a> MagneticFieldBuilder<'a> {
     }
 }
 
+impl<B: AsRef<[u8]> + AsMut<[u8]>> MagneticField<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_magnetic_field(&mut self, v: Vector3) -> Result<(), CdrError> {
+        let p = self.offsets[0];
+        let b = self.buf.as_mut();
+        wr_f64(b, p, v.x)?;
+        wr_f64(b, p + 8, v.y)?;
+        wr_f64(b, p + 16, v.z)
+    }
+
+    pub fn set_magnetic_field_covariance(&mut self, c: [f64; 9]) -> Result<(), CdrError> {
+        let p = self.offsets[0] + 24;
+        let b = self.buf.as_mut();
+        for (i, v) in c.iter().enumerate() {
+            wr_f64(b, p + i * 8, *v)?;
+        }
+        Ok(())
+    }
+}
+
 // ── FluidPressure<B> ────────────────────────────────────────────────
 //
 // CDR layout: Header → offsets[0] (start of fluid_pressure, 8-aligned),
@@ -2480,6 +2741,22 @@ impl<'a> FluidPressureBuilder<'a> {
     }
 }
 
+impl<B: AsRef<[u8]> + AsMut<[u8]>> FluidPressure<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_fluid_pressure(&mut self, v: f64) -> Result<(), CdrError> {
+        wr_f64(self.buf.as_mut(), self.offsets[0], v)
+    }
+
+    pub fn set_variance(&mut self, v: f64) -> Result<(), CdrError> {
+        wr_f64(self.buf.as_mut(), self.offsets[0] + 8, v)
+    }
+}
+
 // ── Temperature<B> ──────────────────────────────────────────────────
 //
 // CDR layout: Header → offsets[0] (start of temperature, 8-aligned),
@@ -2648,6 +2925,22 @@ impl<'a> TemperatureBuilder<'a> {
         }
         self.write_into(&mut buf[..need])?;
         Ok(need)
+    }
+}
+
+impl<B: AsRef<[u8]> + AsMut<[u8]>> Temperature<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_temperature(&mut self, v: f64) -> Result<(), CdrError> {
+        wr_f64(self.buf.as_mut(), self.offsets[0], v)
+    }
+
+    pub fn set_variance(&mut self, v: f64) -> Result<(), CdrError> {
+        wr_f64(self.buf.as_mut(), self.offsets[0] + 8, v)
     }
 }
 
@@ -3142,6 +3435,58 @@ impl<'a> BatteryStateBuilder<'a> {
     }
 }
 
+impl<B: AsRef<[u8]> + AsMut<[u8]>> BatteryState<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_voltage(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), self.offsets[0], v)
+    }
+
+    pub fn set_temperature(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), self.offsets[0] + 4, v)
+    }
+
+    pub fn set_current(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), self.offsets[0] + 8, v)
+    }
+
+    pub fn set_charge(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), self.offsets[0] + 12, v)
+    }
+
+    pub fn set_capacity(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), self.offsets[0] + 16, v)
+    }
+
+    pub fn set_design_capacity(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), self.offsets[0] + 20, v)
+    }
+
+    pub fn set_percentage(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), self.offsets[0] + 24, v)
+    }
+
+    pub fn set_power_supply_status(&mut self, v: u8) -> Result<(), CdrError> {
+        wr_u8(self.buf.as_mut(), self.offsets[0] + 28, v)
+    }
+
+    pub fn set_power_supply_health(&mut self, v: u8) -> Result<(), CdrError> {
+        wr_u8(self.buf.as_mut(), self.offsets[0] + 29, v)
+    }
+
+    pub fn set_power_supply_technology(&mut self, v: u8) -> Result<(), CdrError> {
+        wr_u8(self.buf.as_mut(), self.offsets[0] + 30, v)
+    }
+
+    pub fn set_present(&mut self, v: bool) -> Result<(), CdrError> {
+        wr_bool(self.buf.as_mut(), self.offsets[0] + 31, v)
+    }
+}
+
 // ── Registry ────────────────────────────────────────────────────────
 
 /// Check if a type name is supported by this module.
@@ -3536,5 +3881,292 @@ mod tests {
         assert_eq!(rx.latitude(), 43.6532);
         assert_eq!(rx.longitude(), -79.3832);
         assert_eq!(rx.altitude(), 150.0);
+    }
+
+    /// Guard: in-place scalar setters on every buffer-backed sensor_msgs
+    /// type must produce byte-identical CDR to the equivalent builder.
+    #[test]
+    fn sensor_setter_byte_parity() {
+        // Imu
+        let imu_a = Imu::builder()
+            .stamp(Time::new(100, 500))
+            .frame_id("imu_link")
+            .orientation(Quaternion {
+                x: 0.1,
+                y: 0.2,
+                z: 0.3,
+                w: 0.4,
+            })
+            .orientation_covariance([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0])
+            .angular_velocity(Vector3 {
+                x: 0.11,
+                y: 0.22,
+                z: 0.33,
+            })
+            .angular_velocity_covariance([10.0; 9])
+            .linear_acceleration(Vector3 {
+                x: 0.44,
+                y: 0.55,
+                z: 0.66,
+            })
+            .linear_acceleration_covariance([20.0; 9])
+            .build()
+            .unwrap();
+        let mut imu_b = Imu::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("imu_link")
+            .build()
+            .unwrap();
+        imu_b.set_stamp(Time::new(100, 500)).unwrap();
+        imu_b
+            .set_orientation(Quaternion {
+                x: 0.1,
+                y: 0.2,
+                z: 0.3,
+                w: 0.4,
+            })
+            .unwrap();
+        imu_b
+            .set_orientation_covariance([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0])
+            .unwrap();
+        imu_b
+            .set_angular_velocity(Vector3 {
+                x: 0.11,
+                y: 0.22,
+                z: 0.33,
+            })
+            .unwrap();
+        imu_b.set_angular_velocity_covariance([10.0; 9]).unwrap();
+        imu_b
+            .set_linear_acceleration(Vector3 {
+                x: 0.44,
+                y: 0.55,
+                z: 0.66,
+            })
+            .unwrap();
+        imu_b.set_linear_acceleration_covariance([20.0; 9]).unwrap();
+        assert_eq!(imu_a.as_cdr(), imu_b.as_cdr(), "Imu byte mismatch");
+
+        // NavSatFix — exercises the EDGEAI-1243-sensitive NavSatStatus setter.
+        let nsf_a = NavSatFix::builder()
+            .stamp(Time::new(5, 6))
+            .frame_id("gps")
+            .status(NavSatStatus {
+                status: 1,
+                service: 3,
+            })
+            .latitude(45.5)
+            .longitude(-73.6)
+            .altitude(100.0)
+            .position_covariance([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])
+            .position_covariance_type(2)
+            .build()
+            .unwrap();
+        let mut nsf_b = NavSatFix::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("gps")
+            .build()
+            .unwrap();
+        nsf_b.set_stamp(Time::new(5, 6)).unwrap();
+        nsf_b
+            .set_status(NavSatStatus {
+                status: 1,
+                service: 3,
+            })
+            .unwrap();
+        nsf_b.set_latitude(45.5).unwrap();
+        nsf_b.set_longitude(-73.6).unwrap();
+        nsf_b.set_altitude(100.0).unwrap();
+        nsf_b
+            .set_position_covariance([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])
+            .unwrap();
+        nsf_b.set_position_covariance_type(2).unwrap();
+        assert_eq!(nsf_a.as_cdr(), nsf_b.as_cdr(), "NavSatFix byte mismatch");
+
+        // PointField
+        let pf_a = PointField::builder()
+            .name("x")
+            .offset(16)
+            .datatype(7)
+            .count(3)
+            .build()
+            .unwrap();
+        let mut pf_b = PointField::builder().name("x").build().unwrap();
+        pf_b.set_offset(16).unwrap();
+        pf_b.set_datatype(7).unwrap();
+        pf_b.set_count(3).unwrap();
+        assert_eq!(pf_a.as_cdr(), pf_b.as_cdr(), "PointField byte mismatch");
+
+        // PointCloud2
+        let pc_a = PointCloud2::builder()
+            .stamp(Time::new(1, 2))
+            .frame_id("base_link")
+            .height(480)
+            .width(640)
+            .is_bigendian(true)
+            .point_step(16)
+            .row_step(16 * 640)
+            .is_dense(true)
+            .build()
+            .unwrap();
+        let mut pc_b = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("base_link")
+            .build()
+            .unwrap();
+        pc_b.set_stamp(Time::new(1, 2)).unwrap();
+        pc_b.set_height(480).unwrap();
+        pc_b.set_width(640).unwrap();
+        pc_b.set_is_bigendian(true).unwrap();
+        pc_b.set_point_step(16).unwrap();
+        pc_b.set_row_step(16 * 640).unwrap();
+        pc_b.set_is_dense(true).unwrap();
+        assert_eq!(pc_a.as_cdr(), pc_b.as_cdr(), "PointCloud2 byte mismatch");
+
+        // CameraInfo
+        let k = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0];
+        let r = [10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0];
+        let p = [
+            20.0, 21.0, 22.0, 23.0, 24.0, 25.0, 26.0, 27.0, 28.0, 29.0, 30.0, 31.0,
+        ];
+        let roi = RegionOfInterest {
+            x_offset: 1,
+            y_offset: 2,
+            height: 3,
+            width: 4,
+            do_rectify: true,
+        };
+        let ci_a = CameraInfo::builder()
+            .stamp(Time::new(7, 8))
+            .frame_id("cam")
+            .height(480)
+            .width(640)
+            .distortion_model("plumb_bob")
+            .d(&[0.1, 0.2])
+            .k(k)
+            .r(r)
+            .p(p)
+            .binning_x(2)
+            .binning_y(3)
+            .roi(roi)
+            .build()
+            .unwrap();
+        let mut ci_b = CameraInfo::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("cam")
+            .distortion_model("plumb_bob")
+            .d(&[0.1, 0.2])
+            .build()
+            .unwrap();
+        ci_b.set_stamp(Time::new(7, 8)).unwrap();
+        ci_b.set_height(480).unwrap();
+        ci_b.set_width(640).unwrap();
+        ci_b.set_k(k).unwrap();
+        ci_b.set_r(r).unwrap();
+        ci_b.set_p(p).unwrap();
+        ci_b.set_binning_x(2).unwrap();
+        ci_b.set_binning_y(3).unwrap();
+        ci_b.set_roi(roi).unwrap();
+        assert_eq!(ci_a.as_cdr(), ci_b.as_cdr(), "CameraInfo byte mismatch");
+
+        // MagneticField
+        let mf_a = MagneticField::builder()
+            .stamp(Time::new(9, 10))
+            .frame_id("imu")
+            .magnetic_field(Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            })
+            .magnetic_field_covariance([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0])
+            .build()
+            .unwrap();
+        let mut mf_b = MagneticField::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("imu")
+            .build()
+            .unwrap();
+        mf_b.set_stamp(Time::new(9, 10)).unwrap();
+        mf_b.set_magnetic_field(Vector3 {
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+        })
+        .unwrap();
+        mf_b.set_magnetic_field_covariance([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0])
+            .unwrap();
+        assert_eq!(mf_a.as_cdr(), mf_b.as_cdr(), "MagneticField byte mismatch");
+
+        // FluidPressure
+        let fp_a = FluidPressure::builder()
+            .stamp(Time::new(11, 12))
+            .frame_id("barometer")
+            .fluid_pressure(101_325.0)
+            .variance(0.5)
+            .build()
+            .unwrap();
+        let mut fp_b = FluidPressure::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("barometer")
+            .build()
+            .unwrap();
+        fp_b.set_stamp(Time::new(11, 12)).unwrap();
+        fp_b.set_fluid_pressure(101_325.0).unwrap();
+        fp_b.set_variance(0.5).unwrap();
+        assert_eq!(fp_a.as_cdr(), fp_b.as_cdr(), "FluidPressure byte mismatch");
+
+        // Temperature
+        let t_a = Temperature::builder()
+            .stamp(Time::new(13, 14))
+            .frame_id("temp")
+            .temperature(25.5)
+            .variance(0.1)
+            .build()
+            .unwrap();
+        let mut t_b = Temperature::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("temp")
+            .build()
+            .unwrap();
+        t_b.set_stamp(Time::new(13, 14)).unwrap();
+        t_b.set_temperature(25.5).unwrap();
+        t_b.set_variance(0.1).unwrap();
+        assert_eq!(t_a.as_cdr(), t_b.as_cdr(), "Temperature byte mismatch");
+
+        // BatteryState
+        let bs_a = BatteryState::builder()
+            .stamp(Time::new(15, 16))
+            .frame_id("batt")
+            .voltage(12.1)
+            .temperature(25.0)
+            .current(-1.5)
+            .charge(0.5)
+            .capacity(2.0)
+            .design_capacity(2.5)
+            .percentage(0.75)
+            .power_supply_status(1)
+            .power_supply_health(2)
+            .power_supply_technology(3)
+            .present(true)
+            .build()
+            .unwrap();
+        let mut bs_b = BatteryState::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("batt")
+            .build()
+            .unwrap();
+        bs_b.set_stamp(Time::new(15, 16)).unwrap();
+        bs_b.set_voltage(12.1).unwrap();
+        bs_b.set_temperature(25.0).unwrap();
+        bs_b.set_current(-1.5).unwrap();
+        bs_b.set_charge(0.5).unwrap();
+        bs_b.set_capacity(2.0).unwrap();
+        bs_b.set_design_capacity(2.5).unwrap();
+        bs_b.set_percentage(0.75).unwrap();
+        bs_b.set_power_supply_status(1).unwrap();
+        bs_b.set_power_supply_health(2).unwrap();
+        bs_b.set_power_supply_technology(3).unwrap();
+        bs_b.set_present(true).unwrap();
+        assert_eq!(bs_a.as_cdr(), bs_b.as_cdr(), "BatteryState byte mismatch");
     }
 }
