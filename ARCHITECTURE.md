@@ -277,9 +277,22 @@ loop {
 }
 ```
 
-In Phase 1 the pattern is applied to `Image`, `CameraFrame`, and
-`PointCloud2` as a proof of shape. Phase 2 extends it to the remaining
-buffer-backed message types and introduces the C FFI surface.
+As of 3.2.0 the builder pattern is applied to **every** buffer-backed
+message type in the crate (27 types across `std_msgs`, `sensor_msgs`,
+`edgefirst_msgs`, `foxglove_msgs`). The legacy `Foo::new(...)`
+constructors remain as `#[deprecated(since = "3.2.0")]` shims and are
+scheduled for removal in 4.0. The C FFI exposes a parallel
+`ros_<type>_builder_*` handle-based API with the same semantics.
+
+**Scalar fast path (in-place setters).** The builder re-serialises the
+whole buffer, which is wasteful when only a scalar field changes
+between frames. Every fixed-size field on every buffer-backed message
+has an in-place `set_*` mutator on `impl<B: AsRef<[u8]> + AsMut<[u8]>> Foo<B>`
+that writes directly into the existing CDR buffer — no re-encoding.
+For a 2 MB camera frame, `camera.set_stamp(now())` is ~8 byte writes
+vs. the builder's full re-encode. Use the scalar setter when only
+scalars change; use the builder when any variable-length field
+(string, byte sequence, nested view) changes.
 
 **Important:** the bulk-data borrow (`data: &'a [u8]`) must not alias the
 destination `&mut Vec<u8>`. Typical publishers keep pixel / point-cloud
