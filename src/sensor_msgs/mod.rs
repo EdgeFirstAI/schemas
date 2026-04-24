@@ -395,6 +395,10 @@ impl<B: AsRef<[u8]>> Image<B> {
 }
 
 impl Image<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use Image::builder() for allocation-free buffer reuse; Image::new will be removed in 4.0"
+    )]
     pub fn new(
         stamp: Time,
         frame_id: &str,
@@ -1077,6 +1081,10 @@ impl<B: AsRef<[u8]>> PointCloud2<B> {
 }
 
 impl PointCloud2<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use PointCloud2::builder() for allocation-free buffer reuse; PointCloud2::new will be removed in 4.0"
+    )]
     pub fn new(
         stamp: Time,
         frame_id: &str,
@@ -2054,6 +2062,7 @@ impl SchemaType for RegionOfInterest {
 }
 
 #[cfg(test)]
+#[allow(deprecated)] // Tests exercise Image::new / PointCloud2::new, which are deprecated in 3.2.0 but still supported until 4.0.
 mod tests {
     use super::*;
     use crate::builtin_interfaces::Time;

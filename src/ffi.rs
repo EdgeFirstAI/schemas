@@ -973,16 +973,17 @@ pub extern "C" fn ros_image_encode(
     } else {
         unsafe { slice::from_raw_parts(data, data_len) }
     };
-    let v = match sensor_msgs::Image::new(
-        Time::new(stamp_sec, stamp_nanosec),
-        fid,
-        height,
-        width,
-        enc,
-        is_bigendian,
-        step,
-        d,
-    ) {
+    let v = match sensor_msgs::Image::builder()
+        .stamp(Time::new(stamp_sec, stamp_nanosec))
+        .frame_id(fid)
+        .height(height)
+        .width(width)
+        .encoding(enc)
+        .is_bigendian(is_bigendian)
+        .step(step)
+        .data(d)
+        .build()
+    {
         Ok(v) => v,
         Err(_) => {
             set_errno(EBADMSG);

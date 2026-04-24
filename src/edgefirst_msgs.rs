@@ -1575,6 +1575,10 @@ impl CameraFrame<Vec<u8>> {
     /// - `plane.fd >= -1` (only -1 is a valid negative sentinel)
     /// - when `plane.fd >= 0`, `plane.data` must be empty
     /// - when `plane.fd == -1` (inlined), `plane.size as usize == plane.data.len()`
+    #[deprecated(
+        since = "3.2.0",
+        note = "use CameraFrame::builder() for allocation-free buffer reuse; CameraFrame::new will be removed in 4.0"
+    )]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         stamp: Time,
@@ -2478,6 +2482,7 @@ impl SchemaType for Date {
 }
 
 #[cfg(test)]
+#[allow(deprecated)] // Tests exercise CameraFrame::new, which is deprecated in 3.2.0 but still supported until 4.0.
 mod tests {
     use super::*;
     use crate::builtin_interfaces::Time;
