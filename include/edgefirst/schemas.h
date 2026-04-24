@@ -2655,6 +2655,549 @@ uint32_t ros_vibration_get_clipping(const ros_vibration_t* view,
                                     uint32_t* out, size_t cap);
 const uint8_t* ros_vibration_as_cdr(const ros_vibration_t* view, size_t* out_len);
 
+/* ============================================================================
+ * edgefirst_msgs - Mask (builder, 3.2.0+)
+ * ========================================================================= */
+typedef struct ros_mask_builder_s ros_mask_builder_t;
+ros_mask_builder_t* ros_mask_builder_new(void);
+void ros_mask_builder_free(ros_mask_builder_t* b);
+void ros_mask_builder_set_height(ros_mask_builder_t* b, uint32_t v);
+void ros_mask_builder_set_width(ros_mask_builder_t* b, uint32_t v);
+void ros_mask_builder_set_length(ros_mask_builder_t* b, uint32_t v);
+int  ros_mask_builder_set_encoding(ros_mask_builder_t* b, const char* s);
+/** BORROWED — caller keeps `data` valid until next setter / build / free. */
+void ros_mask_builder_set_mask(ros_mask_builder_t* b,
+                               const uint8_t* data, size_t len);
+void ros_mask_builder_set_boxed(ros_mask_builder_t* b, bool v);
+int  ros_mask_builder_build(ros_mask_builder_t* b,
+                            uint8_t** out_bytes, size_t* out_len);
+int  ros_mask_builder_encode_into(ros_mask_builder_t* b,
+                                  uint8_t* buf, size_t cap, size_t* out_len);
+
+/* ============================================================================
+ * edgefirst_msgs - LocalTime (builder, 3.2.0+)
+ * ========================================================================= */
+typedef struct ros_local_time_builder_s ros_local_time_builder_t;
+ros_local_time_builder_t* ros_local_time_builder_new(void);
+void ros_local_time_builder_free(ros_local_time_builder_t* b);
+void ros_local_time_builder_set_stamp(ros_local_time_builder_t* b,
+                                      int32_t sec, uint32_t nsec);
+int  ros_local_time_builder_set_frame_id(ros_local_time_builder_t* b,
+                                         const char* s);
+void ros_local_time_builder_set_date(ros_local_time_builder_t* b,
+                                     uint16_t year, uint8_t month, uint8_t day);
+void ros_local_time_builder_set_time(ros_local_time_builder_t* b,
+                                     int32_t sec, uint32_t nsec);
+void ros_local_time_builder_set_timezone(ros_local_time_builder_t* b, int16_t v);
+int  ros_local_time_builder_build(ros_local_time_builder_t* b,
+                                  uint8_t** out_bytes, size_t* out_len);
+int  ros_local_time_builder_encode_into(ros_local_time_builder_t* b,
+                                        uint8_t* buf, size_t cap,
+                                        size_t* out_len);
+
+/* ============================================================================
+ * edgefirst_msgs - RadarCube (builder, 3.2.0+)
+ * ========================================================================= */
+typedef struct ros_radar_cube_builder_s ros_radar_cube_builder_t;
+ros_radar_cube_builder_t* ros_radar_cube_builder_new(void);
+void ros_radar_cube_builder_free(ros_radar_cube_builder_t* b);
+void ros_radar_cube_builder_set_stamp(ros_radar_cube_builder_t* b,
+                                      int32_t sec, uint32_t nsec);
+int  ros_radar_cube_builder_set_frame_id(ros_radar_cube_builder_t* b,
+                                         const char* s);
+void ros_radar_cube_builder_set_timestamp(ros_radar_cube_builder_t* b, uint64_t v);
+/** BORROWED — caller keeps pointer valid until next setter / build / free. */
+void ros_radar_cube_builder_set_layout(ros_radar_cube_builder_t* b,
+                                       const uint8_t* data, size_t len);
+/** BORROWED. */
+void ros_radar_cube_builder_set_shape(ros_radar_cube_builder_t* b,
+                                      const uint16_t* data, size_t len);
+/** BORROWED. */
+void ros_radar_cube_builder_set_scales(ros_radar_cube_builder_t* b,
+                                       const float* data, size_t len);
+/** BORROWED. */
+void ros_radar_cube_builder_set_cube(ros_radar_cube_builder_t* b,
+                                     const int16_t* data, size_t len);
+void ros_radar_cube_builder_set_is_complex(ros_radar_cube_builder_t* b, bool v);
+int  ros_radar_cube_builder_build(ros_radar_cube_builder_t* b,
+                                  uint8_t** out_bytes, size_t* out_len);
+int  ros_radar_cube_builder_encode_into(ros_radar_cube_builder_t* b,
+                                        uint8_t* buf, size_t cap,
+                                        size_t* out_len);
+
+/* ============================================================================
+ * edgefirst_msgs - RadarInfo (builder, 3.2.0+)
+ * ========================================================================= */
+typedef struct ros_radar_info_builder_s ros_radar_info_builder_t;
+ros_radar_info_builder_t* ros_radar_info_builder_new(void);
+void ros_radar_info_builder_free(ros_radar_info_builder_t* b);
+void ros_radar_info_builder_set_stamp(ros_radar_info_builder_t* b,
+                                      int32_t sec, uint32_t nsec);
+int  ros_radar_info_builder_set_frame_id(ros_radar_info_builder_t* b,
+                                         const char* s);
+int  ros_radar_info_builder_set_center_frequency(ros_radar_info_builder_t* b,
+                                                 const char* s);
+int  ros_radar_info_builder_set_frequency_sweep(ros_radar_info_builder_t* b,
+                                                const char* s);
+int  ros_radar_info_builder_set_range_toggle(ros_radar_info_builder_t* b,
+                                             const char* s);
+int  ros_radar_info_builder_set_detection_sensitivity(ros_radar_info_builder_t* b,
+                                                      const char* s);
+void ros_radar_info_builder_set_cube(ros_radar_info_builder_t* b, bool v);
+int  ros_radar_info_builder_build(ros_radar_info_builder_t* b,
+                                  uint8_t** out_bytes, size_t* out_len);
+int  ros_radar_info_builder_encode_into(ros_radar_info_builder_t* b,
+                                        uint8_t* buf, size_t cap,
+                                        size_t* out_len);
+
+/* ============================================================================
+ * edgefirst_msgs - Track (builder, 3.2.0+)
+ * ========================================================================= */
+typedef struct ros_track_builder_s ros_track_builder_t;
+ros_track_builder_t* ros_track_builder_new(void);
+void ros_track_builder_free(ros_track_builder_t* b);
+int  ros_track_builder_set_id(ros_track_builder_t* b, const char* s);
+void ros_track_builder_set_lifetime(ros_track_builder_t* b, int32_t v);
+void ros_track_builder_set_created(ros_track_builder_t* b,
+                                   int32_t sec, uint32_t nsec);
+int  ros_track_builder_build(ros_track_builder_t* b,
+                             uint8_t** out_bytes, size_t* out_len);
+int  ros_track_builder_encode_into(ros_track_builder_t* b,
+                                   uint8_t* buf, size_t cap, size_t* out_len);
+
+/* ============================================================================
+ * edgefirst_msgs - DetectBox / shared descriptors (builder, 3.2.0+)
+ * ========================================================================= */
+/**
+ * C-POD descriptor for a DetectBox element. Used both for the standalone
+ * DetectBox builder and for the `boxes` sequence on Detect and Model.
+ *
+ * `label` and `track_id` are BORROWED NUL-terminated C strings: the backing
+ * storage must remain valid until the consuming builder is finalised
+ * (build / encode_into) or freed.
+ */
+typedef struct ros_detect_box_elem_s {
+    float    center_x;
+    float    center_y;
+    float    width;
+    float    height;
+    const char* label;
+    float    score;
+    float    distance;
+    float    speed;
+    const char* track_id;
+    int32_t  track_lifetime;
+    int32_t  track_created_sec;
+    uint32_t track_created_nanosec;
+} ros_detect_box_elem_t;
+
+typedef struct ros_detect_box_builder_s ros_detect_box_builder_t;
+ros_detect_box_builder_t* ros_detect_box_builder_new(void);
+void ros_detect_box_builder_free(ros_detect_box_builder_t* b);
+void ros_detect_box_builder_set_center_x(ros_detect_box_builder_t* b, float v);
+void ros_detect_box_builder_set_center_y(ros_detect_box_builder_t* b, float v);
+void ros_detect_box_builder_set_width(ros_detect_box_builder_t* b, float v);
+void ros_detect_box_builder_set_height(ros_detect_box_builder_t* b, float v);
+int  ros_detect_box_builder_set_label(ros_detect_box_builder_t* b, const char* s);
+void ros_detect_box_builder_set_score(ros_detect_box_builder_t* b, float v);
+void ros_detect_box_builder_set_distance(ros_detect_box_builder_t* b, float v);
+void ros_detect_box_builder_set_speed(ros_detect_box_builder_t* b, float v);
+int  ros_detect_box_builder_set_track_id(ros_detect_box_builder_t* b,
+                                         const char* s);
+void ros_detect_box_builder_set_track_lifetime(ros_detect_box_builder_t* b,
+                                               int32_t v);
+void ros_detect_box_builder_set_track_created(ros_detect_box_builder_t* b,
+                                              int32_t sec, uint32_t nsec);
+int  ros_detect_box_builder_build(ros_detect_box_builder_t* b,
+                                  uint8_t** out_bytes, size_t* out_len);
+int  ros_detect_box_builder_encode_into(ros_detect_box_builder_t* b,
+                                        uint8_t* buf, size_t cap,
+                                        size_t* out_len);
+
+/* ============================================================================
+ * edgefirst_msgs - Detect (builder, 3.2.0+)
+ * ========================================================================= */
+typedef struct ros_detect_builder_s ros_detect_builder_t;
+ros_detect_builder_t* ros_detect_builder_new(void);
+void ros_detect_builder_free(ros_detect_builder_t* b);
+void ros_detect_builder_set_stamp(ros_detect_builder_t* b,
+                                  int32_t sec, uint32_t nsec);
+int  ros_detect_builder_set_frame_id(ros_detect_builder_t* b, const char* s);
+void ros_detect_builder_set_input_timestamp(ros_detect_builder_t* b,
+                                            int32_t sec, uint32_t nsec);
+void ros_detect_builder_set_model_time(ros_detect_builder_t* b,
+                                       int32_t sec, uint32_t nsec);
+void ros_detect_builder_set_output_time(ros_detect_builder_t* b,
+                                        int32_t sec, uint32_t nsec);
+/** BORROWED — each element's label/track_id must remain valid until next
+ *  setter, build, encode_into, or free. */
+void ros_detect_builder_set_boxes(ros_detect_builder_t* b,
+                                  const ros_detect_box_elem_t* boxes,
+                                  size_t count);
+int  ros_detect_builder_build(ros_detect_builder_t* b,
+                              uint8_t** out_bytes, size_t* out_len);
+int  ros_detect_builder_encode_into(ros_detect_builder_t* b,
+                                    uint8_t* buf, size_t cap, size_t* out_len);
+
+/* ============================================================================
+ * edgefirst_msgs - CameraFrame (builder, 3.2.0+)
+ * ========================================================================= */
+/**
+ * C-POD descriptor for a CameraPlane element. `data` is BORROWED: it must
+ * remain valid until the consuming builder is finalised or freed.
+ */
+typedef struct ros_camera_plane_elem_s {
+    int32_t  fd;
+    uint32_t offset;
+    uint32_t stride;
+    uint32_t size;
+    uint32_t used;
+    const uint8_t* data;
+    size_t   data_len;
+} ros_camera_plane_elem_t;
+
+typedef struct ros_camera_frame_builder_s ros_camera_frame_builder_t;
+ros_camera_frame_builder_t* ros_camera_frame_builder_new(void);
+void ros_camera_frame_builder_free(ros_camera_frame_builder_t* b);
+void ros_camera_frame_builder_set_stamp(ros_camera_frame_builder_t* b,
+                                        int32_t sec, uint32_t nsec);
+int  ros_camera_frame_builder_set_frame_id(ros_camera_frame_builder_t* b,
+                                           const char* s);
+void ros_camera_frame_builder_set_seq(ros_camera_frame_builder_t* b, uint64_t v);
+void ros_camera_frame_builder_set_pid(ros_camera_frame_builder_t* b, uint32_t v);
+void ros_camera_frame_builder_set_width(ros_camera_frame_builder_t* b, uint32_t v);
+void ros_camera_frame_builder_set_height(ros_camera_frame_builder_t* b, uint32_t v);
+int  ros_camera_frame_builder_set_format(ros_camera_frame_builder_t* b,
+                                         const char* s);
+int  ros_camera_frame_builder_set_color_space(ros_camera_frame_builder_t* b,
+                                              const char* s);
+int  ros_camera_frame_builder_set_color_transfer(ros_camera_frame_builder_t* b,
+                                                 const char* s);
+int  ros_camera_frame_builder_set_color_encoding(ros_camera_frame_builder_t* b,
+                                                 const char* s);
+int  ros_camera_frame_builder_set_color_range(ros_camera_frame_builder_t* b,
+                                              const char* s);
+void ros_camera_frame_builder_set_fence_fd(ros_camera_frame_builder_t* b, int32_t v);
+/** BORROWED — each element's data must remain valid until next setter,
+ *  build, encode_into, or free. */
+void ros_camera_frame_builder_set_planes(ros_camera_frame_builder_t* b,
+                                         const ros_camera_plane_elem_t* planes,
+                                         size_t count);
+int  ros_camera_frame_builder_build(ros_camera_frame_builder_t* b,
+                                    uint8_t** out_bytes, size_t* out_len);
+int  ros_camera_frame_builder_encode_into(ros_camera_frame_builder_t* b,
+                                          uint8_t* buf, size_t cap,
+                                          size_t* out_len);
+
+/* ============================================================================
+ * edgefirst_msgs - Model (builder, 3.2.0+)
+ * ========================================================================= */
+/**
+ * C-POD descriptor for a Mask element used by the `masks` sequence on
+ * Model. `encoding` and `mask` are BORROWED; both must remain valid until
+ * the consuming builder is finalised or freed.
+ */
+typedef struct ros_mask_elem_s {
+    uint32_t height;
+    uint32_t width;
+    uint32_t length;
+    const char* encoding;
+    const uint8_t* mask;
+    size_t   mask_len;
+    bool     boxed;
+} ros_mask_elem_t;
+
+typedef struct ros_model_builder_s ros_model_builder_t;
+ros_model_builder_t* ros_model_builder_new(void);
+void ros_model_builder_free(ros_model_builder_t* b);
+void ros_model_builder_set_stamp(ros_model_builder_t* b,
+                                 int32_t sec, uint32_t nsec);
+int  ros_model_builder_set_frame_id(ros_model_builder_t* b, const char* s);
+void ros_model_builder_set_input_time(ros_model_builder_t* b,
+                                      int32_t sec, uint32_t nsec);
+void ros_model_builder_set_model_time(ros_model_builder_t* b,
+                                      int32_t sec, uint32_t nsec);
+void ros_model_builder_set_output_time(ros_model_builder_t* b,
+                                       int32_t sec, uint32_t nsec);
+void ros_model_builder_set_decode_time(ros_model_builder_t* b,
+                                       int32_t sec, uint32_t nsec);
+/** BORROWED — see ros_detect_builder_set_boxes. */
+void ros_model_builder_set_boxes(ros_model_builder_t* b,
+                                 const ros_detect_box_elem_t* boxes,
+                                 size_t count);
+/** BORROWED — each element's encoding/mask must remain valid. */
+void ros_model_builder_set_masks(ros_model_builder_t* b,
+                                 const ros_mask_elem_t* masks,
+                                 size_t count);
+int  ros_model_builder_build(ros_model_builder_t* b,
+                             uint8_t** out_bytes, size_t* out_len);
+int  ros_model_builder_encode_into(ros_model_builder_t* b,
+                                   uint8_t* buf, size_t cap, size_t* out_len);
+
+/* ============================================================================
+ * edgefirst_msgs - ModelInfo (builder, 3.2.0+)
+ * ========================================================================= */
+typedef struct ros_model_info_builder_s ros_model_info_builder_t;
+ros_model_info_builder_t* ros_model_info_builder_new(void);
+void ros_model_info_builder_free(ros_model_info_builder_t* b);
+void ros_model_info_builder_set_stamp(ros_model_info_builder_t* b,
+                                      int32_t sec, uint32_t nsec);
+int  ros_model_info_builder_set_frame_id(ros_model_info_builder_t* b,
+                                         const char* s);
+/** BORROWED until next setter / build / free. */
+void ros_model_info_builder_set_input_shape(ros_model_info_builder_t* b,
+                                            const uint32_t* data, size_t len);
+void ros_model_info_builder_set_input_type(ros_model_info_builder_t* b, uint8_t v);
+/** BORROWED until next setter / build / free. */
+void ros_model_info_builder_set_output_shape(ros_model_info_builder_t* b,
+                                             const uint32_t* data, size_t len);
+void ros_model_info_builder_set_output_type(ros_model_info_builder_t* b, uint8_t v);
+/**
+ * Set the labels sequence. Each C string is copied into builder-owned
+ * storage, so the caller's array and strings need only remain valid for the
+ * duration of this call.
+ * @return 0 on success, -1 on error (errno EINVAL for NULL handle or
+ *         NULL element when count > 0).
+ */
+int  ros_model_info_builder_set_labels(ros_model_info_builder_t* b,
+                                       const char* const* labels,
+                                       size_t count);
+int  ros_model_info_builder_set_model_type(ros_model_info_builder_t* b,
+                                           const char* s);
+int  ros_model_info_builder_set_model_format(ros_model_info_builder_t* b,
+                                             const char* s);
+int  ros_model_info_builder_set_model_name(ros_model_info_builder_t* b,
+                                           const char* s);
+int  ros_model_info_builder_build(ros_model_info_builder_t* b,
+                                  uint8_t** out_bytes, size_t* out_len);
+int  ros_model_info_builder_encode_into(ros_model_info_builder_t* b,
+                                        uint8_t* buf, size_t cap,
+                                        size_t* out_len);
+
+/* ============================================================================
+ * edgefirst_msgs - Vibration (builder, 3.2.0+)
+ * ========================================================================= */
+typedef struct ros_vibration_builder_s ros_vibration_builder_t;
+ros_vibration_builder_t* ros_vibration_builder_new(void);
+void ros_vibration_builder_free(ros_vibration_builder_t* b);
+void ros_vibration_builder_set_stamp(ros_vibration_builder_t* b,
+                                     int32_t sec, uint32_t nsec);
+int  ros_vibration_builder_set_frame_id(ros_vibration_builder_t* b,
+                                        const char* s);
+void ros_vibration_builder_set_vibration(ros_vibration_builder_t* b,
+                                         double x, double y, double z);
+void ros_vibration_builder_set_band_lower_hz(ros_vibration_builder_t* b, float v);
+void ros_vibration_builder_set_band_upper_hz(ros_vibration_builder_t* b, float v);
+void ros_vibration_builder_set_measurement_type(ros_vibration_builder_t* b, uint8_t v);
+void ros_vibration_builder_set_unit(ros_vibration_builder_t* b, uint8_t v);
+/** BORROWED until next setter / build / free. */
+void ros_vibration_builder_set_clipping(ros_vibration_builder_t* b,
+                                        const uint32_t* data, size_t len);
+int  ros_vibration_builder_build(ros_vibration_builder_t* b,
+                                 uint8_t** out_bytes, size_t* out_len);
+int  ros_vibration_builder_encode_into(ros_vibration_builder_t* b,
+                                       uint8_t* buf, size_t cap,
+                                       size_t* out_len);
+
+/* ============================================================================
+ * foxglove_msgs - CompressedVideo (builder, 3.2.0+)
+ * ========================================================================= */
+typedef struct ros_foxglove_compressed_video_builder_s
+    ros_foxglove_compressed_video_builder_t;
+ros_foxglove_compressed_video_builder_t*
+ros_foxglove_compressed_video_builder_new(void);
+void ros_foxglove_compressed_video_builder_free(
+    ros_foxglove_compressed_video_builder_t* b);
+void ros_foxglove_compressed_video_builder_set_stamp(
+    ros_foxglove_compressed_video_builder_t* b, int32_t sec, uint32_t nsec);
+int  ros_foxglove_compressed_video_builder_set_frame_id(
+    ros_foxglove_compressed_video_builder_t* b, const char* s);
+/** BORROWED until next setter / build / free. */
+void ros_foxglove_compressed_video_builder_set_data(
+    ros_foxglove_compressed_video_builder_t* b,
+    const uint8_t* data, size_t len);
+int  ros_foxglove_compressed_video_builder_set_format(
+    ros_foxglove_compressed_video_builder_t* b, const char* s);
+int  ros_foxglove_compressed_video_builder_build(
+    ros_foxglove_compressed_video_builder_t* b,
+    uint8_t** out_bytes, size_t* out_len);
+int  ros_foxglove_compressed_video_builder_encode_into(
+    ros_foxglove_compressed_video_builder_t* b,
+    uint8_t* buf, size_t cap, size_t* out_len);
+
+/* ============================================================================
+ * foxglove_msgs - FoxgloveTextAnnotation (builder, 3.2.0+)
+ * ========================================================================= */
+typedef struct ros_foxglove_text_annotation_builder_s
+    ros_foxglove_text_annotation_builder_t;
+ros_foxglove_text_annotation_builder_t*
+ros_foxglove_text_annotation_builder_new(void);
+void ros_foxglove_text_annotation_builder_free(
+    ros_foxglove_text_annotation_builder_t* b);
+void ros_foxglove_text_annotation_builder_set_timestamp(
+    ros_foxglove_text_annotation_builder_t* b, int32_t sec, uint32_t nsec);
+void ros_foxglove_text_annotation_builder_set_position(
+    ros_foxglove_text_annotation_builder_t* b, double x, double y);
+int  ros_foxglove_text_annotation_builder_set_text(
+    ros_foxglove_text_annotation_builder_t* b, const char* s);
+void ros_foxglove_text_annotation_builder_set_font_size(
+    ros_foxglove_text_annotation_builder_t* b, double v);
+void ros_foxglove_text_annotation_builder_set_text_color(
+    ros_foxglove_text_annotation_builder_t* b,
+    double r, double g, double b_, double a);
+void ros_foxglove_text_annotation_builder_set_background_color(
+    ros_foxglove_text_annotation_builder_t* b,
+    double r, double g, double b_, double a);
+int  ros_foxglove_text_annotation_builder_build(
+    ros_foxglove_text_annotation_builder_t* b,
+    uint8_t** out_bytes, size_t* out_len);
+int  ros_foxglove_text_annotation_builder_encode_into(
+    ros_foxglove_text_annotation_builder_t* b,
+    uint8_t* buf, size_t cap, size_t* out_len);
+
+/* ============================================================================
+ * foxglove_msgs - FoxglovePointAnnotation (builder, 3.2.0+)
+ * ========================================================================= */
+/** C-POD descriptor for a FoxglovePoint2 element (no borrowed fields). */
+typedef struct ros_foxglove_point2_elem_s {
+    double x;
+    double y;
+} ros_foxglove_point2_elem_t;
+
+/** C-POD descriptor for a FoxgloveColor element (no borrowed fields). */
+typedef struct ros_foxglove_color_elem_s {
+    double r;
+    double g;
+    double b;
+    double a;
+} ros_foxglove_color_elem_t;
+
+typedef struct ros_foxglove_point_annotation_builder_s
+    ros_foxglove_point_annotation_builder_t;
+ros_foxglove_point_annotation_builder_t*
+ros_foxglove_point_annotation_builder_new(void);
+void ros_foxglove_point_annotation_builder_free(
+    ros_foxglove_point_annotation_builder_t* b);
+void ros_foxglove_point_annotation_builder_set_timestamp(
+    ros_foxglove_point_annotation_builder_t* b, int32_t sec, uint32_t nsec);
+void ros_foxglove_point_annotation_builder_set_type(
+    ros_foxglove_point_annotation_builder_t* b, uint8_t v);
+/** BORROWED until next setter / build / free. */
+void ros_foxglove_point_annotation_builder_set_points(
+    ros_foxglove_point_annotation_builder_t* b,
+    const ros_foxglove_point2_elem_t* points, size_t count);
+void ros_foxglove_point_annotation_builder_set_outline_color(
+    ros_foxglove_point_annotation_builder_t* b,
+    double r, double g, double b_, double a);
+/** BORROWED until next setter / build / free. */
+void ros_foxglove_point_annotation_builder_set_outline_colors(
+    ros_foxglove_point_annotation_builder_t* b,
+    const ros_foxglove_color_elem_t* colors, size_t count);
+void ros_foxglove_point_annotation_builder_set_fill_color(
+    ros_foxglove_point_annotation_builder_t* b,
+    double r, double g, double b_, double a);
+void ros_foxglove_point_annotation_builder_set_thickness(
+    ros_foxglove_point_annotation_builder_t* b, double v);
+int  ros_foxglove_point_annotation_builder_build(
+    ros_foxglove_point_annotation_builder_t* b,
+    uint8_t** out_bytes, size_t* out_len);
+int  ros_foxglove_point_annotation_builder_encode_into(
+    ros_foxglove_point_annotation_builder_t* b,
+    uint8_t* buf, size_t cap, size_t* out_len);
+
+/* ============================================================================
+ * foxglove_msgs - FoxgloveImageAnnotation (builder, 3.2.0+)
+ * ========================================================================= */
+/** C-POD descriptor for a FoxgloveCircleAnnotations element (no borrows). */
+typedef struct ros_foxglove_circle_annotation_elem_s {
+    int32_t  timestamp_sec;
+    uint32_t timestamp_nanosec;
+    double   position_x;
+    double   position_y;
+    double   diameter;
+    double   thickness;
+    double   fill_color_r;
+    double   fill_color_g;
+    double   fill_color_b;
+    double   fill_color_a;
+    double   outline_color_r;
+    double   outline_color_g;
+    double   outline_color_b;
+    double   outline_color_a;
+} ros_foxglove_circle_annotation_elem_t;
+
+/**
+ * C-POD descriptor for a FoxglovePointAnnotation element. Inner `points`
+ * and `outline_colors` arrays are BORROWED: they must remain valid until
+ * the consuming builder is finalised or freed.
+ */
+typedef struct ros_foxglove_point_annotation_elem_s {
+    int32_t  timestamp_sec;
+    uint32_t timestamp_nanosec;
+    uint8_t  type_;
+    const ros_foxglove_point2_elem_t* points;
+    size_t   points_count;
+    double   outline_color_r;
+    double   outline_color_g;
+    double   outline_color_b;
+    double   outline_color_a;
+    const ros_foxglove_color_elem_t* outline_colors;
+    size_t   outline_colors_count;
+    double   fill_color_r;
+    double   fill_color_g;
+    double   fill_color_b;
+    double   fill_color_a;
+    double   thickness;
+} ros_foxglove_point_annotation_elem_t;
+
+/**
+ * C-POD descriptor for a FoxgloveTextAnnotation element. `text` is a
+ * BORROWED NUL-terminated C string.
+ */
+typedef struct ros_foxglove_text_annotation_elem_s {
+    int32_t  timestamp_sec;
+    uint32_t timestamp_nanosec;
+    double   position_x;
+    double   position_y;
+    const char* text;
+    double   font_size;
+    double   text_color_r;
+    double   text_color_g;
+    double   text_color_b;
+    double   text_color_a;
+    double   background_color_r;
+    double   background_color_g;
+    double   background_color_b;
+    double   background_color_a;
+} ros_foxglove_text_annotation_elem_t;
+
+typedef struct ros_foxglove_image_annotation_builder_s
+    ros_foxglove_image_annotation_builder_t;
+ros_foxglove_image_annotation_builder_t*
+ros_foxglove_image_annotation_builder_new(void);
+void ros_foxglove_image_annotation_builder_free(
+    ros_foxglove_image_annotation_builder_t* b);
+/** BORROWED — caller keeps `circles` valid until next setter / build / free. */
+void ros_foxglove_image_annotation_builder_set_circles(
+    ros_foxglove_image_annotation_builder_t* b,
+    const ros_foxglove_circle_annotation_elem_t* circles, size_t count);
+/** BORROWED — each element's inner `points`/`outline_colors` arrays must
+ *  remain valid until next setter / build / free. */
+void ros_foxglove_image_annotation_builder_set_points(
+    ros_foxglove_image_annotation_builder_t* b,
+    const ros_foxglove_point_annotation_elem_t* points, size_t count);
+/** BORROWED — each element's `text` C string must remain valid until next
+ *  setter / build / free. */
+void ros_foxglove_image_annotation_builder_set_texts(
+    ros_foxglove_image_annotation_builder_t* b,
+    const ros_foxglove_text_annotation_elem_t* texts, size_t count);
+int  ros_foxglove_image_annotation_builder_build(
+    ros_foxglove_image_annotation_builder_t* b,
+    uint8_t** out_bytes, size_t* out_len);
+int  ros_foxglove_image_annotation_builder_encode_into(
+    ros_foxglove_image_annotation_builder_t* b,
+    uint8_t* buf, size_t cap, size_t* out_len);
+
 #ifdef __cplusplus
 }
 #endif

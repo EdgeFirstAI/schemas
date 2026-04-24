@@ -10,7 +10,12 @@
 
 #![allow(non_camel_case_types)]
 
-use edgefirst_schemas::builtin_interfaces::Time;
+use edgefirst_schemas::builtin_interfaces::{Duration, Time};
+use edgefirst_schemas::edgefirst_msgs::{self, Date, DetectBoxView, MaskView};
+use edgefirst_schemas::foxglove_msgs::{
+    self, FoxgloveCircleAnnotations, FoxgloveColor, FoxglovePoint2, FoxglovePointAnnotationView,
+    FoxgloveTextAnnotationView,
+};
 use edgefirst_schemas::geometry_msgs::{Quaternion, Vector3};
 use edgefirst_schemas::sensor_msgs::{self, NavSatStatus, PointFieldView, RegionOfInterest};
 use edgefirst_schemas::std_msgs;
@@ -32,6 +37,21 @@ enum ros_point_cloud2_builder_t {}
 enum ros_camera_info_builder_t {}
 enum ros_magnetic_field_builder_t {}
 enum ros_battery_state_builder_t {}
+enum ros_mask_builder_t {}
+enum ros_local_time_builder_t {}
+enum ros_radar_cube_builder_t {}
+enum ros_radar_info_builder_t {}
+enum ros_track_builder_t {}
+enum ros_detect_box_builder_t {}
+enum ros_detect_builder_t {}
+enum ros_camera_frame_builder_t {}
+enum ros_model_builder_t {}
+enum ros_model_info_builder_t {}
+enum ros_vibration_builder_t {}
+enum ros_foxglove_compressed_video_builder_t {}
+enum ros_foxglove_text_annotation_builder_t {}
+enum ros_foxglove_point_annotation_builder_t {}
+enum ros_foxglove_image_annotation_builder_t {}
 
 /// C-POD field descriptor for `ros_point_cloud2_builder_set_fields`.
 #[repr(C)]
@@ -40,6 +60,121 @@ struct ros_point_field_elem_t {
     offset: u32,
     datatype: u8,
     count: u32,
+}
+
+/// C-POD descriptor for `ros_detect_builder_set_boxes` and
+/// `ros_model_builder_set_boxes`.
+#[repr(C)]
+struct ros_detect_box_elem_t {
+    center_x: f32,
+    center_y: f32,
+    width: f32,
+    height: f32,
+    label: *const c_char,
+    score: f32,
+    distance: f32,
+    speed: f32,
+    track_id: *const c_char,
+    track_lifetime: i32,
+    track_created_sec: i32,
+    track_created_nanosec: u32,
+}
+
+/// C-POD descriptor for `ros_camera_frame_builder_set_planes`.
+#[repr(C)]
+struct ros_camera_plane_elem_t {
+    fd: i32,
+    offset: u32,
+    stride: u32,
+    size: u32,
+    used: u32,
+    data: *const u8,
+    data_len: usize,
+}
+
+/// C-POD descriptor for `ros_model_builder_set_masks`.
+#[repr(C)]
+struct ros_mask_elem_t {
+    height: u32,
+    width: u32,
+    length: u32,
+    encoding: *const c_char,
+    mask: *const u8,
+    mask_len: usize,
+    boxed: bool,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+struct ros_foxglove_point2_elem_t {
+    x: f64,
+    y: f64,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+struct ros_foxglove_color_elem_t {
+    r: f64,
+    g: f64,
+    b: f64,
+    a: f64,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+struct ros_foxglove_circle_annotation_elem_t {
+    timestamp_sec: i32,
+    timestamp_nanosec: u32,
+    position_x: f64,
+    position_y: f64,
+    diameter: f64,
+    thickness: f64,
+    fill_color_r: f64,
+    fill_color_g: f64,
+    fill_color_b: f64,
+    fill_color_a: f64,
+    outline_color_r: f64,
+    outline_color_g: f64,
+    outline_color_b: f64,
+    outline_color_a: f64,
+}
+
+#[repr(C)]
+struct ros_foxglove_point_annotation_elem_t {
+    timestamp_sec: i32,
+    timestamp_nanosec: u32,
+    type_: u8,
+    points: *const ros_foxglove_point2_elem_t,
+    points_count: usize,
+    outline_color_r: f64,
+    outline_color_g: f64,
+    outline_color_b: f64,
+    outline_color_a: f64,
+    outline_colors: *const ros_foxglove_color_elem_t,
+    outline_colors_count: usize,
+    fill_color_r: f64,
+    fill_color_g: f64,
+    fill_color_b: f64,
+    fill_color_a: f64,
+    thickness: f64,
+}
+
+#[repr(C)]
+struct ros_foxglove_text_annotation_elem_t {
+    timestamp_sec: i32,
+    timestamp_nanosec: u32,
+    position_x: f64,
+    position_y: f64,
+    text: *const c_char,
+    font_size: f64,
+    text_color_r: f64,
+    text_color_g: f64,
+    text_color_b: f64,
+    text_color_a: f64,
+    background_color_r: f64,
+    background_color_g: f64,
+    background_color_b: f64,
+    background_color_a: f64,
 }
 
 extern "C" {
@@ -357,6 +492,457 @@ extern "C" {
     ) -> i32;
     fn ros_battery_state_builder_encode_into(
         b: *mut ros_battery_state_builder_t,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+
+extern "C" {
+    // Mask
+    fn ros_mask_builder_new() -> *mut ros_mask_builder_t;
+    fn ros_mask_builder_free(b: *mut ros_mask_builder_t);
+    fn ros_mask_builder_set_height(b: *mut ros_mask_builder_t, v: u32);
+    fn ros_mask_builder_set_width(b: *mut ros_mask_builder_t, v: u32);
+    fn ros_mask_builder_set_length(b: *mut ros_mask_builder_t, v: u32);
+    fn ros_mask_builder_set_encoding(b: *mut ros_mask_builder_t, s: *const c_char) -> i32;
+    fn ros_mask_builder_set_mask(b: *mut ros_mask_builder_t, data: *const u8, len: usize);
+    fn ros_mask_builder_set_boxed(b: *mut ros_mask_builder_t, v: bool);
+    fn ros_mask_builder_encode_into(
+        b: *mut ros_mask_builder_t,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+
+    // LocalTime
+    fn ros_local_time_builder_new() -> *mut ros_local_time_builder_t;
+    fn ros_local_time_builder_free(b: *mut ros_local_time_builder_t);
+    fn ros_local_time_builder_set_stamp(b: *mut ros_local_time_builder_t, sec: i32, nsec: u32);
+    fn ros_local_time_builder_set_frame_id(
+        b: *mut ros_local_time_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_local_time_builder_set_date(
+        b: *mut ros_local_time_builder_t,
+        year: u16,
+        month: u8,
+        day: u8,
+    );
+    fn ros_local_time_builder_set_time(b: *mut ros_local_time_builder_t, sec: i32, nsec: u32);
+    fn ros_local_time_builder_set_timezone(b: *mut ros_local_time_builder_t, v: i16);
+    fn ros_local_time_builder_encode_into(
+        b: *mut ros_local_time_builder_t,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+
+    // RadarCube
+    fn ros_radar_cube_builder_new() -> *mut ros_radar_cube_builder_t;
+    fn ros_radar_cube_builder_free(b: *mut ros_radar_cube_builder_t);
+    fn ros_radar_cube_builder_set_stamp(b: *mut ros_radar_cube_builder_t, sec: i32, nsec: u32);
+    fn ros_radar_cube_builder_set_frame_id(
+        b: *mut ros_radar_cube_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_radar_cube_builder_set_timestamp(b: *mut ros_radar_cube_builder_t, v: u64);
+    fn ros_radar_cube_builder_set_layout(
+        b: *mut ros_radar_cube_builder_t,
+        data: *const u8,
+        len: usize,
+    );
+    fn ros_radar_cube_builder_set_shape(
+        b: *mut ros_radar_cube_builder_t,
+        data: *const u16,
+        len: usize,
+    );
+    fn ros_radar_cube_builder_set_scales(
+        b: *mut ros_radar_cube_builder_t,
+        data: *const f32,
+        len: usize,
+    );
+    fn ros_radar_cube_builder_set_cube(
+        b: *mut ros_radar_cube_builder_t,
+        data: *const i16,
+        len: usize,
+    );
+    fn ros_radar_cube_builder_set_is_complex(b: *mut ros_radar_cube_builder_t, v: bool);
+    fn ros_radar_cube_builder_encode_into(
+        b: *mut ros_radar_cube_builder_t,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+
+    // RadarInfo
+    fn ros_radar_info_builder_new() -> *mut ros_radar_info_builder_t;
+    fn ros_radar_info_builder_free(b: *mut ros_radar_info_builder_t);
+    fn ros_radar_info_builder_set_stamp(b: *mut ros_radar_info_builder_t, sec: i32, nsec: u32);
+    fn ros_radar_info_builder_set_frame_id(
+        b: *mut ros_radar_info_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_radar_info_builder_set_center_frequency(
+        b: *mut ros_radar_info_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_radar_info_builder_set_frequency_sweep(
+        b: *mut ros_radar_info_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_radar_info_builder_set_range_toggle(
+        b: *mut ros_radar_info_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_radar_info_builder_set_detection_sensitivity(
+        b: *mut ros_radar_info_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_radar_info_builder_set_cube(b: *mut ros_radar_info_builder_t, v: bool);
+    fn ros_radar_info_builder_encode_into(
+        b: *mut ros_radar_info_builder_t,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+
+    // Track
+    fn ros_track_builder_new() -> *mut ros_track_builder_t;
+    fn ros_track_builder_free(b: *mut ros_track_builder_t);
+    fn ros_track_builder_set_id(b: *mut ros_track_builder_t, s: *const c_char) -> i32;
+    fn ros_track_builder_set_lifetime(b: *mut ros_track_builder_t, v: i32);
+    fn ros_track_builder_set_created(b: *mut ros_track_builder_t, sec: i32, nsec: u32);
+    fn ros_track_builder_encode_into(
+        b: *mut ros_track_builder_t,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+
+    // DetectBox
+    fn ros_detect_box_builder_new() -> *mut ros_detect_box_builder_t;
+    fn ros_detect_box_builder_free(b: *mut ros_detect_box_builder_t);
+    fn ros_detect_box_builder_set_center_x(b: *mut ros_detect_box_builder_t, v: f32);
+    fn ros_detect_box_builder_set_center_y(b: *mut ros_detect_box_builder_t, v: f32);
+    fn ros_detect_box_builder_set_width(b: *mut ros_detect_box_builder_t, v: f32);
+    fn ros_detect_box_builder_set_height(b: *mut ros_detect_box_builder_t, v: f32);
+    fn ros_detect_box_builder_set_label(b: *mut ros_detect_box_builder_t, s: *const c_char) -> i32;
+    fn ros_detect_box_builder_set_score(b: *mut ros_detect_box_builder_t, v: f32);
+    fn ros_detect_box_builder_set_distance(b: *mut ros_detect_box_builder_t, v: f32);
+    fn ros_detect_box_builder_set_speed(b: *mut ros_detect_box_builder_t, v: f32);
+    fn ros_detect_box_builder_set_track_id(
+        b: *mut ros_detect_box_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_detect_box_builder_set_track_lifetime(b: *mut ros_detect_box_builder_t, v: i32);
+    fn ros_detect_box_builder_set_track_created(
+        b: *mut ros_detect_box_builder_t,
+        sec: i32,
+        nsec: u32,
+    );
+    fn ros_detect_box_builder_encode_into(
+        b: *mut ros_detect_box_builder_t,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+
+    // Detect
+    fn ros_detect_builder_new() -> *mut ros_detect_builder_t;
+    fn ros_detect_builder_free(b: *mut ros_detect_builder_t);
+    fn ros_detect_builder_set_stamp(b: *mut ros_detect_builder_t, sec: i32, nsec: u32);
+    fn ros_detect_builder_set_frame_id(b: *mut ros_detect_builder_t, s: *const c_char) -> i32;
+    fn ros_detect_builder_set_input_timestamp(b: *mut ros_detect_builder_t, sec: i32, nsec: u32);
+    fn ros_detect_builder_set_model_time(b: *mut ros_detect_builder_t, sec: i32, nsec: u32);
+    fn ros_detect_builder_set_output_time(b: *mut ros_detect_builder_t, sec: i32, nsec: u32);
+    fn ros_detect_builder_set_boxes(
+        b: *mut ros_detect_builder_t,
+        boxes: *const ros_detect_box_elem_t,
+        count: usize,
+    );
+    fn ros_detect_builder_encode_into(
+        b: *mut ros_detect_builder_t,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+
+    // CameraFrame
+    fn ros_camera_frame_builder_new() -> *mut ros_camera_frame_builder_t;
+    fn ros_camera_frame_builder_free(b: *mut ros_camera_frame_builder_t);
+    fn ros_camera_frame_builder_set_stamp(b: *mut ros_camera_frame_builder_t, sec: i32, nsec: u32);
+    fn ros_camera_frame_builder_set_frame_id(
+        b: *mut ros_camera_frame_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_camera_frame_builder_set_seq(b: *mut ros_camera_frame_builder_t, v: u64);
+    fn ros_camera_frame_builder_set_pid(b: *mut ros_camera_frame_builder_t, v: u32);
+    fn ros_camera_frame_builder_set_width(b: *mut ros_camera_frame_builder_t, v: u32);
+    fn ros_camera_frame_builder_set_height(b: *mut ros_camera_frame_builder_t, v: u32);
+    fn ros_camera_frame_builder_set_format(
+        b: *mut ros_camera_frame_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_camera_frame_builder_set_color_space(
+        b: *mut ros_camera_frame_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_camera_frame_builder_set_color_transfer(
+        b: *mut ros_camera_frame_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_camera_frame_builder_set_color_encoding(
+        b: *mut ros_camera_frame_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_camera_frame_builder_set_color_range(
+        b: *mut ros_camera_frame_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_camera_frame_builder_set_fence_fd(b: *mut ros_camera_frame_builder_t, v: i32);
+    fn ros_camera_frame_builder_set_planes(
+        b: *mut ros_camera_frame_builder_t,
+        planes: *const ros_camera_plane_elem_t,
+        count: usize,
+    );
+    fn ros_camera_frame_builder_encode_into(
+        b: *mut ros_camera_frame_builder_t,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+
+    // Model
+    fn ros_model_builder_new() -> *mut ros_model_builder_t;
+    fn ros_model_builder_free(b: *mut ros_model_builder_t);
+    fn ros_model_builder_set_stamp(b: *mut ros_model_builder_t, sec: i32, nsec: u32);
+    fn ros_model_builder_set_frame_id(b: *mut ros_model_builder_t, s: *const c_char) -> i32;
+    fn ros_model_builder_set_input_time(b: *mut ros_model_builder_t, sec: i32, nsec: u32);
+    fn ros_model_builder_set_model_time(b: *mut ros_model_builder_t, sec: i32, nsec: u32);
+    fn ros_model_builder_set_output_time(b: *mut ros_model_builder_t, sec: i32, nsec: u32);
+    fn ros_model_builder_set_decode_time(b: *mut ros_model_builder_t, sec: i32, nsec: u32);
+    fn ros_model_builder_set_boxes(
+        b: *mut ros_model_builder_t,
+        boxes: *const ros_detect_box_elem_t,
+        count: usize,
+    );
+    fn ros_model_builder_set_masks(
+        b: *mut ros_model_builder_t,
+        masks: *const ros_mask_elem_t,
+        count: usize,
+    );
+    fn ros_model_builder_encode_into(
+        b: *mut ros_model_builder_t,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+
+    // ModelInfo
+    fn ros_model_info_builder_new() -> *mut ros_model_info_builder_t;
+    fn ros_model_info_builder_free(b: *mut ros_model_info_builder_t);
+    fn ros_model_info_builder_set_stamp(b: *mut ros_model_info_builder_t, sec: i32, nsec: u32);
+    fn ros_model_info_builder_set_frame_id(
+        b: *mut ros_model_info_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_model_info_builder_set_input_shape(
+        b: *mut ros_model_info_builder_t,
+        data: *const u32,
+        len: usize,
+    );
+    fn ros_model_info_builder_set_input_type(b: *mut ros_model_info_builder_t, v: u8);
+    fn ros_model_info_builder_set_output_shape(
+        b: *mut ros_model_info_builder_t,
+        data: *const u32,
+        len: usize,
+    );
+    fn ros_model_info_builder_set_output_type(b: *mut ros_model_info_builder_t, v: u8);
+    fn ros_model_info_builder_set_labels(
+        b: *mut ros_model_info_builder_t,
+        labels: *const *const c_char,
+        count: usize,
+    ) -> i32;
+    fn ros_model_info_builder_set_model_type(
+        b: *mut ros_model_info_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_model_info_builder_set_model_format(
+        b: *mut ros_model_info_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_model_info_builder_set_model_name(
+        b: *mut ros_model_info_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_model_info_builder_encode_into(
+        b: *mut ros_model_info_builder_t,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+
+    // Vibration
+    fn ros_vibration_builder_new() -> *mut ros_vibration_builder_t;
+    fn ros_vibration_builder_free(b: *mut ros_vibration_builder_t);
+    fn ros_vibration_builder_set_stamp(b: *mut ros_vibration_builder_t, sec: i32, nsec: u32);
+    fn ros_vibration_builder_set_frame_id(b: *mut ros_vibration_builder_t, s: *const c_char)
+        -> i32;
+    fn ros_vibration_builder_set_vibration(b: *mut ros_vibration_builder_t, x: f64, y: f64, z: f64);
+    fn ros_vibration_builder_set_band_lower_hz(b: *mut ros_vibration_builder_t, v: f32);
+    fn ros_vibration_builder_set_band_upper_hz(b: *mut ros_vibration_builder_t, v: f32);
+    fn ros_vibration_builder_set_measurement_type(b: *mut ros_vibration_builder_t, v: u8);
+    fn ros_vibration_builder_set_unit(b: *mut ros_vibration_builder_t, v: u8);
+    fn ros_vibration_builder_set_clipping(
+        b: *mut ros_vibration_builder_t,
+        data: *const u32,
+        len: usize,
+    );
+    fn ros_vibration_builder_encode_into(
+        b: *mut ros_vibration_builder_t,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+
+    // FoxgloveCompressedVideo
+    fn ros_foxglove_compressed_video_builder_new() -> *mut ros_foxglove_compressed_video_builder_t;
+    fn ros_foxglove_compressed_video_builder_free(b: *mut ros_foxglove_compressed_video_builder_t);
+    fn ros_foxglove_compressed_video_builder_set_stamp(
+        b: *mut ros_foxglove_compressed_video_builder_t,
+        sec: i32,
+        nsec: u32,
+    );
+    fn ros_foxglove_compressed_video_builder_set_frame_id(
+        b: *mut ros_foxglove_compressed_video_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_foxglove_compressed_video_builder_set_data(
+        b: *mut ros_foxglove_compressed_video_builder_t,
+        data: *const u8,
+        len: usize,
+    );
+    fn ros_foxglove_compressed_video_builder_set_format(
+        b: *mut ros_foxglove_compressed_video_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_foxglove_compressed_video_builder_encode_into(
+        b: *mut ros_foxglove_compressed_video_builder_t,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+
+    // FoxgloveTextAnnotation
+    fn ros_foxglove_text_annotation_builder_new() -> *mut ros_foxglove_text_annotation_builder_t;
+    fn ros_foxglove_text_annotation_builder_free(b: *mut ros_foxglove_text_annotation_builder_t);
+    fn ros_foxglove_text_annotation_builder_set_timestamp(
+        b: *mut ros_foxglove_text_annotation_builder_t,
+        sec: i32,
+        nsec: u32,
+    );
+    fn ros_foxglove_text_annotation_builder_set_position(
+        b: *mut ros_foxglove_text_annotation_builder_t,
+        x: f64,
+        y: f64,
+    );
+    fn ros_foxglove_text_annotation_builder_set_text(
+        b: *mut ros_foxglove_text_annotation_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_foxglove_text_annotation_builder_set_font_size(
+        b: *mut ros_foxglove_text_annotation_builder_t,
+        v: f64,
+    );
+    fn ros_foxglove_text_annotation_builder_set_text_color(
+        b: *mut ros_foxglove_text_annotation_builder_t,
+        r: f64,
+        g: f64,
+        bc: f64,
+        a: f64,
+    );
+    fn ros_foxglove_text_annotation_builder_set_background_color(
+        b: *mut ros_foxglove_text_annotation_builder_t,
+        r: f64,
+        g: f64,
+        bc: f64,
+        a: f64,
+    );
+    fn ros_foxglove_text_annotation_builder_encode_into(
+        b: *mut ros_foxglove_text_annotation_builder_t,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+
+    // FoxglovePointAnnotation
+    fn ros_foxglove_point_annotation_builder_new() -> *mut ros_foxglove_point_annotation_builder_t;
+    fn ros_foxglove_point_annotation_builder_free(b: *mut ros_foxglove_point_annotation_builder_t);
+    fn ros_foxglove_point_annotation_builder_set_timestamp(
+        b: *mut ros_foxglove_point_annotation_builder_t,
+        sec: i32,
+        nsec: u32,
+    );
+    fn ros_foxglove_point_annotation_builder_set_type(
+        b: *mut ros_foxglove_point_annotation_builder_t,
+        v: u8,
+    );
+    fn ros_foxglove_point_annotation_builder_set_points(
+        b: *mut ros_foxglove_point_annotation_builder_t,
+        points: *const ros_foxglove_point2_elem_t,
+        count: usize,
+    );
+    fn ros_foxglove_point_annotation_builder_set_outline_color(
+        b: *mut ros_foxglove_point_annotation_builder_t,
+        r: f64,
+        g: f64,
+        bc: f64,
+        a: f64,
+    );
+    fn ros_foxglove_point_annotation_builder_set_outline_colors(
+        b: *mut ros_foxglove_point_annotation_builder_t,
+        colors: *const ros_foxglove_color_elem_t,
+        count: usize,
+    );
+    fn ros_foxglove_point_annotation_builder_set_fill_color(
+        b: *mut ros_foxglove_point_annotation_builder_t,
+        r: f64,
+        g: f64,
+        bc: f64,
+        a: f64,
+    );
+    fn ros_foxglove_point_annotation_builder_set_thickness(
+        b: *mut ros_foxglove_point_annotation_builder_t,
+        v: f64,
+    );
+    fn ros_foxglove_point_annotation_builder_encode_into(
+        b: *mut ros_foxglove_point_annotation_builder_t,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+
+    // FoxgloveImageAnnotation
+    fn ros_foxglove_image_annotation_builder_new() -> *mut ros_foxglove_image_annotation_builder_t;
+    fn ros_foxglove_image_annotation_builder_free(b: *mut ros_foxglove_image_annotation_builder_t);
+    fn ros_foxglove_image_annotation_builder_set_circles(
+        b: *mut ros_foxglove_image_annotation_builder_t,
+        circles: *const ros_foxglove_circle_annotation_elem_t,
+        count: usize,
+    );
+    fn ros_foxglove_image_annotation_builder_set_points(
+        b: *mut ros_foxglove_image_annotation_builder_t,
+        points: *const ros_foxglove_point_annotation_elem_t,
+        count: usize,
+    );
+    fn ros_foxglove_image_annotation_builder_set_texts(
+        b: *mut ros_foxglove_image_annotation_builder_t,
+        texts: *const ros_foxglove_text_annotation_elem_t,
+        count: usize,
+    );
+    fn ros_foxglove_image_annotation_builder_encode_into(
+        b: *mut ros_foxglove_image_annotation_builder_t,
         buf: *mut u8,
         cap: usize,
         out_len: *mut usize,
@@ -922,5 +1508,941 @@ fn ros_battery_state_builder_encode_into_matches_rust_builder() {
         assert_eq!(&buf[..out_len], via_rust.as_cdr());
 
         ros_battery_state_builder_free(b);
+    }
+}
+
+#[test]
+fn ros_mask_builder_encode_into_matches_rust_builder() {
+    unsafe {
+        let b = ros_mask_builder_new();
+        assert!(!b.is_null());
+        ros_mask_builder_set_height(b, 8);
+        ros_mask_builder_set_width(b, 4);
+        ros_mask_builder_set_length(b, 1);
+        let enc = CString::new("rle").unwrap();
+        assert_eq!(ros_mask_builder_set_encoding(b, enc.as_ptr()), 0);
+        let data: Vec<u8> = (0..32u8).collect();
+        ros_mask_builder_set_mask(b, data.as_ptr(), data.len());
+        ros_mask_builder_set_boxed(b, true);
+
+        let mut buf = [0u8; 256];
+        let mut out_len: usize = 0;
+        let rc = ros_mask_builder_encode_into(b, buf.as_mut_ptr(), buf.len(), &mut out_len);
+        assert_eq!(rc, 0);
+
+        let via_rust = edgefirst_msgs::Mask::builder()
+            .height(8)
+            .width(4)
+            .length(1)
+            .encoding("rle")
+            .mask(&data)
+            .boxed(true)
+            .build()
+            .expect("rust builder.build()");
+        assert_eq!(&buf[..out_len], via_rust.as_cdr());
+
+        ros_mask_builder_free(b);
+    }
+}
+
+#[test]
+fn ros_local_time_builder_encode_into_matches_rust_builder() {
+    unsafe {
+        let b = ros_local_time_builder_new();
+        assert!(!b.is_null());
+        ros_local_time_builder_set_stamp(b, 1_700_000_000, 123);
+        let frame = CString::new("clock").unwrap();
+        assert_eq!(ros_local_time_builder_set_frame_id(b, frame.as_ptr()), 0);
+        ros_local_time_builder_set_date(b, 2025, 12, 31);
+        ros_local_time_builder_set_time(b, 86399, 999_000_000);
+        ros_local_time_builder_set_timezone(b, -300);
+
+        let mut buf = [0u8; 256];
+        let mut out_len: usize = 0;
+        let rc = ros_local_time_builder_encode_into(b, buf.as_mut_ptr(), buf.len(), &mut out_len);
+        assert_eq!(rc, 0);
+
+        let via_rust = edgefirst_msgs::LocalTime::builder()
+            .stamp(Time::new(1_700_000_000, 123))
+            .frame_id("clock")
+            .date(Date {
+                year: 2025,
+                month: 12,
+                day: 31,
+            })
+            .time(Time::new(86399, 999_000_000))
+            .timezone(-300)
+            .build()
+            .expect("rust builder.build()");
+        assert_eq!(&buf[..out_len], via_rust.as_cdr());
+
+        ros_local_time_builder_free(b);
+    }
+}
+
+#[test]
+fn ros_radar_cube_builder_encode_into_matches_rust_builder() {
+    unsafe {
+        let b = ros_radar_cube_builder_new();
+        assert!(!b.is_null());
+        ros_radar_cube_builder_set_stamp(b, 10, 20);
+        let frame = CString::new("radar").unwrap();
+        assert_eq!(ros_radar_cube_builder_set_frame_id(b, frame.as_ptr()), 0);
+        ros_radar_cube_builder_set_timestamp(b, 0xdead_beef_cafe_u64);
+        let layout: [u8; 3] = [1, 2, 3];
+        ros_radar_cube_builder_set_layout(b, layout.as_ptr(), layout.len());
+        let shape: [u16; 3] = [4, 5, 6];
+        ros_radar_cube_builder_set_shape(b, shape.as_ptr(), shape.len());
+        let scales: [f32; 2] = [0.5, 1.5];
+        ros_radar_cube_builder_set_scales(b, scales.as_ptr(), scales.len());
+        let cube: [i16; 4] = [-1, 2, -3, 4];
+        ros_radar_cube_builder_set_cube(b, cube.as_ptr(), cube.len());
+        ros_radar_cube_builder_set_is_complex(b, true);
+
+        let mut buf = [0u8; 512];
+        let mut out_len: usize = 0;
+        let rc = ros_radar_cube_builder_encode_into(b, buf.as_mut_ptr(), buf.len(), &mut out_len);
+        assert_eq!(rc, 0);
+
+        let via_rust = edgefirst_msgs::RadarCube::builder()
+            .stamp(Time::new(10, 20))
+            .frame_id("radar")
+            .timestamp(0xdead_beef_cafe_u64)
+            .layout(&layout)
+            .shape(&shape)
+            .scales(&scales)
+            .cube(&cube)
+            .is_complex(true)
+            .build()
+            .expect("rust builder.build()");
+        assert_eq!(&buf[..out_len], via_rust.as_cdr());
+
+        ros_radar_cube_builder_free(b);
+    }
+}
+
+#[test]
+fn ros_radar_info_builder_encode_into_matches_rust_builder() {
+    unsafe {
+        let b = ros_radar_info_builder_new();
+        assert!(!b.is_null());
+        ros_radar_info_builder_set_stamp(b, 7, 8);
+        let frame = CString::new("radar").unwrap();
+        assert_eq!(ros_radar_info_builder_set_frame_id(b, frame.as_ptr()), 0);
+        let cf = CString::new("79GHz").unwrap();
+        assert_eq!(
+            ros_radar_info_builder_set_center_frequency(b, cf.as_ptr()),
+            0
+        );
+        let fs = CString::new("UWB").unwrap();
+        assert_eq!(
+            ros_radar_info_builder_set_frequency_sweep(b, fs.as_ptr()),
+            0
+        );
+        let rt = CString::new("short").unwrap();
+        assert_eq!(ros_radar_info_builder_set_range_toggle(b, rt.as_ptr()), 0);
+        let ds = CString::new("high").unwrap();
+        assert_eq!(
+            ros_radar_info_builder_set_detection_sensitivity(b, ds.as_ptr()),
+            0
+        );
+        ros_radar_info_builder_set_cube(b, true);
+
+        let mut buf = [0u8; 256];
+        let mut out_len: usize = 0;
+        let rc = ros_radar_info_builder_encode_into(b, buf.as_mut_ptr(), buf.len(), &mut out_len);
+        assert_eq!(rc, 0);
+
+        let via_rust = edgefirst_msgs::RadarInfo::builder()
+            .stamp(Time::new(7, 8))
+            .frame_id("radar")
+            .center_frequency("79GHz")
+            .frequency_sweep("UWB")
+            .range_toggle("short")
+            .detection_sensitivity("high")
+            .cube(true)
+            .build()
+            .expect("rust builder.build()");
+        assert_eq!(&buf[..out_len], via_rust.as_cdr());
+
+        ros_radar_info_builder_free(b);
+    }
+}
+
+#[test]
+fn ros_track_builder_encode_into_matches_rust_builder() {
+    unsafe {
+        let b = ros_track_builder_new();
+        assert!(!b.is_null());
+        let id = CString::new("track-42").unwrap();
+        assert_eq!(ros_track_builder_set_id(b, id.as_ptr()), 0);
+        ros_track_builder_set_lifetime(b, 7);
+        ros_track_builder_set_created(b, 1234, 5678);
+
+        let mut buf = [0u8; 128];
+        let mut out_len: usize = 0;
+        let rc = ros_track_builder_encode_into(b, buf.as_mut_ptr(), buf.len(), &mut out_len);
+        assert_eq!(rc, 0);
+
+        let via_rust = edgefirst_msgs::Track::builder()
+            .id("track-42")
+            .lifetime(7)
+            .created(Time::new(1234, 5678))
+            .build()
+            .expect("rust builder.build()");
+        assert_eq!(&buf[..out_len], via_rust.as_cdr());
+
+        ros_track_builder_free(b);
+    }
+}
+
+#[test]
+fn ros_detect_box_builder_encode_into_matches_rust_builder() {
+    unsafe {
+        let b = ros_detect_box_builder_new();
+        assert!(!b.is_null());
+        ros_detect_box_builder_set_center_x(b, 0.5);
+        ros_detect_box_builder_set_center_y(b, 0.25);
+        ros_detect_box_builder_set_width(b, 0.3);
+        ros_detect_box_builder_set_height(b, 0.4);
+        let lab = CString::new("car").unwrap();
+        assert_eq!(ros_detect_box_builder_set_label(b, lab.as_ptr()), 0);
+        ros_detect_box_builder_set_score(b, 0.9);
+        ros_detect_box_builder_set_distance(b, 12.0);
+        ros_detect_box_builder_set_speed(b, 3.5);
+        let tid = CString::new("t-7").unwrap();
+        assert_eq!(ros_detect_box_builder_set_track_id(b, tid.as_ptr()), 0);
+        ros_detect_box_builder_set_track_lifetime(b, 5);
+        ros_detect_box_builder_set_track_created(b, 100, 200);
+
+        let mut buf = [0u8; 256];
+        let mut out_len: usize = 0;
+        let rc = ros_detect_box_builder_encode_into(b, buf.as_mut_ptr(), buf.len(), &mut out_len);
+        assert_eq!(rc, 0);
+
+        let via_rust = edgefirst_msgs::DetectBox::builder()
+            .center_x(0.5)
+            .center_y(0.25)
+            .width(0.3)
+            .height(0.4)
+            .label("car")
+            .score(0.9)
+            .distance(12.0)
+            .speed(3.5)
+            .track_id("t-7")
+            .track_lifetime(5)
+            .track_created(Time::new(100, 200))
+            .build()
+            .expect("rust builder.build()");
+        assert_eq!(&buf[..out_len], via_rust.as_cdr());
+
+        ros_detect_box_builder_free(b);
+    }
+}
+
+#[test]
+fn ros_detect_builder_encode_into_matches_rust_builder() {
+    unsafe {
+        let b = ros_detect_builder_new();
+        assert!(!b.is_null());
+        ros_detect_builder_set_stamp(b, 1, 2);
+        let frame = CString::new("camera").unwrap();
+        assert_eq!(ros_detect_builder_set_frame_id(b, frame.as_ptr()), 0);
+        ros_detect_builder_set_input_timestamp(b, 3, 4);
+        ros_detect_builder_set_model_time(b, 5, 6);
+        ros_detect_builder_set_output_time(b, 7, 8);
+
+        let lab0 = CString::new("person").unwrap();
+        let tid0 = CString::new("t-1").unwrap();
+        let lab1 = CString::new("bike").unwrap();
+        let tid1 = CString::new("t-2").unwrap();
+        let boxes = [
+            ros_detect_box_elem_t {
+                center_x: 0.1,
+                center_y: 0.2,
+                width: 0.3,
+                height: 0.4,
+                label: lab0.as_ptr(),
+                score: 0.95,
+                distance: 2.0,
+                speed: 1.0,
+                track_id: tid0.as_ptr(),
+                track_lifetime: 10,
+                track_created_sec: 11,
+                track_created_nanosec: 12,
+            },
+            ros_detect_box_elem_t {
+                center_x: 0.5,
+                center_y: 0.6,
+                width: 0.7,
+                height: 0.8,
+                label: lab1.as_ptr(),
+                score: 0.4,
+                distance: 7.0,
+                speed: 0.5,
+                track_id: tid1.as_ptr(),
+                track_lifetime: 20,
+                track_created_sec: 13,
+                track_created_nanosec: 14,
+            },
+        ];
+        ros_detect_builder_set_boxes(b, boxes.as_ptr(), boxes.len());
+
+        let mut buf = [0u8; 1024];
+        let mut out_len: usize = 0;
+        let rc = ros_detect_builder_encode_into(b, buf.as_mut_ptr(), buf.len(), &mut out_len);
+        assert_eq!(rc, 0);
+
+        let rust_boxes = [
+            DetectBoxView {
+                center_x: 0.1,
+                center_y: 0.2,
+                width: 0.3,
+                height: 0.4,
+                label: "person",
+                score: 0.95,
+                distance: 2.0,
+                speed: 1.0,
+                track_id: "t-1",
+                track_lifetime: 10,
+                track_created: Time::new(11, 12),
+            },
+            DetectBoxView {
+                center_x: 0.5,
+                center_y: 0.6,
+                width: 0.7,
+                height: 0.8,
+                label: "bike",
+                score: 0.4,
+                distance: 7.0,
+                speed: 0.5,
+                track_id: "t-2",
+                track_lifetime: 20,
+                track_created: Time::new(13, 14),
+            },
+        ];
+        let via_rust = edgefirst_msgs::Detect::builder()
+            .stamp(Time::new(1, 2))
+            .frame_id("camera")
+            .input_timestamp(Time::new(3, 4))
+            .model_time(Time::new(5, 6))
+            .output_time(Time::new(7, 8))
+            .boxes(&rust_boxes)
+            .build()
+            .expect("rust builder.build()");
+        assert_eq!(&buf[..out_len], via_rust.as_cdr());
+
+        ros_detect_builder_free(b);
+    }
+}
+
+#[test]
+fn ros_camera_frame_builder_encode_into_matches_rust_builder() {
+    unsafe {
+        let b = ros_camera_frame_builder_new();
+        assert!(!b.is_null());
+        ros_camera_frame_builder_set_stamp(b, 50, 60);
+        let frame = CString::new("cam0").unwrap();
+        assert_eq!(ros_camera_frame_builder_set_frame_id(b, frame.as_ptr()), 0);
+        ros_camera_frame_builder_set_seq(b, 42);
+        ros_camera_frame_builder_set_pid(b, 1234);
+        ros_camera_frame_builder_set_width(b, 640);
+        ros_camera_frame_builder_set_height(b, 480);
+        let fmt = CString::new("NV12").unwrap();
+        assert_eq!(ros_camera_frame_builder_set_format(b, fmt.as_ptr()), 0);
+        let cs = CString::new("bt709").unwrap();
+        assert_eq!(ros_camera_frame_builder_set_color_space(b, cs.as_ptr()), 0);
+        let ct = CString::new("srgb").unwrap();
+        assert_eq!(
+            ros_camera_frame_builder_set_color_transfer(b, ct.as_ptr()),
+            0
+        );
+        let ce = CString::new("bt709").unwrap();
+        assert_eq!(
+            ros_camera_frame_builder_set_color_encoding(b, ce.as_ptr()),
+            0
+        );
+        let cr = CString::new("full").unwrap();
+        assert_eq!(ros_camera_frame_builder_set_color_range(b, cr.as_ptr()), 0);
+        ros_camera_frame_builder_set_fence_fd(b, -1);
+
+        let plane0: Vec<u8> = (0..32u8).collect();
+        let plane1: Vec<u8> = (32..48u8).collect();
+        let planes = [
+            ros_camera_plane_elem_t {
+                fd: -1,
+                offset: 0,
+                stride: 640,
+                size: plane0.len() as u32,
+                used: plane0.len() as u32,
+                data: plane0.as_ptr(),
+                data_len: plane0.len(),
+            },
+            ros_camera_plane_elem_t {
+                fd: -1,
+                offset: 0,
+                stride: 320,
+                size: plane1.len() as u32,
+                used: plane1.len() as u32,
+                data: plane1.as_ptr(),
+                data_len: plane1.len(),
+            },
+        ];
+        ros_camera_frame_builder_set_planes(b, planes.as_ptr(), planes.len());
+
+        let mut buf = [0u8; 2048];
+        let mut out_len: usize = 0;
+        let rc = ros_camera_frame_builder_encode_into(b, buf.as_mut_ptr(), buf.len(), &mut out_len);
+        assert_eq!(rc, 0);
+
+        let rust_planes = [
+            edgefirst_msgs::CameraPlaneView {
+                fd: -1,
+                offset: 0,
+                stride: 640,
+                size: plane0.len() as u32,
+                used: plane0.len() as u32,
+                data: &plane0,
+            },
+            edgefirst_msgs::CameraPlaneView {
+                fd: -1,
+                offset: 0,
+                stride: 320,
+                size: plane1.len() as u32,
+                used: plane1.len() as u32,
+                data: &plane1,
+            },
+        ];
+        let via_rust = edgefirst_msgs::CameraFrame::builder()
+            .stamp(Time::new(50, 60))
+            .frame_id("cam0")
+            .seq(42)
+            .pid(1234)
+            .width(640)
+            .height(480)
+            .format("NV12")
+            .color_space("bt709")
+            .color_transfer("srgb")
+            .color_encoding("bt709")
+            .color_range("full")
+            .fence_fd(-1)
+            .planes(&rust_planes)
+            .build()
+            .expect("rust builder.build()");
+        assert_eq!(&buf[..out_len], via_rust.as_cdr());
+
+        ros_camera_frame_builder_free(b);
+    }
+}
+
+#[test]
+fn ros_model_builder_encode_into_matches_rust_builder() {
+    unsafe {
+        let b = ros_model_builder_new();
+        assert!(!b.is_null());
+        ros_model_builder_set_stamp(b, 1, 2);
+        let frame = CString::new("model").unwrap();
+        assert_eq!(ros_model_builder_set_frame_id(b, frame.as_ptr()), 0);
+        ros_model_builder_set_input_time(b, 0, 1_000_000);
+        ros_model_builder_set_model_time(b, 0, 2_000_000);
+        ros_model_builder_set_output_time(b, 0, 3_000_000);
+        ros_model_builder_set_decode_time(b, 0, 4_000_000);
+
+        let lab = CString::new("car").unwrap();
+        let tid = CString::new("t-1").unwrap();
+        let boxes = [ros_detect_box_elem_t {
+            center_x: 0.5,
+            center_y: 0.5,
+            width: 0.2,
+            height: 0.2,
+            label: lab.as_ptr(),
+            score: 0.8,
+            distance: 5.0,
+            speed: 1.0,
+            track_id: tid.as_ptr(),
+            track_lifetime: 3,
+            track_created_sec: 10,
+            track_created_nanosec: 20,
+        }];
+        ros_model_builder_set_boxes(b, boxes.as_ptr(), boxes.len());
+
+        let enc0 = CString::new("raw").unwrap();
+        let mask0: Vec<u8> = vec![1, 0, 1, 0];
+        let masks = [ros_mask_elem_t {
+            height: 2,
+            width: 2,
+            length: 1,
+            encoding: enc0.as_ptr(),
+            mask: mask0.as_ptr(),
+            mask_len: mask0.len(),
+            boxed: false,
+        }];
+        ros_model_builder_set_masks(b, masks.as_ptr(), masks.len());
+
+        let mut buf = [0u8; 1024];
+        let mut out_len: usize = 0;
+        let rc = ros_model_builder_encode_into(b, buf.as_mut_ptr(), buf.len(), &mut out_len);
+        assert_eq!(rc, 0);
+
+        let rust_boxes = [DetectBoxView {
+            center_x: 0.5,
+            center_y: 0.5,
+            width: 0.2,
+            height: 0.2,
+            label: "car",
+            score: 0.8,
+            distance: 5.0,
+            speed: 1.0,
+            track_id: "t-1",
+            track_lifetime: 3,
+            track_created: Time::new(10, 20),
+        }];
+        let rust_masks = [MaskView {
+            height: 2,
+            width: 2,
+            length: 1,
+            encoding: "raw",
+            mask: &mask0,
+            boxed: false,
+        }];
+        let via_rust = edgefirst_msgs::Model::builder()
+            .stamp(Time::new(1, 2))
+            .frame_id("model")
+            .input_time(Duration {
+                sec: 0,
+                nanosec: 1_000_000,
+            })
+            .model_time(Duration {
+                sec: 0,
+                nanosec: 2_000_000,
+            })
+            .output_time(Duration {
+                sec: 0,
+                nanosec: 3_000_000,
+            })
+            .decode_time(Duration {
+                sec: 0,
+                nanosec: 4_000_000,
+            })
+            .boxes(&rust_boxes)
+            .masks(&rust_masks)
+            .build()
+            .expect("rust builder.build()");
+        assert_eq!(&buf[..out_len], via_rust.as_cdr());
+
+        ros_model_builder_free(b);
+    }
+}
+
+#[test]
+fn ros_model_info_builder_encode_into_matches_rust_builder() {
+    unsafe {
+        let b = ros_model_info_builder_new();
+        assert!(!b.is_null());
+        ros_model_info_builder_set_stamp(b, 10, 20);
+        let frame = CString::new("model").unwrap();
+        assert_eq!(ros_model_info_builder_set_frame_id(b, frame.as_ptr()), 0);
+        let ishape: [u32; 4] = [1, 3, 224, 224];
+        ros_model_info_builder_set_input_shape(b, ishape.as_ptr(), ishape.len());
+        ros_model_info_builder_set_input_type(b, 8); // FLOAT32
+        let oshape: [u32; 2] = [1, 1000];
+        ros_model_info_builder_set_output_shape(b, oshape.as_ptr(), oshape.len());
+        ros_model_info_builder_set_output_type(b, 8);
+
+        let l0 = CString::new("car").unwrap();
+        let l1 = CString::new("bike").unwrap();
+        let l2 = CString::new("person").unwrap();
+        let label_ptrs: [*const c_char; 3] = [l0.as_ptr(), l1.as_ptr(), l2.as_ptr()];
+        assert_eq!(
+            ros_model_info_builder_set_labels(b, label_ptrs.as_ptr(), label_ptrs.len()),
+            0
+        );
+        let mt = CString::new("classifier").unwrap();
+        assert_eq!(ros_model_info_builder_set_model_type(b, mt.as_ptr()), 0);
+        let mf = CString::new("tflite").unwrap();
+        assert_eq!(ros_model_info_builder_set_model_format(b, mf.as_ptr()), 0);
+        let mn = CString::new("resnet50").unwrap();
+        assert_eq!(ros_model_info_builder_set_model_name(b, mn.as_ptr()), 0);
+
+        let mut buf = [0u8; 512];
+        let mut out_len: usize = 0;
+        let rc = ros_model_info_builder_encode_into(b, buf.as_mut_ptr(), buf.len(), &mut out_len);
+        assert_eq!(rc, 0);
+
+        let labels: [&str; 3] = ["car", "bike", "person"];
+        let via_rust = edgefirst_msgs::ModelInfo::builder()
+            .stamp(Time::new(10, 20))
+            .frame_id("model")
+            .input_shape(&ishape)
+            .input_type(8)
+            .output_shape(&oshape)
+            .output_type(8)
+            .labels(&labels)
+            .model_type("classifier")
+            .model_format("tflite")
+            .model_name("resnet50")
+            .build()
+            .expect("rust builder.build()");
+        assert_eq!(&buf[..out_len], via_rust.as_cdr());
+
+        ros_model_info_builder_free(b);
+    }
+}
+
+#[test]
+fn ros_vibration_builder_encode_into_matches_rust_builder() {
+    unsafe {
+        let b = ros_vibration_builder_new();
+        assert!(!b.is_null());
+        ros_vibration_builder_set_stamp(b, 5, 6);
+        let frame = CString::new("vib_link").unwrap();
+        assert_eq!(ros_vibration_builder_set_frame_id(b, frame.as_ptr()), 0);
+        ros_vibration_builder_set_vibration(b, 0.1, -0.2, 0.3);
+        ros_vibration_builder_set_band_lower_hz(b, 10.0);
+        ros_vibration_builder_set_band_upper_hz(b, 1000.0);
+        ros_vibration_builder_set_measurement_type(b, 1); // RMS
+        ros_vibration_builder_set_unit(b, 2); // ACCEL_G
+        let clipping: [u32; 3] = [7, 13, 42];
+        ros_vibration_builder_set_clipping(b, clipping.as_ptr(), clipping.len());
+
+        let mut buf = [0u8; 256];
+        let mut out_len: usize = 0;
+        let rc = ros_vibration_builder_encode_into(b, buf.as_mut_ptr(), buf.len(), &mut out_len);
+        assert_eq!(rc, 0);
+
+        let via_rust = edgefirst_msgs::Vibration::builder()
+            .stamp(Time::new(5, 6))
+            .frame_id("vib_link")
+            .vibration(Vector3 {
+                x: 0.1,
+                y: -0.2,
+                z: 0.3,
+            })
+            .band_lower_hz(10.0)
+            .band_upper_hz(1000.0)
+            .measurement_type(1)
+            .unit(2)
+            .clipping(&clipping)
+            .build()
+            .expect("rust builder.build()");
+        assert_eq!(&buf[..out_len], via_rust.as_cdr());
+
+        ros_vibration_builder_free(b);
+    }
+}
+
+#[test]
+fn ros_foxglove_compressed_video_builder_encode_into_matches_rust_builder() {
+    unsafe {
+        let b = ros_foxglove_compressed_video_builder_new();
+        assert!(!b.is_null());
+        ros_foxglove_compressed_video_builder_set_stamp(b, 100, 500_000_000);
+        let frame = CString::new("camera").unwrap();
+        assert_eq!(
+            ros_foxglove_compressed_video_builder_set_frame_id(b, frame.as_ptr()),
+            0
+        );
+        let data: Vec<u8> = vec![0x00, 0x00, 0x00, 0x01, 0x67, 0x42];
+        ros_foxglove_compressed_video_builder_set_data(b, data.as_ptr(), data.len());
+        let fmt = CString::new("h264").unwrap();
+        assert_eq!(
+            ros_foxglove_compressed_video_builder_set_format(b, fmt.as_ptr()),
+            0
+        );
+
+        let mut buf = [0u8; 256];
+        let mut out_len: usize = 0;
+        let rc = ros_foxglove_compressed_video_builder_encode_into(
+            b,
+            buf.as_mut_ptr(),
+            buf.len(),
+            &mut out_len,
+        );
+        assert_eq!(rc, 0);
+
+        let via_rust = foxglove_msgs::FoxgloveCompressedVideo::builder()
+            .stamp(Time::new(100, 500_000_000))
+            .frame_id("camera")
+            .data(&data)
+            .format("h264")
+            .build()
+            .expect("rust builder.build()");
+        assert_eq!(&buf[..out_len], via_rust.as_cdr());
+
+        ros_foxglove_compressed_video_builder_free(b);
+    }
+}
+
+#[test]
+fn ros_foxglove_text_annotation_builder_encode_into_matches_rust_builder() {
+    unsafe {
+        let b = ros_foxglove_text_annotation_builder_new();
+        assert!(!b.is_null());
+        ros_foxglove_text_annotation_builder_set_timestamp(b, 10, 20);
+        ros_foxglove_text_annotation_builder_set_position(b, 50.0, 75.0);
+        let text = CString::new("hello").unwrap();
+        assert_eq!(
+            ros_foxglove_text_annotation_builder_set_text(b, text.as_ptr()),
+            0
+        );
+        ros_foxglove_text_annotation_builder_set_font_size(b, 14.0);
+        ros_foxglove_text_annotation_builder_set_text_color(b, 1.0, 1.0, 1.0, 1.0);
+        ros_foxglove_text_annotation_builder_set_background_color(b, 0.0, 0.0, 0.0, 0.5);
+
+        let mut buf = [0u8; 256];
+        let mut out_len: usize = 0;
+        let rc = ros_foxglove_text_annotation_builder_encode_into(
+            b,
+            buf.as_mut_ptr(),
+            buf.len(),
+            &mut out_len,
+        );
+        assert_eq!(rc, 0);
+
+        let via_rust = foxglove_msgs::FoxgloveTextAnnotation::builder()
+            .timestamp(Time::new(10, 20))
+            .position(FoxglovePoint2 { x: 50.0, y: 75.0 })
+            .text("hello")
+            .font_size(14.0)
+            .text_color(FoxgloveColor {
+                r: 1.0,
+                g: 1.0,
+                b: 1.0,
+                a: 1.0,
+            })
+            .background_color(FoxgloveColor {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+                a: 0.5,
+            })
+            .build()
+            .expect("rust builder.build()");
+        assert_eq!(&buf[..out_len], via_rust.as_cdr());
+
+        ros_foxglove_text_annotation_builder_free(b);
+    }
+}
+
+#[test]
+fn ros_foxglove_point_annotation_builder_encode_into_matches_rust_builder() {
+    unsafe {
+        let b = ros_foxglove_point_annotation_builder_new();
+        assert!(!b.is_null());
+        ros_foxglove_point_annotation_builder_set_timestamp(b, 11, 22);
+        ros_foxglove_point_annotation_builder_set_type(b, 2); // LINE_LOOP
+        let points = [
+            ros_foxglove_point2_elem_t { x: 0.0, y: 0.0 },
+            ros_foxglove_point2_elem_t { x: 100.0, y: 0.0 },
+            ros_foxglove_point2_elem_t { x: 100.0, y: 100.0 },
+        ];
+        ros_foxglove_point_annotation_builder_set_points(b, points.as_ptr(), points.len());
+        ros_foxglove_point_annotation_builder_set_outline_color(b, 0.0, 1.0, 0.0, 1.0);
+        let oc = [ros_foxglove_color_elem_t {
+            r: 1.0,
+            g: 0.5,
+            b: 0.0,
+            a: 0.8,
+        }];
+        ros_foxglove_point_annotation_builder_set_outline_colors(b, oc.as_ptr(), oc.len());
+        ros_foxglove_point_annotation_builder_set_fill_color(b, 0.0, 0.5, 0.0, 0.3);
+        ros_foxglove_point_annotation_builder_set_thickness(b, 3.0);
+
+        let mut buf = [0u8; 512];
+        let mut out_len: usize = 0;
+        let rc = ros_foxglove_point_annotation_builder_encode_into(
+            b,
+            buf.as_mut_ptr(),
+            buf.len(),
+            &mut out_len,
+        );
+        assert_eq!(rc, 0);
+
+        let pts_rust = [
+            FoxglovePoint2 { x: 0.0, y: 0.0 },
+            FoxglovePoint2 { x: 100.0, y: 0.0 },
+            FoxglovePoint2 { x: 100.0, y: 100.0 },
+        ];
+        let oc_rust = [FoxgloveColor {
+            r: 1.0,
+            g: 0.5,
+            b: 0.0,
+            a: 0.8,
+        }];
+        let via_rust = foxglove_msgs::FoxglovePointAnnotation::builder()
+            .timestamp(Time::new(11, 22))
+            .type_(2)
+            .points(&pts_rust)
+            .outline_color(FoxgloveColor {
+                r: 0.0,
+                g: 1.0,
+                b: 0.0,
+                a: 1.0,
+            })
+            .outline_colors(&oc_rust)
+            .fill_color(FoxgloveColor {
+                r: 0.0,
+                g: 0.5,
+                b: 0.0,
+                a: 0.3,
+            })
+            .thickness(3.0)
+            .build()
+            .expect("rust builder.build()");
+        assert_eq!(&buf[..out_len], via_rust.as_cdr());
+
+        ros_foxglove_point_annotation_builder_free(b);
+    }
+}
+
+#[test]
+fn ros_foxglove_image_annotation_builder_encode_into_matches_rust_builder() {
+    unsafe {
+        let b = ros_foxglove_image_annotation_builder_new();
+        assert!(!b.is_null());
+
+        let circles = [ros_foxglove_circle_annotation_elem_t {
+            timestamp_sec: 1,
+            timestamp_nanosec: 2,
+            position_x: 10.0,
+            position_y: 20.0,
+            diameter: 5.0,
+            thickness: 1.0,
+            fill_color_r: 1.0,
+            fill_color_g: 0.0,
+            fill_color_b: 0.0,
+            fill_color_a: 0.5,
+            outline_color_r: 0.0,
+            outline_color_g: 1.0,
+            outline_color_b: 0.0,
+            outline_color_a: 1.0,
+        }];
+        ros_foxglove_image_annotation_builder_set_circles(b, circles.as_ptr(), circles.len());
+
+        let pts = [
+            ros_foxglove_point2_elem_t { x: 0.0, y: 0.0 },
+            ros_foxglove_point2_elem_t { x: 1.0, y: 1.0 },
+        ];
+        let ocs: [ros_foxglove_color_elem_t; 0] = [];
+        let point_annotations = [ros_foxglove_point_annotation_elem_t {
+            timestamp_sec: 3,
+            timestamp_nanosec: 4,
+            type_: 1, // POINTS
+            points: pts.as_ptr(),
+            points_count: pts.len(),
+            outline_color_r: 1.0,
+            outline_color_g: 1.0,
+            outline_color_b: 1.0,
+            outline_color_a: 1.0,
+            outline_colors: ocs.as_ptr(),
+            outline_colors_count: ocs.len(),
+            fill_color_r: 0.2,
+            fill_color_g: 0.2,
+            fill_color_b: 0.2,
+            fill_color_a: 0.5,
+            thickness: 2.0,
+        }];
+        ros_foxglove_image_annotation_builder_set_points(
+            b,
+            point_annotations.as_ptr(),
+            point_annotations.len(),
+        );
+
+        let text = CString::new("label").unwrap();
+        let texts = [ros_foxglove_text_annotation_elem_t {
+            timestamp_sec: 5,
+            timestamp_nanosec: 6,
+            position_x: 40.0,
+            position_y: 50.0,
+            text: text.as_ptr(),
+            font_size: 12.0,
+            text_color_r: 1.0,
+            text_color_g: 1.0,
+            text_color_b: 1.0,
+            text_color_a: 1.0,
+            background_color_r: 0.0,
+            background_color_g: 0.0,
+            background_color_b: 0.0,
+            background_color_a: 0.7,
+        }];
+        ros_foxglove_image_annotation_builder_set_texts(b, texts.as_ptr(), texts.len());
+
+        let mut buf = [0u8; 1024];
+        let mut out_len: usize = 0;
+        let rc = ros_foxglove_image_annotation_builder_encode_into(
+            b,
+            buf.as_mut_ptr(),
+            buf.len(),
+            &mut out_len,
+        );
+        assert_eq!(rc, 0);
+
+        let rust_circles = [FoxgloveCircleAnnotations {
+            timestamp: Time::new(1, 2),
+            position: FoxglovePoint2 { x: 10.0, y: 20.0 },
+            diameter: 5.0,
+            thickness: 1.0,
+            fill_color: FoxgloveColor {
+                r: 1.0,
+                g: 0.0,
+                b: 0.0,
+                a: 0.5,
+            },
+            outline_color: FoxgloveColor {
+                r: 0.0,
+                g: 1.0,
+                b: 0.0,
+                a: 1.0,
+            },
+        }];
+        let rust_points = [FoxglovePointAnnotationView {
+            timestamp: Time::new(3, 4),
+            type_: 1,
+            points: vec![
+                FoxglovePoint2 { x: 0.0, y: 0.0 },
+                FoxglovePoint2 { x: 1.0, y: 1.0 },
+            ],
+            outline_color: FoxgloveColor {
+                r: 1.0,
+                g: 1.0,
+                b: 1.0,
+                a: 1.0,
+            },
+            outline_colors: vec![],
+            fill_color: FoxgloveColor {
+                r: 0.2,
+                g: 0.2,
+                b: 0.2,
+                a: 0.5,
+            },
+            thickness: 2.0,
+        }];
+        let rust_texts = [FoxgloveTextAnnotationView {
+            timestamp: Time::new(5, 6),
+            position: FoxglovePoint2 { x: 40.0, y: 50.0 },
+            text: "label",
+            font_size: 12.0,
+            text_color: FoxgloveColor {
+                r: 1.0,
+                g: 1.0,
+                b: 1.0,
+                a: 1.0,
+            },
+            background_color: FoxgloveColor {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+                a: 0.7,
+            },
+        }];
+        let via_rust = foxglove_msgs::FoxgloveImageAnnotation::builder()
+            .circles(&rust_circles)
+            .points(&rust_points)
+            .texts(&rust_texts)
+            .build()
+            .expect("rust builder.build()");
+        assert_eq!(&buf[..out_len], via_rust.as_cdr());
+
+        ros_foxglove_image_annotation_builder_free(b);
     }
 }
