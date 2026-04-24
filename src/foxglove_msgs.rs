@@ -594,6 +594,47 @@ impl<'a> FoxgloveTextAnnotationBuilder<'a> {
     }
 }
 
+impl<B: AsRef<[u8]> + AsMut<[u8]>> FoxgloveTextAnnotation<B> {
+    pub fn set_timestamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)?;
+        Ok(())
+    }
+
+    pub fn set_position(&mut self, p: FoxglovePoint2) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_f64(b, CDR_HEADER_SIZE + 8, p.x)?;
+        wr_f64(b, CDR_HEADER_SIZE + 16, p.y)?;
+        Ok(())
+    }
+
+    pub fn set_font_size(&mut self, v: f64) -> Result<(), CdrError> {
+        let p = cdr_align(self.offsets[0], 8);
+        wr_f64(self.buf.as_mut(), p, v)
+    }
+
+    pub fn set_text_color(&mut self, c: FoxgloveColor) -> Result<(), CdrError> {
+        let p = cdr_align(self.offsets[0], 8) + 8;
+        let b = self.buf.as_mut();
+        wr_f64(b, p, c.r)?;
+        wr_f64(b, p + 8, c.g)?;
+        wr_f64(b, p + 16, c.b)?;
+        wr_f64(b, p + 24, c.a)?;
+        Ok(())
+    }
+
+    pub fn set_background_color(&mut self, c: FoxgloveColor) -> Result<(), CdrError> {
+        let p = cdr_align(self.offsets[0], 8) + 40;
+        let b = self.buf.as_mut();
+        wr_f64(b, p, c.r)?;
+        wr_f64(b, p + 8, c.g)?;
+        wr_f64(b, p + 16, c.b)?;
+        wr_f64(b, p + 24, c.a)?;
+        Ok(())
+    }
+}
+
 // ── FoxglovePointAnnotation<B> — foxglove_msgs/msg/FoxglovePointAnnotations
 //
 // CDR layout: timestamp(Time), type_(u8),
@@ -955,6 +996,44 @@ impl<'a> FoxglovePointAnnotationBuilder<'a> {
         }
         self.write_into(&mut buf[..need])?;
         Ok(need)
+    }
+}
+
+impl<B: AsRef<[u8]> + AsMut<[u8]>> FoxglovePointAnnotation<B> {
+    pub fn set_timestamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)?;
+        Ok(())
+    }
+
+    pub fn set_type_(&mut self, v: u8) -> Result<(), CdrError> {
+        wr_u8(self.buf.as_mut(), CDR_HEADER_SIZE + 8, v)
+    }
+
+    pub fn set_outline_color(&mut self, c: FoxgloveColor) -> Result<(), CdrError> {
+        let p = cdr_align(self.offsets[0], 8);
+        let b = self.buf.as_mut();
+        wr_f64(b, p, c.r)?;
+        wr_f64(b, p + 8, c.g)?;
+        wr_f64(b, p + 16, c.b)?;
+        wr_f64(b, p + 24, c.a)?;
+        Ok(())
+    }
+
+    pub fn set_fill_color(&mut self, c: FoxgloveColor) -> Result<(), CdrError> {
+        let p = cdr_align(self.offsets[1], 8);
+        let b = self.buf.as_mut();
+        wr_f64(b, p, c.r)?;
+        wr_f64(b, p + 8, c.g)?;
+        wr_f64(b, p + 16, c.b)?;
+        wr_f64(b, p + 24, c.a)?;
+        Ok(())
+    }
+
+    pub fn set_thickness(&mut self, v: f64) -> Result<(), CdrError> {
+        let p = cdr_align(self.offsets[1], 8) + 32;
+        wr_f64(self.buf.as_mut(), p, v)
     }
 }
 
@@ -1376,5 +1455,163 @@ mod tests {
         let bytes = ia.to_cdr();
         let decoded = FoxgloveImageAnnotation::from_cdr(bytes).unwrap();
         assert_eq!(decoded.circles().len(), 0);
+    }
+
+    #[test]
+    fn foxglove_compressed_video_set_stamp() {
+        let mut video =
+            FoxgloveCompressedVideo::new(Time::new(100, 500_000_000), "camera", &[0u8; 4], "h264")
+                .unwrap();
+        video.set_stamp(Time::new(42, 7)).unwrap();
+        assert_eq!(video.stamp(), Time::new(42, 7));
+        assert_eq!(video.frame_id(), "camera");
+        assert_eq!(video.format(), "h264");
+    }
+
+    #[test]
+    fn foxglove_text_annotation_setters() {
+        let mut text = FoxgloveTextAnnotation::new(
+            Time::new(100, 0),
+            FoxglovePoint2 { x: 50.0, y: 50.0 },
+            "Detection: car (98%)",
+            14.0,
+            FoxgloveColor {
+                r: 1.0,
+                g: 1.0,
+                b: 1.0,
+                a: 1.0,
+            },
+            FoxgloveColor {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+                a: 0.7,
+            },
+        )
+        .unwrap();
+
+        text.set_timestamp(Time::new(200, 123)).unwrap();
+        text.set_position(FoxglovePoint2 { x: 12.5, y: -7.25 })
+            .unwrap();
+        text.set_font_size(24.0).unwrap();
+        text.set_text_color(FoxgloveColor {
+            r: 0.1,
+            g: 0.2,
+            b: 0.3,
+            a: 0.4,
+        })
+        .unwrap();
+        text.set_background_color(FoxgloveColor {
+            r: 0.5,
+            g: 0.6,
+            b: 0.7,
+            a: 0.8,
+        })
+        .unwrap();
+
+        assert_eq!(text.timestamp(), Time::new(200, 123));
+        assert_eq!(text.position(), FoxglovePoint2 { x: 12.5, y: -7.25 });
+        assert_eq!(text.font_size(), 24.0);
+        assert_eq!(
+            text.text_color(),
+            FoxgloveColor {
+                r: 0.1,
+                g: 0.2,
+                b: 0.3,
+                a: 0.4,
+            }
+        );
+        assert_eq!(
+            text.background_color(),
+            FoxgloveColor {
+                r: 0.5,
+                g: 0.6,
+                b: 0.7,
+                a: 0.8,
+            }
+        );
+        // Dynamic text field must remain untouched.
+        assert_eq!(text.text(), "Detection: car (98%)");
+
+        // Re-parse to ensure the mutated buffer is still valid CDR.
+        let bytes = text.to_cdr();
+        let decoded = FoxgloveTextAnnotation::from_cdr(bytes).unwrap();
+        assert_eq!(decoded.font_size(), 24.0);
+    }
+
+    #[test]
+    fn foxglove_point_annotation_setters() {
+        let mut pa = FoxglovePointAnnotation::new(
+            Time::new(100, 0),
+            point_annotation_type::LINE_LOOP,
+            &[
+                FoxglovePoint2 { x: 0.0, y: 0.0 },
+                FoxglovePoint2 { x: 100.0, y: 0.0 },
+                FoxglovePoint2 { x: 100.0, y: 100.0 },
+            ],
+            FoxgloveColor {
+                r: 0.0,
+                g: 1.0,
+                b: 0.0,
+                a: 1.0,
+            },
+            &[],
+            FoxgloveColor {
+                r: 0.0,
+                g: 0.5,
+                b: 0.0,
+                a: 0.3,
+            },
+            3.0,
+        )
+        .unwrap();
+
+        pa.set_timestamp(Time::new(500, 9)).unwrap();
+        pa.set_type_(point_annotation_type::LINE_STRIP).unwrap();
+        pa.set_outline_color(FoxgloveColor {
+            r: 0.11,
+            g: 0.22,
+            b: 0.33,
+            a: 0.44,
+        })
+        .unwrap();
+        pa.set_fill_color(FoxgloveColor {
+            r: 0.55,
+            g: 0.66,
+            b: 0.77,
+            a: 0.88,
+        })
+        .unwrap();
+        pa.set_thickness(9.25).unwrap();
+
+        assert_eq!(pa.timestamp(), Time::new(500, 9));
+        assert_eq!(pa.type_(), point_annotation_type::LINE_STRIP);
+        assert_eq!(
+            pa.outline_color(),
+            FoxgloveColor {
+                r: 0.11,
+                g: 0.22,
+                b: 0.33,
+                a: 0.44,
+            }
+        );
+        assert_eq!(
+            pa.fill_color(),
+            FoxgloveColor {
+                r: 0.55,
+                g: 0.66,
+                b: 0.77,
+                a: 0.88,
+            }
+        );
+        assert_eq!(pa.thickness(), 9.25);
+        // Dynamic points field must remain untouched.
+        assert_eq!(pa.points().len(), 3);
+
+        // Re-parse to ensure the mutated buffer is still valid CDR.
+        let bytes = pa.to_cdr();
+        let decoded = FoxglovePointAnnotation::from_cdr(bytes).unwrap();
+        assert_eq!(decoded.thickness(), 9.25);
+        assert_eq!(decoded.points().len(), 3);
     }
 }
