@@ -74,6 +74,31 @@ unsafe fn c_to_str<'a>(s: *const c_char) -> &'a str {
     }
 }
 
+/// Validate that a C string pointer is non-NULL and points at valid UTF-8.
+///
+/// Used by builder setters that take `*const c_char`. On NULL or invalid
+/// UTF-8 input, sets `errno = EINVAL` and returns `Err(())` — the caller
+/// returns `-1` to the C ABI. The returned `&str` borrows from the caller's
+/// buffer; the caller must copy it (e.g. via `.to_string()`) before the
+/// pointer can be invalidated.
+///
+/// # Safety
+/// `s` must either be NULL or a valid NUL-terminated C string.
+unsafe fn c_to_str_checked<'a>(s: *const c_char) -> Result<&'a str, ()> {
+    if s.is_null() {
+        set_errno(EINVAL);
+        return Err(());
+    }
+    let bytes = std::ffi::CStr::from_ptr(s).to_bytes();
+    match std::str::from_utf8(bytes) {
+        Ok(v) => Ok(v),
+        Err(_) => {
+            set_errno(EINVAL);
+            Err(())
+        }
+    }
+}
+
 /// Erase the borrow lifetime on a `&[u8]` slice for FFI.
 ///
 /// # Safety
@@ -4473,7 +4498,10 @@ pub extern "C" fn ros_header_builder_set_frame_id(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.frame_id = s_str.to_string();
     }
@@ -4601,7 +4629,10 @@ pub extern "C" fn ros_image_builder_set_frame_id(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.frame_id = s_str.to_string();
     }
@@ -4637,7 +4668,10 @@ pub extern "C" fn ros_image_builder_set_encoding(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.encoding = s_str.to_string();
     }
@@ -4669,14 +4703,20 @@ pub extern "C" fn ros_image_builder_set_data(
     b: *mut ros_image_builder_t,
     data: *const u8,
     len: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.data = data;
         (*b).0.data_len = len;
     }
+    0
 }
 
 fn ros_image_builder_data_slice(inner: &ImageBuilderOwned) -> &[u8] {
@@ -4818,7 +4858,10 @@ pub extern "C" fn ros_fluid_pressure_builder_set_frame_id(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.frame_id = s_str.to_string();
     }
@@ -4974,7 +5017,10 @@ pub extern "C" fn ros_compressed_image_builder_set_frame_id(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.frame_id = s_str.to_string();
     }
@@ -4990,7 +5036,10 @@ pub extern "C" fn ros_compressed_image_builder_set_format(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.format = s_str.to_string();
     }
@@ -5002,14 +5051,20 @@ pub extern "C" fn ros_compressed_image_builder_set_data(
     b: *mut ros_compressed_image_builder_t,
     data: *const u8,
     len: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.data = data;
         (*b).0.data_len = len;
     }
+    0
 }
 
 fn ros_compressed_image_builder_data_slice(inner: &CompressedImageBuilderOwned) -> &[u8] {
@@ -5155,7 +5210,10 @@ pub extern "C" fn ros_imu_builder_set_frame_id(b: *mut ros_imu_builder_t, s: *co
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.frame_id = s_str.to_string();
     }
@@ -5184,14 +5242,16 @@ pub extern "C" fn ros_imu_builder_set_orientation(
 pub extern "C" fn ros_imu_builder_set_orientation_covariance(
     b: *mut ros_imu_builder_t,
     cov: *const f64,
-) {
+) -> i32 {
     if b.is_null() || cov.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         let src = slice::from_raw_parts(cov, 9);
         (*b).0.orientation_covariance.copy_from_slice(src);
     }
+    0
 }
 
 #[no_mangle]
@@ -5213,14 +5273,16 @@ pub extern "C" fn ros_imu_builder_set_angular_velocity(
 pub extern "C" fn ros_imu_builder_set_angular_velocity_covariance(
     b: *mut ros_imu_builder_t,
     cov: *const f64,
-) {
+) -> i32 {
     if b.is_null() || cov.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         let src = slice::from_raw_parts(cov, 9);
         (*b).0.angular_velocity_covariance.copy_from_slice(src);
     }
+    0
 }
 
 #[no_mangle]
@@ -5242,14 +5304,16 @@ pub extern "C" fn ros_imu_builder_set_linear_acceleration(
 pub extern "C" fn ros_imu_builder_set_linear_acceleration_covariance(
     b: *mut ros_imu_builder_t,
     cov: *const f64,
-) {
+) -> i32 {
     if b.is_null() || cov.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         let src = slice::from_raw_parts(cov, 9);
         (*b).0.linear_acceleration_covariance.copy_from_slice(src);
     }
+    0
 }
 
 #[no_mangle]
@@ -5390,7 +5454,10 @@ pub extern "C" fn ros_nav_sat_fix_builder_set_frame_id(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.frame_id = s_str.to_string();
     }
@@ -5445,14 +5512,16 @@ pub extern "C" fn ros_nav_sat_fix_builder_set_altitude(b: *mut ros_nav_sat_fix_b
 pub extern "C" fn ros_nav_sat_fix_builder_set_position_covariance(
     b: *mut ros_nav_sat_fix_builder_t,
     cov: *const f64,
-) {
+) -> i32 {
     if b.is_null() || cov.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         let src = slice::from_raw_parts(cov, 9);
         (*b).0.position_covariance.copy_from_slice(src);
     }
+    0
 }
 
 #[no_mangle]
@@ -5581,7 +5650,10 @@ pub extern "C" fn ros_point_field_builder_set_name(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.name = s_str.to_string();
     }
@@ -5771,7 +5843,10 @@ pub extern "C" fn ros_point_cloud2_builder_set_frame_id(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.frame_id = s_str.to_string();
     }
@@ -5806,14 +5881,20 @@ pub extern "C" fn ros_point_cloud2_builder_set_fields(
     b: *mut ros_point_cloud2_builder_t,
     fields: *const ros_point_field_elem_t,
     count: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if fields.is_null() && count > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.fields = fields;
         (*b).0.fields_count = count;
     }
+    0
 }
 
 #[no_mangle]
@@ -5860,14 +5941,20 @@ pub extern "C" fn ros_point_cloud2_builder_set_data(
     b: *mut ros_point_cloud2_builder_t,
     data: *const u8,
     len: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.data = data;
         (*b).0.data_len = len;
     }
+    0
 }
 
 #[no_mangle]
@@ -5896,18 +5983,23 @@ fn ros_point_cloud2_builder_data_slice(inner: &PointCloud2BuilderOwned) -> &[u8]
 /// # Safety
 /// Each descriptor's `name` pointer must be a valid NUL-terminated C string
 /// (or NULL, treated as "") whose backing storage outlives the returned Vec.
-unsafe fn point_cloud2_fields_to_views(inner: &PointCloud2BuilderOwned) -> Vec<PointFieldView<'_>> {
+unsafe fn point_cloud2_fields_to_views(
+    inner: &PointCloud2BuilderOwned,
+) -> Result<Vec<PointFieldView<'_>>, ()> {
     if inner.fields.is_null() || inner.fields_count == 0 {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     let descs = slice::from_raw_parts(inner.fields, inner.fields_count);
     descs
         .iter()
-        .map(|d| PointFieldView {
-            name: c_to_str(d.name),
-            offset: d.offset,
-            datatype: d.datatype,
-            count: d.count,
+        .map(|d| {
+            let name = c_to_str_checked(d.name)?;
+            Ok(PointFieldView {
+                name,
+                offset: d.offset,
+                datatype: d.datatype,
+                count: d.count,
+            })
         })
         .collect()
 }
@@ -5924,7 +6016,10 @@ pub extern "C" fn ros_point_cloud2_builder_build(
     }
     let inner = unsafe { &(*b).0 };
     let data_slice = ros_point_cloud2_builder_data_slice(inner);
-    let fields = unsafe { point_cloud2_fields_to_views(inner) };
+    let fields = match unsafe { point_cloud2_fields_to_views(inner) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     let r = sensor_msgs::PointCloud2::builder()
         .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
         .frame_id(inner.frame_id.as_str())
@@ -5959,7 +6054,10 @@ pub extern "C" fn ros_point_cloud2_builder_encode_into(
     }
     let inner = unsafe { &(*b).0 };
     let data_slice = ros_point_cloud2_builder_data_slice(inner);
-    let fields = unsafe { point_cloud2_fields_to_views(inner) };
+    let fields = match unsafe { point_cloud2_fields_to_views(inner) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
     let r = sensor_msgs::PointCloud2::builder()
         .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
@@ -6073,7 +6171,10 @@ pub extern "C" fn ros_camera_info_builder_set_frame_id(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.frame_id = s_str.to_string();
     }
@@ -6109,7 +6210,10 @@ pub extern "C" fn ros_camera_info_builder_set_distortion_model(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.distortion_model = s_str.to_string();
     }
@@ -6124,50 +6228,71 @@ pub extern "C" fn ros_camera_info_builder_set_d(
     b: *mut ros_camera_info_builder_t,
     data: *const f64,
     len: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.d = data;
         (*b).0.d_len = len;
     }
+    0
 }
 
 /// Copy 9 f64 elements from `k` into the intrinsics matrix (row-major 3x3).
 #[no_mangle]
-pub extern "C" fn ros_camera_info_builder_set_k(b: *mut ros_camera_info_builder_t, k: *const f64) {
+pub extern "C" fn ros_camera_info_builder_set_k(
+    b: *mut ros_camera_info_builder_t,
+    k: *const f64,
+) -> i32 {
     if b.is_null() || k.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         let src = slice::from_raw_parts(k, 9);
         (*b).0.k.copy_from_slice(src);
     }
+    0
 }
 
 /// Copy 9 f64 elements from `r` into the rectification matrix (row-major 3x3).
 #[no_mangle]
-pub extern "C" fn ros_camera_info_builder_set_r(b: *mut ros_camera_info_builder_t, r: *const f64) {
+pub extern "C" fn ros_camera_info_builder_set_r(
+    b: *mut ros_camera_info_builder_t,
+    r: *const f64,
+) -> i32 {
     if b.is_null() || r.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         let src = slice::from_raw_parts(r, 9);
         (*b).0.r.copy_from_slice(src);
     }
+    0
 }
 
 /// Copy 12 f64 elements from `p` into the projection matrix (row-major 3x4).
 #[no_mangle]
-pub extern "C" fn ros_camera_info_builder_set_p(b: *mut ros_camera_info_builder_t, p: *const f64) {
+pub extern "C" fn ros_camera_info_builder_set_p(
+    b: *mut ros_camera_info_builder_t,
+    p: *const f64,
+) -> i32 {
     if b.is_null() || p.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         let src = slice::from_raw_parts(p, 12);
         (*b).0.p.copy_from_slice(src);
     }
+    0
 }
 
 #[no_mangle]
@@ -6364,7 +6489,10 @@ pub extern "C" fn ros_magnetic_field_builder_set_frame_id(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.frame_id = s_str.to_string();
     }
@@ -6390,14 +6518,16 @@ pub extern "C" fn ros_magnetic_field_builder_set_magnetic_field(
 pub extern "C" fn ros_magnetic_field_builder_set_magnetic_field_covariance(
     b: *mut ros_magnetic_field_builder_t,
     cov: *const f64,
-) {
+) -> i32 {
     if b.is_null() || cov.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         let src = slice::from_raw_parts(cov, 9);
         (*b).0.magnetic_field_covariance.copy_from_slice(src);
     }
+    0
 }
 
 #[no_mangle]
@@ -6552,7 +6682,10 @@ pub extern "C" fn ros_battery_state_builder_set_frame_id(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.frame_id = s_str.to_string();
     }
@@ -6710,14 +6843,20 @@ pub extern "C" fn ros_battery_state_builder_set_cell_voltage(
     b: *mut ros_battery_state_builder_t,
     data: *const f32,
     len: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.cell_voltage = data;
         (*b).0.cell_voltage_len = len;
     }
+    0
 }
 
 /// Set the cell_temperature sequence (BORROWED `*const f32` — pointer must
@@ -6728,14 +6867,20 @@ pub extern "C" fn ros_battery_state_builder_set_cell_temperature(
     b: *mut ros_battery_state_builder_t,
     data: *const f32,
     len: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.cell_temperature = data;
         (*b).0.cell_temperature_len = len;
     }
+    0
 }
 
 #[no_mangle]
@@ -6747,7 +6892,10 @@ pub extern "C" fn ros_battery_state_builder_set_location(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.location = s_str.to_string();
     }
@@ -6763,7 +6911,10 @@ pub extern "C" fn ros_battery_state_builder_set_serial_number(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.serial_number = s_str.to_string();
     }
@@ -6937,7 +7088,10 @@ pub extern "C" fn ros_temperature_builder_set_frame_id(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.frame_id = s_str.to_string();
     }
@@ -7106,7 +7260,10 @@ pub extern "C" fn ros_mask_builder_set_encoding(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.encoding = s_str.to_string();
     }
@@ -7118,14 +7275,20 @@ pub extern "C" fn ros_mask_builder_set_mask(
     b: *mut ros_mask_builder_t,
     data: *const u8,
     len: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.mask = data;
         (*b).0.mask_len = len;
     }
+    0
 }
 
 #[no_mangle]
@@ -7279,7 +7442,10 @@ pub extern "C" fn ros_local_time_builder_set_frame_id(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.frame_id = s_str.to_string();
     }
@@ -7471,7 +7637,10 @@ pub extern "C" fn ros_radar_cube_builder_set_frame_id(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.frame_id = s_str.to_string();
     }
@@ -7493,14 +7662,20 @@ pub extern "C" fn ros_radar_cube_builder_set_layout(
     b: *mut ros_radar_cube_builder_t,
     data: *const u8,
     len: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.layout = data;
         (*b).0.layout_len = len;
     }
+    0
 }
 
 #[no_mangle]
@@ -7508,14 +7683,20 @@ pub extern "C" fn ros_radar_cube_builder_set_shape(
     b: *mut ros_radar_cube_builder_t,
     data: *const u16,
     len: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.shape = data;
         (*b).0.shape_len = len;
     }
+    0
 }
 
 #[no_mangle]
@@ -7523,14 +7704,20 @@ pub extern "C" fn ros_radar_cube_builder_set_scales(
     b: *mut ros_radar_cube_builder_t,
     data: *const f32,
     len: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.scales = data;
         (*b).0.scales_len = len;
     }
+    0
 }
 
 #[no_mangle]
@@ -7538,14 +7725,20 @@ pub extern "C" fn ros_radar_cube_builder_set_cube(
     b: *mut ros_radar_cube_builder_t,
     data: *const i16,
     len: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.cube = data;
         (*b).0.cube_len = len;
     }
+    0
 }
 
 #[no_mangle]
@@ -7720,7 +7913,10 @@ pub extern "C" fn ros_radar_info_builder_set_frame_id(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.frame_id = s_str.to_string();
     }
@@ -7736,7 +7932,10 @@ pub extern "C" fn ros_radar_info_builder_set_center_frequency(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.center_frequency = s_str.to_string();
     }
@@ -7752,7 +7951,10 @@ pub extern "C" fn ros_radar_info_builder_set_frequency_sweep(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.frequency_sweep = s_str.to_string();
     }
@@ -7768,7 +7970,10 @@ pub extern "C" fn ros_radar_info_builder_set_range_toggle(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.range_toggle = s_str.to_string();
     }
@@ -7784,7 +7989,10 @@ pub extern "C" fn ros_radar_info_builder_set_detection_sensitivity(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.detection_sensitivity = s_str.to_string();
     }
@@ -7907,7 +8115,10 @@ pub extern "C" fn ros_track_builder_set_id(b: *mut ros_track_builder_t, s: *cons
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.id = s_str.to_string();
     }
@@ -8035,25 +8246,29 @@ pub struct ros_detect_box_elem_t {
 unsafe fn detect_box_descs_to_views(
     descs: *const ros_detect_box_elem_t,
     count: usize,
-) -> Vec<edgefirst_msgs::DetectBoxView<'static>> {
+) -> Result<Vec<edgefirst_msgs::DetectBoxView<'static>>, ()> {
     if descs.is_null() || count == 0 {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     let descs = slice::from_raw_parts(descs, count);
     descs
         .iter()
-        .map(|d| edgefirst_msgs::DetectBoxView {
-            center_x: d.center_x,
-            center_y: d.center_y,
-            width: d.width,
-            height: d.height,
-            label: c_to_str(d.label),
-            score: d.score,
-            distance: d.distance,
-            speed: d.speed,
-            track_id: c_to_str(d.track_id),
-            track_lifetime: d.track_lifetime,
-            track_created: Time::new(d.track_created_sec, d.track_created_nanosec),
+        .map(|d| {
+            let label = c_to_str_checked(d.label)?;
+            let track_id = c_to_str_checked(d.track_id)?;
+            Ok(edgefirst_msgs::DetectBoxView {
+                center_x: d.center_x,
+                center_y: d.center_y,
+                width: d.width,
+                height: d.height,
+                label,
+                score: d.score,
+                distance: d.distance,
+                speed: d.speed,
+                track_id,
+                track_lifetime: d.track_lifetime,
+                track_created: Time::new(d.track_created_sec, d.track_created_nanosec),
+            })
         })
         .collect()
 }
@@ -8154,7 +8369,10 @@ pub extern "C" fn ros_detect_box_builder_set_label(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.label = s_str.to_string();
     }
@@ -8200,7 +8418,10 @@ pub extern "C" fn ros_detect_box_builder_set_track_id(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.track_id = s_str.to_string();
     }
@@ -8385,7 +8606,10 @@ pub extern "C" fn ros_detect_builder_set_frame_id(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.frame_id = s_str.to_string();
     }
@@ -8442,14 +8666,20 @@ pub extern "C" fn ros_detect_builder_set_boxes(
     b: *mut ros_detect_builder_t,
     boxes: *const ros_detect_box_elem_t,
     count: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if boxes.is_null() && count > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.boxes = boxes;
         (*b).0.boxes_count = count;
     }
+    0
 }
 
 #[no_mangle]
@@ -8463,7 +8693,10 @@ pub extern "C" fn ros_detect_builder_build(
         return -1;
     }
     let inner = unsafe { &(*b).0 };
-    let boxes = unsafe { detect_box_descs_to_views(inner.boxes, inner.boxes_count) };
+    let boxes = match unsafe { detect_box_descs_to_views(inner.boxes, inner.boxes_count) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     let r = edgefirst_msgs::Detect::builder()
         .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
         .frame_id(inner.frame_id.as_str())
@@ -8493,7 +8726,10 @@ pub extern "C" fn ros_detect_builder_encode_into(
         return -1;
     }
     let inner = unsafe { &(*b).0 };
-    let boxes = unsafe { detect_box_descs_to_views(inner.boxes, inner.boxes_count) };
+    let boxes = match unsafe { detect_box_descs_to_views(inner.boxes, inner.boxes_count) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
     let r = edgefirst_msgs::Detect::builder()
         .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
@@ -8643,7 +8879,10 @@ pub extern "C" fn ros_camera_frame_builder_set_frame_id(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.frame_id = s_str.to_string();
     }
@@ -8699,7 +8938,10 @@ pub extern "C" fn ros_camera_frame_builder_set_format(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.format = s_str.to_string();
     }
@@ -8715,7 +8957,10 @@ pub extern "C" fn ros_camera_frame_builder_set_color_space(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.color_space = s_str.to_string();
     }
@@ -8731,7 +8976,10 @@ pub extern "C" fn ros_camera_frame_builder_set_color_transfer(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.color_transfer = s_str.to_string();
     }
@@ -8747,7 +8995,10 @@ pub extern "C" fn ros_camera_frame_builder_set_color_encoding(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.color_encoding = s_str.to_string();
     }
@@ -8763,7 +9014,10 @@ pub extern "C" fn ros_camera_frame_builder_set_color_range(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.color_range = s_str.to_string();
     }
@@ -8791,14 +9045,20 @@ pub extern "C" fn ros_camera_frame_builder_set_planes(
     b: *mut ros_camera_frame_builder_t,
     planes: *const ros_camera_plane_elem_t,
     count: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if planes.is_null() && count > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.planes = planes;
         (*b).0.planes_count = count;
     }
+    0
 }
 
 #[no_mangle]
@@ -8912,24 +9172,32 @@ pub struct ros_mask_elem_t {
 unsafe fn mask_descs_to_views(
     descs: *const ros_mask_elem_t,
     count: usize,
-) -> Vec<edgefirst_msgs::MaskView<'static>> {
+) -> Result<Vec<edgefirst_msgs::MaskView<'static>>, ()> {
     if descs.is_null() || count == 0 {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     let descs = slice::from_raw_parts(descs, count);
     descs
         .iter()
-        .map(|d| edgefirst_msgs::MaskView {
-            height: d.height,
-            width: d.width,
-            length: d.length,
-            encoding: c_to_str(d.encoding),
-            mask: if d.mask.is_null() || d.mask_len == 0 {
+        .map(|d| {
+            let encoding = c_to_str_checked(d.encoding)?;
+            let mask = if d.mask.is_null() {
+                if d.mask_len > 0 {
+                    set_errno(EINVAL);
+                    return Err(());
+                }
                 &[][..]
             } else {
                 slice::from_raw_parts(d.mask, d.mask_len)
-            },
-            boxed: d.boxed,
+            };
+            Ok(edgefirst_msgs::MaskView {
+                height: d.height,
+                width: d.width,
+                length: d.length,
+                encoding,
+                mask,
+                boxed: d.boxed,
+            })
         })
         .collect()
 }
@@ -9004,7 +9272,10 @@ pub extern "C" fn ros_model_builder_set_frame_id(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.frame_id = s_str.to_string();
     }
@@ -9074,14 +9345,20 @@ pub extern "C" fn ros_model_builder_set_boxes(
     b: *mut ros_model_builder_t,
     boxes: *const ros_detect_box_elem_t,
     count: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if boxes.is_null() && count > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.boxes = boxes;
         (*b).0.boxes_count = count;
     }
+    0
 }
 
 /// Set the masks descriptor sequence (BORROWED — `masks` and every
@@ -9092,14 +9369,20 @@ pub extern "C" fn ros_model_builder_set_masks(
     b: *mut ros_model_builder_t,
     masks: *const ros_mask_elem_t,
     count: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if masks.is_null() && count > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.masks = masks;
         (*b).0.masks_count = count;
     }
+    0
 }
 
 #[no_mangle]
@@ -9113,8 +9396,14 @@ pub extern "C" fn ros_model_builder_build(
         return -1;
     }
     let inner = unsafe { &(*b).0 };
-    let boxes = unsafe { detect_box_descs_to_views(inner.boxes, inner.boxes_count) };
-    let masks = unsafe { mask_descs_to_views(inner.masks, inner.masks_count) };
+    let boxes = match unsafe { detect_box_descs_to_views(inner.boxes, inner.boxes_count) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    let masks = match unsafe { mask_descs_to_views(inner.masks, inner.masks_count) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     let r = edgefirst_msgs::Model::builder()
         .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
         .frame_id(inner.frame_id.as_str())
@@ -9158,8 +9447,14 @@ pub extern "C" fn ros_model_builder_encode_into(
         return -1;
     }
     let inner = unsafe { &(*b).0 };
-    let boxes = unsafe { detect_box_descs_to_views(inner.boxes, inner.boxes_count) };
-    let masks = unsafe { mask_descs_to_views(inner.masks, inner.masks_count) };
+    let boxes = match unsafe { detect_box_descs_to_views(inner.boxes, inner.boxes_count) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    let masks = match unsafe { mask_descs_to_views(inner.masks, inner.masks_count) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
     let r = edgefirst_msgs::Model::builder()
         .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
@@ -9276,7 +9571,10 @@ pub extern "C" fn ros_model_info_builder_set_frame_id(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.frame_id = s_str.to_string();
     }
@@ -9288,14 +9586,20 @@ pub extern "C" fn ros_model_info_builder_set_input_shape(
     b: *mut ros_model_info_builder_t,
     data: *const u32,
     len: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.input_shape = data;
         (*b).0.input_shape_len = len;
     }
+    0
 }
 
 #[no_mangle]
@@ -9313,14 +9617,20 @@ pub extern "C" fn ros_model_info_builder_set_output_shape(
     b: *mut ros_model_info_builder_t,
     data: *const u32,
     len: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.output_shape = data;
         (*b).0.output_shape_len = len;
     }
+    0
 }
 
 #[no_mangle]
@@ -9376,7 +9686,10 @@ pub extern "C" fn ros_model_info_builder_set_model_type(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.model_type = s_str.to_string();
     }
@@ -9392,7 +9705,10 @@ pub extern "C" fn ros_model_info_builder_set_model_format(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.model_format = s_str.to_string();
     }
@@ -9408,7 +9724,10 @@ pub extern "C" fn ros_model_info_builder_set_model_name(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.model_name = s_str.to_string();
     }
@@ -9577,7 +9896,10 @@ pub extern "C" fn ros_vibration_builder_set_frame_id(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.frame_id = s_str.to_string();
     }
@@ -9648,14 +9970,20 @@ pub extern "C" fn ros_vibration_builder_set_clipping(
     b: *mut ros_vibration_builder_t,
     data: *const u32,
     len: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.clipping = data;
         (*b).0.clipping_len = len;
     }
+    0
 }
 
 fn vibration_clipping_slice(inner: &VibrationBuilderOwned) -> &[u32] {
@@ -9808,7 +10136,10 @@ pub extern "C" fn ros_foxglove_compressed_video_builder_set_frame_id(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.frame_id = s_str.to_string();
     }
@@ -9820,14 +10151,20 @@ pub extern "C" fn ros_foxglove_compressed_video_builder_set_data(
     b: *mut ros_foxglove_compressed_video_builder_t,
     data: *const u8,
     len: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.data = data;
         (*b).0.data_len = len;
     }
+    0
 }
 
 #[no_mangle]
@@ -9839,7 +10176,10 @@ pub extern "C" fn ros_foxglove_compressed_video_builder_set_format(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.format = s_str.to_string();
     }
@@ -10010,7 +10350,10 @@ pub extern "C" fn ros_foxglove_text_annotation_builder_set_text(
         set_errno(EINVAL);
         return -1;
     }
-    let s_str = unsafe { c_to_str(s) };
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     unsafe {
         (*b).0.text = s_str.to_string();
     }
@@ -10307,14 +10650,20 @@ pub extern "C" fn ros_foxglove_point_annotation_builder_set_points(
     b: *mut ros_foxglove_point_annotation_builder_t,
     points: *const ros_foxglove_point2_elem_t,
     count: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if points.is_null() && count > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.points = points;
         (*b).0.points_count = count;
     }
+    0
 }
 
 #[no_mangle]
@@ -10341,14 +10690,20 @@ pub extern "C" fn ros_foxglove_point_annotation_builder_set_outline_colors(
     b: *mut ros_foxglove_point_annotation_builder_t,
     colors: *const ros_foxglove_color_elem_t,
     count: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if colors.is_null() && count > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.outline_colors = colors;
         (*b).0.outline_colors_count = count;
     }
+    0
 }
 
 #[no_mangle]
@@ -10616,33 +10971,36 @@ unsafe fn point_annotation_descs_to_vec(
 unsafe fn text_annotation_descs_to_vec(
     descs: *const ros_foxglove_text_annotation_elem_t,
     count: usize,
-) -> Vec<foxglove_msgs::FoxgloveTextAnnotationView<'static>> {
+) -> Result<Vec<foxglove_msgs::FoxgloveTextAnnotationView<'static>>, ()> {
     if descs.is_null() || count == 0 {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     let descs = slice::from_raw_parts(descs, count);
     descs
         .iter()
-        .map(|d| foxglove_msgs::FoxgloveTextAnnotationView {
-            timestamp: Time::new(d.timestamp_sec, d.timestamp_nanosec),
-            position: foxglove_msgs::FoxglovePoint2 {
-                x: d.position_x,
-                y: d.position_y,
-            },
-            text: c_to_str(d.text),
-            font_size: d.font_size,
-            text_color: foxglove_msgs::FoxgloveColor {
-                r: d.text_color_r,
-                g: d.text_color_g,
-                b: d.text_color_b,
-                a: d.text_color_a,
-            },
-            background_color: foxglove_msgs::FoxgloveColor {
-                r: d.background_color_r,
-                g: d.background_color_g,
-                b: d.background_color_b,
-                a: d.background_color_a,
-            },
+        .map(|d| {
+            let text = c_to_str_checked(d.text)?;
+            Ok(foxglove_msgs::FoxgloveTextAnnotationView {
+                timestamp: Time::new(d.timestamp_sec, d.timestamp_nanosec),
+                position: foxglove_msgs::FoxglovePoint2 {
+                    x: d.position_x,
+                    y: d.position_y,
+                },
+                text,
+                font_size: d.font_size,
+                text_color: foxglove_msgs::FoxgloveColor {
+                    r: d.text_color_r,
+                    g: d.text_color_g,
+                    b: d.text_color_b,
+                    a: d.text_color_a,
+                },
+                background_color: foxglove_msgs::FoxgloveColor {
+                    r: d.background_color_r,
+                    g: d.background_color_g,
+                    b: d.background_color_b,
+                    a: d.background_color_a,
+                },
+            })
         })
         .collect()
 }
@@ -10691,14 +11049,20 @@ pub extern "C" fn ros_foxglove_image_annotation_builder_set_circles(
     b: *mut ros_foxglove_image_annotation_builder_t,
     circles: *const ros_foxglove_circle_annotation_elem_t,
     count: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if circles.is_null() && count > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.circles = circles;
         (*b).0.circles_count = count;
     }
+    0
 }
 
 /// Set the points descriptor sequence (BORROWED — including each
@@ -10708,14 +11072,20 @@ pub extern "C" fn ros_foxglove_image_annotation_builder_set_points(
     b: *mut ros_foxglove_image_annotation_builder_t,
     points: *const ros_foxglove_point_annotation_elem_t,
     count: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if points.is_null() && count > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.points = points;
         (*b).0.points_count = count;
     }
+    0
 }
 
 /// Set the texts descriptor sequence (BORROWED — including each
@@ -10725,14 +11095,20 @@ pub extern "C" fn ros_foxglove_image_annotation_builder_set_texts(
     b: *mut ros_foxglove_image_annotation_builder_t,
     texts: *const ros_foxglove_text_annotation_elem_t,
     count: usize,
-) {
+) -> i32 {
     if b.is_null() {
-        return;
+        set_errno(EINVAL);
+        return -1;
+    }
+    if texts.is_null() && count > 0 {
+        set_errno(EINVAL);
+        return -1;
     }
     unsafe {
         (*b).0.texts = texts;
         (*b).0.texts_count = count;
     }
+    0
 }
 
 #[no_mangle]
@@ -10748,7 +11124,10 @@ pub extern "C" fn ros_foxglove_image_annotation_builder_build(
     let inner = unsafe { &(*b).0 };
     let circles = unsafe { circle_descs_to_vec(inner.circles, inner.circles_count) };
     let points = unsafe { point_annotation_descs_to_vec(inner.points, inner.points_count) };
-    let texts = unsafe { text_annotation_descs_to_vec(inner.texts, inner.texts_count) };
+    let texts = match unsafe { text_annotation_descs_to_vec(inner.texts, inner.texts_count) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     let r = foxglove_msgs::FoxgloveImageAnnotation::builder()
         .circles(&circles)
         .points(&points)
@@ -10777,7 +11156,10 @@ pub extern "C" fn ros_foxglove_image_annotation_builder_encode_into(
     let inner = unsafe { &(*b).0 };
     let circles = unsafe { circle_descs_to_vec(inner.circles, inner.circles_count) };
     let points = unsafe { point_annotation_descs_to_vec(inner.points, inner.points_count) };
-    let texts = unsafe { text_annotation_descs_to_vec(inner.texts, inner.texts_count) };
+    let texts = match unsafe { text_annotation_descs_to_vec(inner.texts, inner.texts_count) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
     let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
     let r = foxglove_msgs::FoxgloveImageAnnotation::builder()
         .circles(&circles)

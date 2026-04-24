@@ -200,7 +200,7 @@ extern "C" {
     fn ros_image_builder_set_encoding(b: *mut ros_image_builder_t, s: *const c_char) -> i32;
     fn ros_image_builder_set_is_bigendian(b: *mut ros_image_builder_t, v: u8);
     fn ros_image_builder_set_step(b: *mut ros_image_builder_t, v: u32);
-    fn ros_image_builder_set_data(b: *mut ros_image_builder_t, data: *const u8, len: usize);
+    fn ros_image_builder_set_data(b: *mut ros_image_builder_t, data: *const u8, len: usize) -> i32;
     fn ros_image_builder_encode_into(
         b: *mut ros_image_builder_t,
         buf: *mut u8,
@@ -266,7 +266,7 @@ extern "C" {
         b: *mut ros_compressed_image_builder_t,
         data: *const u8,
         len: usize,
-    );
+    ) -> i32;
     fn ros_compressed_image_builder_encode_into(
         b: *mut ros_compressed_image_builder_t,
         buf: *mut u8,
@@ -280,14 +280,20 @@ extern "C" {
     fn ros_imu_builder_set_stamp(b: *mut ros_imu_builder_t, sec: i32, nsec: u32);
     fn ros_imu_builder_set_frame_id(b: *mut ros_imu_builder_t, s: *const c_char) -> i32;
     fn ros_imu_builder_set_orientation(b: *mut ros_imu_builder_t, x: f64, y: f64, z: f64, w: f64);
-    fn ros_imu_builder_set_orientation_covariance(b: *mut ros_imu_builder_t, cov: *const f64);
+    fn ros_imu_builder_set_orientation_covariance(
+        b: *mut ros_imu_builder_t,
+        cov: *const f64,
+    ) -> i32;
     fn ros_imu_builder_set_angular_velocity(b: *mut ros_imu_builder_t, x: f64, y: f64, z: f64);
-    fn ros_imu_builder_set_angular_velocity_covariance(b: *mut ros_imu_builder_t, cov: *const f64);
+    fn ros_imu_builder_set_angular_velocity_covariance(
+        b: *mut ros_imu_builder_t,
+        cov: *const f64,
+    ) -> i32;
     fn ros_imu_builder_set_linear_acceleration(b: *mut ros_imu_builder_t, x: f64, y: f64, z: f64);
     fn ros_imu_builder_set_linear_acceleration_covariance(
         b: *mut ros_imu_builder_t,
         cov: *const f64,
-    );
+    ) -> i32;
     fn ros_imu_builder_encode_into(
         b: *mut ros_imu_builder_t,
         buf: *mut u8,
@@ -314,7 +320,7 @@ extern "C" {
     fn ros_nav_sat_fix_builder_set_position_covariance(
         b: *mut ros_nav_sat_fix_builder_t,
         cov: *const f64,
-    );
+    ) -> i32;
     fn ros_nav_sat_fix_builder_set_position_covariance_type(
         b: *mut ros_nav_sat_fix_builder_t,
         v: u8,
@@ -355,7 +361,7 @@ extern "C" {
         b: *mut ros_point_cloud2_builder_t,
         fields: *const ros_point_field_elem_t,
         count: usize,
-    );
+    ) -> i32;
     fn ros_point_cloud2_builder_set_is_bigendian(b: *mut ros_point_cloud2_builder_t, v: bool);
     fn ros_point_cloud2_builder_set_point_step(b: *mut ros_point_cloud2_builder_t, v: u32);
     fn ros_point_cloud2_builder_set_row_step(b: *mut ros_point_cloud2_builder_t, v: u32);
@@ -363,7 +369,7 @@ extern "C" {
         b: *mut ros_point_cloud2_builder_t,
         data: *const u8,
         len: usize,
-    );
+    ) -> i32;
     fn ros_point_cloud2_builder_set_is_dense(b: *mut ros_point_cloud2_builder_t, v: bool);
     fn ros_point_cloud2_builder_encode_into(
         b: *mut ros_point_cloud2_builder_t,
@@ -390,10 +396,10 @@ extern "C" {
         b: *mut ros_camera_info_builder_t,
         data: *const f64,
         len: usize,
-    );
-    fn ros_camera_info_builder_set_k(b: *mut ros_camera_info_builder_t, k: *const f64);
-    fn ros_camera_info_builder_set_r(b: *mut ros_camera_info_builder_t, r: *const f64);
-    fn ros_camera_info_builder_set_p(b: *mut ros_camera_info_builder_t, p: *const f64);
+    ) -> i32;
+    fn ros_camera_info_builder_set_k(b: *mut ros_camera_info_builder_t, k: *const f64) -> i32;
+    fn ros_camera_info_builder_set_r(b: *mut ros_camera_info_builder_t, r: *const f64) -> i32;
+    fn ros_camera_info_builder_set_p(b: *mut ros_camera_info_builder_t, p: *const f64) -> i32;
     fn ros_camera_info_builder_set_binning_x(b: *mut ros_camera_info_builder_t, v: u32);
     fn ros_camera_info_builder_set_binning_y(b: *mut ros_camera_info_builder_t, v: u32);
     fn ros_camera_info_builder_set_roi(
@@ -432,7 +438,7 @@ extern "C" {
     fn ros_magnetic_field_builder_set_magnetic_field_covariance(
         b: *mut ros_magnetic_field_builder_t,
         cov: *const f64,
-    );
+    ) -> i32;
     fn ros_magnetic_field_builder_encode_into(
         b: *mut ros_magnetic_field_builder_t,
         buf: *mut u8,
@@ -476,12 +482,12 @@ extern "C" {
         b: *mut ros_battery_state_builder_t,
         data: *const f32,
         len: usize,
-    );
+    ) -> i32;
     fn ros_battery_state_builder_set_cell_temperature(
         b: *mut ros_battery_state_builder_t,
         data: *const f32,
         len: usize,
-    );
+    ) -> i32;
     fn ros_battery_state_builder_set_location(
         b: *mut ros_battery_state_builder_t,
         s: *const c_char,
@@ -506,7 +512,7 @@ extern "C" {
     fn ros_mask_builder_set_width(b: *mut ros_mask_builder_t, v: u32);
     fn ros_mask_builder_set_length(b: *mut ros_mask_builder_t, v: u32);
     fn ros_mask_builder_set_encoding(b: *mut ros_mask_builder_t, s: *const c_char) -> i32;
-    fn ros_mask_builder_set_mask(b: *mut ros_mask_builder_t, data: *const u8, len: usize);
+    fn ros_mask_builder_set_mask(b: *mut ros_mask_builder_t, data: *const u8, len: usize) -> i32;
     fn ros_mask_builder_set_boxed(b: *mut ros_mask_builder_t, v: bool);
     fn ros_mask_builder_encode_into(
         b: *mut ros_mask_builder_t,
@@ -551,22 +557,22 @@ extern "C" {
         b: *mut ros_radar_cube_builder_t,
         data: *const u8,
         len: usize,
-    );
+    ) -> i32;
     fn ros_radar_cube_builder_set_shape(
         b: *mut ros_radar_cube_builder_t,
         data: *const u16,
         len: usize,
-    );
+    ) -> i32;
     fn ros_radar_cube_builder_set_scales(
         b: *mut ros_radar_cube_builder_t,
         data: *const f32,
         len: usize,
-    );
+    ) -> i32;
     fn ros_radar_cube_builder_set_cube(
         b: *mut ros_radar_cube_builder_t,
         data: *const i16,
         len: usize,
-    );
+    ) -> i32;
     fn ros_radar_cube_builder_set_is_complex(b: *mut ros_radar_cube_builder_t, v: bool);
     fn ros_radar_cube_builder_encode_into(
         b: *mut ros_radar_cube_builder_t,
@@ -660,7 +666,7 @@ extern "C" {
         b: *mut ros_detect_builder_t,
         boxes: *const ros_detect_box_elem_t,
         count: usize,
-    );
+    ) -> i32;
     fn ros_detect_builder_encode_into(
         b: *mut ros_detect_builder_t,
         buf: *mut u8,
@@ -705,7 +711,7 @@ extern "C" {
         b: *mut ros_camera_frame_builder_t,
         planes: *const ros_camera_plane_elem_t,
         count: usize,
-    );
+    ) -> i32;
     fn ros_camera_frame_builder_encode_into(
         b: *mut ros_camera_frame_builder_t,
         buf: *mut u8,
@@ -726,12 +732,12 @@ extern "C" {
         b: *mut ros_model_builder_t,
         boxes: *const ros_detect_box_elem_t,
         count: usize,
-    );
+    ) -> i32;
     fn ros_model_builder_set_masks(
         b: *mut ros_model_builder_t,
         masks: *const ros_mask_elem_t,
         count: usize,
-    );
+    ) -> i32;
     fn ros_model_builder_encode_into(
         b: *mut ros_model_builder_t,
         buf: *mut u8,
@@ -751,13 +757,13 @@ extern "C" {
         b: *mut ros_model_info_builder_t,
         data: *const u32,
         len: usize,
-    );
+    ) -> i32;
     fn ros_model_info_builder_set_input_type(b: *mut ros_model_info_builder_t, v: u8);
     fn ros_model_info_builder_set_output_shape(
         b: *mut ros_model_info_builder_t,
         data: *const u32,
         len: usize,
-    );
+    ) -> i32;
     fn ros_model_info_builder_set_output_type(b: *mut ros_model_info_builder_t, v: u8);
     fn ros_model_info_builder_set_labels(
         b: *mut ros_model_info_builder_t,
@@ -798,7 +804,7 @@ extern "C" {
         b: *mut ros_vibration_builder_t,
         data: *const u32,
         len: usize,
-    );
+    ) -> i32;
     fn ros_vibration_builder_encode_into(
         b: *mut ros_vibration_builder_t,
         buf: *mut u8,
@@ -822,7 +828,7 @@ extern "C" {
         b: *mut ros_foxglove_compressed_video_builder_t,
         data: *const u8,
         len: usize,
-    );
+    ) -> i32;
     fn ros_foxglove_compressed_video_builder_set_format(
         b: *mut ros_foxglove_compressed_video_builder_t,
         s: *const c_char,
@@ -892,7 +898,7 @@ extern "C" {
         b: *mut ros_foxglove_point_annotation_builder_t,
         points: *const ros_foxglove_point2_elem_t,
         count: usize,
-    );
+    ) -> i32;
     fn ros_foxglove_point_annotation_builder_set_outline_color(
         b: *mut ros_foxglove_point_annotation_builder_t,
         r: f64,
@@ -904,7 +910,7 @@ extern "C" {
         b: *mut ros_foxglove_point_annotation_builder_t,
         colors: *const ros_foxglove_color_elem_t,
         count: usize,
-    );
+    ) -> i32;
     fn ros_foxglove_point_annotation_builder_set_fill_color(
         b: *mut ros_foxglove_point_annotation_builder_t,
         r: f64,
@@ -930,17 +936,17 @@ extern "C" {
         b: *mut ros_foxglove_image_annotation_builder_t,
         circles: *const ros_foxglove_circle_annotation_elem_t,
         count: usize,
-    );
+    ) -> i32;
     fn ros_foxglove_image_annotation_builder_set_points(
         b: *mut ros_foxglove_image_annotation_builder_t,
         points: *const ros_foxglove_point_annotation_elem_t,
         count: usize,
-    );
+    ) -> i32;
     fn ros_foxglove_image_annotation_builder_set_texts(
         b: *mut ros_foxglove_image_annotation_builder_t,
         texts: *const ros_foxglove_text_annotation_elem_t,
         count: usize,
-    );
+    ) -> i32;
     fn ros_foxglove_image_annotation_builder_encode_into(
         b: *mut ros_foxglove_image_annotation_builder_t,
         buf: *mut u8,
@@ -2444,5 +2450,129 @@ fn ros_foxglove_image_annotation_builder_encode_into_matches_rust_builder() {
         assert_eq!(&buf[..out_len], via_rust.as_cdr());
 
         ros_foxglove_image_annotation_builder_free(b);
+    }
+}
+
+// ============================================================================
+// Error-path tests for NULL / invalid-UTF-8 inputs on builder setters.
+// ============================================================================
+
+fn test_errno() -> i32 {
+    errno::errno().0
+}
+
+#[test]
+fn ros_image_builder_set_frame_id_null_returns_einval() {
+    unsafe {
+        let b = ros_image_builder_new();
+        assert!(!b.is_null());
+        errno::set_errno(errno::Errno(0));
+        let rc = ros_image_builder_set_frame_id(b, std::ptr::null());
+        assert_eq!(rc, -1);
+        assert_eq!(test_errno(), libc::EINVAL);
+        ros_image_builder_free(b);
+    }
+}
+
+#[test]
+fn ros_image_builder_set_frame_id_invalid_utf8_returns_einval() {
+    unsafe {
+        let b = ros_image_builder_new();
+        assert!(!b.is_null());
+        // 0xFF is not valid UTF-8; NUL-terminated.
+        let bad: [u8; 2] = [0xFF, 0x00];
+        errno::set_errno(errno::Errno(0));
+        let rc = ros_image_builder_set_frame_id(b, bad.as_ptr() as *const c_char);
+        assert_eq!(rc, -1);
+        assert_eq!(test_errno(), libc::EINVAL);
+        ros_image_builder_free(b);
+    }
+}
+
+#[test]
+fn ros_image_builder_set_data_null_with_nonzero_len_returns_einval() {
+    unsafe {
+        let b = ros_image_builder_new();
+        assert!(!b.is_null());
+        errno::set_errno(errno::Errno(0));
+        let rc = ros_image_builder_set_data(b, std::ptr::null(), 16);
+        assert_eq!(rc, -1);
+        assert_eq!(test_errno(), libc::EINVAL);
+        // (NULL, 0) is still a valid clear.
+        let rc_clear = ros_image_builder_set_data(b, std::ptr::null(), 0);
+        assert_eq!(rc_clear, 0);
+        ros_image_builder_free(b);
+    }
+}
+
+#[test]
+fn ros_imu_builder_set_orientation_covariance_null_returns_einval() {
+    unsafe {
+        let b = ros_imu_builder_new();
+        assert!(!b.is_null());
+        errno::set_errno(errno::Errno(0));
+        let rc = ros_imu_builder_set_orientation_covariance(b, std::ptr::null());
+        assert_eq!(rc, -1);
+        assert_eq!(test_errno(), libc::EINVAL);
+        ros_imu_builder_free(b);
+    }
+}
+
+#[test]
+fn ros_point_cloud2_builder_fields_null_name_fails_at_build() {
+    unsafe {
+        let b = ros_point_cloud2_builder_new();
+        assert!(!b.is_null());
+        // Descriptor with NULL name — build() / encode_into() must fail.
+        let descs = [ros_point_field_elem_t {
+            name: std::ptr::null(),
+            offset: 0,
+            datatype: 7,
+            count: 1,
+        }];
+        assert_eq!(
+            ros_point_cloud2_builder_set_fields(b, descs.as_ptr(), descs.len()),
+            0
+        );
+        let mut buf = [0u8; 1024];
+        let mut out_len: usize = 0;
+        errno::set_errno(errno::Errno(0));
+        let rc = ros_point_cloud2_builder_encode_into(b, buf.as_mut_ptr(), buf.len(), &mut out_len);
+        assert_eq!(rc, -1);
+        assert_eq!(test_errno(), libc::EINVAL);
+        ros_point_cloud2_builder_free(b);
+    }
+}
+
+#[test]
+fn ros_detect_builder_boxes_null_label_fails_at_build() {
+    unsafe {
+        let b = ros_detect_builder_new();
+        assert!(!b.is_null());
+        let descs = [ros_detect_box_elem_t {
+            center_x: 0.0,
+            center_y: 0.0,
+            width: 1.0,
+            height: 1.0,
+            label: std::ptr::null(),
+            score: 0.5,
+            distance: 0.0,
+            speed: 0.0,
+            track_id: std::ptr::null(),
+            track_lifetime: 0,
+            track_created_sec: 0,
+            track_created_nanosec: 0,
+        }];
+        assert_eq!(
+            ros_detect_builder_set_boxes(b, descs.as_ptr(), descs.len()),
+            0
+        );
+        let mut buf = [0u8; 1024];
+        let mut out_len: usize = 0;
+        errno::set_errno(errno::Errno(0));
+        let rc = ros_detect_builder_encode_into(b, buf.as_mut_ptr(), buf.len(), &mut out_len);
+        assert_eq!(rc, -1);
+        assert_eq!(test_errno(), libc::EINVAL);
+        ros_detect_builder_free(b);
     }
 }

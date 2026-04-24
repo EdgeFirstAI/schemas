@@ -634,7 +634,8 @@ void ros_header_builder_set_stamp(ros_header_builder_t* b,
 
 /**
  * @brief Set the frame_id field (string is copied into the builder).
- * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
+ *         NULL `s`, or non-UTF-8 `s`).
  */
 int  ros_header_builder_set_frame_id(ros_header_builder_t* b, const char* s);
 
@@ -751,7 +752,8 @@ void ros_image_builder_set_stamp(ros_image_builder_t* b,
 
 /**
  * @brief Set the frame_id field (string is copied into the builder).
- * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
+ *         NULL `s`, or non-UTF-8 `s`).
  */
 int  ros_image_builder_set_frame_id(ros_image_builder_t* b, const char* s);
 
@@ -763,7 +765,8 @@ void ros_image_builder_set_width(ros_image_builder_t* b, uint32_t v);
 
 /**
  * @brief Set the encoding field (string is copied into the builder).
- * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
+ *         NULL `s`, or non-UTF-8 `s`).
  */
 int  ros_image_builder_set_encoding(ros_image_builder_t* b, const char* s);
 
@@ -776,8 +779,10 @@ void ros_image_builder_set_step(ros_image_builder_t* b, uint32_t v);
 /**
  * @brief Set the data bulk byte sequence (BORROWED — must remain valid
  *        until the next setter, build, encode_into, or free call).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
  */
-void ros_image_builder_set_data(ros_image_builder_t* b,
+int  ros_image_builder_set_data(ros_image_builder_t* b,
                                 const uint8_t* data, size_t len);
 
 /**
@@ -875,14 +880,16 @@ void ros_compressed_image_builder_set_stamp(ros_compressed_image_builder_t* b,
 
 /**
  * @brief Set the frame_id field (string is copied into the builder).
- * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
+ *         NULL `s`, or non-UTF-8 `s`).
  */
 int  ros_compressed_image_builder_set_frame_id(
     ros_compressed_image_builder_t* b, const char* s);
 
 /**
  * @brief Set the format field (string is copied), e.g. "jpeg", "png".
- * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
+ *         NULL `s`, or non-UTF-8 `s`).
  */
 int  ros_compressed_image_builder_set_format(
     ros_compressed_image_builder_t* b, const char* s);
@@ -890,8 +897,10 @@ int  ros_compressed_image_builder_set_format(
 /**
  * @brief Set the compressed data bulk byte sequence (BORROWED — must remain
  *        valid until the next setter, build, encode_into, or free call).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
  */
-void ros_compressed_image_builder_set_data(ros_compressed_image_builder_t* b,
+int  ros_compressed_image_builder_set_data(ros_compressed_image_builder_t* b,
                                            const uint8_t* data, size_t len);
 
 /**
@@ -1303,7 +1312,8 @@ void ros_imu_builder_set_stamp(ros_imu_builder_t* b,
 
 /**
  * @brief Set the frame_id field (string is copied into the builder).
- * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
+ *         NULL `s`, or non-UTF-8 `s`).
  */
 int  ros_imu_builder_set_frame_id(ros_imu_builder_t* b, const char* s);
 
@@ -1315,24 +1325,32 @@ void ros_imu_builder_set_orientation(ros_imu_builder_t* b,
  * @brief Copy 9 f64 covariance values (row-major 3x3) into the builder.
  * @param cov Pointer to a double[9] buffer. The caller must ensure at least
  *            9 valid f64 elements are readable; values are copied.
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
  */
-void ros_imu_builder_set_orientation_covariance(ros_imu_builder_t* b,
+int  ros_imu_builder_set_orientation_covariance(ros_imu_builder_t* b,
                                                 const double* cov);
 
 /** @brief Set the angular_velocity (rad/s, x, y, z). */
 void ros_imu_builder_set_angular_velocity(ros_imu_builder_t* b,
                                           double x, double y, double z);
 
-/** @brief Copy 9 f64 covariance values for angular velocity. */
-void ros_imu_builder_set_angular_velocity_covariance(ros_imu_builder_t* b,
+/** @brief Copy 9 f64 covariance values for angular velocity.
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_imu_builder_set_angular_velocity_covariance(ros_imu_builder_t* b,
                                                      const double* cov);
 
 /** @brief Set the linear_acceleration (m/s², x, y, z). */
 void ros_imu_builder_set_linear_acceleration(ros_imu_builder_t* b,
                                              double x, double y, double z);
 
-/** @brief Copy 9 f64 covariance values for linear acceleration. */
-void ros_imu_builder_set_linear_acceleration_covariance(ros_imu_builder_t* b,
+/** @brief Copy 9 f64 covariance values for linear acceleration.
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_imu_builder_set_linear_acceleration_covariance(ros_imu_builder_t* b,
                                                         const double* cov);
 
 /**
@@ -1411,7 +1429,8 @@ void ros_nav_sat_fix_builder_set_stamp(ros_nav_sat_fix_builder_t* b,
 
 /**
  * @brief Set the frame_id field (string is copied into the builder).
- * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
+ *         NULL `s`, or non-UTF-8 `s`).
  */
 int  ros_nav_sat_fix_builder_set_frame_id(ros_nav_sat_fix_builder_t* b,
                                           const char* s);
@@ -1434,8 +1453,11 @@ void ros_nav_sat_fix_builder_set_longitude(ros_nav_sat_fix_builder_t* b,
 void ros_nav_sat_fix_builder_set_altitude(ros_nav_sat_fix_builder_t* b,
                                           double v);
 
-/** @brief Copy 9 f64 position covariance values (row-major 3x3). */
-void ros_nav_sat_fix_builder_set_position_covariance(
+/** @brief Copy 9 f64 position covariance values (row-major 3x3).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_nav_sat_fix_builder_set_position_covariance(
     ros_nav_sat_fix_builder_t* b, const double* cov);
 
 /** @brief Set the position_covariance_type field. */
@@ -1814,7 +1836,8 @@ void ros_point_field_builder_free(ros_point_field_builder_t* b);
 
 /**
  * @brief Set the name field (string is copied into the builder).
- * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
+ *         NULL `s`, or non-UTF-8 `s`).
  */
 int  ros_point_field_builder_set_name(ros_point_field_builder_t* b,
                                       const char* s);
@@ -1859,6 +1882,10 @@ int  ros_point_field_builder_encode_into(ros_point_field_builder_t* b,
  * NUL-terminated string alive (and the enclosing array) until the next
  * `ros_point_cloud2_builder_set_fields` call on the builder, the next
  * `build`/`encode_into`, or `free`.
+ *
+ * `name` must be a valid non-NULL NUL-terminated UTF-8 string; NULL or
+ * invalid UTF-8 causes the subsequent `build` / `encode_into` call to
+ * fail with `-1` and `errno = EINVAL`.
  */
 typedef struct ros_point_field_elem_s {
     const char* name;
@@ -1886,7 +1913,8 @@ void ros_point_cloud2_builder_set_stamp(ros_point_cloud2_builder_t* b,
 
 /**
  * @brief Set the frame_id field (string is copied into the builder).
- * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
+ *         NULL `s`, or non-UTF-8 `s`).
  */
 int  ros_point_cloud2_builder_set_frame_id(ros_point_cloud2_builder_t* b,
                                            const char* s);
@@ -1905,8 +1933,10 @@ void ros_point_cloud2_builder_set_width(ros_point_cloud2_builder_t* b,
  *        setter on this slot, build, encode_into, or free call).
  * @param fields Array of `count` ros_point_field_elem_t descriptors
  * @param count  Number of descriptors
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
  */
-void ros_point_cloud2_builder_set_fields(
+int  ros_point_cloud2_builder_set_fields(
     ros_point_cloud2_builder_t* b,
     const ros_point_field_elem_t* fields, size_t count);
 
@@ -1925,8 +1955,10 @@ void ros_point_cloud2_builder_set_row_step(ros_point_cloud2_builder_t* b,
 /**
  * @brief Set the data bulk byte sequence (BORROWED — must remain valid
  *        until the next setter, build, encode_into, or free call).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
  */
-void ros_point_cloud2_builder_set_data(ros_point_cloud2_builder_t* b,
+int  ros_point_cloud2_builder_set_data(ros_point_cloud2_builder_t* b,
                                        const uint8_t* data, size_t len);
 
 /** @brief Set the is_dense flag (true iff no invalid points). */
@@ -2015,7 +2047,8 @@ void ros_camera_info_builder_set_stamp(ros_camera_info_builder_t* b,
 
 /**
  * @brief Set the frame_id field (string is copied into the builder).
- * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
+ *         NULL `s`, or non-UTF-8 `s`).
  */
 int  ros_camera_info_builder_set_frame_id(ros_camera_info_builder_t* b,
                                           const char* s);
@@ -2030,7 +2063,8 @@ void ros_camera_info_builder_set_width(ros_camera_info_builder_t* b,
 
 /**
  * @brief Set the distortion model string (copied), e.g. "plumb_bob".
- * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
+ *         NULL `s`, or non-UTF-8 `s`).
  */
 int  ros_camera_info_builder_set_distortion_model(
     ros_camera_info_builder_t* b, const char* s);
@@ -2039,20 +2073,31 @@ int  ros_camera_info_builder_set_distortion_model(
  * @brief Set the distortion coefficients `d` (BORROWED `double[len]` — the
  *        pointer must remain valid until the next setter on this slot,
  *        build, encode_into, or free call).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
  */
-void ros_camera_info_builder_set_d(ros_camera_info_builder_t* b,
+int  ros_camera_info_builder_set_d(ros_camera_info_builder_t* b,
                                    const double* data, size_t len);
 
-/** @brief Copy 9 f64 intrinsics matrix elements (row-major 3x3). */
-void ros_camera_info_builder_set_k(ros_camera_info_builder_t* b,
+/** @brief Copy 9 f64 intrinsics matrix elements (row-major 3x3).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_camera_info_builder_set_k(ros_camera_info_builder_t* b,
                                    const double* k);
 
-/** @brief Copy 9 f64 rectification matrix elements (row-major 3x3). */
-void ros_camera_info_builder_set_r(ros_camera_info_builder_t* b,
+/** @brief Copy 9 f64 rectification matrix elements (row-major 3x3).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_camera_info_builder_set_r(ros_camera_info_builder_t* b,
                                    const double* r);
 
-/** @brief Copy 12 f64 projection matrix elements (row-major 3x4). */
-void ros_camera_info_builder_set_p(ros_camera_info_builder_t* b,
+/** @brief Copy 12 f64 projection matrix elements (row-major 3x4).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_camera_info_builder_set_p(ros_camera_info_builder_t* b,
                                    const double* p);
 
 /** @brief Set the horizontal binning factor. */
@@ -2269,7 +2314,8 @@ void ros_magnetic_field_builder_set_stamp(ros_magnetic_field_builder_t* b,
 
 /**
  * @brief Set the frame_id field (string is copied into the builder).
- * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
+ *         NULL `s`, or non-UTF-8 `s`).
  */
 int  ros_magnetic_field_builder_set_frame_id(
     ros_magnetic_field_builder_t* b, const char* s);
@@ -2278,8 +2324,11 @@ int  ros_magnetic_field_builder_set_frame_id(
 void ros_magnetic_field_builder_set_magnetic_field(
     ros_magnetic_field_builder_t* b, double x, double y, double z);
 
-/** @brief Copy 9 f64 covariance values (row-major 3x3). */
-void ros_magnetic_field_builder_set_magnetic_field_covariance(
+/** @brief Copy 9 f64 covariance values (row-major 3x3).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_magnetic_field_builder_set_magnetic_field_covariance(
     ros_magnetic_field_builder_t* b, const double* cov);
 
 /**
@@ -2337,7 +2386,8 @@ void ros_fluid_pressure_builder_set_stamp(ros_fluid_pressure_builder_t* b,
 
 /**
  * @brief Set the frame_id field (string is copied into the builder).
- * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
+ *         NULL `s`, or non-UTF-8 `s`).
  */
 int  ros_fluid_pressure_builder_set_frame_id(ros_fluid_pressure_builder_t* b,
                                              const char* s);
@@ -2405,7 +2455,8 @@ void ros_temperature_builder_set_stamp(ros_temperature_builder_t* b,
 
 /**
  * @brief Set the frame_id field (string is copied into the builder).
- * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
+ *         NULL `s`, or non-UTF-8 `s`).
  */
 int  ros_temperature_builder_set_frame_id(ros_temperature_builder_t* b,
                                           const char* s);
@@ -2518,7 +2569,8 @@ void ros_battery_state_builder_set_stamp(ros_battery_state_builder_t* b,
 
 /**
  * @brief Set the frame_id field (string is copied into the builder).
- * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
+ *         NULL `s`, or non-UTF-8 `s`).
  */
 int  ros_battery_state_builder_set_frame_id(
     ros_battery_state_builder_t* b, const char* s);
@@ -2553,27 +2605,33 @@ void ros_battery_state_builder_set_present(
 /**
  * @brief Set the cell_voltage array (BORROWED `float[len]` — must remain
  *        valid until the next setter on this slot, build, encode_into, or free).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
  */
-void ros_battery_state_builder_set_cell_voltage(
+int  ros_battery_state_builder_set_cell_voltage(
     ros_battery_state_builder_t* b, const float* data, size_t len);
 
 /**
  * @brief Set the cell_temperature array (BORROWED `float[len]` — must remain
  *        valid until the next setter on this slot, build, encode_into, or free).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
  */
-void ros_battery_state_builder_set_cell_temperature(
+int  ros_battery_state_builder_set_cell_temperature(
     ros_battery_state_builder_t* b, const float* data, size_t len);
 
 /**
  * @brief Set the location field (string is copied into the builder).
- * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
+ *         NULL `s`, or non-UTF-8 `s`).
  */
 int  ros_battery_state_builder_set_location(
     ros_battery_state_builder_t* b, const char* s);
 
 /**
  * @brief Set the serial_number field (string is copied into the builder).
- * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
+ *         NULL `s`, or non-UTF-8 `s`).
  */
 int  ros_battery_state_builder_set_serial_number(
     ros_battery_state_builder_t* b, const char* s);
@@ -2665,8 +2723,11 @@ void ros_mask_builder_set_height(ros_mask_builder_t* b, uint32_t v);
 void ros_mask_builder_set_width(ros_mask_builder_t* b, uint32_t v);
 void ros_mask_builder_set_length(ros_mask_builder_t* b, uint32_t v);
 int  ros_mask_builder_set_encoding(ros_mask_builder_t* b, const char* s);
-/** BORROWED — caller keeps `data` valid until next setter / build / free. */
-void ros_mask_builder_set_mask(ros_mask_builder_t* b,
+/** BORROWED — caller keeps `data` valid until next setter / build / free.
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_mask_builder_set_mask(ros_mask_builder_t* b,
                                const uint8_t* data, size_t len);
 void ros_mask_builder_set_boxed(ros_mask_builder_t* b, bool v);
 int  ros_mask_builder_build(ros_mask_builder_t* b,
@@ -2706,17 +2767,29 @@ void ros_radar_cube_builder_set_stamp(ros_radar_cube_builder_t* b,
 int  ros_radar_cube_builder_set_frame_id(ros_radar_cube_builder_t* b,
                                          const char* s);
 void ros_radar_cube_builder_set_timestamp(ros_radar_cube_builder_t* b, uint64_t v);
-/** BORROWED — caller keeps pointer valid until next setter / build / free. */
-void ros_radar_cube_builder_set_layout(ros_radar_cube_builder_t* b,
+/** BORROWED — caller keeps pointer valid until next setter / build / free.
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_radar_cube_builder_set_layout(ros_radar_cube_builder_t* b,
                                        const uint8_t* data, size_t len);
-/** BORROWED. */
-void ros_radar_cube_builder_set_shape(ros_radar_cube_builder_t* b,
+/** BORROWED.
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_radar_cube_builder_set_shape(ros_radar_cube_builder_t* b,
                                       const uint16_t* data, size_t len);
-/** BORROWED. */
-void ros_radar_cube_builder_set_scales(ros_radar_cube_builder_t* b,
+/** BORROWED.
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_radar_cube_builder_set_scales(ros_radar_cube_builder_t* b,
                                        const float* data, size_t len);
-/** BORROWED. */
-void ros_radar_cube_builder_set_cube(ros_radar_cube_builder_t* b,
+/** BORROWED.
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_radar_cube_builder_set_cube(ros_radar_cube_builder_t* b,
                                      const int16_t* data, size_t len);
 void ros_radar_cube_builder_set_is_complex(ros_radar_cube_builder_t* b, bool v);
 int  ros_radar_cube_builder_build(ros_radar_cube_builder_t* b,
@@ -2775,6 +2848,10 @@ int  ros_track_builder_encode_into(ros_track_builder_t* b,
  * `label` and `track_id` are BORROWED NUL-terminated C strings: the backing
  * storage must remain valid until the consuming builder is finalised
  * (build / encode_into) or freed.
+ *
+ * Both `label` and `track_id` must be valid non-NULL NUL-terminated UTF-8
+ * strings; NULL or invalid UTF-8 causes the subsequent `build` /
+ * `encode_into` call to fail with `-1` and `errno = EINVAL`.
  */
 typedef struct ros_detect_box_elem_s {
     float    center_x;
@@ -2830,8 +2907,11 @@ void ros_detect_builder_set_model_time(ros_detect_builder_t* b,
 void ros_detect_builder_set_output_time(ros_detect_builder_t* b,
                                         int32_t sec, uint32_t nsec);
 /** BORROWED — each element's label/track_id must remain valid until next
- *  setter, build, encode_into, or free. */
-void ros_detect_builder_set_boxes(ros_detect_builder_t* b,
+ *  setter, build, encode_into, or free.
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_detect_builder_set_boxes(ros_detect_builder_t* b,
                                   const ros_detect_box_elem_t* boxes,
                                   size_t count);
 int  ros_detect_builder_build(ros_detect_builder_t* b,
@@ -2879,8 +2959,11 @@ int  ros_camera_frame_builder_set_color_range(ros_camera_frame_builder_t* b,
                                               const char* s);
 void ros_camera_frame_builder_set_fence_fd(ros_camera_frame_builder_t* b, int32_t v);
 /** BORROWED — each element's data must remain valid until next setter,
- *  build, encode_into, or free. */
-void ros_camera_frame_builder_set_planes(ros_camera_frame_builder_t* b,
+ *  build, encode_into, or free.
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_camera_frame_builder_set_planes(ros_camera_frame_builder_t* b,
                                          const ros_camera_plane_elem_t* planes,
                                          size_t count);
 int  ros_camera_frame_builder_build(ros_camera_frame_builder_t* b,
@@ -2896,6 +2979,11 @@ int  ros_camera_frame_builder_encode_into(ros_camera_frame_builder_t* b,
  * C-POD descriptor for a Mask element used by the `masks` sequence on
  * Model. `encoding` and `mask` are BORROWED; both must remain valid until
  * the consuming builder is finalised or freed.
+ *
+ * `encoding` must be a valid non-NULL NUL-terminated UTF-8 string; NULL
+ * or invalid UTF-8 causes the subsequent `build` / `encode_into` call
+ * to fail with `-1` and `errno = EINVAL`. `mask == NULL` with
+ * `mask_len > 0` is likewise rejected.
  */
 typedef struct ros_mask_elem_s {
     uint32_t height;
@@ -2921,12 +3009,18 @@ void ros_model_builder_set_output_time(ros_model_builder_t* b,
                                        int32_t sec, uint32_t nsec);
 void ros_model_builder_set_decode_time(ros_model_builder_t* b,
                                        int32_t sec, uint32_t nsec);
-/** BORROWED — see ros_detect_builder_set_boxes. */
-void ros_model_builder_set_boxes(ros_model_builder_t* b,
+/** BORROWED — see ros_detect_builder_set_boxes.
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_model_builder_set_boxes(ros_model_builder_t* b,
                                  const ros_detect_box_elem_t* boxes,
                                  size_t count);
-/** BORROWED — each element's encoding/mask must remain valid. */
-void ros_model_builder_set_masks(ros_model_builder_t* b,
+/** BORROWED — each element's encoding/mask must remain valid.
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_model_builder_set_masks(ros_model_builder_t* b,
                                  const ros_mask_elem_t* masks,
                                  size_t count);
 int  ros_model_builder_build(ros_model_builder_t* b,
@@ -2944,12 +3038,18 @@ void ros_model_info_builder_set_stamp(ros_model_info_builder_t* b,
                                       int32_t sec, uint32_t nsec);
 int  ros_model_info_builder_set_frame_id(ros_model_info_builder_t* b,
                                          const char* s);
-/** BORROWED until next setter / build / free. */
-void ros_model_info_builder_set_input_shape(ros_model_info_builder_t* b,
+/** BORROWED until next setter / build / free.
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_model_info_builder_set_input_shape(ros_model_info_builder_t* b,
                                             const uint32_t* data, size_t len);
 void ros_model_info_builder_set_input_type(ros_model_info_builder_t* b, uint8_t v);
-/** BORROWED until next setter / build / free. */
-void ros_model_info_builder_set_output_shape(ros_model_info_builder_t* b,
+/** BORROWED until next setter / build / free.
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_model_info_builder_set_output_shape(ros_model_info_builder_t* b,
                                              const uint32_t* data, size_t len);
 void ros_model_info_builder_set_output_type(ros_model_info_builder_t* b, uint8_t v);
 /**
@@ -2990,8 +3090,11 @@ void ros_vibration_builder_set_band_lower_hz(ros_vibration_builder_t* b, float v
 void ros_vibration_builder_set_band_upper_hz(ros_vibration_builder_t* b, float v);
 void ros_vibration_builder_set_measurement_type(ros_vibration_builder_t* b, uint8_t v);
 void ros_vibration_builder_set_unit(ros_vibration_builder_t* b, uint8_t v);
-/** BORROWED until next setter / build / free. */
-void ros_vibration_builder_set_clipping(ros_vibration_builder_t* b,
+/** BORROWED until next setter / build / free.
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_vibration_builder_set_clipping(ros_vibration_builder_t* b,
                                         const uint32_t* data, size_t len);
 int  ros_vibration_builder_build(ros_vibration_builder_t* b,
                                  uint8_t** out_bytes, size_t* out_len);
@@ -3012,8 +3115,11 @@ void ros_foxglove_compressed_video_builder_set_stamp(
     ros_foxglove_compressed_video_builder_t* b, int32_t sec, uint32_t nsec);
 int  ros_foxglove_compressed_video_builder_set_frame_id(
     ros_foxglove_compressed_video_builder_t* b, const char* s);
-/** BORROWED until next setter / build / free. */
-void ros_foxglove_compressed_video_builder_set_data(
+/** BORROWED until next setter / build / free.
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_foxglove_compressed_video_builder_set_data(
     ros_foxglove_compressed_video_builder_t* b,
     const uint8_t* data, size_t len);
 int  ros_foxglove_compressed_video_builder_set_format(
@@ -3082,15 +3188,21 @@ void ros_foxglove_point_annotation_builder_set_timestamp(
     ros_foxglove_point_annotation_builder_t* b, int32_t sec, uint32_t nsec);
 void ros_foxglove_point_annotation_builder_set_type(
     ros_foxglove_point_annotation_builder_t* b, uint8_t v);
-/** BORROWED until next setter / build / free. */
-void ros_foxglove_point_annotation_builder_set_points(
+/** BORROWED until next setter / build / free.
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_foxglove_point_annotation_builder_set_points(
     ros_foxglove_point_annotation_builder_t* b,
     const ros_foxglove_point2_elem_t* points, size_t count);
 void ros_foxglove_point_annotation_builder_set_outline_color(
     ros_foxglove_point_annotation_builder_t* b,
     double r, double g, double b_, double a);
-/** BORROWED until next setter / build / free. */
-void ros_foxglove_point_annotation_builder_set_outline_colors(
+/** BORROWED until next setter / build / free.
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_foxglove_point_annotation_builder_set_outline_colors(
     ros_foxglove_point_annotation_builder_t* b,
     const ros_foxglove_color_elem_t* colors, size_t count);
 void ros_foxglove_point_annotation_builder_set_fill_color(
@@ -3153,6 +3265,10 @@ typedef struct ros_foxglove_point_annotation_elem_s {
 /**
  * C-POD descriptor for a FoxgloveTextAnnotation element. `text` is a
  * BORROWED NUL-terminated C string.
+ *
+ * `text` must be a valid non-NULL NUL-terminated UTF-8 string; NULL or
+ * invalid UTF-8 causes the subsequent `build` / `encode_into` call to
+ * fail with `-1` and `errno = EINVAL`.
  */
 typedef struct ros_foxglove_text_annotation_elem_s {
     int32_t  timestamp_sec;
@@ -3177,18 +3293,27 @@ ros_foxglove_image_annotation_builder_t*
 ros_foxglove_image_annotation_builder_new(void);
 void ros_foxglove_image_annotation_builder_free(
     ros_foxglove_image_annotation_builder_t* b);
-/** BORROWED — caller keeps `circles` valid until next setter / build / free. */
-void ros_foxglove_image_annotation_builder_set_circles(
+/** BORROWED — caller keeps `circles` valid until next setter / build / free.
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_foxglove_image_annotation_builder_set_circles(
     ros_foxglove_image_annotation_builder_t* b,
     const ros_foxglove_circle_annotation_elem_t* circles, size_t count);
 /** BORROWED — each element's inner `points`/`outline_colors` arrays must
- *  remain valid until next setter / build / free. */
-void ros_foxglove_image_annotation_builder_set_points(
+ *  remain valid until next setter / build / free.
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_foxglove_image_annotation_builder_set_points(
     ros_foxglove_image_annotation_builder_t* b,
     const ros_foxglove_point_annotation_elem_t* points, size_t count);
 /** BORROWED — each element's `text` C string must remain valid until next
- *  setter / build / free. */
-void ros_foxglove_image_annotation_builder_set_texts(
+ *  setter / build / free.
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_foxglove_image_annotation_builder_set_texts(
     ros_foxglove_image_annotation_builder_t* b,
     const ros_foxglove_text_annotation_elem_t* texts, size_t count);
 int  ros_foxglove_image_annotation_builder_build(
