@@ -186,6 +186,10 @@ impl<B: AsRef<[u8]>> FoxgloveCompressedVideo<B> {
 }
 
 impl FoxgloveCompressedVideo<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use FoxgloveCompressedVideo::builder() for allocation-free buffer reuse; FoxgloveCompressedVideo::new will be removed in 4.0"
+    )]
     pub fn new(stamp: Time, frame_id: &str, data: &[u8], format: &str) -> Result<Self, CdrError> {
         let mut sizer = CdrSizer::new();
         Time::size_cdr(&mut sizer);
@@ -212,6 +216,107 @@ impl FoxgloveCompressedVideo<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `FoxgloveCompressedVideoBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> FoxgloveCompressedVideoBuilder<'a> {
+        FoxgloveCompressedVideoBuilder::new()
+    }
+}
+
+// ── FoxgloveCompressedVideoBuilder<'a> ──────────────────────────────
+
+/// Builder for `FoxgloveCompressedVideo<Vec<u8>>` with buffer-reuse finalizers.
+///
+/// Strings use `Cow<'a, str>`; bulk `data` is borrowed for zero-copy input
+/// semantics. All borrows must remain valid until `build()`,
+/// `encode_into_vec()`, or `encode_into_slice()` is called.
+pub struct FoxgloveCompressedVideoBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    data: &'a [u8],
+    format: std::borrow::Cow<'a, str>,
+}
+
+impl<'a> Default for FoxgloveCompressedVideoBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            data: &[],
+            format: std::borrow::Cow::Borrowed(""),
+        }
+    }
+}
+
+impl<'a> FoxgloveCompressedVideoBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn data(&mut self, d: &'a [u8]) -> &mut Self {
+        self.data = d;
+        self
+    }
+    pub fn format(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.format = s.into();
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.size_bytes(self.data.len());
+        s.size_string(&self.format);
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.write_bytes(self.data);
+        w.write_string(&self.format);
+        w.finish()
+    }
+
+    /// Allocate a fresh `Vec<u8>` and return a fully-parsed
+    /// `FoxgloveCompressedVideo<Vec<u8>>`.
+    pub fn build(&self) -> Result<FoxgloveCompressedVideo<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        FoxgloveCompressedVideo::from_cdr(buf)
+    }
+
+    /// Serialize into the caller's `Vec<u8>`, resizing to exactly the encoded
+    /// size. Reuses existing allocation when capacity suffices.
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    /// Serialize into `buf` and return bytes written. Errors with
+    /// `BufferTooShort` when `buf` is smaller than the required size;
+    /// nothing is mutated in that case.
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -334,6 +439,10 @@ impl<B: AsRef<[u8]>> FoxgloveTextAnnotation<B> {
 }
 
 impl FoxgloveTextAnnotation<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use FoxgloveTextAnnotation::builder() for allocation-free buffer reuse; FoxgloveTextAnnotation::new will be removed in 4.0"
+    )]
     pub fn new(
         timestamp: Time,
         position: FoxglovePoint2,
@@ -366,6 +475,122 @@ impl FoxgloveTextAnnotation<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `FoxgloveTextAnnotationBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> FoxgloveTextAnnotationBuilder<'a> {
+        FoxgloveTextAnnotationBuilder::new()
+    }
+}
+
+// ── FoxgloveTextAnnotationBuilder<'a> ───────────────────────────────
+
+/// Builder for `FoxgloveTextAnnotation<Vec<u8>>` with buffer-reuse finalizers.
+pub struct FoxgloveTextAnnotationBuilder<'a> {
+    timestamp: Time,
+    position: FoxglovePoint2,
+    text: std::borrow::Cow<'a, str>,
+    font_size: f64,
+    text_color: FoxgloveColor,
+    background_color: FoxgloveColor,
+}
+
+impl<'a> Default for FoxgloveTextAnnotationBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            timestamp: Time { sec: 0, nanosec: 0 },
+            position: FoxglovePoint2 { x: 0.0, y: 0.0 },
+            text: std::borrow::Cow::Borrowed(""),
+            font_size: 0.0,
+            text_color: FoxgloveColor {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+                a: 0.0,
+            },
+            background_color: FoxgloveColor {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+                a: 0.0,
+            },
+        }
+    }
+}
+
+impl<'a> FoxgloveTextAnnotationBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn timestamp(&mut self, t: Time) -> &mut Self {
+        self.timestamp = t;
+        self
+    }
+    pub fn position(&mut self, p: FoxglovePoint2) -> &mut Self {
+        self.position = p;
+        self
+    }
+    pub fn text(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.text = s.into();
+        self
+    }
+    pub fn font_size(&mut self, v: f64) -> &mut Self {
+        self.font_size = v;
+        self
+    }
+    pub fn text_color(&mut self, c: FoxgloveColor) -> &mut Self {
+        self.text_color = c;
+        self
+    }
+    pub fn background_color(&mut self, c: FoxgloveColor) -> &mut Self {
+        self.background_color = c;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        FoxglovePoint2::size_cdr(&mut s);
+        s.size_string(&self.text);
+        s.size_f64();
+        FoxgloveColor::size_cdr(&mut s);
+        FoxgloveColor::size_cdr(&mut s);
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.timestamp.write_cdr(&mut w);
+        self.position.write_cdr(&mut w);
+        w.write_string(&self.text);
+        w.write_f64(self.font_size);
+        self.text_color.write_cdr(&mut w);
+        self.background_color.write_cdr(&mut w);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<FoxgloveTextAnnotation<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        FoxgloveTextAnnotation::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -535,6 +760,10 @@ impl<B: AsRef<[u8]>> FoxglovePointAnnotation<B> {
 }
 
 impl FoxglovePointAnnotation<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use FoxglovePointAnnotation::builder() for allocation-free buffer reuse; FoxglovePointAnnotation::new will be removed in 4.0"
+    )]
     pub fn new(
         timestamp: Time,
         type_: u8,
@@ -586,6 +815,146 @@ impl FoxglovePointAnnotation<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `FoxglovePointAnnotationBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> FoxglovePointAnnotationBuilder<'a> {
+        FoxglovePointAnnotationBuilder::new()
+    }
+}
+
+// ── FoxglovePointAnnotationBuilder<'a> ──────────────────────────────
+
+/// Builder for `FoxglovePointAnnotation<Vec<u8>>` with buffer-reuse finalizers.
+///
+/// Point and color slices are borrowed from caller memory; the borrows must
+/// remain valid until `build()`, `encode_into_vec()`, or
+/// `encode_into_slice()` is called.
+pub struct FoxglovePointAnnotationBuilder<'a> {
+    timestamp: Time,
+    type_: u8,
+    points: &'a [FoxglovePoint2],
+    outline_color: FoxgloveColor,
+    outline_colors: &'a [FoxgloveColor],
+    fill_color: FoxgloveColor,
+    thickness: f64,
+}
+
+impl<'a> Default for FoxglovePointAnnotationBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            timestamp: Time { sec: 0, nanosec: 0 },
+            type_: 0,
+            points: &[],
+            outline_color: FoxgloveColor {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+                a: 0.0,
+            },
+            outline_colors: &[],
+            fill_color: FoxgloveColor {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+                a: 0.0,
+            },
+            thickness: 0.0,
+        }
+    }
+}
+
+impl<'a> FoxglovePointAnnotationBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn timestamp(&mut self, t: Time) -> &mut Self {
+        self.timestamp = t;
+        self
+    }
+    pub fn type_(&mut self, v: u8) -> &mut Self {
+        self.type_ = v;
+        self
+    }
+    pub fn points(&mut self, p: &'a [FoxglovePoint2]) -> &mut Self {
+        self.points = p;
+        self
+    }
+    pub fn outline_color(&mut self, c: FoxgloveColor) -> &mut Self {
+        self.outline_color = c;
+        self
+    }
+    pub fn outline_colors(&mut self, c: &'a [FoxgloveColor]) -> &mut Self {
+        self.outline_colors = c;
+        self
+    }
+    pub fn fill_color(&mut self, c: FoxgloveColor) -> &mut Self {
+        self.fill_color = c;
+        self
+    }
+    pub fn thickness(&mut self, v: f64) -> &mut Self {
+        self.thickness = v;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_u8();
+        s.size_u32();
+        for _ in 0..self.points.len() {
+            FoxglovePoint2::size_cdr(&mut s);
+        }
+        FoxgloveColor::size_cdr(&mut s);
+        s.size_u32();
+        for _ in 0..self.outline_colors.len() {
+            FoxgloveColor::size_cdr(&mut s);
+        }
+        FoxgloveColor::size_cdr(&mut s);
+        s.size_f64();
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.timestamp.write_cdr(&mut w);
+        w.write_u8(self.type_);
+        w.write_u32(self.points.len() as u32);
+        for pt in self.points {
+            pt.write_cdr(&mut w);
+        }
+        self.outline_color.write_cdr(&mut w);
+        w.write_u32(self.outline_colors.len() as u32);
+        for oc in self.outline_colors {
+            oc.write_cdr(&mut w);
+        }
+        self.fill_color.write_cdr(&mut w);
+        w.write_f64(self.thickness);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<FoxglovePointAnnotation<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        FoxglovePointAnnotation::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -674,6 +1043,10 @@ impl<B: AsRef<[u8]>> FoxgloveImageAnnotation<B> {
 }
 
 impl FoxgloveImageAnnotation<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use FoxgloveImageAnnotation::builder() for allocation-free buffer reuse; FoxgloveImageAnnotation::new will be removed in 4.0"
+    )]
     pub fn new(
         circles: &[FoxgloveCircleAnnotations],
         points: &[FoxglovePointAnnotationView],
@@ -720,6 +1093,103 @@ impl FoxgloveImageAnnotation<Vec<u8>> {
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
+
+    /// Start a new `FoxgloveImageAnnotationBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> FoxgloveImageAnnotationBuilder<'a> {
+        FoxgloveImageAnnotationBuilder::new()
+    }
+}
+
+// ── FoxgloveImageAnnotationBuilder<'a> ──────────────────────────────
+
+/// Builder for `FoxgloveImageAnnotation<Vec<u8>>` with buffer-reuse finalizers.
+///
+/// All slices (circles, points, texts) are borrowed from caller memory. The
+/// `points` elements own their inner `Vec<FoxglovePoint2>`/`Vec<FoxgloveColor>`;
+/// the `texts` elements borrow their string payloads. All borrows must remain
+/// valid until `build()`, `encode_into_vec()`, or `encode_into_slice()` is
+/// called.
+#[derive(Default)]
+pub struct FoxgloveImageAnnotationBuilder<'a> {
+    circles: &'a [FoxgloveCircleAnnotations],
+    points: &'a [FoxglovePointAnnotationView],
+    texts: &'a [FoxgloveTextAnnotationView<'a>],
+}
+
+impl<'a> FoxgloveImageAnnotationBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn circles(&mut self, c: &'a [FoxgloveCircleAnnotations]) -> &mut Self {
+        self.circles = c;
+        self
+    }
+    pub fn points(&mut self, p: &'a [FoxglovePointAnnotationView]) -> &mut Self {
+        self.points = p;
+        self
+    }
+    pub fn texts(&mut self, t: &'a [FoxgloveTextAnnotationView<'a>]) -> &mut Self {
+        self.texts = t;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        s.size_u32();
+        for _ in 0..self.circles.len() {
+            FoxgloveCircleAnnotations::size_cdr(&mut s);
+        }
+        s.size_u32();
+        for p in self.points {
+            size_point_annotation(&mut s, p);
+        }
+        s.size_u32();
+        for t in self.texts {
+            size_text_annotation(&mut s, t.text);
+        }
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        w.write_u32(self.circles.len() as u32);
+        for c in self.circles {
+            c.write_cdr(&mut w);
+        }
+        w.write_u32(self.points.len() as u32);
+        for p in self.points {
+            write_point_annotation(&mut w, p);
+        }
+        w.write_u32(self.texts.len() as u32);
+        for t in self.texts {
+            write_text_annotation(&mut w, t);
+        }
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<FoxgloveImageAnnotation<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        FoxgloveImageAnnotation::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
+    }
 }
 
 // ── Registry ────────────────────────────────────────────────────────
@@ -749,6 +1219,7 @@ impl SchemaType for FoxgloveCircleAnnotations {
     const SCHEMA_NAME: &'static str = "foxglove_msgs/msg/FoxgloveCircleAnnotations";
 }
 
+#[allow(deprecated)]
 #[cfg(test)]
 mod tests {
     use super::*;

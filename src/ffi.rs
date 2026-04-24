@@ -1234,12 +1234,13 @@ pub extern "C" fn ros_compressed_video_encode(
     } else {
         unsafe { slice::from_raw_parts(data, data_len) }
     };
-    let v = match foxglove_msgs::FoxgloveCompressedVideo::new(
-        Time::new(stamp_sec, stamp_nanosec),
-        fid,
-        d,
-        fmt,
-    ) {
+    let v = match foxglove_msgs::FoxgloveCompressedVideo::builder()
+        .stamp(Time::new(stamp_sec, stamp_nanosec))
+        .frame_id(fid)
+        .data(d)
+        .format(fmt)
+        .build()
+    {
         Ok(v) => v,
         Err(_) => {
             set_errno(EBADMSG);
