@@ -611,6 +611,50 @@ int ros_header_encode(uint8_t** out_bytes, size_t* out_len,
                       int32_t stamp_sec, uint32_t stamp_nanosec,
                       const char* frame_id);
 
+/* ----------------------------------------------------------------------------
+ * std_msgs - Header (builder, 3.2.0+)
+ * --------------------------------------------------------------------------*/
+
+/** @brief Opaque builder handle for ros_header_t messages. */
+typedef struct ros_header_builder_s ros_header_builder_t;
+
+/**
+ * @brief Create a new Header builder with zero-valued defaults.
+ * @return Opaque handle, or NULL on allocation failure. Free with
+ *         ros_header_builder_free.
+ */
+ros_header_builder_t* ros_header_builder_new(void);
+
+/** @brief Free a Header builder handle. NULL-safe. */
+void ros_header_builder_free(ros_header_builder_t* b);
+
+/** @brief Set the stamp field. */
+void ros_header_builder_set_stamp(ros_header_builder_t* b,
+                                  int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the frame_id field (string is copied into the builder).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ */
+int  ros_header_builder_set_frame_id(ros_header_builder_t* b, const char* s);
+
+/**
+ * @brief Allocate a fresh CDR buffer and encode the message.
+ * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
+ */
+int  ros_header_builder_build(ros_header_builder_t* b,
+                              uint8_t** out_bytes, size_t* out_len);
+
+/**
+ * @brief Encode the message into a caller-owned buffer.
+ * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
+ *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
+ */
+int  ros_header_builder_encode_into(ros_header_builder_t* b,
+                                    uint8_t* buf, size_t cap,
+                                    size_t* out_len);
+
 /* ============================================================================
  * sensor_msgs - Image (buffer-backed)
  * ========================================================================= */
@@ -683,6 +727,75 @@ int ros_image_encode(uint8_t** out_bytes, size_t* out_len,
                      uint32_t height, uint32_t width,
                      const char* encoding, uint8_t is_bigendian,
                      uint32_t step, const uint8_t* data, size_t data_len);
+
+/* ----------------------------------------------------------------------------
+ * sensor_msgs - Image (builder, 3.2.0+)
+ * --------------------------------------------------------------------------*/
+
+/** @brief Opaque builder handle for ros_image_t messages. */
+typedef struct ros_image_builder_s ros_image_builder_t;
+
+/**
+ * @brief Create a new Image builder with zero-valued defaults.
+ * @return Opaque handle, or NULL on allocation failure. Free with
+ *         ros_image_builder_free.
+ */
+ros_image_builder_t* ros_image_builder_new(void);
+
+/** @brief Free an Image builder handle. NULL-safe. */
+void ros_image_builder_free(ros_image_builder_t* b);
+
+/** @brief Set the stamp field. */
+void ros_image_builder_set_stamp(ros_image_builder_t* b,
+                                 int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the frame_id field (string is copied into the builder).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ */
+int  ros_image_builder_set_frame_id(ros_image_builder_t* b, const char* s);
+
+/** @brief Set the height field. */
+void ros_image_builder_set_height(ros_image_builder_t* b, uint32_t v);
+
+/** @brief Set the width field. */
+void ros_image_builder_set_width(ros_image_builder_t* b, uint32_t v);
+
+/**
+ * @brief Set the encoding field (string is copied into the builder).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ */
+int  ros_image_builder_set_encoding(ros_image_builder_t* b, const char* s);
+
+/** @brief Set the is_bigendian field. */
+void ros_image_builder_set_is_bigendian(ros_image_builder_t* b, uint8_t v);
+
+/** @brief Set the step (row stride in bytes) field. */
+void ros_image_builder_set_step(ros_image_builder_t* b, uint32_t v);
+
+/**
+ * @brief Set the data bulk byte sequence (BORROWED — must remain valid
+ *        until the next setter, build, encode_into, or free call).
+ */
+void ros_image_builder_set_data(ros_image_builder_t* b,
+                                const uint8_t* data, size_t len);
+
+/**
+ * @brief Allocate a fresh CDR buffer and encode the message.
+ * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
+ */
+int  ros_image_builder_build(ros_image_builder_t* b,
+                             uint8_t** out_bytes, size_t* out_len);
+
+/**
+ * @brief Encode the message into a caller-owned buffer.
+ * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
+ *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
+ */
+int  ros_image_builder_encode_into(ros_image_builder_t* b,
+                                   uint8_t* buf, size_t cap,
+                                   size_t* out_len);
 
 /* ============================================================================
  * sensor_msgs - CompressedImage (buffer-backed)
@@ -1694,6 +1807,59 @@ double ros_fluid_pressure_get_fluid_pressure(const ros_fluid_pressure_t* view);
 double ros_fluid_pressure_get_variance(const ros_fluid_pressure_t* view);
 const uint8_t* ros_fluid_pressure_as_cdr(const ros_fluid_pressure_t* view, size_t* out_len);
 
+/* ----------------------------------------------------------------------------
+ * sensor_msgs - FluidPressure (builder, 3.2.0+)
+ * --------------------------------------------------------------------------*/
+
+/** @brief Opaque builder handle for ros_fluid_pressure_t messages. */
+typedef struct ros_fluid_pressure_builder_s ros_fluid_pressure_builder_t;
+
+/**
+ * @brief Create a new FluidPressure builder with zero-valued defaults.
+ * @return Opaque handle, or NULL on allocation failure. Free with
+ *         ros_fluid_pressure_builder_free.
+ */
+ros_fluid_pressure_builder_t* ros_fluid_pressure_builder_new(void);
+
+/** @brief Free a FluidPressure builder handle. NULL-safe. */
+void ros_fluid_pressure_builder_free(ros_fluid_pressure_builder_t* b);
+
+/** @brief Set the stamp field. */
+void ros_fluid_pressure_builder_set_stamp(ros_fluid_pressure_builder_t* b,
+                                          int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the frame_id field (string is copied into the builder).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ */
+int  ros_fluid_pressure_builder_set_frame_id(ros_fluid_pressure_builder_t* b,
+                                             const char* s);
+
+/** @brief Set the fluid_pressure field (Pascals). */
+void ros_fluid_pressure_builder_set_fluid_pressure(
+    ros_fluid_pressure_builder_t* b, double v);
+
+/** @brief Set the variance field (0 indicates unknown). */
+void ros_fluid_pressure_builder_set_variance(ros_fluid_pressure_builder_t* b,
+                                             double v);
+
+/**
+ * @brief Allocate a fresh CDR buffer and encode the message.
+ * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
+ */
+int  ros_fluid_pressure_builder_build(ros_fluid_pressure_builder_t* b,
+                                      uint8_t** out_bytes, size_t* out_len);
+
+/**
+ * @brief Encode the message into a caller-owned buffer.
+ * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
+ *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
+ */
+int  ros_fluid_pressure_builder_encode_into(ros_fluid_pressure_builder_t* b,
+                                            uint8_t* buf, size_t cap,
+                                            size_t* out_len);
+
 /* =========================================================================
  * sensor_msgs/Temperature  (buffer-backed, decode-only)
  * =========================================================================
@@ -1708,6 +1874,59 @@ const char* ros_temperature_get_frame_id(const ros_temperature_t* view);
 double ros_temperature_get_temperature(const ros_temperature_t* view);
 double ros_temperature_get_variance(const ros_temperature_t* view);
 const uint8_t* ros_temperature_as_cdr(const ros_temperature_t* view, size_t* out_len);
+
+/* ----------------------------------------------------------------------------
+ * sensor_msgs - Temperature (builder, 3.2.0+)
+ * --------------------------------------------------------------------------*/
+
+/** @brief Opaque builder handle for ros_temperature_t messages. */
+typedef struct ros_temperature_builder_s ros_temperature_builder_t;
+
+/**
+ * @brief Create a new Temperature builder with zero-valued defaults.
+ * @return Opaque handle, or NULL on allocation failure. Free with
+ *         ros_temperature_builder_free.
+ */
+ros_temperature_builder_t* ros_temperature_builder_new(void);
+
+/** @brief Free a Temperature builder handle. NULL-safe. */
+void ros_temperature_builder_free(ros_temperature_builder_t* b);
+
+/** @brief Set the stamp field. */
+void ros_temperature_builder_set_stamp(ros_temperature_builder_t* b,
+                                       int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the frame_id field (string is copied into the builder).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ */
+int  ros_temperature_builder_set_frame_id(ros_temperature_builder_t* b,
+                                          const char* s);
+
+/** @brief Set the temperature field (Celsius). */
+void ros_temperature_builder_set_temperature(ros_temperature_builder_t* b,
+                                             double v);
+
+/** @brief Set the variance field (0 indicates unknown). */
+void ros_temperature_builder_set_variance(ros_temperature_builder_t* b,
+                                          double v);
+
+/**
+ * @brief Allocate a fresh CDR buffer and encode the message.
+ * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
+ */
+int  ros_temperature_builder_build(ros_temperature_builder_t* b,
+                                   uint8_t** out_bytes, size_t* out_len);
+
+/**
+ * @brief Encode the message into a caller-owned buffer.
+ * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
+ *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
+ */
+int  ros_temperature_builder_encode_into(ros_temperature_builder_t* b,
+                                         uint8_t* buf, size_t cap,
+                                         size_t* out_len);
 
 /* =========================================================================
  * sensor_msgs/BatteryState  (buffer-backed, decode-only)

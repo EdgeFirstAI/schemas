@@ -4399,3 +4399,668 @@ pub extern "C" fn ros_vibration_get_clipping(
     let msg = unsafe { &(*view).0 };
     copy_le_u32_seq(msg.as_cdr(), msg.clipping_seq_offset(), out, cap)
 }
+
+// =============================================================================
+// Builder handles (3.2.0+)
+//
+// Opaque handle + per-field setters + build/encode_into finalizers.
+//
+// Internal state owns strings (copied from the C string at set-time) and
+// borrows bulk byte / view sequences as raw `*const u8 + usize` pairs. The
+// caller contract is that any borrowed data remains valid until the next
+// setter on that field, the next `build` / `encode_into`, or `free`.
+//
+// The legacy `ros_<type>_encode` one-shot functions remain in 3.2.0 for
+// compatibility but are deprecated and slated for removal in 4.0; new code
+// should prefer the builder API to avoid argument-list explosion as message
+// shapes grow.
+//
+// Errno conventions match the existing FFI:
+//   * EINVAL  — NULL handle or required-NULL argument.
+//   * EBADMSG — encoder rejected the staged fields.
+//   * ENOBUFS — `encode_into` was called with too small a destination.
+// =============================================================================
+
+// ── std_msgs::Header ────────────────────────────────────────────────
+
+struct HeaderBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+}
+
+pub struct ros_header_builder_t(HeaderBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_header_builder_new() -> *mut ros_header_builder_t {
+    Box::into_raw(Box::new(ros_header_builder_t(HeaderBuilderOwned {
+        stamp_sec: 0,
+        stamp_nanosec: 0,
+        frame_id: String::new(),
+    })))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_header_builder_free(b: *mut ros_header_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_header_builder_set_stamp(
+    b: *mut ros_header_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_header_builder_set_frame_id(
+    b: *mut ros_header_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = unsafe { c_to_str(s) };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_header_builder_build(
+    b: *mut ros_header_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = std_msgs::Header::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_header_builder_encode_into(
+    b: *mut ros_header_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = std_msgs::Header::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── sensor_msgs::Image ──────────────────────────────────────────────
+
+struct ImageBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    height: u32,
+    width: u32,
+    encoding: String,
+    is_bigendian: u8,
+    step: u32,
+    data: *const u8,
+    data_len: usize,
+}
+
+pub struct ros_image_builder_t(ImageBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_new() -> *mut ros_image_builder_t {
+    Box::into_raw(Box::new(ros_image_builder_t(ImageBuilderOwned {
+        stamp_sec: 0,
+        stamp_nanosec: 0,
+        frame_id: String::new(),
+        height: 0,
+        width: 0,
+        encoding: String::new(),
+        is_bigendian: 0,
+        step: 0,
+        data: ptr::null(),
+        data_len: 0,
+    })))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_free(b: *mut ros_image_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_set_stamp(b: *mut ros_image_builder_t, sec: i32, nanosec: u32) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_set_frame_id(
+    b: *mut ros_image_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = unsafe { c_to_str(s) };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_set_height(b: *mut ros_image_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.height = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_set_width(b: *mut ros_image_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.width = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_set_encoding(
+    b: *mut ros_image_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = unsafe { c_to_str(s) };
+    unsafe {
+        (*b).0.encoding = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_set_is_bigendian(b: *mut ros_image_builder_t, v: u8) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.is_bigendian = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_set_step(b: *mut ros_image_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.step = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_set_data(
+    b: *mut ros_image_builder_t,
+    data: *const u8,
+    len: usize,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.data = data;
+        (*b).0.data_len = len;
+    }
+}
+
+fn ros_image_builder_data_slice(inner: &ImageBuilderOwned) -> &[u8] {
+    if inner.data.is_null() || inner.data_len == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(inner.data, inner.data_len) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_build(
+    b: *mut ros_image_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let data_slice = ros_image_builder_data_slice(inner);
+    let r = sensor_msgs::Image::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .height(inner.height)
+        .width(inner.width)
+        .encoding(inner.encoding.as_str())
+        .is_bigendian(inner.is_bigendian)
+        .step(inner.step)
+        .data(data_slice)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_encode_into(
+    b: *mut ros_image_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let data_slice = ros_image_builder_data_slice(inner);
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::Image::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .height(inner.height)
+        .width(inner.width)
+        .encoding(inner.encoding.as_str())
+        .is_bigendian(inner.is_bigendian)
+        .step(inner.step)
+        .data(data_slice)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── sensor_msgs::FluidPressure ──────────────────────────────────────
+
+struct FluidPressureBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    fluid_pressure: f64,
+    variance: f64,
+}
+
+pub struct ros_fluid_pressure_builder_t(FluidPressureBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_builder_new() -> *mut ros_fluid_pressure_builder_t {
+    Box::into_raw(Box::new(ros_fluid_pressure_builder_t(
+        FluidPressureBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            fluid_pressure: 0.0,
+            variance: 0.0,
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_builder_free(b: *mut ros_fluid_pressure_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_builder_set_stamp(
+    b: *mut ros_fluid_pressure_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_builder_set_frame_id(
+    b: *mut ros_fluid_pressure_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = unsafe { c_to_str(s) };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_builder_set_fluid_pressure(
+    b: *mut ros_fluid_pressure_builder_t,
+    v: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.fluid_pressure = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_builder_set_variance(
+    b: *mut ros_fluid_pressure_builder_t,
+    v: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.variance = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_builder_build(
+    b: *mut ros_fluid_pressure_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = sensor_msgs::FluidPressure::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .fluid_pressure(inner.fluid_pressure)
+        .variance(inner.variance)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_builder_encode_into(
+    b: *mut ros_fluid_pressure_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::FluidPressure::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .fluid_pressure(inner.fluid_pressure)
+        .variance(inner.variance)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── sensor_msgs::Temperature ────────────────────────────────────────
+
+struct TemperatureBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    temperature: f64,
+    variance: f64,
+}
+
+pub struct ros_temperature_builder_t(TemperatureBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_builder_new() -> *mut ros_temperature_builder_t {
+    Box::into_raw(Box::new(ros_temperature_builder_t(
+        TemperatureBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            temperature: 0.0,
+            variance: 0.0,
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_builder_free(b: *mut ros_temperature_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_builder_set_stamp(
+    b: *mut ros_temperature_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_builder_set_frame_id(
+    b: *mut ros_temperature_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = unsafe { c_to_str(s) };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_builder_set_temperature(
+    b: *mut ros_temperature_builder_t,
+    v: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.temperature = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_builder_set_variance(b: *mut ros_temperature_builder_t, v: f64) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.variance = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_builder_build(
+    b: *mut ros_temperature_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = sensor_msgs::Temperature::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .temperature(inner.temperature)
+        .variance(inner.variance)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_builder_encode_into(
+    b: *mut ros_temperature_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::Temperature::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .temperature(inner.temperature)
+        .variance(inner.variance)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
