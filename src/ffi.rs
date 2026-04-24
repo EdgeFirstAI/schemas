@@ -36,7 +36,7 @@ use crate::edgefirst_msgs;
 use crate::foxglove_msgs;
 use crate::geometry_msgs::{self, *};
 use crate::nav_msgs;
-use crate::sensor_msgs::{self, NavSatStatus};
+use crate::sensor_msgs::{self, NavSatStatus, PointFieldView, RegionOfInterest};
 use crate::std_msgs;
 
 // =============================================================================
@@ -71,6 +71,31 @@ unsafe fn c_to_str<'a>(s: *const c_char) -> &'a str {
         ""
     } else {
         std::ffi::CStr::from_ptr(s).to_str().unwrap_or("")
+    }
+}
+
+/// Validate that a C string pointer is non-NULL and points at valid UTF-8.
+///
+/// Used by builder setters that take `*const c_char`. On NULL or invalid
+/// UTF-8 input, sets `errno = EINVAL` and returns `Err(())` — the caller
+/// returns `-1` to the C ABI. The returned `&str` borrows from the caller's
+/// buffer; the caller must copy it (e.g. via `.to_string()`) before the
+/// pointer can be invalidated.
+///
+/// # Safety
+/// `s` must either be NULL or a valid NUL-terminated C string.
+unsafe fn c_to_str_checked<'a>(s: *const c_char) -> Result<&'a str, ()> {
+    if s.is_null() {
+        set_errno(EINVAL);
+        return Err(());
+    }
+    let bytes = std::ffi::CStr::from_ptr(s).to_bytes();
+    match std::str::from_utf8(bytes) {
+        Ok(v) => Ok(v),
+        Err(_) => {
+            set_errno(EINVAL);
+            Err(())
+        }
     }
 }
 
@@ -826,7 +851,11 @@ pub extern "C" fn ros_header_encode(
     frame_id: *const c_char,
 ) -> i32 {
     let fid = unsafe { c_to_str(frame_id) };
-    let v = match std_msgs::Header::new(Time::new(stamp_sec, stamp_nanosec), fid) {
+    let v = match std_msgs::Header::builder()
+        .stamp(Time::new(stamp_sec, stamp_nanosec))
+        .frame_id(fid)
+        .build()
+    {
         Ok(v) => v,
         Err(_) => {
             set_errno(EBADMSG);
@@ -973,16 +1002,17 @@ pub extern "C" fn ros_image_encode(
     } else {
         unsafe { slice::from_raw_parts(data, data_len) }
     };
-    let v = match sensor_msgs::Image::new(
-        Time::new(stamp_sec, stamp_nanosec),
-        fid,
-        height,
-        width,
-        enc,
-        is_bigendian,
-        step,
-        d,
-    ) {
+    let v = match sensor_msgs::Image::builder()
+        .stamp(Time::new(stamp_sec, stamp_nanosec))
+        .frame_id(fid)
+        .height(height)
+        .width(width)
+        .encoding(enc)
+        .is_bigendian(is_bigendian)
+        .step(step)
+        .data(d)
+        .build()
+    {
         Ok(v) => v,
         Err(_) => {
             set_errno(EBADMSG);
@@ -1105,14 +1135,19 @@ pub extern "C" fn ros_compressed_image_encode(
     } else {
         unsafe { slice::from_raw_parts(data, data_len) }
     };
-    let v =
-        match sensor_msgs::CompressedImage::new(Time::new(stamp_sec, stamp_nanosec), fid, fmt, d) {
-            Ok(v) => v,
-            Err(_) => {
-                set_errno(EBADMSG);
-                return -1;
-            }
-        };
+    let v = match sensor_msgs::CompressedImage::builder()
+        .stamp(Time::new(stamp_sec, stamp_nanosec))
+        .frame_id(fid)
+        .format(fmt)
+        .data(d)
+        .build()
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
     return_cdr_bytes(v.into_cdr(), out_bytes, out_len)
 }
 
@@ -1229,12 +1264,13 @@ pub extern "C" fn ros_compressed_video_encode(
     } else {
         unsafe { slice::from_raw_parts(data, data_len) }
     };
-    let v = match foxglove_msgs::FoxgloveCompressedVideo::new(
-        Time::new(stamp_sec, stamp_nanosec),
-        fid,
-        d,
-        fmt,
-    ) {
+    let v = match foxglove_msgs::FoxgloveCompressedVideo::builder()
+        .stamp(Time::new(stamp_sec, stamp_nanosec))
+        .frame_id(fid)
+        .data(d)
+        .format(fmt)
+        .build()
+    {
         Ok(v) => v,
         Err(_) => {
             set_errno(EBADMSG);
@@ -1383,7 +1419,15 @@ pub extern "C" fn ros_mask_encode(
     } else {
         unsafe { slice::from_raw_parts(data, data_len) }
     };
-    let v = match edgefirst_msgs::Mask::new(height, width, length, enc, d, boxed) {
+    let v = match edgefirst_msgs::Mask::builder()
+        .height(height)
+        .width(width)
+        .length(length)
+        .encoding(enc)
+        .mask(d)
+        .boxed(boxed)
+        .build()
+    {
         Ok(v) => v,
         Err(_) => {
             set_errno(EBADMSG);
@@ -4379,4 +4423,10336 @@ pub extern "C" fn ros_vibration_get_clipping(
     }
     let msg = unsafe { &(*view).0 };
     copy_le_u32_seq(msg.as_cdr(), msg.clipping_seq_offset(), out, cap)
+}
+
+// =============================================================================
+// Builder handles (3.2.0+)
+//
+// Opaque handle + per-field setters + build/encode_into finalizers.
+//
+// Internal state owns strings (copied from the C string at set-time) and
+// borrows bulk byte / view sequences as raw `*const u8 + usize` pairs. The
+// caller contract is that any borrowed data remains valid until the next
+// setter on that field, the next `build` / `encode_into`, or `free`.
+//
+// The legacy `ros_<type>_encode` one-shot functions remain in 3.2.0 for
+// compatibility but are deprecated and slated for removal in 4.0; new code
+// should prefer the builder API to avoid argument-list explosion as message
+// shapes grow.
+//
+// Errno conventions match the existing FFI:
+//   * EINVAL  — NULL handle or required-NULL argument.
+//   * EBADMSG — encoder rejected the staged fields.
+//   * ENOBUFS — `encode_into` was called with too small a destination.
+// =============================================================================
+
+// ── std_msgs::Header ────────────────────────────────────────────────
+
+struct HeaderBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+}
+
+pub struct ros_header_builder_t(HeaderBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_header_builder_new() -> *mut ros_header_builder_t {
+    Box::into_raw(Box::new(ros_header_builder_t(HeaderBuilderOwned {
+        stamp_sec: 0,
+        stamp_nanosec: 0,
+        frame_id: String::new(),
+    })))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_header_builder_free(b: *mut ros_header_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_header_builder_set_stamp(
+    b: *mut ros_header_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_header_builder_set_frame_id(
+    b: *mut ros_header_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_header_builder_build(
+    b: *mut ros_header_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = std_msgs::Header::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_header_builder_encode_into(
+    b: *mut ros_header_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = std_msgs::Header::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── sensor_msgs::Image ──────────────────────────────────────────────
+
+struct ImageBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    height: u32,
+    width: u32,
+    encoding: String,
+    is_bigendian: u8,
+    step: u32,
+    data: *const u8,
+    data_len: usize,
+}
+
+pub struct ros_image_builder_t(ImageBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_new() -> *mut ros_image_builder_t {
+    Box::into_raw(Box::new(ros_image_builder_t(ImageBuilderOwned {
+        stamp_sec: 0,
+        stamp_nanosec: 0,
+        frame_id: String::new(),
+        height: 0,
+        width: 0,
+        encoding: String::new(),
+        is_bigendian: 0,
+        step: 0,
+        data: ptr::null(),
+        data_len: 0,
+    })))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_free(b: *mut ros_image_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_set_stamp(b: *mut ros_image_builder_t, sec: i32, nanosec: u32) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_set_frame_id(
+    b: *mut ros_image_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_set_height(b: *mut ros_image_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.height = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_set_width(b: *mut ros_image_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.width = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_set_encoding(
+    b: *mut ros_image_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.encoding = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_set_is_bigendian(b: *mut ros_image_builder_t, v: u8) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.is_bigendian = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_set_step(b: *mut ros_image_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.step = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_set_data(
+    b: *mut ros_image_builder_t,
+    data: *const u8,
+    len: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.data = data;
+        (*b).0.data_len = len;
+    }
+    0
+}
+
+fn ros_image_builder_data_slice(inner: &ImageBuilderOwned) -> &[u8] {
+    if inner.data.is_null() || inner.data_len == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(inner.data, inner.data_len) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_build(
+    b: *mut ros_image_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let data_slice = ros_image_builder_data_slice(inner);
+    let r = sensor_msgs::Image::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .height(inner.height)
+        .width(inner.width)
+        .encoding(inner.encoding.as_str())
+        .is_bigendian(inner.is_bigendian)
+        .step(inner.step)
+        .data(data_slice)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_image_builder_encode_into(
+    b: *mut ros_image_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let data_slice = ros_image_builder_data_slice(inner);
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::Image::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .height(inner.height)
+        .width(inner.width)
+        .encoding(inner.encoding.as_str())
+        .is_bigendian(inner.is_bigendian)
+        .step(inner.step)
+        .data(data_slice)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── sensor_msgs::FluidPressure ──────────────────────────────────────
+
+struct FluidPressureBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    fluid_pressure: f64,
+    variance: f64,
+}
+
+pub struct ros_fluid_pressure_builder_t(FluidPressureBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_builder_new() -> *mut ros_fluid_pressure_builder_t {
+    Box::into_raw(Box::new(ros_fluid_pressure_builder_t(
+        FluidPressureBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            fluid_pressure: 0.0,
+            variance: 0.0,
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_builder_free(b: *mut ros_fluid_pressure_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_builder_set_stamp(
+    b: *mut ros_fluid_pressure_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_builder_set_frame_id(
+    b: *mut ros_fluid_pressure_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_builder_set_fluid_pressure(
+    b: *mut ros_fluid_pressure_builder_t,
+    v: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.fluid_pressure = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_builder_set_variance(
+    b: *mut ros_fluid_pressure_builder_t,
+    v: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.variance = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_builder_build(
+    b: *mut ros_fluid_pressure_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = sensor_msgs::FluidPressure::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .fluid_pressure(inner.fluid_pressure)
+        .variance(inner.variance)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_builder_encode_into(
+    b: *mut ros_fluid_pressure_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::FluidPressure::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .fluid_pressure(inner.fluid_pressure)
+        .variance(inner.variance)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── sensor_msgs::CompressedImage ────────────────────────────────────
+
+struct CompressedImageBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    format: String,
+    data: *const u8,
+    data_len: usize,
+}
+
+pub struct ros_compressed_image_builder_t(CompressedImageBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_compressed_image_builder_new() -> *mut ros_compressed_image_builder_t {
+    Box::into_raw(Box::new(ros_compressed_image_builder_t(
+        CompressedImageBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            format: String::new(),
+            data: ptr::null(),
+            data_len: 0,
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_compressed_image_builder_free(b: *mut ros_compressed_image_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_compressed_image_builder_set_stamp(
+    b: *mut ros_compressed_image_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_compressed_image_builder_set_frame_id(
+    b: *mut ros_compressed_image_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_compressed_image_builder_set_format(
+    b: *mut ros_compressed_image_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.format = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_compressed_image_builder_set_data(
+    b: *mut ros_compressed_image_builder_t,
+    data: *const u8,
+    len: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.data = data;
+        (*b).0.data_len = len;
+    }
+    0
+}
+
+fn ros_compressed_image_builder_data_slice(inner: &CompressedImageBuilderOwned) -> &[u8] {
+    if inner.data.is_null() || inner.data_len == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(inner.data, inner.data_len) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_compressed_image_builder_build(
+    b: *mut ros_compressed_image_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let data_slice = ros_compressed_image_builder_data_slice(inner);
+    let r = sensor_msgs::CompressedImage::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .format(inner.format.as_str())
+        .data(data_slice)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_compressed_image_builder_encode_into(
+    b: *mut ros_compressed_image_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let data_slice = ros_compressed_image_builder_data_slice(inner);
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::CompressedImage::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .format(inner.format.as_str())
+        .data(data_slice)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── sensor_msgs::Imu ────────────────────────────────────────────────
+
+struct ImuBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    orientation: Quaternion,
+    orientation_covariance: [f64; 9],
+    angular_velocity: Vector3,
+    angular_velocity_covariance: [f64; 9],
+    linear_acceleration: Vector3,
+    linear_acceleration_covariance: [f64; 9],
+}
+
+pub struct ros_imu_builder_t(ImuBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_new() -> *mut ros_imu_builder_t {
+    Box::into_raw(Box::new(ros_imu_builder_t(ImuBuilderOwned {
+        stamp_sec: 0,
+        stamp_nanosec: 0,
+        frame_id: String::new(),
+        orientation: Quaternion {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            w: 0.0,
+        },
+        orientation_covariance: [0.0; 9],
+        angular_velocity: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        angular_velocity_covariance: [0.0; 9],
+        linear_acceleration: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        linear_acceleration_covariance: [0.0; 9],
+    })))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_free(b: *mut ros_imu_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_set_stamp(b: *mut ros_imu_builder_t, sec: i32, nanosec: u32) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_set_frame_id(b: *mut ros_imu_builder_t, s: *const c_char) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_set_orientation(
+    b: *mut ros_imu_builder_t,
+    x: f64,
+    y: f64,
+    z: f64,
+    w: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.orientation = Quaternion { x, y, z, w };
+    }
+}
+
+/// Copies 9 f64 elements from `cov` into the builder's orientation_covariance.
+/// Caller contract: `cov` must point to at least 9 valid f64 values.
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_set_orientation_covariance(
+    b: *mut ros_imu_builder_t,
+    cov: *const f64,
+) -> i32 {
+    if b.is_null() || cov.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        let src = slice::from_raw_parts(cov, 9);
+        (*b).0.orientation_covariance.copy_from_slice(src);
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_set_angular_velocity(
+    b: *mut ros_imu_builder_t,
+    x: f64,
+    y: f64,
+    z: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.angular_velocity = Vector3 { x, y, z };
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_set_angular_velocity_covariance(
+    b: *mut ros_imu_builder_t,
+    cov: *const f64,
+) -> i32 {
+    if b.is_null() || cov.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        let src = slice::from_raw_parts(cov, 9);
+        (*b).0.angular_velocity_covariance.copy_from_slice(src);
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_set_linear_acceleration(
+    b: *mut ros_imu_builder_t,
+    x: f64,
+    y: f64,
+    z: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.linear_acceleration = Vector3 { x, y, z };
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_set_linear_acceleration_covariance(
+    b: *mut ros_imu_builder_t,
+    cov: *const f64,
+) -> i32 {
+    if b.is_null() || cov.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        let src = slice::from_raw_parts(cov, 9);
+        (*b).0.linear_acceleration_covariance.copy_from_slice(src);
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_build(
+    b: *mut ros_imu_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = sensor_msgs::Imu::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .orientation(inner.orientation)
+        .orientation_covariance(inner.orientation_covariance)
+        .angular_velocity(inner.angular_velocity)
+        .angular_velocity_covariance(inner.angular_velocity_covariance)
+        .linear_acceleration(inner.linear_acceleration)
+        .linear_acceleration_covariance(inner.linear_acceleration_covariance)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_encode_into(
+    b: *mut ros_imu_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::Imu::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .orientation(inner.orientation)
+        .orientation_covariance(inner.orientation_covariance)
+        .angular_velocity(inner.angular_velocity)
+        .angular_velocity_covariance(inner.angular_velocity_covariance)
+        .linear_acceleration(inner.linear_acceleration)
+        .linear_acceleration_covariance(inner.linear_acceleration_covariance)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── sensor_msgs::NavSatFix ──────────────────────────────────────────
+
+struct NavSatFixBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    status: NavSatStatus,
+    latitude: f64,
+    longitude: f64,
+    altitude: f64,
+    position_covariance: [f64; 9],
+    position_covariance_type: u8,
+}
+
+pub struct ros_nav_sat_fix_builder_t(NavSatFixBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_new() -> *mut ros_nav_sat_fix_builder_t {
+    Box::into_raw(Box::new(ros_nav_sat_fix_builder_t(NavSatFixBuilderOwned {
+        stamp_sec: 0,
+        stamp_nanosec: 0,
+        frame_id: String::new(),
+        status: NavSatStatus {
+            status: 0,
+            service: 0,
+        },
+        latitude: 0.0,
+        longitude: 0.0,
+        altitude: 0.0,
+        position_covariance: [0.0; 9],
+        position_covariance_type: 0,
+    })))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_free(b: *mut ros_nav_sat_fix_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_set_stamp(
+    b: *mut ros_nav_sat_fix_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_set_frame_id(
+    b: *mut ros_nav_sat_fix_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_set_status(
+    b: *mut ros_nav_sat_fix_builder_t,
+    status: i8,
+    service: u16,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.status = NavSatStatus { status, service };
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_set_latitude(b: *mut ros_nav_sat_fix_builder_t, v: f64) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.latitude = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_set_longitude(b: *mut ros_nav_sat_fix_builder_t, v: f64) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.longitude = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_set_altitude(b: *mut ros_nav_sat_fix_builder_t, v: f64) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.altitude = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_set_position_covariance(
+    b: *mut ros_nav_sat_fix_builder_t,
+    cov: *const f64,
+) -> i32 {
+    if b.is_null() || cov.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        let src = slice::from_raw_parts(cov, 9);
+        (*b).0.position_covariance.copy_from_slice(src);
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_set_position_covariance_type(
+    b: *mut ros_nav_sat_fix_builder_t,
+    v: u8,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.position_covariance_type = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_build(
+    b: *mut ros_nav_sat_fix_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = sensor_msgs::NavSatFix::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .status(inner.status)
+        .latitude(inner.latitude)
+        .longitude(inner.longitude)
+        .altitude(inner.altitude)
+        .position_covariance(inner.position_covariance)
+        .position_covariance_type(inner.position_covariance_type)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_encode_into(
+    b: *mut ros_nav_sat_fix_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::NavSatFix::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .status(inner.status)
+        .latitude(inner.latitude)
+        .longitude(inner.longitude)
+        .altitude(inner.altitude)
+        .position_covariance(inner.position_covariance)
+        .position_covariance_type(inner.position_covariance_type)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── sensor_msgs::PointField ─────────────────────────────────────────
+
+struct PointFieldBuilderOwned {
+    name: String,
+    offset: u32,
+    datatype: u8,
+    count: u32,
+}
+
+pub struct ros_point_field_builder_t(PointFieldBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_point_field_builder_new() -> *mut ros_point_field_builder_t {
+    Box::into_raw(Box::new(ros_point_field_builder_t(
+        PointFieldBuilderOwned {
+            name: String::new(),
+            offset: 0,
+            datatype: 0,
+            count: 0,
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_field_builder_free(b: *mut ros_point_field_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_field_builder_set_name(
+    b: *mut ros_point_field_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.name = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_field_builder_set_offset(b: *mut ros_point_field_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.offset = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_field_builder_set_datatype(b: *mut ros_point_field_builder_t, v: u8) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.datatype = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_field_builder_set_count(b: *mut ros_point_field_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.count = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_field_builder_build(
+    b: *mut ros_point_field_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = sensor_msgs::PointField::builder()
+        .name(inner.name.as_str())
+        .offset(inner.offset)
+        .datatype(inner.datatype)
+        .count(inner.count)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_field_builder_encode_into(
+    b: *mut ros_point_field_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::PointField::builder()
+        .name(inner.name.as_str())
+        .offset(inner.offset)
+        .datatype(inner.datatype)
+        .count(inner.count)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── sensor_msgs::PointCloud2 ────────────────────────────────────────
+//
+// Field-sequence elements are passed as a C-POD array of descriptors; each
+// descriptor names a field whose `name` string must outlive the next builder
+// setter/build/encode_into/free.
+
+/// C-POD descriptor for a single PointField element used by
+/// `ros_point_cloud2_builder_set_fields`. The `name` pointer is borrowed:
+/// the caller must keep the backing string alive until the next setter on
+/// the fields slot or the builder is freed.
+#[repr(C)]
+pub struct ros_point_field_elem_t {
+    pub name: *const c_char,
+    pub offset: u32,
+    pub datatype: u8,
+    pub count: u32,
+}
+
+struct PointCloud2BuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    height: u32,
+    width: u32,
+    fields: *const ros_point_field_elem_t,
+    fields_count: usize,
+    is_bigendian: bool,
+    point_step: u32,
+    row_step: u32,
+    data: *const u8,
+    data_len: usize,
+    is_dense: bool,
+}
+
+pub struct ros_point_cloud2_builder_t(PointCloud2BuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_new() -> *mut ros_point_cloud2_builder_t {
+    Box::into_raw(Box::new(ros_point_cloud2_builder_t(
+        PointCloud2BuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            height: 0,
+            width: 0,
+            fields: ptr::null(),
+            fields_count: 0,
+            is_bigendian: false,
+            point_step: 0,
+            row_step: 0,
+            data: ptr::null(),
+            data_len: 0,
+            is_dense: false,
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_free(b: *mut ros_point_cloud2_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_set_stamp(
+    b: *mut ros_point_cloud2_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_set_frame_id(
+    b: *mut ros_point_cloud2_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_set_height(b: *mut ros_point_cloud2_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.height = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_set_width(b: *mut ros_point_cloud2_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.width = v;
+    }
+}
+
+/// Set the field descriptor sequence (BORROWED — `fields` and every `name`
+/// pointer inside it must remain valid until the next setter on the fields
+/// slot, a subsequent build/encode_into, or free).
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_set_fields(
+    b: *mut ros_point_cloud2_builder_t,
+    fields: *const ros_point_field_elem_t,
+    count: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if fields.is_null() && count > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.fields = fields;
+        (*b).0.fields_count = count;
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_set_is_bigendian(
+    b: *mut ros_point_cloud2_builder_t,
+    v: bool,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.is_bigendian = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_set_point_step(
+    b: *mut ros_point_cloud2_builder_t,
+    v: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.point_step = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_set_row_step(
+    b: *mut ros_point_cloud2_builder_t,
+    v: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.row_step = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_set_data(
+    b: *mut ros_point_cloud2_builder_t,
+    data: *const u8,
+    len: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.data = data;
+        (*b).0.data_len = len;
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_set_is_dense(
+    b: *mut ros_point_cloud2_builder_t,
+    v: bool,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.is_dense = v;
+    }
+}
+
+fn ros_point_cloud2_builder_data_slice(inner: &PointCloud2BuilderOwned) -> &[u8] {
+    if inner.data.is_null() || inner.data_len == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(inner.data, inner.data_len) }
+    }
+}
+
+/// Materialise PointFieldView borrowers from the owned C-POD descriptor array.
+///
+/// # Safety
+/// Each descriptor's `name` pointer must be a valid NUL-terminated C string
+/// (or NULL, treated as "") whose backing storage outlives the returned Vec.
+unsafe fn point_cloud2_fields_to_views(
+    inner: &PointCloud2BuilderOwned,
+) -> Result<Vec<PointFieldView<'_>>, ()> {
+    if inner.fields.is_null() || inner.fields_count == 0 {
+        return Ok(Vec::new());
+    }
+    let descs = slice::from_raw_parts(inner.fields, inner.fields_count);
+    descs
+        .iter()
+        .map(|d| {
+            let name = c_to_str_checked(d.name)?;
+            Ok(PointFieldView {
+                name,
+                offset: d.offset,
+                datatype: d.datatype,
+                count: d.count,
+            })
+        })
+        .collect()
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_build(
+    b: *mut ros_point_cloud2_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let data_slice = ros_point_cloud2_builder_data_slice(inner);
+    let fields = match unsafe { point_cloud2_fields_to_views(inner) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    let r = sensor_msgs::PointCloud2::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .height(inner.height)
+        .width(inner.width)
+        .fields(&fields)
+        .is_bigendian(inner.is_bigendian)
+        .point_step(inner.point_step)
+        .row_step(inner.row_step)
+        .data(data_slice)
+        .is_dense(inner.is_dense)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_encode_into(
+    b: *mut ros_point_cloud2_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let data_slice = ros_point_cloud2_builder_data_slice(inner);
+    let fields = match unsafe { point_cloud2_fields_to_views(inner) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::PointCloud2::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .height(inner.height)
+        .width(inner.width)
+        .fields(&fields)
+        .is_bigendian(inner.is_bigendian)
+        .point_step(inner.point_step)
+        .row_step(inner.row_step)
+        .data(data_slice)
+        .is_dense(inner.is_dense)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── sensor_msgs::CameraInfo ─────────────────────────────────────────
+
+struct CameraInfoBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    height: u32,
+    width: u32,
+    distortion_model: String,
+    d: *const f64,
+    d_len: usize,
+    k: [f64; 9],
+    r: [f64; 9],
+    p: [f64; 12],
+    binning_x: u32,
+    binning_y: u32,
+    roi: RegionOfInterest,
+}
+
+pub struct ros_camera_info_builder_t(CameraInfoBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_new() -> *mut ros_camera_info_builder_t {
+    Box::into_raw(Box::new(ros_camera_info_builder_t(
+        CameraInfoBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            height: 0,
+            width: 0,
+            distortion_model: String::new(),
+            d: ptr::null(),
+            d_len: 0,
+            k: [0.0; 9],
+            r: [0.0; 9],
+            p: [0.0; 12],
+            binning_x: 0,
+            binning_y: 0,
+            roi: RegionOfInterest {
+                x_offset: 0,
+                y_offset: 0,
+                height: 0,
+                width: 0,
+                do_rectify: false,
+            },
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_free(b: *mut ros_camera_info_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_stamp(
+    b: *mut ros_camera_info_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_frame_id(
+    b: *mut ros_camera_info_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_height(b: *mut ros_camera_info_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.height = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_width(b: *mut ros_camera_info_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.width = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_distortion_model(
+    b: *mut ros_camera_info_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.distortion_model = s_str.to_string();
+    }
+    0
+}
+
+/// Set the distortion coefficients (BORROWED `[f64; d_len]` slice —
+/// the pointer must remain valid until the next setter on this slot,
+/// a subsequent build/encode_into, or free).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_d(
+    b: *mut ros_camera_info_builder_t,
+    data: *const f64,
+    len: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.d = data;
+        (*b).0.d_len = len;
+    }
+    0
+}
+
+/// Copy 9 f64 elements from `k` into the intrinsics matrix (row-major 3x3).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_k(
+    b: *mut ros_camera_info_builder_t,
+    k: *const f64,
+) -> i32 {
+    if b.is_null() || k.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        let src = slice::from_raw_parts(k, 9);
+        (*b).0.k.copy_from_slice(src);
+    }
+    0
+}
+
+/// Copy 9 f64 elements from `r` into the rectification matrix (row-major 3x3).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_r(
+    b: *mut ros_camera_info_builder_t,
+    r: *const f64,
+) -> i32 {
+    if b.is_null() || r.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        let src = slice::from_raw_parts(r, 9);
+        (*b).0.r.copy_from_slice(src);
+    }
+    0
+}
+
+/// Copy 12 f64 elements from `p` into the projection matrix (row-major 3x4).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_p(
+    b: *mut ros_camera_info_builder_t,
+    p: *const f64,
+) -> i32 {
+    if b.is_null() || p.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        let src = slice::from_raw_parts(p, 12);
+        (*b).0.p.copy_from_slice(src);
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_binning_x(b: *mut ros_camera_info_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.binning_x = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_binning_y(b: *mut ros_camera_info_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.binning_y = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_roi(
+    b: *mut ros_camera_info_builder_t,
+    x_offset: u32,
+    y_offset: u32,
+    height: u32,
+    width: u32,
+    do_rectify: u8,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.roi = RegionOfInterest {
+            x_offset,
+            y_offset,
+            height,
+            width,
+            do_rectify: do_rectify != 0,
+        };
+    }
+}
+
+fn ros_camera_info_builder_d_slice(inner: &CameraInfoBuilderOwned) -> &[f64] {
+    if inner.d.is_null() || inner.d_len == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(inner.d, inner.d_len) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_build(
+    b: *mut ros_camera_info_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let d_slice = ros_camera_info_builder_d_slice(inner);
+    let r = sensor_msgs::CameraInfo::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .height(inner.height)
+        .width(inner.width)
+        .distortion_model(inner.distortion_model.as_str())
+        .d(d_slice)
+        .k(inner.k)
+        .r(inner.r)
+        .p(inner.p)
+        .binning_x(inner.binning_x)
+        .binning_y(inner.binning_y)
+        .roi(inner.roi)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_encode_into(
+    b: *mut ros_camera_info_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let d_slice = ros_camera_info_builder_d_slice(inner);
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::CameraInfo::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .height(inner.height)
+        .width(inner.width)
+        .distortion_model(inner.distortion_model.as_str())
+        .d(d_slice)
+        .k(inner.k)
+        .r(inner.r)
+        .p(inner.p)
+        .binning_x(inner.binning_x)
+        .binning_y(inner.binning_y)
+        .roi(inner.roi)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── sensor_msgs::MagneticField ──────────────────────────────────────
+
+struct MagneticFieldBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    magnetic_field: Vector3,
+    magnetic_field_covariance: [f64; 9],
+}
+
+pub struct ros_magnetic_field_builder_t(MagneticFieldBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_builder_new() -> *mut ros_magnetic_field_builder_t {
+    Box::into_raw(Box::new(ros_magnetic_field_builder_t(
+        MagneticFieldBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            magnetic_field: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            magnetic_field_covariance: [0.0; 9],
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_builder_free(b: *mut ros_magnetic_field_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_builder_set_stamp(
+    b: *mut ros_magnetic_field_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_builder_set_frame_id(
+    b: *mut ros_magnetic_field_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_builder_set_magnetic_field(
+    b: *mut ros_magnetic_field_builder_t,
+    x: f64,
+    y: f64,
+    z: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.magnetic_field = Vector3 { x, y, z };
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_builder_set_magnetic_field_covariance(
+    b: *mut ros_magnetic_field_builder_t,
+    cov: *const f64,
+) -> i32 {
+    if b.is_null() || cov.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        let src = slice::from_raw_parts(cov, 9);
+        (*b).0.magnetic_field_covariance.copy_from_slice(src);
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_builder_build(
+    b: *mut ros_magnetic_field_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = sensor_msgs::MagneticField::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .magnetic_field(inner.magnetic_field)
+        .magnetic_field_covariance(inner.magnetic_field_covariance)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_builder_encode_into(
+    b: *mut ros_magnetic_field_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::MagneticField::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .magnetic_field(inner.magnetic_field)
+        .magnetic_field_covariance(inner.magnetic_field_covariance)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── sensor_msgs::BatteryState ───────────────────────────────────────
+
+#[allow(clippy::struct_excessive_bools)]
+struct BatteryStateBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    voltage: f32,
+    temperature: f32,
+    current: f32,
+    charge: f32,
+    capacity: f32,
+    design_capacity: f32,
+    percentage: f32,
+    power_supply_status: u8,
+    power_supply_health: u8,
+    power_supply_technology: u8,
+    present: bool,
+    cell_voltage: *const f32,
+    cell_voltage_len: usize,
+    cell_temperature: *const f32,
+    cell_temperature_len: usize,
+    location: String,
+    serial_number: String,
+}
+
+pub struct ros_battery_state_builder_t(BatteryStateBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_new() -> *mut ros_battery_state_builder_t {
+    Box::into_raw(Box::new(ros_battery_state_builder_t(
+        BatteryStateBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            voltage: 0.0,
+            temperature: 0.0,
+            current: 0.0,
+            charge: 0.0,
+            capacity: 0.0,
+            design_capacity: 0.0,
+            percentage: 0.0,
+            power_supply_status: 0,
+            power_supply_health: 0,
+            power_supply_technology: 0,
+            present: false,
+            cell_voltage: ptr::null(),
+            cell_voltage_len: 0,
+            cell_temperature: ptr::null(),
+            cell_temperature_len: 0,
+            location: String::new(),
+            serial_number: String::new(),
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_free(b: *mut ros_battery_state_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_stamp(
+    b: *mut ros_battery_state_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_frame_id(
+    b: *mut ros_battery_state_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_voltage(
+    b: *mut ros_battery_state_builder_t,
+    v: f32,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.voltage = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_temperature(
+    b: *mut ros_battery_state_builder_t,
+    v: f32,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.temperature = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_current(
+    b: *mut ros_battery_state_builder_t,
+    v: f32,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.current = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_charge(
+    b: *mut ros_battery_state_builder_t,
+    v: f32,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.charge = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_capacity(
+    b: *mut ros_battery_state_builder_t,
+    v: f32,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.capacity = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_design_capacity(
+    b: *mut ros_battery_state_builder_t,
+    v: f32,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.design_capacity = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_percentage(
+    b: *mut ros_battery_state_builder_t,
+    v: f32,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.percentage = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_power_supply_status(
+    b: *mut ros_battery_state_builder_t,
+    v: u8,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.power_supply_status = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_power_supply_health(
+    b: *mut ros_battery_state_builder_t,
+    v: u8,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.power_supply_health = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_power_supply_technology(
+    b: *mut ros_battery_state_builder_t,
+    v: u8,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.power_supply_technology = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_present(
+    b: *mut ros_battery_state_builder_t,
+    v: bool,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.present = v;
+    }
+}
+
+/// Set the cell_voltage sequence (BORROWED `*const f32` — pointer must
+/// remain valid until the next setter on this slot, a subsequent
+/// build/encode_into, or free).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_cell_voltage(
+    b: *mut ros_battery_state_builder_t,
+    data: *const f32,
+    len: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.cell_voltage = data;
+        (*b).0.cell_voltage_len = len;
+    }
+    0
+}
+
+/// Set the cell_temperature sequence (BORROWED `*const f32` — pointer must
+/// remain valid until the next setter on this slot, a subsequent
+/// build/encode_into, or free).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_cell_temperature(
+    b: *mut ros_battery_state_builder_t,
+    data: *const f32,
+    len: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.cell_temperature = data;
+        (*b).0.cell_temperature_len = len;
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_location(
+    b: *mut ros_battery_state_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.location = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_serial_number(
+    b: *mut ros_battery_state_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.serial_number = s_str.to_string();
+    }
+    0
+}
+
+fn ros_battery_state_cell_voltage_slice(inner: &BatteryStateBuilderOwned) -> &[f32] {
+    if inner.cell_voltage.is_null() || inner.cell_voltage_len == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(inner.cell_voltage, inner.cell_voltage_len) }
+    }
+}
+
+fn ros_battery_state_cell_temperature_slice(inner: &BatteryStateBuilderOwned) -> &[f32] {
+    if inner.cell_temperature.is_null() || inner.cell_temperature_len == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(inner.cell_temperature, inner.cell_temperature_len) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_build(
+    b: *mut ros_battery_state_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let cv = ros_battery_state_cell_voltage_slice(inner);
+    let ct = ros_battery_state_cell_temperature_slice(inner);
+    let r = sensor_msgs::BatteryState::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .voltage(inner.voltage)
+        .temperature(inner.temperature)
+        .current(inner.current)
+        .charge(inner.charge)
+        .capacity(inner.capacity)
+        .design_capacity(inner.design_capacity)
+        .percentage(inner.percentage)
+        .power_supply_status(inner.power_supply_status)
+        .power_supply_health(inner.power_supply_health)
+        .power_supply_technology(inner.power_supply_technology)
+        .present(inner.present)
+        .cell_voltage(cv)
+        .cell_temperature(ct)
+        .location(inner.location.as_str())
+        .serial_number(inner.serial_number.as_str())
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_encode_into(
+    b: *mut ros_battery_state_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let cv = ros_battery_state_cell_voltage_slice(inner);
+    let ct = ros_battery_state_cell_temperature_slice(inner);
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::BatteryState::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .voltage(inner.voltage)
+        .temperature(inner.temperature)
+        .current(inner.current)
+        .charge(inner.charge)
+        .capacity(inner.capacity)
+        .design_capacity(inner.design_capacity)
+        .percentage(inner.percentage)
+        .power_supply_status(inner.power_supply_status)
+        .power_supply_health(inner.power_supply_health)
+        .power_supply_technology(inner.power_supply_technology)
+        .present(inner.present)
+        .cell_voltage(cv)
+        .cell_temperature(ct)
+        .location(inner.location.as_str())
+        .serial_number(inner.serial_number.as_str())
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── sensor_msgs::Temperature ────────────────────────────────────────
+
+struct TemperatureBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    temperature: f64,
+    variance: f64,
+}
+
+pub struct ros_temperature_builder_t(TemperatureBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_builder_new() -> *mut ros_temperature_builder_t {
+    Box::into_raw(Box::new(ros_temperature_builder_t(
+        TemperatureBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            temperature: 0.0,
+            variance: 0.0,
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_builder_free(b: *mut ros_temperature_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_builder_set_stamp(
+    b: *mut ros_temperature_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_builder_set_frame_id(
+    b: *mut ros_temperature_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_builder_set_temperature(
+    b: *mut ros_temperature_builder_t,
+    v: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.temperature = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_builder_set_variance(b: *mut ros_temperature_builder_t, v: f64) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.variance = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_builder_build(
+    b: *mut ros_temperature_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = sensor_msgs::Temperature::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .temperature(inner.temperature)
+        .variance(inner.variance)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_temperature_builder_encode_into(
+    b: *mut ros_temperature_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::Temperature::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .temperature(inner.temperature)
+        .variance(inner.variance)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── edgefirst_msgs::Mask ────────────────────────────────────────────
+
+struct MaskBuilderOwned {
+    height: u32,
+    width: u32,
+    length: u32,
+    encoding: String,
+    mask: *const u8,
+    mask_len: usize,
+    boxed: bool,
+}
+
+pub struct ros_mask_builder_t(MaskBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_mask_builder_new() -> *mut ros_mask_builder_t {
+    Box::into_raw(Box::new(ros_mask_builder_t(MaskBuilderOwned {
+        height: 0,
+        width: 0,
+        length: 0,
+        encoding: String::new(),
+        mask: ptr::null(),
+        mask_len: 0,
+        boxed: false,
+    })))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mask_builder_free(b: *mut ros_mask_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mask_builder_set_height(b: *mut ros_mask_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.height = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mask_builder_set_width(b: *mut ros_mask_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.width = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mask_builder_set_length(b: *mut ros_mask_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.length = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mask_builder_set_encoding(
+    b: *mut ros_mask_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.encoding = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mask_builder_set_mask(
+    b: *mut ros_mask_builder_t,
+    data: *const u8,
+    len: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.mask = data;
+        (*b).0.mask_len = len;
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mask_builder_set_boxed(b: *mut ros_mask_builder_t, v: bool) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.boxed = v;
+    }
+}
+
+fn ros_mask_builder_mask_slice(inner: &MaskBuilderOwned) -> &[u8] {
+    if inner.mask.is_null() || inner.mask_len == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(inner.mask, inner.mask_len) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mask_builder_build(
+    b: *mut ros_mask_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let mask_slice = ros_mask_builder_mask_slice(inner);
+    let r = edgefirst_msgs::Mask::builder()
+        .height(inner.height)
+        .width(inner.width)
+        .length(inner.length)
+        .encoding(inner.encoding.as_str())
+        .mask(mask_slice)
+        .boxed(inner.boxed)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mask_builder_encode_into(
+    b: *mut ros_mask_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let mask_slice = ros_mask_builder_mask_slice(inner);
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = edgefirst_msgs::Mask::builder()
+        .height(inner.height)
+        .width(inner.width)
+        .length(inner.length)
+        .encoding(inner.encoding.as_str())
+        .mask(mask_slice)
+        .boxed(inner.boxed)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── edgefirst_msgs::LocalTime ───────────────────────────────────────
+
+struct LocalTimeBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    date_year: u16,
+    date_month: u8,
+    date_day: u8,
+    time_sec: i32,
+    time_nanosec: u32,
+    timezone: i16,
+}
+
+pub struct ros_local_time_builder_t(LocalTimeBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_local_time_builder_new() -> *mut ros_local_time_builder_t {
+    Box::into_raw(Box::new(ros_local_time_builder_t(LocalTimeBuilderOwned {
+        stamp_sec: 0,
+        stamp_nanosec: 0,
+        frame_id: String::new(),
+        date_year: 0,
+        date_month: 0,
+        date_day: 0,
+        time_sec: 0,
+        time_nanosec: 0,
+        timezone: 0,
+    })))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_local_time_builder_free(b: *mut ros_local_time_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_local_time_builder_set_stamp(
+    b: *mut ros_local_time_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_local_time_builder_set_frame_id(
+    b: *mut ros_local_time_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_local_time_builder_set_date(
+    b: *mut ros_local_time_builder_t,
+    year: u16,
+    month: u8,
+    day: u8,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.date_year = year;
+    inner.date_month = month;
+    inner.date_day = day;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_local_time_builder_set_time(
+    b: *mut ros_local_time_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.time_sec = sec;
+    inner.time_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_local_time_builder_set_timezone(b: *mut ros_local_time_builder_t, v: i16) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.timezone = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_local_time_builder_build(
+    b: *mut ros_local_time_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = edgefirst_msgs::LocalTime::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .date(edgefirst_msgs::Date {
+            year: inner.date_year,
+            month: inner.date_month,
+            day: inner.date_day,
+        })
+        .time(Time::new(inner.time_sec, inner.time_nanosec))
+        .timezone(inner.timezone)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_local_time_builder_encode_into(
+    b: *mut ros_local_time_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = edgefirst_msgs::LocalTime::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .date(edgefirst_msgs::Date {
+            year: inner.date_year,
+            month: inner.date_month,
+            day: inner.date_day,
+        })
+        .time(Time::new(inner.time_sec, inner.time_nanosec))
+        .timezone(inner.timezone)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── edgefirst_msgs::RadarCube ───────────────────────────────────────
+
+struct RadarCubeBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    timestamp: u64,
+    layout: *const u8,
+    layout_len: usize,
+    shape: *const u16,
+    shape_len: usize,
+    scales: *const f32,
+    scales_len: usize,
+    cube: *const i16,
+    cube_len: usize,
+    is_complex: bool,
+}
+
+pub struct ros_radar_cube_builder_t(RadarCubeBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_radar_cube_builder_new() -> *mut ros_radar_cube_builder_t {
+    Box::into_raw(Box::new(ros_radar_cube_builder_t(RadarCubeBuilderOwned {
+        stamp_sec: 0,
+        stamp_nanosec: 0,
+        frame_id: String::new(),
+        timestamp: 0,
+        layout: ptr::null(),
+        layout_len: 0,
+        shape: ptr::null(),
+        shape_len: 0,
+        scales: ptr::null(),
+        scales_len: 0,
+        cube: ptr::null(),
+        cube_len: 0,
+        is_complex: false,
+    })))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_radar_cube_builder_free(b: *mut ros_radar_cube_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_radar_cube_builder_set_stamp(
+    b: *mut ros_radar_cube_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_radar_cube_builder_set_frame_id(
+    b: *mut ros_radar_cube_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_radar_cube_builder_set_timestamp(b: *mut ros_radar_cube_builder_t, v: u64) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.timestamp = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_radar_cube_builder_set_layout(
+    b: *mut ros_radar_cube_builder_t,
+    data: *const u8,
+    len: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.layout = data;
+        (*b).0.layout_len = len;
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_radar_cube_builder_set_shape(
+    b: *mut ros_radar_cube_builder_t,
+    data: *const u16,
+    len: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.shape = data;
+        (*b).0.shape_len = len;
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_radar_cube_builder_set_scales(
+    b: *mut ros_radar_cube_builder_t,
+    data: *const f32,
+    len: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.scales = data;
+        (*b).0.scales_len = len;
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_radar_cube_builder_set_cube(
+    b: *mut ros_radar_cube_builder_t,
+    data: *const i16,
+    len: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.cube = data;
+        (*b).0.cube_len = len;
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_radar_cube_builder_set_is_complex(b: *mut ros_radar_cube_builder_t, v: bool) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.is_complex = v;
+    }
+}
+
+fn radar_cube_layout_slice(inner: &RadarCubeBuilderOwned) -> &[u8] {
+    if inner.layout.is_null() || inner.layout_len == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(inner.layout, inner.layout_len) }
+    }
+}
+fn radar_cube_shape_slice(inner: &RadarCubeBuilderOwned) -> &[u16] {
+    if inner.shape.is_null() || inner.shape_len == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(inner.shape, inner.shape_len) }
+    }
+}
+fn radar_cube_scales_slice(inner: &RadarCubeBuilderOwned) -> &[f32] {
+    if inner.scales.is_null() || inner.scales_len == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(inner.scales, inner.scales_len) }
+    }
+}
+fn radar_cube_cube_slice(inner: &RadarCubeBuilderOwned) -> &[i16] {
+    if inner.cube.is_null() || inner.cube_len == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(inner.cube, inner.cube_len) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_radar_cube_builder_build(
+    b: *mut ros_radar_cube_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = edgefirst_msgs::RadarCube::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .timestamp(inner.timestamp)
+        .layout(radar_cube_layout_slice(inner))
+        .shape(radar_cube_shape_slice(inner))
+        .scales(radar_cube_scales_slice(inner))
+        .cube(radar_cube_cube_slice(inner))
+        .is_complex(inner.is_complex)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_radar_cube_builder_encode_into(
+    b: *mut ros_radar_cube_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = edgefirst_msgs::RadarCube::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .timestamp(inner.timestamp)
+        .layout(radar_cube_layout_slice(inner))
+        .shape(radar_cube_shape_slice(inner))
+        .scales(radar_cube_scales_slice(inner))
+        .cube(radar_cube_cube_slice(inner))
+        .is_complex(inner.is_complex)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── edgefirst_msgs::RadarInfo ───────────────────────────────────────
+
+struct RadarInfoBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    center_frequency: String,
+    frequency_sweep: String,
+    range_toggle: String,
+    detection_sensitivity: String,
+    cube: bool,
+}
+
+pub struct ros_radar_info_builder_t(RadarInfoBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_radar_info_builder_new() -> *mut ros_radar_info_builder_t {
+    Box::into_raw(Box::new(ros_radar_info_builder_t(RadarInfoBuilderOwned {
+        stamp_sec: 0,
+        stamp_nanosec: 0,
+        frame_id: String::new(),
+        center_frequency: String::new(),
+        frequency_sweep: String::new(),
+        range_toggle: String::new(),
+        detection_sensitivity: String::new(),
+        cube: false,
+    })))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_radar_info_builder_free(b: *mut ros_radar_info_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_radar_info_builder_set_stamp(
+    b: *mut ros_radar_info_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_radar_info_builder_set_frame_id(
+    b: *mut ros_radar_info_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_radar_info_builder_set_center_frequency(
+    b: *mut ros_radar_info_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.center_frequency = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_radar_info_builder_set_frequency_sweep(
+    b: *mut ros_radar_info_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frequency_sweep = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_radar_info_builder_set_range_toggle(
+    b: *mut ros_radar_info_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.range_toggle = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_radar_info_builder_set_detection_sensitivity(
+    b: *mut ros_radar_info_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.detection_sensitivity = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_radar_info_builder_set_cube(b: *mut ros_radar_info_builder_t, v: bool) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.cube = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_radar_info_builder_build(
+    b: *mut ros_radar_info_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = edgefirst_msgs::RadarInfo::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .center_frequency(inner.center_frequency.as_str())
+        .frequency_sweep(inner.frequency_sweep.as_str())
+        .range_toggle(inner.range_toggle.as_str())
+        .detection_sensitivity(inner.detection_sensitivity.as_str())
+        .cube(inner.cube)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_radar_info_builder_encode_into(
+    b: *mut ros_radar_info_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = edgefirst_msgs::RadarInfo::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .center_frequency(inner.center_frequency.as_str())
+        .frequency_sweep(inner.frequency_sweep.as_str())
+        .range_toggle(inner.range_toggle.as_str())
+        .detection_sensitivity(inner.detection_sensitivity.as_str())
+        .cube(inner.cube)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── edgefirst_msgs::Track ───────────────────────────────────────────
+
+struct TrackBuilderOwned {
+    id: String,
+    lifetime: i32,
+    created_sec: i32,
+    created_nanosec: u32,
+}
+
+pub struct ros_track_builder_t(TrackBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_track_builder_new() -> *mut ros_track_builder_t {
+    Box::into_raw(Box::new(ros_track_builder_t(TrackBuilderOwned {
+        id: String::new(),
+        lifetime: 0,
+        created_sec: 0,
+        created_nanosec: 0,
+    })))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_track_builder_free(b: *mut ros_track_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_track_builder_set_id(b: *mut ros_track_builder_t, s: *const c_char) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_track_builder_set_lifetime(b: *mut ros_track_builder_t, v: i32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.lifetime = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_track_builder_set_created(
+    b: *mut ros_track_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.created_sec = sec;
+    inner.created_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_track_builder_build(
+    b: *mut ros_track_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = edgefirst_msgs::Track::builder()
+        .id(inner.id.as_str())
+        .lifetime(inner.lifetime)
+        .created(Time::new(inner.created_sec, inner.created_nanosec))
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_track_builder_encode_into(
+    b: *mut ros_track_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = edgefirst_msgs::Track::builder()
+        .id(inner.id.as_str())
+        .lifetime(inner.lifetime)
+        .created(Time::new(inner.created_sec, inner.created_nanosec))
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── edgefirst_msgs::DetectBox / Detect / Model shared element ───────
+//
+// `ros_detect_box_elem_t` is the C-POD descriptor used both as the standalone
+// DetectBox builder's input shape and as the element type for the `boxes`
+// nested sequence in Detect and Model. The `label` and `track_id` pointers
+// are borrowed: they must outlive the next setter call on the field that
+// borrows them, the next build/encode_into, or builder_free.
+
+/// C-POD descriptor for a single DetectBox element. `label` and `track_id`
+/// are borrowed C strings; both must remain valid until the consuming
+/// builder is finalised (build/encode_into) or freed.
+#[repr(C)]
+pub struct ros_detect_box_elem_t {
+    pub center_x: f32,
+    pub center_y: f32,
+    pub width: f32,
+    pub height: f32,
+    pub label: *const c_char,
+    pub score: f32,
+    pub distance: f32,
+    pub speed: f32,
+    pub track_id: *const c_char,
+    pub track_lifetime: i32,
+    pub track_created_sec: i32,
+    pub track_created_nanosec: u32,
+}
+
+/// Materialise `DetectBoxView` borrowers from the C-POD descriptor array.
+///
+/// # Safety
+/// Each descriptor's `label` / `track_id` must be a valid NUL-terminated C
+/// string (or NULL, treated as "") whose backing storage outlives the
+/// returned Vec.
+unsafe fn detect_box_descs_to_views(
+    descs: *const ros_detect_box_elem_t,
+    count: usize,
+) -> Result<Vec<edgefirst_msgs::DetectBoxView<'static>>, ()> {
+    if descs.is_null() || count == 0 {
+        return Ok(Vec::new());
+    }
+    let descs = slice::from_raw_parts(descs, count);
+    descs
+        .iter()
+        .map(|d| {
+            let label = c_to_str_checked(d.label)?;
+            let track_id = c_to_str_checked(d.track_id)?;
+            Ok(edgefirst_msgs::DetectBoxView {
+                center_x: d.center_x,
+                center_y: d.center_y,
+                width: d.width,
+                height: d.height,
+                label,
+                score: d.score,
+                distance: d.distance,
+                speed: d.speed,
+                track_id,
+                track_lifetime: d.track_lifetime,
+                track_created: Time::new(d.track_created_sec, d.track_created_nanosec),
+            })
+        })
+        .collect()
+}
+
+// ── edgefirst_msgs::DetectBox (standalone) ──────────────────────────
+
+struct DetectBoxBuilderOwned {
+    center_x: f32,
+    center_y: f32,
+    width: f32,
+    height: f32,
+    label: String,
+    score: f32,
+    distance: f32,
+    speed: f32,
+    track_id: String,
+    track_lifetime: i32,
+    track_created_sec: i32,
+    track_created_nanosec: u32,
+}
+
+pub struct ros_detect_box_builder_t(DetectBoxBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_detect_box_builder_new() -> *mut ros_detect_box_builder_t {
+    Box::into_raw(Box::new(ros_detect_box_builder_t(DetectBoxBuilderOwned {
+        center_x: 0.0,
+        center_y: 0.0,
+        width: 0.0,
+        height: 0.0,
+        label: String::new(),
+        score: 0.0,
+        distance: 0.0,
+        speed: 0.0,
+        track_id: String::new(),
+        track_lifetime: 0,
+        track_created_sec: 0,
+        track_created_nanosec: 0,
+    })))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_detect_box_builder_free(b: *mut ros_detect_box_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_detect_box_builder_set_center_x(b: *mut ros_detect_box_builder_t, v: f32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.center_x = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_detect_box_builder_set_center_y(b: *mut ros_detect_box_builder_t, v: f32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.center_y = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_detect_box_builder_set_width(b: *mut ros_detect_box_builder_t, v: f32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.width = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_detect_box_builder_set_height(b: *mut ros_detect_box_builder_t, v: f32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.height = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_detect_box_builder_set_label(
+    b: *mut ros_detect_box_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.label = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_detect_box_builder_set_score(b: *mut ros_detect_box_builder_t, v: f32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.score = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_detect_box_builder_set_distance(b: *mut ros_detect_box_builder_t, v: f32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.distance = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_detect_box_builder_set_speed(b: *mut ros_detect_box_builder_t, v: f32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.speed = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_detect_box_builder_set_track_id(
+    b: *mut ros_detect_box_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.track_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_detect_box_builder_set_track_lifetime(
+    b: *mut ros_detect_box_builder_t,
+    v: i32,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.track_lifetime = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_detect_box_builder_set_track_created(
+    b: *mut ros_detect_box_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.track_created_sec = sec;
+    inner.track_created_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_detect_box_builder_build(
+    b: *mut ros_detect_box_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = edgefirst_msgs::DetectBox::builder()
+        .center_x(inner.center_x)
+        .center_y(inner.center_y)
+        .width(inner.width)
+        .height(inner.height)
+        .label(inner.label.as_str())
+        .score(inner.score)
+        .distance(inner.distance)
+        .speed(inner.speed)
+        .track_id(inner.track_id.as_str())
+        .track_lifetime(inner.track_lifetime)
+        .track_created(Time::new(
+            inner.track_created_sec,
+            inner.track_created_nanosec,
+        ))
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_detect_box_builder_encode_into(
+    b: *mut ros_detect_box_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = edgefirst_msgs::DetectBox::builder()
+        .center_x(inner.center_x)
+        .center_y(inner.center_y)
+        .width(inner.width)
+        .height(inner.height)
+        .label(inner.label.as_str())
+        .score(inner.score)
+        .distance(inner.distance)
+        .speed(inner.speed)
+        .track_id(inner.track_id.as_str())
+        .track_lifetime(inner.track_lifetime)
+        .track_created(Time::new(
+            inner.track_created_sec,
+            inner.track_created_nanosec,
+        ))
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── edgefirst_msgs::Detect ──────────────────────────────────────────
+
+struct DetectBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    input_sec: i32,
+    input_nanosec: u32,
+    model_sec: i32,
+    model_nanosec: u32,
+    output_sec: i32,
+    output_nanosec: u32,
+    boxes: *const ros_detect_box_elem_t,
+    boxes_count: usize,
+}
+
+pub struct ros_detect_builder_t(DetectBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_detect_builder_new() -> *mut ros_detect_builder_t {
+    Box::into_raw(Box::new(ros_detect_builder_t(DetectBuilderOwned {
+        stamp_sec: 0,
+        stamp_nanosec: 0,
+        frame_id: String::new(),
+        input_sec: 0,
+        input_nanosec: 0,
+        model_sec: 0,
+        model_nanosec: 0,
+        output_sec: 0,
+        output_nanosec: 0,
+        boxes: ptr::null(),
+        boxes_count: 0,
+    })))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_detect_builder_free(b: *mut ros_detect_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_detect_builder_set_stamp(
+    b: *mut ros_detect_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_detect_builder_set_frame_id(
+    b: *mut ros_detect_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_detect_builder_set_input_timestamp(
+    b: *mut ros_detect_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.input_sec = sec;
+    inner.input_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_detect_builder_set_model_time(
+    b: *mut ros_detect_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.model_sec = sec;
+    inner.model_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_detect_builder_set_output_time(
+    b: *mut ros_detect_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.output_sec = sec;
+    inner.output_nanosec = nanosec;
+}
+
+/// Set the boxes descriptor sequence (BORROWED — `boxes` and every
+/// `label`/`track_id` pointer inside it must remain valid until the next
+/// setter on the boxes slot, a subsequent build/encode_into, or free).
+#[no_mangle]
+pub extern "C" fn ros_detect_builder_set_boxes(
+    b: *mut ros_detect_builder_t,
+    boxes: *const ros_detect_box_elem_t,
+    count: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if boxes.is_null() && count > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.boxes = boxes;
+        (*b).0.boxes_count = count;
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_detect_builder_build(
+    b: *mut ros_detect_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let boxes = match unsafe { detect_box_descs_to_views(inner.boxes, inner.boxes_count) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    let r = edgefirst_msgs::Detect::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .input_timestamp(Time::new(inner.input_sec, inner.input_nanosec))
+        .model_time(Time::new(inner.model_sec, inner.model_nanosec))
+        .output_time(Time::new(inner.output_sec, inner.output_nanosec))
+        .boxes(&boxes)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_detect_builder_encode_into(
+    b: *mut ros_detect_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let boxes = match unsafe { detect_box_descs_to_views(inner.boxes, inner.boxes_count) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = edgefirst_msgs::Detect::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .input_timestamp(Time::new(inner.input_sec, inner.input_nanosec))
+        .model_time(Time::new(inner.model_sec, inner.model_nanosec))
+        .output_time(Time::new(inner.output_sec, inner.output_nanosec))
+        .boxes(&boxes)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── edgefirst_msgs::CameraFrame ─────────────────────────────────────
+
+/// C-POD descriptor for a single CameraPlane element. `data` is a borrowed
+/// byte slice; it must remain valid until the consuming builder is
+/// finalised (build/encode_into) or freed.
+#[repr(C)]
+pub struct ros_camera_plane_elem_t {
+    pub fd: i32,
+    pub offset: u32,
+    pub stride: u32,
+    pub size: u32,
+    pub used: u32,
+    pub data: *const u8,
+    pub data_len: usize,
+}
+
+/// Materialise `CameraPlaneView` borrowers from the C-POD descriptor array.
+///
+/// # Safety
+/// Each descriptor's `data` pointer must be valid for `data_len` bytes (or
+/// NULL when `data_len == 0`); the backing storage must outlive the returned Vec.
+unsafe fn camera_plane_descs_to_views(
+    descs: *const ros_camera_plane_elem_t,
+    count: usize,
+) -> Vec<edgefirst_msgs::CameraPlaneView<'static>> {
+    if descs.is_null() || count == 0 {
+        return Vec::new();
+    }
+    let descs = slice::from_raw_parts(descs, count);
+    descs
+        .iter()
+        .map(|d| edgefirst_msgs::CameraPlaneView {
+            fd: d.fd,
+            offset: d.offset,
+            stride: d.stride,
+            size: d.size,
+            used: d.used,
+            data: if d.data.is_null() || d.data_len == 0 {
+                &[][..]
+            } else {
+                slice::from_raw_parts(d.data, d.data_len)
+            },
+        })
+        .collect()
+}
+
+struct CameraFrameBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    seq: u64,
+    pid: u32,
+    width: u32,
+    height: u32,
+    format: String,
+    color_space: String,
+    color_transfer: String,
+    color_encoding: String,
+    color_range: String,
+    fence_fd: i32,
+    planes: *const ros_camera_plane_elem_t,
+    planes_count: usize,
+}
+
+pub struct ros_camera_frame_builder_t(CameraFrameBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_builder_new() -> *mut ros_camera_frame_builder_t {
+    Box::into_raw(Box::new(ros_camera_frame_builder_t(
+        CameraFrameBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            seq: 0,
+            pid: 0,
+            width: 0,
+            height: 0,
+            format: String::new(),
+            color_space: String::new(),
+            color_transfer: String::new(),
+            color_encoding: String::new(),
+            color_range: String::new(),
+            fence_fd: -1,
+            planes: ptr::null(),
+            planes_count: 0,
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_builder_free(b: *mut ros_camera_frame_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_builder_set_stamp(
+    b: *mut ros_camera_frame_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_builder_set_frame_id(
+    b: *mut ros_camera_frame_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_builder_set_seq(b: *mut ros_camera_frame_builder_t, v: u64) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.seq = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_builder_set_pid(b: *mut ros_camera_frame_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.pid = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_builder_set_width(b: *mut ros_camera_frame_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.width = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_builder_set_height(b: *mut ros_camera_frame_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.height = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_builder_set_format(
+    b: *mut ros_camera_frame_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.format = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_builder_set_color_space(
+    b: *mut ros_camera_frame_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.color_space = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_builder_set_color_transfer(
+    b: *mut ros_camera_frame_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.color_transfer = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_builder_set_color_encoding(
+    b: *mut ros_camera_frame_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.color_encoding = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_builder_set_color_range(
+    b: *mut ros_camera_frame_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.color_range = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_builder_set_fence_fd(
+    b: *mut ros_camera_frame_builder_t,
+    v: i32,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.fence_fd = v;
+    }
+}
+
+/// Set the planes descriptor sequence (BORROWED — `planes` and every
+/// `data` pointer inside it must remain valid until the next setter on
+/// the planes slot, a subsequent build/encode_into, or free).
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_builder_set_planes(
+    b: *mut ros_camera_frame_builder_t,
+    planes: *const ros_camera_plane_elem_t,
+    count: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if planes.is_null() && count > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.planes = planes;
+        (*b).0.planes_count = count;
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_builder_build(
+    b: *mut ros_camera_frame_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let planes = unsafe { camera_plane_descs_to_views(inner.planes, inner.planes_count) };
+    let r = edgefirst_msgs::CameraFrame::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .seq(inner.seq)
+        .pid(inner.pid)
+        .width(inner.width)
+        .height(inner.height)
+        .format(inner.format.as_str())
+        .color_space(inner.color_space.as_str())
+        .color_transfer(inner.color_transfer.as_str())
+        .color_encoding(inner.color_encoding.as_str())
+        .color_range(inner.color_range.as_str())
+        .fence_fd(inner.fence_fd)
+        .planes(&planes)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_builder_encode_into(
+    b: *mut ros_camera_frame_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let planes = unsafe { camera_plane_descs_to_views(inner.planes, inner.planes_count) };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = edgefirst_msgs::CameraFrame::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .seq(inner.seq)
+        .pid(inner.pid)
+        .width(inner.width)
+        .height(inner.height)
+        .format(inner.format.as_str())
+        .color_space(inner.color_space.as_str())
+        .color_transfer(inner.color_transfer.as_str())
+        .color_encoding(inner.color_encoding.as_str())
+        .color_range(inner.color_range.as_str())
+        .fence_fd(inner.fence_fd)
+        .planes(&planes)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── edgefirst_msgs::Model ───────────────────────────────────────────
+//
+// Shares `ros_detect_box_elem_t` for boxes; uses `ros_mask_elem_t` for masks.
+// The mask descriptor mirrors `MaskView` exactly.
+
+/// C-POD descriptor for a single Mask element. `encoding` is a borrowed C
+/// string and `mask` is a borrowed byte slice; both must remain valid until
+/// the consuming builder is finalised (build/encode_into) or freed.
+#[repr(C)]
+pub struct ros_mask_elem_t {
+    pub height: u32,
+    pub width: u32,
+    pub length: u32,
+    pub encoding: *const c_char,
+    pub mask: *const u8,
+    pub mask_len: usize,
+    pub boxed: bool,
+}
+
+/// Materialise `MaskView` borrowers from the C-POD descriptor array.
+///
+/// # Safety
+/// Each descriptor's `encoding` must be a valid NUL-terminated C string (or
+/// NULL → "") and `mask` must be valid for `mask_len` bytes (or NULL when
+/// `mask_len == 0`); backing storage outlives the returned Vec.
+unsafe fn mask_descs_to_views(
+    descs: *const ros_mask_elem_t,
+    count: usize,
+) -> Result<Vec<edgefirst_msgs::MaskView<'static>>, ()> {
+    if descs.is_null() || count == 0 {
+        return Ok(Vec::new());
+    }
+    let descs = slice::from_raw_parts(descs, count);
+    descs
+        .iter()
+        .map(|d| {
+            let encoding = c_to_str_checked(d.encoding)?;
+            let mask = if d.mask.is_null() {
+                if d.mask_len > 0 {
+                    set_errno(EINVAL);
+                    return Err(());
+                }
+                &[][..]
+            } else {
+                slice::from_raw_parts(d.mask, d.mask_len)
+            };
+            Ok(edgefirst_msgs::MaskView {
+                height: d.height,
+                width: d.width,
+                length: d.length,
+                encoding,
+                mask,
+                boxed: d.boxed,
+            })
+        })
+        .collect()
+}
+
+struct ModelBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    input_sec: i32,
+    input_nanosec: u32,
+    model_sec: i32,
+    model_nanosec: u32,
+    output_sec: i32,
+    output_nanosec: u32,
+    decode_sec: i32,
+    decode_nanosec: u32,
+    boxes: *const ros_detect_box_elem_t,
+    boxes_count: usize,
+    masks: *const ros_mask_elem_t,
+    masks_count: usize,
+}
+
+pub struct ros_model_builder_t(ModelBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_model_builder_new() -> *mut ros_model_builder_t {
+    Box::into_raw(Box::new(ros_model_builder_t(ModelBuilderOwned {
+        stamp_sec: 0,
+        stamp_nanosec: 0,
+        frame_id: String::new(),
+        input_sec: 0,
+        input_nanosec: 0,
+        model_sec: 0,
+        model_nanosec: 0,
+        output_sec: 0,
+        output_nanosec: 0,
+        decode_sec: 0,
+        decode_nanosec: 0,
+        boxes: ptr::null(),
+        boxes_count: 0,
+        masks: ptr::null(),
+        masks_count: 0,
+    })))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_builder_free(b: *mut ros_model_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_builder_set_stamp(b: *mut ros_model_builder_t, sec: i32, nanosec: u32) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_builder_set_frame_id(
+    b: *mut ros_model_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_builder_set_input_time(
+    b: *mut ros_model_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.input_sec = sec;
+    inner.input_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_builder_set_model_time(
+    b: *mut ros_model_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.model_sec = sec;
+    inner.model_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_builder_set_output_time(
+    b: *mut ros_model_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.output_sec = sec;
+    inner.output_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_builder_set_decode_time(
+    b: *mut ros_model_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.decode_sec = sec;
+    inner.decode_nanosec = nanosec;
+}
+
+/// Set the boxes descriptor sequence (BORROWED — see
+/// `ros_detect_builder_set_boxes`).
+#[no_mangle]
+pub extern "C" fn ros_model_builder_set_boxes(
+    b: *mut ros_model_builder_t,
+    boxes: *const ros_detect_box_elem_t,
+    count: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if boxes.is_null() && count > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.boxes = boxes;
+        (*b).0.boxes_count = count;
+    }
+    0
+}
+
+/// Set the masks descriptor sequence (BORROWED — `masks` and every
+/// `encoding`/`mask` pointer inside it must remain valid until the next
+/// setter on the masks slot, a subsequent build/encode_into, or free).
+#[no_mangle]
+pub extern "C" fn ros_model_builder_set_masks(
+    b: *mut ros_model_builder_t,
+    masks: *const ros_mask_elem_t,
+    count: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if masks.is_null() && count > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.masks = masks;
+        (*b).0.masks_count = count;
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_builder_build(
+    b: *mut ros_model_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let boxes = match unsafe { detect_box_descs_to_views(inner.boxes, inner.boxes_count) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    let masks = match unsafe { mask_descs_to_views(inner.masks, inner.masks_count) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    let r = edgefirst_msgs::Model::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .input_time(Duration {
+            sec: inner.input_sec,
+            nanosec: inner.input_nanosec,
+        })
+        .model_time(Duration {
+            sec: inner.model_sec,
+            nanosec: inner.model_nanosec,
+        })
+        .output_time(Duration {
+            sec: inner.output_sec,
+            nanosec: inner.output_nanosec,
+        })
+        .decode_time(Duration {
+            sec: inner.decode_sec,
+            nanosec: inner.decode_nanosec,
+        })
+        .boxes(&boxes)
+        .masks(&masks)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_builder_encode_into(
+    b: *mut ros_model_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let boxes = match unsafe { detect_box_descs_to_views(inner.boxes, inner.boxes_count) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    let masks = match unsafe { mask_descs_to_views(inner.masks, inner.masks_count) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = edgefirst_msgs::Model::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .input_time(Duration {
+            sec: inner.input_sec,
+            nanosec: inner.input_nanosec,
+        })
+        .model_time(Duration {
+            sec: inner.model_sec,
+            nanosec: inner.model_nanosec,
+        })
+        .output_time(Duration {
+            sec: inner.output_sec,
+            nanosec: inner.output_nanosec,
+        })
+        .decode_time(Duration {
+            sec: inner.decode_sec,
+            nanosec: inner.decode_nanosec,
+        })
+        .boxes(&boxes)
+        .masks(&masks)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── edgefirst_msgs::ModelInfo ───────────────────────────────────────
+
+struct ModelInfoBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    input_shape: *const u32,
+    input_shape_len: usize,
+    input_type: u8,
+    output_shape: *const u32,
+    output_shape_len: usize,
+    output_type: u8,
+    // Labels are owned: each call to set_labels copies the C strings into a
+    // Vec<String> so the borrow contract is "labels valid for the duration
+    // of one set_labels call". Not borrowed across the FFI boundary.
+    labels: Vec<String>,
+    model_type: String,
+    model_format: String,
+    model_name: String,
+}
+
+pub struct ros_model_info_builder_t(ModelInfoBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_model_info_builder_new() -> *mut ros_model_info_builder_t {
+    Box::into_raw(Box::new(ros_model_info_builder_t(ModelInfoBuilderOwned {
+        stamp_sec: 0,
+        stamp_nanosec: 0,
+        frame_id: String::new(),
+        input_shape: ptr::null(),
+        input_shape_len: 0,
+        input_type: 0,
+        output_shape: ptr::null(),
+        output_shape_len: 0,
+        output_type: 0,
+        labels: Vec::new(),
+        model_type: String::new(),
+        model_format: String::new(),
+        model_name: String::new(),
+    })))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_info_builder_free(b: *mut ros_model_info_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_info_builder_set_stamp(
+    b: *mut ros_model_info_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_info_builder_set_frame_id(
+    b: *mut ros_model_info_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_info_builder_set_input_shape(
+    b: *mut ros_model_info_builder_t,
+    data: *const u32,
+    len: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.input_shape = data;
+        (*b).0.input_shape_len = len;
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_info_builder_set_input_type(b: *mut ros_model_info_builder_t, v: u8) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.input_type = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_info_builder_set_output_shape(
+    b: *mut ros_model_info_builder_t,
+    data: *const u32,
+    len: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.output_shape = data;
+        (*b).0.output_shape_len = len;
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_info_builder_set_output_type(b: *mut ros_model_info_builder_t, v: u8) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.output_type = v;
+    }
+}
+
+/// Set labels by copying each C string into builder-owned storage. Returns 0
+/// on success, -1 on error (errno: EINVAL for NULL handle or NULL element
+/// pointer when count > 0).
+#[no_mangle]
+pub extern "C" fn ros_model_info_builder_set_labels(
+    b: *mut ros_model_info_builder_t,
+    labels: *const *const c_char,
+    count: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if count == 0 {
+        unsafe {
+            (*b).0.labels.clear();
+        }
+        return 0;
+    }
+    if labels.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slc = unsafe { slice::from_raw_parts(labels, count) };
+    let mut out: Vec<String> = Vec::with_capacity(count);
+    for &p in slc {
+        out.push(unsafe { c_to_str(p) }.to_string());
+    }
+    unsafe {
+        (*b).0.labels = out;
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_info_builder_set_model_type(
+    b: *mut ros_model_info_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.model_type = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_info_builder_set_model_format(
+    b: *mut ros_model_info_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.model_format = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_info_builder_set_model_name(
+    b: *mut ros_model_info_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.model_name = s_str.to_string();
+    }
+    0
+}
+
+fn model_info_input_shape(inner: &ModelInfoBuilderOwned) -> &[u32] {
+    if inner.input_shape.is_null() || inner.input_shape_len == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(inner.input_shape, inner.input_shape_len) }
+    }
+}
+fn model_info_output_shape(inner: &ModelInfoBuilderOwned) -> &[u32] {
+    if inner.output_shape.is_null() || inner.output_shape_len == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(inner.output_shape, inner.output_shape_len) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_info_builder_build(
+    b: *mut ros_model_info_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let label_refs: Vec<&str> = inner.labels.iter().map(String::as_str).collect();
+    let r = edgefirst_msgs::ModelInfo::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .input_shape(model_info_input_shape(inner))
+        .input_type(inner.input_type)
+        .output_shape(model_info_output_shape(inner))
+        .output_type(inner.output_type)
+        .labels(&label_refs)
+        .model_type(inner.model_type.as_str())
+        .model_format(inner.model_format.as_str())
+        .model_name(inner.model_name.as_str())
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_model_info_builder_encode_into(
+    b: *mut ros_model_info_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let label_refs: Vec<&str> = inner.labels.iter().map(String::as_str).collect();
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = edgefirst_msgs::ModelInfo::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .input_shape(model_info_input_shape(inner))
+        .input_type(inner.input_type)
+        .output_shape(model_info_output_shape(inner))
+        .output_type(inner.output_type)
+        .labels(&label_refs)
+        .model_type(inner.model_type.as_str())
+        .model_format(inner.model_format.as_str())
+        .model_name(inner.model_name.as_str())
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── edgefirst_msgs::Vibration ───────────────────────────────────────
+
+struct VibrationBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    vib_x: f64,
+    vib_y: f64,
+    vib_z: f64,
+    band_lower_hz: f32,
+    band_upper_hz: f32,
+    measurement_type: u8,
+    unit: u8,
+    clipping: *const u32,
+    clipping_len: usize,
+}
+
+pub struct ros_vibration_builder_t(VibrationBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_builder_new() -> *mut ros_vibration_builder_t {
+    Box::into_raw(Box::new(ros_vibration_builder_t(VibrationBuilderOwned {
+        stamp_sec: 0,
+        stamp_nanosec: 0,
+        frame_id: String::new(),
+        vib_x: 0.0,
+        vib_y: 0.0,
+        vib_z: 0.0,
+        band_lower_hz: 0.0,
+        band_upper_hz: 0.0,
+        measurement_type: 0,
+        unit: 0,
+        clipping: ptr::null(),
+        clipping_len: 0,
+    })))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_builder_free(b: *mut ros_vibration_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_builder_set_stamp(
+    b: *mut ros_vibration_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_builder_set_frame_id(
+    b: *mut ros_vibration_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_builder_set_vibration(
+    b: *mut ros_vibration_builder_t,
+    x: f64,
+    y: f64,
+    z: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.vib_x = x;
+    inner.vib_y = y;
+    inner.vib_z = z;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_builder_set_band_lower_hz(b: *mut ros_vibration_builder_t, v: f32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.band_lower_hz = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_builder_set_band_upper_hz(b: *mut ros_vibration_builder_t, v: f32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.band_upper_hz = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_builder_set_measurement_type(
+    b: *mut ros_vibration_builder_t,
+    v: u8,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.measurement_type = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_builder_set_unit(b: *mut ros_vibration_builder_t, v: u8) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.unit = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_builder_set_clipping(
+    b: *mut ros_vibration_builder_t,
+    data: *const u32,
+    len: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.clipping = data;
+        (*b).0.clipping_len = len;
+    }
+    0
+}
+
+fn vibration_clipping_slice(inner: &VibrationBuilderOwned) -> &[u32] {
+    if inner.clipping.is_null() || inner.clipping_len == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(inner.clipping, inner.clipping_len) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_builder_build(
+    b: *mut ros_vibration_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = edgefirst_msgs::Vibration::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .vibration(crate::geometry_msgs::Vector3 {
+            x: inner.vib_x,
+            y: inner.vib_y,
+            z: inner.vib_z,
+        })
+        .band_lower_hz(inner.band_lower_hz)
+        .band_upper_hz(inner.band_upper_hz)
+        .measurement_type(inner.measurement_type)
+        .unit(inner.unit)
+        .clipping(vibration_clipping_slice(inner))
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_vibration_builder_encode_into(
+    b: *mut ros_vibration_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = edgefirst_msgs::Vibration::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .vibration(crate::geometry_msgs::Vector3 {
+            x: inner.vib_x,
+            y: inner.vib_y,
+            z: inner.vib_z,
+        })
+        .band_lower_hz(inner.band_lower_hz)
+        .band_upper_hz(inner.band_upper_hz)
+        .measurement_type(inner.measurement_type)
+        .unit(inner.unit)
+        .clipping(vibration_clipping_slice(inner))
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── foxglove_msgs::FoxgloveCompressedVideo ──────────────────────────
+
+struct FoxgloveCompressedVideoBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    data: *const u8,
+    data_len: usize,
+    format: String,
+}
+
+pub struct ros_foxglove_compressed_video_builder_t(FoxgloveCompressedVideoBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_video_builder_new(
+) -> *mut ros_foxglove_compressed_video_builder_t {
+    Box::into_raw(Box::new(ros_foxglove_compressed_video_builder_t(
+        FoxgloveCompressedVideoBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            data: ptr::null(),
+            data_len: 0,
+            format: String::new(),
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_video_builder_free(
+    b: *mut ros_foxglove_compressed_video_builder_t,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_video_builder_set_stamp(
+    b: *mut ros_foxglove_compressed_video_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_video_builder_set_frame_id(
+    b: *mut ros_foxglove_compressed_video_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_video_builder_set_data(
+    b: *mut ros_foxglove_compressed_video_builder_t,
+    data: *const u8,
+    len: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.data = data;
+        (*b).0.data_len = len;
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_video_builder_set_format(
+    b: *mut ros_foxglove_compressed_video_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.format = s_str.to_string();
+    }
+    0
+}
+
+fn foxglove_compressed_video_data_slice(inner: &FoxgloveCompressedVideoBuilderOwned) -> &[u8] {
+    if inner.data.is_null() || inner.data_len == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(inner.data, inner.data_len) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_video_builder_build(
+    b: *mut ros_foxglove_compressed_video_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = foxglove_msgs::FoxgloveCompressedVideo::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .data(foxglove_compressed_video_data_slice(inner))
+        .format(inner.format.as_str())
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_video_builder_encode_into(
+    b: *mut ros_foxglove_compressed_video_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = foxglove_msgs::FoxgloveCompressedVideo::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .data(foxglove_compressed_video_data_slice(inner))
+        .format(inner.format.as_str())
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── foxglove_msgs::FoxgloveTextAnnotation ───────────────────────────
+
+struct FoxgloveTextAnnotationBuilderOwned {
+    timestamp_sec: i32,
+    timestamp_nanosec: u32,
+    pos_x: f64,
+    pos_y: f64,
+    text: String,
+    font_size: f64,
+    text_color_r: f64,
+    text_color_g: f64,
+    text_color_b: f64,
+    text_color_a: f64,
+    bg_color_r: f64,
+    bg_color_g: f64,
+    bg_color_b: f64,
+    bg_color_a: f64,
+}
+
+pub struct ros_foxglove_text_annotation_builder_t(FoxgloveTextAnnotationBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_text_annotation_builder_new(
+) -> *mut ros_foxglove_text_annotation_builder_t {
+    Box::into_raw(Box::new(ros_foxglove_text_annotation_builder_t(
+        FoxgloveTextAnnotationBuilderOwned {
+            timestamp_sec: 0,
+            timestamp_nanosec: 0,
+            pos_x: 0.0,
+            pos_y: 0.0,
+            text: String::new(),
+            font_size: 0.0,
+            text_color_r: 0.0,
+            text_color_g: 0.0,
+            text_color_b: 0.0,
+            text_color_a: 0.0,
+            bg_color_r: 0.0,
+            bg_color_g: 0.0,
+            bg_color_b: 0.0,
+            bg_color_a: 0.0,
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_text_annotation_builder_free(
+    b: *mut ros_foxglove_text_annotation_builder_t,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_text_annotation_builder_set_timestamp(
+    b: *mut ros_foxglove_text_annotation_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.timestamp_sec = sec;
+    inner.timestamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_text_annotation_builder_set_position(
+    b: *mut ros_foxglove_text_annotation_builder_t,
+    x: f64,
+    y: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.pos_x = x;
+    inner.pos_y = y;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_text_annotation_builder_set_text(
+    b: *mut ros_foxglove_text_annotation_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.text = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_text_annotation_builder_set_font_size(
+    b: *mut ros_foxglove_text_annotation_builder_t,
+    v: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.font_size = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_text_annotation_builder_set_text_color(
+    b: *mut ros_foxglove_text_annotation_builder_t,
+    r: f64,
+    g: f64,
+    bc: f64,
+    a: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.text_color_r = r;
+    inner.text_color_g = g;
+    inner.text_color_b = bc;
+    inner.text_color_a = a;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_text_annotation_builder_set_background_color(
+    b: *mut ros_foxglove_text_annotation_builder_t,
+    r: f64,
+    g: f64,
+    bc: f64,
+    a: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.bg_color_r = r;
+    inner.bg_color_g = g;
+    inner.bg_color_b = bc;
+    inner.bg_color_a = a;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_text_annotation_builder_build(
+    b: *mut ros_foxglove_text_annotation_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = foxglove_msgs::FoxgloveTextAnnotation::builder()
+        .timestamp(Time::new(inner.timestamp_sec, inner.timestamp_nanosec))
+        .position(foxglove_msgs::FoxglovePoint2 {
+            x: inner.pos_x,
+            y: inner.pos_y,
+        })
+        .text(inner.text.as_str())
+        .font_size(inner.font_size)
+        .text_color(foxglove_msgs::FoxgloveColor {
+            r: inner.text_color_r,
+            g: inner.text_color_g,
+            b: inner.text_color_b,
+            a: inner.text_color_a,
+        })
+        .background_color(foxglove_msgs::FoxgloveColor {
+            r: inner.bg_color_r,
+            g: inner.bg_color_g,
+            b: inner.bg_color_b,
+            a: inner.bg_color_a,
+        })
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_text_annotation_builder_encode_into(
+    b: *mut ros_foxglove_text_annotation_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = foxglove_msgs::FoxgloveTextAnnotation::builder()
+        .timestamp(Time::new(inner.timestamp_sec, inner.timestamp_nanosec))
+        .position(foxglove_msgs::FoxglovePoint2 {
+            x: inner.pos_x,
+            y: inner.pos_y,
+        })
+        .text(inner.text.as_str())
+        .font_size(inner.font_size)
+        .text_color(foxglove_msgs::FoxgloveColor {
+            r: inner.text_color_r,
+            g: inner.text_color_g,
+            b: inner.text_color_b,
+            a: inner.text_color_a,
+        })
+        .background_color(foxglove_msgs::FoxgloveColor {
+            r: inner.bg_color_r,
+            g: inner.bg_color_g,
+            b: inner.bg_color_b,
+            a: inner.bg_color_a,
+        })
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── foxglove_msgs::FoxglovePointAnnotation ──────────────────────────
+//
+// `points` is a borrowed array of `ros_foxglove_point2_elem_t` descriptors
+// (plain f64 pairs, no inner borrow). The builder also exposes optional
+// `outline_colors` (per-point color overrides); both arrays are borrowed.
+
+/// C-POD descriptor for a single FoxglovePoint2 element.
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct ros_foxglove_point2_elem_t {
+    pub x: f64,
+    pub y: f64,
+}
+
+/// C-POD descriptor for a single FoxgloveColor element.
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct ros_foxglove_color_elem_t {
+    pub r: f64,
+    pub g: f64,
+    pub b: f64,
+    pub a: f64,
+}
+
+unsafe fn foxglove_point2_descs_to_vec(
+    descs: *const ros_foxglove_point2_elem_t,
+    count: usize,
+) -> Vec<foxglove_msgs::FoxglovePoint2> {
+    if descs.is_null() || count == 0 {
+        return Vec::new();
+    }
+    let descs = slice::from_raw_parts(descs, count);
+    descs
+        .iter()
+        .map(|d| foxglove_msgs::FoxglovePoint2 { x: d.x, y: d.y })
+        .collect()
+}
+
+unsafe fn foxglove_color_descs_to_vec(
+    descs: *const ros_foxglove_color_elem_t,
+    count: usize,
+) -> Vec<foxglove_msgs::FoxgloveColor> {
+    if descs.is_null() || count == 0 {
+        return Vec::new();
+    }
+    let descs = slice::from_raw_parts(descs, count);
+    descs
+        .iter()
+        .map(|d| foxglove_msgs::FoxgloveColor {
+            r: d.r,
+            g: d.g,
+            b: d.b,
+            a: d.a,
+        })
+        .collect()
+}
+
+struct FoxglovePointAnnotationBuilderOwned {
+    timestamp_sec: i32,
+    timestamp_nanosec: u32,
+    type_: u8,
+    points: *const ros_foxglove_point2_elem_t,
+    points_count: usize,
+    outline_color_r: f64,
+    outline_color_g: f64,
+    outline_color_b: f64,
+    outline_color_a: f64,
+    outline_colors: *const ros_foxglove_color_elem_t,
+    outline_colors_count: usize,
+    fill_color_r: f64,
+    fill_color_g: f64,
+    fill_color_b: f64,
+    fill_color_a: f64,
+    thickness: f64,
+}
+
+pub struct ros_foxglove_point_annotation_builder_t(FoxglovePointAnnotationBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_point_annotation_builder_new(
+) -> *mut ros_foxglove_point_annotation_builder_t {
+    Box::into_raw(Box::new(ros_foxglove_point_annotation_builder_t(
+        FoxglovePointAnnotationBuilderOwned {
+            timestamp_sec: 0,
+            timestamp_nanosec: 0,
+            type_: 0,
+            points: ptr::null(),
+            points_count: 0,
+            outline_color_r: 0.0,
+            outline_color_g: 0.0,
+            outline_color_b: 0.0,
+            outline_color_a: 0.0,
+            outline_colors: ptr::null(),
+            outline_colors_count: 0,
+            fill_color_r: 0.0,
+            fill_color_g: 0.0,
+            fill_color_b: 0.0,
+            fill_color_a: 0.0,
+            thickness: 0.0,
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_point_annotation_builder_free(
+    b: *mut ros_foxglove_point_annotation_builder_t,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_point_annotation_builder_set_timestamp(
+    b: *mut ros_foxglove_point_annotation_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.timestamp_sec = sec;
+    inner.timestamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_point_annotation_builder_set_type(
+    b: *mut ros_foxglove_point_annotation_builder_t,
+    v: u8,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.type_ = v;
+    }
+}
+
+/// Set the points descriptor sequence (BORROWED).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_point_annotation_builder_set_points(
+    b: *mut ros_foxglove_point_annotation_builder_t,
+    points: *const ros_foxglove_point2_elem_t,
+    count: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if points.is_null() && count > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.points = points;
+        (*b).0.points_count = count;
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_point_annotation_builder_set_outline_color(
+    b: *mut ros_foxglove_point_annotation_builder_t,
+    r: f64,
+    g: f64,
+    bc: f64,
+    a: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.outline_color_r = r;
+    inner.outline_color_g = g;
+    inner.outline_color_b = bc;
+    inner.outline_color_a = a;
+}
+
+/// Set the outline_colors descriptor sequence (BORROWED).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_point_annotation_builder_set_outline_colors(
+    b: *mut ros_foxglove_point_annotation_builder_t,
+    colors: *const ros_foxglove_color_elem_t,
+    count: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if colors.is_null() && count > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.outline_colors = colors;
+        (*b).0.outline_colors_count = count;
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_point_annotation_builder_set_fill_color(
+    b: *mut ros_foxglove_point_annotation_builder_t,
+    r: f64,
+    g: f64,
+    bc: f64,
+    a: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.fill_color_r = r;
+    inner.fill_color_g = g;
+    inner.fill_color_b = bc;
+    inner.fill_color_a = a;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_point_annotation_builder_set_thickness(
+    b: *mut ros_foxglove_point_annotation_builder_t,
+    v: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.thickness = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_point_annotation_builder_build(
+    b: *mut ros_foxglove_point_annotation_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let pts = unsafe { foxglove_point2_descs_to_vec(inner.points, inner.points_count) };
+    let ocs =
+        unsafe { foxglove_color_descs_to_vec(inner.outline_colors, inner.outline_colors_count) };
+    let r = foxglove_msgs::FoxglovePointAnnotation::builder()
+        .timestamp(Time::new(inner.timestamp_sec, inner.timestamp_nanosec))
+        .type_(inner.type_)
+        .points(&pts)
+        .outline_color(foxglove_msgs::FoxgloveColor {
+            r: inner.outline_color_r,
+            g: inner.outline_color_g,
+            b: inner.outline_color_b,
+            a: inner.outline_color_a,
+        })
+        .outline_colors(&ocs)
+        .fill_color(foxglove_msgs::FoxgloveColor {
+            r: inner.fill_color_r,
+            g: inner.fill_color_g,
+            b: inner.fill_color_b,
+            a: inner.fill_color_a,
+        })
+        .thickness(inner.thickness)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_point_annotation_builder_encode_into(
+    b: *mut ros_foxglove_point_annotation_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let pts = unsafe { foxglove_point2_descs_to_vec(inner.points, inner.points_count) };
+    let ocs =
+        unsafe { foxglove_color_descs_to_vec(inner.outline_colors, inner.outline_colors_count) };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = foxglove_msgs::FoxglovePointAnnotation::builder()
+        .timestamp(Time::new(inner.timestamp_sec, inner.timestamp_nanosec))
+        .type_(inner.type_)
+        .points(&pts)
+        .outline_color(foxglove_msgs::FoxgloveColor {
+            r: inner.outline_color_r,
+            g: inner.outline_color_g,
+            b: inner.outline_color_b,
+            a: inner.outline_color_a,
+        })
+        .outline_colors(&ocs)
+        .fill_color(foxglove_msgs::FoxgloveColor {
+            r: inner.fill_color_r,
+            g: inner.fill_color_g,
+            b: inner.fill_color_b,
+            a: inner.fill_color_a,
+        })
+        .thickness(inner.thickness)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── foxglove_msgs::FoxgloveImageAnnotation ──────────────────────────
+//
+// Three nested sequences: circles (CdrFixed FoxgloveCircleAnnotations),
+// points (FoxglovePointAnnotationView with owned Vec<Point2>/Vec<Color>),
+// texts (FoxgloveTextAnnotationView with borrowed text string).
+
+/// C-POD descriptor for a FoxgloveCircleAnnotations element. All fields
+/// are plain values; nothing is borrowed.
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct ros_foxglove_circle_annotation_elem_t {
+    pub timestamp_sec: i32,
+    pub timestamp_nanosec: u32,
+    pub position_x: f64,
+    pub position_y: f64,
+    pub diameter: f64,
+    pub thickness: f64,
+    pub fill_color_r: f64,
+    pub fill_color_g: f64,
+    pub fill_color_b: f64,
+    pub fill_color_a: f64,
+    pub outline_color_r: f64,
+    pub outline_color_g: f64,
+    pub outline_color_b: f64,
+    pub outline_color_a: f64,
+}
+
+/// C-POD descriptor for a FoxglovePointAnnotation element. Inner `points`
+/// and `outline_colors` arrays are borrowed and must outlive the build/
+/// encode_into call. Each individual element is a plain f64 record.
+#[repr(C)]
+pub struct ros_foxglove_point_annotation_elem_t {
+    pub timestamp_sec: i32,
+    pub timestamp_nanosec: u32,
+    pub type_: u8,
+    pub points: *const ros_foxglove_point2_elem_t,
+    pub points_count: usize,
+    pub outline_color_r: f64,
+    pub outline_color_g: f64,
+    pub outline_color_b: f64,
+    pub outline_color_a: f64,
+    pub outline_colors: *const ros_foxglove_color_elem_t,
+    pub outline_colors_count: usize,
+    pub fill_color_r: f64,
+    pub fill_color_g: f64,
+    pub fill_color_b: f64,
+    pub fill_color_a: f64,
+    pub thickness: f64,
+}
+
+/// C-POD descriptor for a FoxgloveTextAnnotation element. `text` is a
+/// borrowed C string and must outlive the build/encode_into call.
+#[repr(C)]
+pub struct ros_foxglove_text_annotation_elem_t {
+    pub timestamp_sec: i32,
+    pub timestamp_nanosec: u32,
+    pub position_x: f64,
+    pub position_y: f64,
+    pub text: *const c_char,
+    pub font_size: f64,
+    pub text_color_r: f64,
+    pub text_color_g: f64,
+    pub text_color_b: f64,
+    pub text_color_a: f64,
+    pub background_color_r: f64,
+    pub background_color_g: f64,
+    pub background_color_b: f64,
+    pub background_color_a: f64,
+}
+
+unsafe fn circle_descs_to_vec(
+    descs: *const ros_foxglove_circle_annotation_elem_t,
+    count: usize,
+) -> Vec<foxglove_msgs::FoxgloveCircleAnnotations> {
+    if descs.is_null() || count == 0 {
+        return Vec::new();
+    }
+    let descs = slice::from_raw_parts(descs, count);
+    descs
+        .iter()
+        .map(|d| foxglove_msgs::FoxgloveCircleAnnotations {
+            timestamp: Time::new(d.timestamp_sec, d.timestamp_nanosec),
+            position: foxglove_msgs::FoxglovePoint2 {
+                x: d.position_x,
+                y: d.position_y,
+            },
+            diameter: d.diameter,
+            thickness: d.thickness,
+            fill_color: foxglove_msgs::FoxgloveColor {
+                r: d.fill_color_r,
+                g: d.fill_color_g,
+                b: d.fill_color_b,
+                a: d.fill_color_a,
+            },
+            outline_color: foxglove_msgs::FoxgloveColor {
+                r: d.outline_color_r,
+                g: d.outline_color_g,
+                b: d.outline_color_b,
+                a: d.outline_color_a,
+            },
+        })
+        .collect()
+}
+
+unsafe fn point_annotation_descs_to_vec(
+    descs: *const ros_foxglove_point_annotation_elem_t,
+    count: usize,
+) -> Vec<foxglove_msgs::FoxglovePointAnnotationView> {
+    if descs.is_null() || count == 0 {
+        return Vec::new();
+    }
+    let descs = slice::from_raw_parts(descs, count);
+    descs
+        .iter()
+        .map(|d| foxglove_msgs::FoxglovePointAnnotationView {
+            timestamp: Time::new(d.timestamp_sec, d.timestamp_nanosec),
+            type_: d.type_,
+            points: foxglove_point2_descs_to_vec(d.points, d.points_count),
+            outline_color: foxglove_msgs::FoxgloveColor {
+                r: d.outline_color_r,
+                g: d.outline_color_g,
+                b: d.outline_color_b,
+                a: d.outline_color_a,
+            },
+            outline_colors: foxglove_color_descs_to_vec(d.outline_colors, d.outline_colors_count),
+            fill_color: foxglove_msgs::FoxgloveColor {
+                r: d.fill_color_r,
+                g: d.fill_color_g,
+                b: d.fill_color_b,
+                a: d.fill_color_a,
+            },
+            thickness: d.thickness,
+        })
+        .collect()
+}
+
+unsafe fn text_annotation_descs_to_vec(
+    descs: *const ros_foxglove_text_annotation_elem_t,
+    count: usize,
+) -> Result<Vec<foxglove_msgs::FoxgloveTextAnnotationView<'static>>, ()> {
+    if descs.is_null() || count == 0 {
+        return Ok(Vec::new());
+    }
+    let descs = slice::from_raw_parts(descs, count);
+    descs
+        .iter()
+        .map(|d| {
+            let text = c_to_str_checked(d.text)?;
+            Ok(foxglove_msgs::FoxgloveTextAnnotationView {
+                timestamp: Time::new(d.timestamp_sec, d.timestamp_nanosec),
+                position: foxglove_msgs::FoxglovePoint2 {
+                    x: d.position_x,
+                    y: d.position_y,
+                },
+                text,
+                font_size: d.font_size,
+                text_color: foxglove_msgs::FoxgloveColor {
+                    r: d.text_color_r,
+                    g: d.text_color_g,
+                    b: d.text_color_b,
+                    a: d.text_color_a,
+                },
+                background_color: foxglove_msgs::FoxgloveColor {
+                    r: d.background_color_r,
+                    g: d.background_color_g,
+                    b: d.background_color_b,
+                    a: d.background_color_a,
+                },
+            })
+        })
+        .collect()
+}
+
+struct FoxgloveImageAnnotationBuilderOwned {
+    circles: *const ros_foxglove_circle_annotation_elem_t,
+    circles_count: usize,
+    points: *const ros_foxglove_point_annotation_elem_t,
+    points_count: usize,
+    texts: *const ros_foxglove_text_annotation_elem_t,
+    texts_count: usize,
+}
+
+pub struct ros_foxglove_image_annotation_builder_t(FoxgloveImageAnnotationBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_image_annotation_builder_new(
+) -> *mut ros_foxglove_image_annotation_builder_t {
+    Box::into_raw(Box::new(ros_foxglove_image_annotation_builder_t(
+        FoxgloveImageAnnotationBuilderOwned {
+            circles: ptr::null(),
+            circles_count: 0,
+            points: ptr::null(),
+            points_count: 0,
+            texts: ptr::null(),
+            texts_count: 0,
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_image_annotation_builder_free(
+    b: *mut ros_foxglove_image_annotation_builder_t,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+/// Set the circles descriptor sequence (BORROWED).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_image_annotation_builder_set_circles(
+    b: *mut ros_foxglove_image_annotation_builder_t,
+    circles: *const ros_foxglove_circle_annotation_elem_t,
+    count: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if circles.is_null() && count > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.circles = circles;
+        (*b).0.circles_count = count;
+    }
+    0
+}
+
+/// Set the points descriptor sequence (BORROWED — including each
+/// element's inner `points`/`outline_colors` arrays).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_image_annotation_builder_set_points(
+    b: *mut ros_foxglove_image_annotation_builder_t,
+    points: *const ros_foxglove_point_annotation_elem_t,
+    count: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if points.is_null() && count > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.points = points;
+        (*b).0.points_count = count;
+    }
+    0
+}
+
+/// Set the texts descriptor sequence (BORROWED — including each
+/// element's `text` C string).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_image_annotation_builder_set_texts(
+    b: *mut ros_foxglove_image_annotation_builder_t,
+    texts: *const ros_foxglove_text_annotation_elem_t,
+    count: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if texts.is_null() && count > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.texts = texts;
+        (*b).0.texts_count = count;
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_image_annotation_builder_build(
+    b: *mut ros_foxglove_image_annotation_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let circles = unsafe { circle_descs_to_vec(inner.circles, inner.circles_count) };
+    let points = unsafe { point_annotation_descs_to_vec(inner.points, inner.points_count) };
+    let texts = match unsafe { text_annotation_descs_to_vec(inner.texts, inner.texts_count) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    let r = foxglove_msgs::FoxgloveImageAnnotation::builder()
+        .circles(&circles)
+        .points(&points)
+        .texts(&texts)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_image_annotation_builder_encode_into(
+    b: *mut ros_foxglove_image_annotation_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let circles = unsafe { circle_descs_to_vec(inner.circles, inner.circles_count) };
+    let points = unsafe { point_annotation_descs_to_vec(inner.points, inner.points_count) };
+    let texts = match unsafe { text_annotation_descs_to_vec(inner.texts, inner.texts_count) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = foxglove_msgs::FoxgloveImageAnnotation::builder()
+        .circles(&circles)
+        .points(&points)
+        .texts(&texts)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// =============================================================================
+// In-place scalar setters (3.2.0+)
+//
+// Stateless mutators over a caller-owned CDR buffer. Each call re-parses the
+// buffer via from_cdr to locate the field, then writes the new value in place.
+// Only fixed-size fields are exposed — variable-length fields (strings, bulk
+// data, nested sequences) require the builder API.
+//
+// Signature: ros_<type>_set_<field>(buf, len, value...) -> i32
+//   buf:  *mut u8  — CDR buffer to mutate
+//   len:  usize    — buffer length (must match the encoded CDR length)
+//   ...:  primitive field args
+// Returns:
+//   0          — success
+//   -1, EINVAL — NULL buf
+//   -1, EBADMSG — buffer not a valid encoded message of this type
+// =============================================================================
+
+/// Set the stamp field in place on an existing CDR-encoded Header buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_header_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: std_msgs::Header<&mut [u8]> = match std_msgs::Header::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on an existing CDR-encoded Image buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_image_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Image<&mut [u8]> = match sensor_msgs::Image::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the height field in place on an Image buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_image_set_height(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Image<&mut [u8]> = match sensor_msgs::Image::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_height(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the width field in place on an Image buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_image_set_width(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Image<&mut [u8]> = match sensor_msgs::Image::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_width(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the is_bigendian field in place on an Image buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_image_set_is_bigendian(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Image<&mut [u8]> = match sensor_msgs::Image::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_is_bigendian(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the step (row stride) field in place on an Image buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_image_set_step(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Image<&mut [u8]> = match sensor_msgs::Image::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_step(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a CompressedImage buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_compressed_image_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::CompressedImage<&mut [u8]> =
+        match sensor_msgs::CompressedImage::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on an Imu buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_imu_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Imu<&mut [u8]> = match sensor_msgs::Imu::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the orientation (Quaternion) field in place on an Imu buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_imu_set_orientation(
+    buf: *mut u8,
+    len: usize,
+    x: f64,
+    y: f64,
+    z: f64,
+    w: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Imu<&mut [u8]> = match sensor_msgs::Imu::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_orientation(Quaternion { x, y, z, w }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the 3x3 orientation covariance (row-major, 9 f64 elements) in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_imu_set_orientation_covariance(
+    buf: *mut u8,
+    len: usize,
+    c: *const f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if c.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let mut arr = [0.0f64; 9];
+    unsafe {
+        ptr::copy_nonoverlapping(c, arr.as_mut_ptr(), 9);
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Imu<&mut [u8]> = match sensor_msgs::Imu::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_orientation_covariance(arr) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the angular_velocity (Vector3) field in place on an Imu buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_imu_set_angular_velocity(
+    buf: *mut u8,
+    len: usize,
+    x: f64,
+    y: f64,
+    z: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Imu<&mut [u8]> = match sensor_msgs::Imu::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_angular_velocity(Vector3 { x, y, z }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the 3x3 angular velocity covariance (row-major, 9 f64 elements) in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_imu_set_angular_velocity_covariance(
+    buf: *mut u8,
+    len: usize,
+    c: *const f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if c.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let mut arr = [0.0f64; 9];
+    unsafe {
+        ptr::copy_nonoverlapping(c, arr.as_mut_ptr(), 9);
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Imu<&mut [u8]> = match sensor_msgs::Imu::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_angular_velocity_covariance(arr) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the linear_acceleration (Vector3) field in place on an Imu buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_imu_set_linear_acceleration(
+    buf: *mut u8,
+    len: usize,
+    x: f64,
+    y: f64,
+    z: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Imu<&mut [u8]> = match sensor_msgs::Imu::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_linear_acceleration(Vector3 { x, y, z }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the 3x3 linear acceleration covariance (row-major, 9 f64 elements) in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_imu_set_linear_acceleration_covariance(
+    buf: *mut u8,
+    len: usize,
+    c: *const f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if c.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let mut arr = [0.0f64; 9];
+    unsafe {
+        ptr::copy_nonoverlapping(c, arr.as_mut_ptr(), 9);
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Imu<&mut [u8]> = match sensor_msgs::Imu::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_linear_acceleration_covariance(arr) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a NavSatFix buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::NavSatFix<&mut [u8]> = match sensor_msgs::NavSatFix::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the NavSatStatus in place on a NavSatFix buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_set_status(
+    buf: *mut u8,
+    len: usize,
+    status: i8,
+    service: u16,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::NavSatFix<&mut [u8]> = match sensor_msgs::NavSatFix::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_status(NavSatStatus { status, service }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the latitude field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_set_latitude(buf: *mut u8, len: usize, v: f64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::NavSatFix<&mut [u8]> = match sensor_msgs::NavSatFix::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_latitude(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the longitude field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_set_longitude(buf: *mut u8, len: usize, v: f64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::NavSatFix<&mut [u8]> = match sensor_msgs::NavSatFix::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_longitude(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the altitude field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_set_altitude(buf: *mut u8, len: usize, v: f64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::NavSatFix<&mut [u8]> = match sensor_msgs::NavSatFix::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_altitude(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the 3x3 position covariance (row-major, 9 f64 elements) in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_set_position_covariance(
+    buf: *mut u8,
+    len: usize,
+    c: *const f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if c.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let mut arr = [0.0f64; 9];
+    unsafe {
+        ptr::copy_nonoverlapping(c, arr.as_mut_ptr(), 9);
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::NavSatFix<&mut [u8]> = match sensor_msgs::NavSatFix::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_position_covariance(arr) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the position_covariance_type in place on a NavSatFix buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_set_position_covariance_type(
+    buf: *mut u8,
+    len: usize,
+    v: u8,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::NavSatFix<&mut [u8]> = match sensor_msgs::NavSatFix::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_position_covariance_type(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the offset field in place on a PointField buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_point_field_set_offset(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::PointField<&mut [u8]> = match sensor_msgs::PointField::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_offset(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the datatype field in place on a PointField buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_point_field_set_datatype(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::PointField<&mut [u8]> = match sensor_msgs::PointField::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_datatype(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the count field in place on a PointField buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_point_field_set_count(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::PointField<&mut [u8]> = match sensor_msgs::PointField::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_count(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a PointCloud2 buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::PointCloud2<&mut [u8]> = match sensor_msgs::PointCloud2::from_cdr(slice)
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the height field in place on a PointCloud2 buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_set_height(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::PointCloud2<&mut [u8]> = match sensor_msgs::PointCloud2::from_cdr(slice)
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_height(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the width field in place on a PointCloud2 buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_set_width(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::PointCloud2<&mut [u8]> = match sensor_msgs::PointCloud2::from_cdr(slice)
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_width(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the is_bigendian field in place on a PointCloud2 buffer (0=false, nonzero=true).
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_set_is_bigendian(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::PointCloud2<&mut [u8]> = match sensor_msgs::PointCloud2::from_cdr(slice)
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_is_bigendian(v != 0) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the point_step field in place on a PointCloud2 buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_set_point_step(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::PointCloud2<&mut [u8]> = match sensor_msgs::PointCloud2::from_cdr(slice)
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_point_step(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the row_step field in place on a PointCloud2 buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_set_row_step(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::PointCloud2<&mut [u8]> = match sensor_msgs::PointCloud2::from_cdr(slice)
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_row_step(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the is_dense field in place on a PointCloud2 buffer (0=false, nonzero=true).
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_set_is_dense(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::PointCloud2<&mut [u8]> = match sensor_msgs::PointCloud2::from_cdr(slice)
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_is_dense(v != 0) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a CameraInfo buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::CameraInfo<&mut [u8]> = match sensor_msgs::CameraInfo::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the height field in place on a CameraInfo buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_set_height(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::CameraInfo<&mut [u8]> = match sensor_msgs::CameraInfo::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_height(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the width field in place on a CameraInfo buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_set_width(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::CameraInfo<&mut [u8]> = match sensor_msgs::CameraInfo::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_width(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the 3x3 intrinsic matrix K (row-major, 9 f64 elements) in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_set_k(buf: *mut u8, len: usize, k: *const f64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if k.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let mut arr = [0.0f64; 9];
+    unsafe {
+        ptr::copy_nonoverlapping(k, arr.as_mut_ptr(), 9);
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::CameraInfo<&mut [u8]> = match sensor_msgs::CameraInfo::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_k(arr) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the 3x3 rectification matrix R (row-major, 9 f64 elements) in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_set_r(buf: *mut u8, len: usize, r: *const f64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if r.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let mut arr = [0.0f64; 9];
+    unsafe {
+        ptr::copy_nonoverlapping(r, arr.as_mut_ptr(), 9);
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::CameraInfo<&mut [u8]> = match sensor_msgs::CameraInfo::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_r(arr) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the 3x4 projection matrix P (row-major, 12 f64 elements) in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_set_p(buf: *mut u8, len: usize, p: *const f64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if p.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let mut arr = [0.0f64; 12];
+    unsafe {
+        ptr::copy_nonoverlapping(p, arr.as_mut_ptr(), 12);
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::CameraInfo<&mut [u8]> = match sensor_msgs::CameraInfo::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_p(arr) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the binning_x field in place on a CameraInfo buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_set_binning_x(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::CameraInfo<&mut [u8]> = match sensor_msgs::CameraInfo::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_binning_x(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the binning_y field in place on a CameraInfo buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_set_binning_y(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::CameraInfo<&mut [u8]> = match sensor_msgs::CameraInfo::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_binning_y(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the RegionOfInterest (roi) field in place on a CameraInfo buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_set_roi(
+    buf: *mut u8,
+    len: usize,
+    x_offset: u32,
+    y_offset: u32,
+    height: u32,
+    width: u32,
+    do_rectify: u8,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::CameraInfo<&mut [u8]> = match sensor_msgs::CameraInfo::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_roi(RegionOfInterest {
+        x_offset,
+        y_offset,
+        height,
+        width,
+        do_rectify: do_rectify != 0,
+    }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a MagneticField buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::MagneticField<&mut [u8]> =
+        match sensor_msgs::MagneticField::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the magnetic_field (Vector3) in place on a MagneticField buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_set_magnetic_field(
+    buf: *mut u8,
+    len: usize,
+    x: f64,
+    y: f64,
+    z: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::MagneticField<&mut [u8]> =
+        match sensor_msgs::MagneticField::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_magnetic_field(Vector3 { x, y, z }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the 3x3 magnetic field covariance (row-major, 9 f64 elements) in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_set_magnetic_field_covariance(
+    buf: *mut u8,
+    len: usize,
+    c: *const f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if c.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let mut arr = [0.0f64; 9];
+    unsafe {
+        ptr::copy_nonoverlapping(c, arr.as_mut_ptr(), 9);
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::MagneticField<&mut [u8]> =
+        match sensor_msgs::MagneticField::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_magnetic_field_covariance(arr) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a FluidPressure buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::FluidPressure<&mut [u8]> =
+        match sensor_msgs::FluidPressure::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the fluid_pressure field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_set_fluid_pressure(buf: *mut u8, len: usize, v: f64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::FluidPressure<&mut [u8]> =
+        match sensor_msgs::FluidPressure::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_fluid_pressure(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the variance field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_set_variance(buf: *mut u8, len: usize, v: f64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::FluidPressure<&mut [u8]> =
+        match sensor_msgs::FluidPressure::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_variance(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a Temperature buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_temperature_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Temperature<&mut [u8]> = match sensor_msgs::Temperature::from_cdr(slice)
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the temperature field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_temperature_set_temperature(buf: *mut u8, len: usize, v: f64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Temperature<&mut [u8]> = match sensor_msgs::Temperature::from_cdr(slice)
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_temperature(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the variance field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_temperature_set_variance(buf: *mut u8, len: usize, v: f64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Temperature<&mut [u8]> = match sensor_msgs::Temperature::from_cdr(slice)
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_variance(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a BatteryState buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the voltage field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_voltage(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_voltage(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the temperature field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_temperature(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_temperature(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the current field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_current(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_current(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the charge field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_charge(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_charge(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the capacity field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_capacity(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_capacity(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the design_capacity field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_design_capacity(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_design_capacity(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the percentage field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_percentage(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_percentage(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the power_supply_status field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_power_supply_status(
+    buf: *mut u8,
+    len: usize,
+    v: u8,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_power_supply_status(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the power_supply_health field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_power_supply_health(
+    buf: *mut u8,
+    len: usize,
+    v: u8,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_power_supply_health(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the power_supply_technology field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_power_supply_technology(
+    buf: *mut u8,
+    len: usize,
+    v: u8,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_power_supply_technology(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the present field in place (0=false, nonzero=true).
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_present(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_present(v != 0) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the height field in place on a Mask buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_mask_set_height(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Mask<&mut [u8]> = match edgefirst_msgs::Mask::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_height(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the width field in place on a Mask buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_mask_set_width(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Mask<&mut [u8]> = match edgefirst_msgs::Mask::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_width(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the length field in place on a Mask buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_mask_set_length(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Mask<&mut [u8]> = match edgefirst_msgs::Mask::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_length(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the boxed field in place (0=false, nonzero=true).
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_mask_set_boxed(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Mask<&mut [u8]> = match edgefirst_msgs::Mask::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_boxed(v != 0) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a LocalTime buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_local_time_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::LocalTime<&mut [u8]> =
+        match edgefirst_msgs::LocalTime::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the Date field in place on a LocalTime buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_local_time_set_date(
+    buf: *mut u8,
+    len: usize,
+    year: u16,
+    month: u8,
+    day: u8,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::LocalTime<&mut [u8]> =
+        match edgefirst_msgs::LocalTime::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_date(edgefirst_msgs::Date { year, month, day }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the time (Time) field in place on a LocalTime buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_local_time_set_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::LocalTime<&mut [u8]> =
+        match edgefirst_msgs::LocalTime::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_time(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the timezone field in place on a LocalTime buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_local_time_set_timezone(buf: *mut u8, len: usize, v: i16) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::LocalTime<&mut [u8]> =
+        match edgefirst_msgs::LocalTime::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_timezone(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a RadarCube buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_radar_cube_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::RadarCube<&mut [u8]> =
+        match edgefirst_msgs::RadarCube::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the timestamp (u64 ns) field in place on a RadarCube buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_radar_cube_set_timestamp(buf: *mut u8, len: usize, v: u64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::RadarCube<&mut [u8]> =
+        match edgefirst_msgs::RadarCube::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_timestamp(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the is_complex field in place (0=false, nonzero=true).
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_radar_cube_set_is_complex(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::RadarCube<&mut [u8]> =
+        match edgefirst_msgs::RadarCube::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_is_complex(v != 0) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a RadarInfo buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_radar_info_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::RadarInfo<&mut [u8]> =
+        match edgefirst_msgs::RadarInfo::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the cube field in place on a RadarInfo buffer (0=false, nonzero=true).
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_radar_info_set_cube(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::RadarInfo<&mut [u8]> =
+        match edgefirst_msgs::RadarInfo::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_cube(v != 0) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the lifetime field in place on a Track buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_track_set_lifetime(buf: *mut u8, len: usize, v: i32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Track<&mut [u8]> = match edgefirst_msgs::Track::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_lifetime(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the created (Time) field in place on a Track buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_track_set_created(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Track<&mut [u8]> = match edgefirst_msgs::Track::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_created(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the center_x field in place on a DetectBox buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_box_set_center_x(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::DetectBox<&mut [u8]> =
+        match edgefirst_msgs::DetectBox::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_center_x(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the center_y field in place on a DetectBox buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_box_set_center_y(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::DetectBox<&mut [u8]> =
+        match edgefirst_msgs::DetectBox::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_center_y(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the width field in place on a DetectBox buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_box_set_width(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::DetectBox<&mut [u8]> =
+        match edgefirst_msgs::DetectBox::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_width(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the height field in place on a DetectBox buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_box_set_height(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::DetectBox<&mut [u8]> =
+        match edgefirst_msgs::DetectBox::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_height(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the score field in place on a DetectBox buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_box_set_score(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::DetectBox<&mut [u8]> =
+        match edgefirst_msgs::DetectBox::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_score(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the distance field in place on a DetectBox buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_box_set_distance(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::DetectBox<&mut [u8]> =
+        match edgefirst_msgs::DetectBox::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_distance(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the speed field in place on a DetectBox buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_box_set_speed(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::DetectBox<&mut [u8]> =
+        match edgefirst_msgs::DetectBox::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_speed(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the track_lifetime field in place on a DetectBox buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_box_set_track_lifetime(buf: *mut u8, len: usize, v: i32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::DetectBox<&mut [u8]> =
+        match edgefirst_msgs::DetectBox::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_track_lifetime(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the track_created (Time) field in place on a DetectBox buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_box_set_track_created(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::DetectBox<&mut [u8]> =
+        match edgefirst_msgs::DetectBox::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_track_created(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp (Time) field in place on a Detect buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Detect<&mut [u8]> = match edgefirst_msgs::Detect::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the input_timestamp (Time) field in place on a Detect buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_set_input_timestamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Detect<&mut [u8]> = match edgefirst_msgs::Detect::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_input_timestamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the model_time (Time) field in place on a Detect buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_set_model_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Detect<&mut [u8]> = match edgefirst_msgs::Detect::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_model_time(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the output_time (Time) field in place on a Detect buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_set_output_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Detect<&mut [u8]> = match edgefirst_msgs::Detect::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_output_time(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a CameraFrame buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::CameraFrame<&mut [u8]> =
+        match edgefirst_msgs::CameraFrame::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the seq field in place on a CameraFrame buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_set_seq(buf: *mut u8, len: usize, v: u64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::CameraFrame<&mut [u8]> =
+        match edgefirst_msgs::CameraFrame::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_seq(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the pid field in place on a CameraFrame buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_set_pid(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::CameraFrame<&mut [u8]> =
+        match edgefirst_msgs::CameraFrame::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_pid(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the width field in place on a CameraFrame buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_set_width(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::CameraFrame<&mut [u8]> =
+        match edgefirst_msgs::CameraFrame::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_width(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the height field in place on a CameraFrame buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_set_height(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::CameraFrame<&mut [u8]> =
+        match edgefirst_msgs::CameraFrame::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_height(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the fence_fd field in place on a CameraFrame buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_set_fence_fd(buf: *mut u8, len: usize, v: i32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::CameraFrame<&mut [u8]> =
+        match edgefirst_msgs::CameraFrame::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_fence_fd(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp (Time) field in place on a Model buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_model_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Model<&mut [u8]> = match edgefirst_msgs::Model::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the input_time (Duration) field in place on a Model buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_model_set_input_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Model<&mut [u8]> = match edgefirst_msgs::Model::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_input_time(Duration::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the model_time (Duration) field in place on a Model buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_model_set_model_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Model<&mut [u8]> = match edgefirst_msgs::Model::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_model_time(Duration::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the output_time (Duration) field in place on a Model buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_model_set_output_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Model<&mut [u8]> = match edgefirst_msgs::Model::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_output_time(Duration::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the decode_time (Duration) field in place on a Model buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_model_set_decode_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Model<&mut [u8]> = match edgefirst_msgs::Model::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_decode_time(Duration::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a ModelInfo buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_model_info_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::ModelInfo<&mut [u8]> =
+        match edgefirst_msgs::ModelInfo::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the input_type field in place on a ModelInfo buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_model_info_set_input_type(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::ModelInfo<&mut [u8]> =
+        match edgefirst_msgs::ModelInfo::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_input_type(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the output_type field in place on a ModelInfo buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_model_info_set_output_type(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::ModelInfo<&mut [u8]> =
+        match edgefirst_msgs::ModelInfo::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_output_type(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a Vibration buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_vibration_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Vibration<&mut [u8]> =
+        match edgefirst_msgs::Vibration::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the vibration (Vector3) field in place on a Vibration buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_vibration_set_vibration(
+    buf: *mut u8,
+    len: usize,
+    x: f64,
+    y: f64,
+    z: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Vibration<&mut [u8]> =
+        match edgefirst_msgs::Vibration::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_vibration(Vector3 { x, y, z }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the band_lower_hz field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_vibration_set_band_lower_hz(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Vibration<&mut [u8]> =
+        match edgefirst_msgs::Vibration::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_band_lower_hz(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the band_upper_hz field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_vibration_set_band_upper_hz(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Vibration<&mut [u8]> =
+        match edgefirst_msgs::Vibration::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_band_upper_hz(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the measurement_type field in place on a Vibration buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_vibration_set_measurement_type(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Vibration<&mut [u8]> =
+        match edgefirst_msgs::Vibration::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_measurement_type(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the unit field in place on a Vibration buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_vibration_set_unit(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Vibration<&mut [u8]> =
+        match edgefirst_msgs::Vibration::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_unit(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a FoxgloveCompressedVideo buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_video_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxgloveCompressedVideo<&mut [u8]> =
+        match foxglove_msgs::FoxgloveCompressedVideo::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the timestamp field in place on a FoxgloveTextAnnotation buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_text_annotation_set_timestamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxgloveTextAnnotation<&mut [u8]> =
+        match foxglove_msgs::FoxgloveTextAnnotation::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_timestamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the position (FoxglovePoint2) field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_text_annotation_set_position(
+    buf: *mut u8,
+    len: usize,
+    x: f64,
+    y: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxgloveTextAnnotation<&mut [u8]> =
+        match foxglove_msgs::FoxgloveTextAnnotation::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_position(foxglove_msgs::FoxglovePoint2 { x, y }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the font_size field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_text_annotation_set_font_size(
+    buf: *mut u8,
+    len: usize,
+    v: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxgloveTextAnnotation<&mut [u8]> =
+        match foxglove_msgs::FoxgloveTextAnnotation::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_font_size(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the text_color (FoxgloveColor) field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_text_annotation_set_text_color(
+    buf: *mut u8,
+    len: usize,
+    r: f64,
+    g: f64,
+    b: f64,
+    a: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxgloveTextAnnotation<&mut [u8]> =
+        match foxglove_msgs::FoxgloveTextAnnotation::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_text_color(foxglove_msgs::FoxgloveColor { r, g, b, a }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the background_color (FoxgloveColor) field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_text_annotation_set_background_color(
+    buf: *mut u8,
+    len: usize,
+    r: f64,
+    g: f64,
+    b: f64,
+    a: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxgloveTextAnnotation<&mut [u8]> =
+        match foxglove_msgs::FoxgloveTextAnnotation::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_background_color(foxglove_msgs::FoxgloveColor { r, g, b, a }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the timestamp field in place on a FoxglovePointAnnotation buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_point_annotation_set_timestamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxglovePointAnnotation<&mut [u8]> =
+        match foxglove_msgs::FoxglovePointAnnotation::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_timestamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the type_ field in place on a FoxglovePointAnnotation buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_point_annotation_set_type(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxglovePointAnnotation<&mut [u8]> =
+        match foxglove_msgs::FoxglovePointAnnotation::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_type_(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the outline_color (FoxgloveColor) field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_point_annotation_set_outline_color(
+    buf: *mut u8,
+    len: usize,
+    r: f64,
+    g: f64,
+    b: f64,
+    a: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxglovePointAnnotation<&mut [u8]> =
+        match foxglove_msgs::FoxglovePointAnnotation::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_outline_color(foxglove_msgs::FoxgloveColor { r, g, b, a }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the fill_color (FoxgloveColor) field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_point_annotation_set_fill_color(
+    buf: *mut u8,
+    len: usize,
+    r: f64,
+    g: f64,
+    b: f64,
+    a: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxglovePointAnnotation<&mut [u8]> =
+        match foxglove_msgs::FoxglovePointAnnotation::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_fill_color(foxglove_msgs::FoxgloveColor { r, g, b, a }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the thickness field in place on a FoxglovePointAnnotation buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_point_annotation_set_thickness(
+    buf: *mut u8,
+    len: usize,
+    v: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxglovePointAnnotation<&mut [u8]> =
+        match foxglove_msgs::FoxglovePointAnnotation::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_thickness(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
 }

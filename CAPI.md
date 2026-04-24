@@ -210,28 +210,101 @@ ros_image_free(img);
 // data can now be freed safely
 ```
 
+**Encode: builder pattern (recommended, 3.2.0+).** Construct a message
+via a stateful builder handle that can reuse a caller-owned buffer
+across publishes:
+
 ```c
-// Encode: construct a message directly from field values
+// Create a reusable builder handle
+ros_image_builder_t* b = ros_image_builder_new();
+
+// Set metadata once (strings are copied into the builder)
+ros_image_builder_set_frame_id(b, "camera");
+ros_image_builder_set_height(b, 480);
+ros_image_builder_set_width(b, 640);
+ros_image_builder_set_encoding(b, "rgb8");
+ros_image_builder_set_is_bigendian(b, 0);
+ros_image_builder_set_step(b, 1920);
+
+uint8_t cdr_buf[MAX_CDR_SIZE];
+for (int frame = 0; frame < N; ++frame) {
+    ros_image_builder_set_stamp(b, now_sec(), now_nsec());
+    // Bulk data is BORROWED — must remain valid until the next
+    // encode_into / build / free / set_data call on this handle.
+    ros_image_builder_set_data(b, pixels, pixel_len);
+
+    size_t out_len = 0;
+    if (ros_image_builder_encode_into(b, cdr_buf, sizeof(cdr_buf), &out_len) != 0) {
+        // errno set; handle error
+    }
+    publish(cdr_buf, out_len);
+}
+
+ros_image_builder_free(b);
+```
+
+Or allocate a fresh buffer per call:
+
+```c
+uint8_t* bytes = NULL;
+size_t len = 0;
+ros_image_builder_build(b, &bytes, &len);
+// ... use bytes ...
+ros_bytes_free(bytes, len);
+```
+
+**Encode: legacy one-shot (deprecated, will be removed in 4.0).**
+
+```c
 uint8_t* bytes = NULL;
 size_t len = 0;
 ros_image_encode(&bytes, &len,
     stamp_sec, stamp_nanosec, "camera",
     480, 640, "rgb8", 0, 1920,
     pixel_data, pixel_data_len);
-
 // ... use bytes ...
 ros_bytes_free(bytes, len);
 ```
 
-Every buffer-backed type provides five entry points:
+The one-shot `ros_<type>_encode(...)` functions still work in 3.2.0
+but delegate to the builder internally. Migrate to `ros_<type>_builder_*`
+before 4.0.
+
+Every buffer-backed type provides these entry points:
 
 | Function | Purpose |
 |----------|---------|
 | `ros_<type>_from_cdr(data, len)` | Zero-copy view over caller's CDR buffer (data must outlive handle) |
 | `ros_<type>_get_<field>(handle)` | Read a field (O(1), zero-copy for strings/blobs) |
+| `ros_<type>_set_<field>(buf, len, ...)` | Write a fixed-size field in place on a raw CDR buffer (no re-serialisation) |
 | `ros_<type>_as_cdr(handle, &len)` | Borrow the raw CDR buffer (points into caller's data) |
 | `ros_<type>_free(handle)` | Release the handle (does NOT free the source data) |
-| `ros_<type>_encode(...)` | Construct CDR bytes from field values (allocates) |
+| `ros_<type>_builder_new()` | Create a builder handle |
+| `ros_<type>_builder_set_<field>(b, ...)` | Set a field on the builder (strings copy; bulk data borrows) |
+| `ros_<type>_builder_build(b, &bytes, &len)` | Allocate a fresh CDR buffer and encode |
+| `ros_<type>_builder_encode_into(b, buf, cap, &out_len)` | Encode into caller-owned buffer; errors if too small |
+| `ros_<type>_builder_free(b)` | Release the builder handle |
+| `ros_<type>_encode(...)` | **Deprecated** — one-shot encoder, removed in 4.0 |
+
+**When to use in-place setters vs. the builder.** Fixed-size fields
+(scalars, fixed-size arrays, CdrFixed struct fields like `Vector3`)
+can be mutated cheaply via `ros_<type>_set_<field>(buf, len, ...)` —
+this re-parses the CDR buffer to locate the field, then writes
+directly in place. No allocation, no re-serialisation.
+
+Variable-length fields (strings, byte sequences, nested view
+sequences) **cannot** be mutated in place because changing their
+length would shift every subsequent field. Use the builder API
+(`ros_<type>_builder_*`) for those — it re-serialises the whole
+buffer, reusing the existing allocation via `encode_into`.
+
+Rule of thumb: if the field's wire size can change, use the builder.
+Otherwise, use the in-place setter.
+
+In-place setters are stateless: the contract is `(buf, len,
+value...) -> int32_t` with `0` on success, `-1` with `errno=EINVAL`
+on NULL buffer, and `-1` with `errno=EBADMSG` when the buffer is
+not a valid encoding of that message type. They never allocate.
 
 ## Memory Management
 

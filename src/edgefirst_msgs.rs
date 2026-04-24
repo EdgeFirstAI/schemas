@@ -149,6 +149,10 @@ impl<B: AsRef<[u8]>> Mask<B> {
 }
 
 impl Mask<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use Mask::builder() for allocation-free buffer reuse; Mask::new will be removed in 4.0"
+    )]
     pub fn new(
         height: u32,
         width: u32,
@@ -185,6 +189,116 @@ impl Mask<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `MaskBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> MaskBuilder<'a> {
+        MaskBuilder::new()
+    }
+}
+
+// ── MaskBuilder<'a> ─────────────────────────────────────────────────
+
+/// Builder for `Mask<Vec<u8>>` with buffer-reuse finalizers.
+///
+/// `encoding` is `Cow<'a, str>` so string literals borrow and owned strings
+/// move in; `mask` borrows from caller memory. All borrows must remain valid
+/// until `build()`, `encode_into_vec()`, or `encode_into_slice()` is called.
+pub struct MaskBuilder<'a> {
+    height: u32,
+    width: u32,
+    length: u32,
+    encoding: std::borrow::Cow<'a, str>,
+    mask: &'a [u8],
+    boxed: bool,
+}
+
+impl<'a> Default for MaskBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            height: 0,
+            width: 0,
+            length: 0,
+            encoding: std::borrow::Cow::Borrowed(""),
+            mask: &[],
+            boxed: false,
+        }
+    }
+}
+
+impl<'a> MaskBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn height(&mut self, v: u32) -> &mut Self {
+        self.height = v;
+        self
+    }
+    pub fn width(&mut self, v: u32) -> &mut Self {
+        self.width = v;
+        self
+    }
+    pub fn length(&mut self, v: u32) -> &mut Self {
+        self.length = v;
+        self
+    }
+    pub fn encoding(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.encoding = s.into();
+        self
+    }
+    pub fn mask(&mut self, m: &'a [u8]) -> &mut Self {
+        self.mask = m;
+        self
+    }
+    pub fn boxed(&mut self, v: bool) -> &mut Self {
+        self.boxed = v;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        s.size_u32(); // height
+        s.size_u32(); // width
+        s.size_u32(); // length
+        s.size_string(&self.encoding);
+        s.size_bytes(self.mask.len());
+        s.size_bool();
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        w.write_u32(self.height);
+        w.write_u32(self.width);
+        w.write_u32(self.length);
+        w.write_string(&self.encoding);
+        w.write_bytes(self.mask);
+        w.write_bool(self.boxed);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<Mask<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        Mask::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -478,6 +592,10 @@ impl<B: AsRef<[u8]>> LocalTime<B> {
 }
 
 impl LocalTime<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use LocalTime::builder() for allocation-free buffer reuse; LocalTime::new will be removed in 4.0"
+    )]
     pub fn new(
         stamp: Time,
         frame_id: &str,
@@ -507,6 +625,143 @@ impl LocalTime<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `LocalTimeBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> LocalTimeBuilder<'a> {
+        LocalTimeBuilder::new()
+    }
+}
+
+// ── LocalTimeBuilder<'a> ────────────────────────────────────────────
+
+/// Builder for `LocalTime<Vec<u8>>` with buffer-reuse finalizers.
+pub struct LocalTimeBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    date: Date,
+    time: Time,
+    timezone: i16,
+}
+
+impl<'a> Default for LocalTimeBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            date: Date {
+                year: 0,
+                month: 0,
+                day: 0,
+            },
+            time: Time { sec: 0, nanosec: 0 },
+            timezone: 0,
+        }
+    }
+}
+
+impl<'a> LocalTimeBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn date(&mut self, d: Date) -> &mut Self {
+        self.date = d;
+        self
+    }
+    pub fn time(&mut self, t: Time) -> &mut Self {
+        self.time = t;
+        self
+    }
+    pub fn timezone(&mut self, v: i16) -> &mut Self {
+        self.timezone = v;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        Date::size_cdr(&mut s);
+        Time::size_cdr(&mut s);
+        s.size_i16();
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        self.date.write_cdr(&mut w);
+        self.time.write_cdr(&mut w);
+        w.write_i16(self.timezone);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<LocalTime<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        LocalTime::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
+    }
+}
+
+impl<B: AsRef<[u8]> + AsMut<[u8]>> LocalTime<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_date(&mut self, d: Date) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        // Date starts with u16 year — align(2) from offsets[0].
+        let p = cdr_align(self.offsets[0], 2);
+        wr_u16(b, p, d.year)?;
+        wr_u8(b, p + 2, d.month)?;
+        wr_u8(b, p + 3, d.day)
+    }
+
+    pub fn set_time(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        // Date is 4 bytes at 2-aligned position; Time starts with i32
+        // and needs 4-alignment — this may require padding after Date.
+        let date_start = cdr_align(self.offsets[0], 2);
+        let time_start = cdr_align(date_start + 4, 4);
+        wr_i32(b, time_start, t.sec)?;
+        wr_u32(b, time_start + 4, t.nanosec)
+    }
+
+    pub fn set_timezone(&mut self, v: i16) -> Result<(), CdrError> {
+        // timezone is i16 after Time (8 bytes, 4-aligned) — needs 2-align.
+        let date_start = cdr_align(self.offsets[0], 2);
+        let time_start = cdr_align(date_start + 4, 4);
+        let tz_pos = cdr_align(time_start + 8, 2);
+        wr_i16(self.buf.as_mut(), tz_pos, v)
     }
 }
 
@@ -621,6 +876,11 @@ impl<B: AsRef<[u8]>> RadarCube<B> {
 }
 
 impl RadarCube<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use RadarCube::builder() for allocation-free buffer reuse; RadarCube::new will be removed in 4.0"
+    )]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         stamp: Time,
         frame_id: &str,
@@ -672,6 +932,155 @@ impl RadarCube<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `RadarCubeBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> RadarCubeBuilder<'a> {
+        RadarCubeBuilder::new()
+    }
+}
+
+// ── RadarCubeBuilder<'a> ────────────────────────────────────────────
+
+/// Builder for `RadarCube<Vec<u8>>` with buffer-reuse finalizers.
+///
+/// The variable-length arrays (`layout`, `shape`, `scales`, `cube`) are
+/// borrowed from caller memory. All borrows must remain valid until
+/// `build()`, `encode_into_vec()`, or `encode_into_slice()` is called.
+pub struct RadarCubeBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    timestamp: u64,
+    layout: &'a [u8],
+    shape: &'a [u16],
+    scales: &'a [f32],
+    cube: &'a [i16],
+    is_complex: bool,
+}
+
+impl<'a> Default for RadarCubeBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            timestamp: 0,
+            layout: &[],
+            shape: &[],
+            scales: &[],
+            cube: &[],
+            is_complex: false,
+        }
+    }
+}
+
+impl<'a> RadarCubeBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn timestamp(&mut self, v: u64) -> &mut Self {
+        self.timestamp = v;
+        self
+    }
+    pub fn layout(&mut self, v: &'a [u8]) -> &mut Self {
+        self.layout = v;
+        self
+    }
+    pub fn shape(&mut self, v: &'a [u16]) -> &mut Self {
+        self.shape = v;
+        self
+    }
+    pub fn scales(&mut self, v: &'a [f32]) -> &mut Self {
+        self.scales = v;
+        self
+    }
+    pub fn cube(&mut self, v: &'a [i16]) -> &mut Self {
+        self.cube = v;
+        self
+    }
+    pub fn is_complex(&mut self, v: bool) -> &mut Self {
+        self.is_complex = v;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.size_u64();
+        s.size_bytes(self.layout.len());
+        s.size_u32();
+        s.size_seq_2(self.shape.len());
+        s.size_u32();
+        s.size_seq_4(self.scales.len());
+        s.size_u32();
+        s.size_seq_2(self.cube.len());
+        s.size_bool();
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.write_u64(self.timestamp);
+        w.write_bytes(self.layout);
+        w.write_u32(self.shape.len() as u32);
+        w.write_slice_u16(self.shape);
+        w.write_u32(self.scales.len() as u32);
+        w.write_slice_f32(self.scales);
+        w.write_u32(self.cube.len() as u32);
+        w.write_slice_i16(self.cube);
+        w.write_bool(self.is_complex);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<RadarCube<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        RadarCube::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
+    }
+}
+
+impl<B: AsRef<[u8]> + AsMut<[u8]>> RadarCube<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_timestamp(&mut self, v: u64) -> Result<(), CdrError> {
+        let p = cdr_align(self.offsets[0], 8);
+        wr_u64(self.buf.as_mut(), p, v)
+    }
+
+    pub fn set_is_complex(&mut self, v: bool) -> Result<(), CdrError> {
+        wr_bool(self.buf.as_mut(), self.offsets[4], v)
     }
 }
 
@@ -752,6 +1161,10 @@ impl<B: AsRef<[u8]>> RadarInfo<B> {
 }
 
 impl RadarInfo<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use RadarInfo::builder() for allocation-free buffer reuse; RadarInfo::new will be removed in 4.0"
+    )]
     pub fn new(
         stamp: Time,
         frame_id: &str,
@@ -794,6 +1207,132 @@ impl RadarInfo<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `RadarInfoBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> RadarInfoBuilder<'a> {
+        RadarInfoBuilder::new()
+    }
+}
+
+// ── RadarInfoBuilder<'a> ────────────────────────────────────────────
+
+/// Builder for `RadarInfo<Vec<u8>>` with buffer-reuse finalizers.
+pub struct RadarInfoBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    center_frequency: std::borrow::Cow<'a, str>,
+    frequency_sweep: std::borrow::Cow<'a, str>,
+    range_toggle: std::borrow::Cow<'a, str>,
+    detection_sensitivity: std::borrow::Cow<'a, str>,
+    cube: bool,
+}
+
+impl<'a> Default for RadarInfoBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            center_frequency: std::borrow::Cow::Borrowed(""),
+            frequency_sweep: std::borrow::Cow::Borrowed(""),
+            range_toggle: std::borrow::Cow::Borrowed(""),
+            detection_sensitivity: std::borrow::Cow::Borrowed(""),
+            cube: false,
+        }
+    }
+}
+
+impl<'a> RadarInfoBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn center_frequency(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.center_frequency = s.into();
+        self
+    }
+    pub fn frequency_sweep(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frequency_sweep = s.into();
+        self
+    }
+    pub fn range_toggle(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.range_toggle = s.into();
+        self
+    }
+    pub fn detection_sensitivity(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.detection_sensitivity = s.into();
+        self
+    }
+    pub fn cube(&mut self, v: bool) -> &mut Self {
+        self.cube = v;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.size_string(&self.center_frequency);
+        s.size_string(&self.frequency_sweep);
+        s.size_string(&self.range_toggle);
+        s.size_string(&self.detection_sensitivity);
+        s.size_bool();
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.write_string(&self.center_frequency);
+        w.write_string(&self.frequency_sweep);
+        w.write_string(&self.range_toggle);
+        w.write_string(&self.detection_sensitivity);
+        w.write_bool(self.cube);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<RadarInfo<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        RadarInfo::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
+    }
+}
+
+impl<B: AsRef<[u8]> + AsMut<[u8]>> RadarInfo<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_cube(&mut self, v: bool) -> Result<(), CdrError> {
+        wr_bool(self.buf.as_mut(), self.offsets[4], v)
     }
 }
 
@@ -839,6 +1378,10 @@ impl<B: AsRef<[u8]>> Track<B> {
 }
 
 impl Track<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use Track::builder() for allocation-free buffer reuse; Track::new will be removed in 4.0"
+    )]
     pub fn new(id: &str, lifetime: i32, created: Time) -> Result<Self, CdrError> {
         let mut sizer = CdrSizer::new();
         sizer.size_string(id);
@@ -858,6 +1401,108 @@ impl Track<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `TrackBuilder` with zero-valued defaults.
+    ///
+    /// Note: `Track` is a standalone message without a `Header` (no
+    /// `stamp`/`frame_id` prefix) — the builder only exposes the three
+    /// schema fields `id`, `lifetime`, and `created`.
+    pub fn builder<'a>() -> TrackBuilder<'a> {
+        TrackBuilder::new()
+    }
+}
+
+// ── TrackBuilder<'a> ────────────────────────────────────────────────
+
+/// Builder for `Track<Vec<u8>>` with buffer-reuse finalizers.
+///
+/// `Track` has no `Header` — it is a standalone sequence element-style
+/// message whose CDR payload is just `(id, lifetime, created)`.
+pub struct TrackBuilder<'a> {
+    id: std::borrow::Cow<'a, str>,
+    lifetime: i32,
+    created: Time,
+}
+
+impl<'a> Default for TrackBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            id: std::borrow::Cow::Borrowed(""),
+            lifetime: 0,
+            created: Time { sec: 0, nanosec: 0 },
+        }
+    }
+}
+
+impl<'a> TrackBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.id = s.into();
+        self
+    }
+    pub fn lifetime(&mut self, v: i32) -> &mut Self {
+        self.lifetime = v;
+        self
+    }
+    pub fn created(&mut self, t: Time) -> &mut Self {
+        self.created = t;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        s.size_string(&self.id);
+        s.size_i32();
+        Time::size_cdr(&mut s);
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        w.write_string(&self.id);
+        w.write_i32(self.lifetime);
+        self.created.write_cdr(&mut w);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<Track<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        Track::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
+    }
+}
+
+impl<B: AsRef<[u8]> + AsMut<[u8]>> Track<B> {
+    pub fn set_lifetime(&mut self, v: i32) -> Result<(), CdrError> {
+        wr_i32(self.buf.as_mut(), align(self.offsets[0], 4), v)
+    }
+
+    pub fn set_created(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        let p = align(self.offsets[0], 4) + 4;
+        wr_i32(b, p, t.sec)?;
+        wr_u32(b, p + 4, t.nanosec)
     }
 }
 
@@ -1038,6 +1683,11 @@ impl<B: AsRef<[u8]>> DetectBox<B> {
 }
 
 impl DetectBox<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use DetectBox::builder() for allocation-free buffer reuse; DetectBox::new will be removed in 4.0"
+    )]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         center_x: f32,
         center_y: f32,
@@ -1089,6 +1739,189 @@ impl DetectBox<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `DetectBoxBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> DetectBoxBuilder<'a> {
+        DetectBoxBuilder::new()
+    }
+}
+
+// ── DetectBoxBuilder<'a> ────────────────────────────────────────────
+
+/// Builder for `DetectBox<Vec<u8>>` with buffer-reuse finalizers.
+///
+/// Mirrors `DetectBoxView` — the same shape used inside sequences in
+/// `Detect` and `Model`.
+pub struct DetectBoxBuilder<'a> {
+    center_x: f32,
+    center_y: f32,
+    width: f32,
+    height: f32,
+    label: std::borrow::Cow<'a, str>,
+    score: f32,
+    distance: f32,
+    speed: f32,
+    track_id: std::borrow::Cow<'a, str>,
+    track_lifetime: i32,
+    track_created: Time,
+}
+
+impl<'a> Default for DetectBoxBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            center_x: 0.0,
+            center_y: 0.0,
+            width: 0.0,
+            height: 0.0,
+            label: std::borrow::Cow::Borrowed(""),
+            score: 0.0,
+            distance: 0.0,
+            speed: 0.0,
+            track_id: std::borrow::Cow::Borrowed(""),
+            track_lifetime: 0,
+            track_created: Time { sec: 0, nanosec: 0 },
+        }
+    }
+}
+
+impl<'a> DetectBoxBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn center_x(&mut self, v: f32) -> &mut Self {
+        self.center_x = v;
+        self
+    }
+    pub fn center_y(&mut self, v: f32) -> &mut Self {
+        self.center_y = v;
+        self
+    }
+    pub fn width(&mut self, v: f32) -> &mut Self {
+        self.width = v;
+        self
+    }
+    pub fn height(&mut self, v: f32) -> &mut Self {
+        self.height = v;
+        self
+    }
+    pub fn label(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.label = s.into();
+        self
+    }
+    pub fn score(&mut self, v: f32) -> &mut Self {
+        self.score = v;
+        self
+    }
+    pub fn distance(&mut self, v: f32) -> &mut Self {
+        self.distance = v;
+        self
+    }
+    pub fn speed(&mut self, v: f32) -> &mut Self {
+        self.speed = v;
+        self
+    }
+    pub fn track_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.track_id = s.into();
+        self
+    }
+    pub fn track_lifetime(&mut self, v: i32) -> &mut Self {
+        self.track_lifetime = v;
+        self
+    }
+    pub fn track_created(&mut self, t: Time) -> &mut Self {
+        self.track_created = t;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        size_box_element(&mut s, &self.label, &self.track_id);
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        let view = DetectBoxView {
+            center_x: self.center_x,
+            center_y: self.center_y,
+            width: self.width,
+            height: self.height,
+            label: &self.label,
+            score: self.score,
+            distance: self.distance,
+            speed: self.speed,
+            track_id: &self.track_id,
+            track_lifetime: self.track_lifetime,
+            track_created: self.track_created,
+        };
+        write_box_element(&mut w, &view);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<DetectBox<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        DetectBox::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
+    }
+}
+
+impl<B: AsRef<[u8]> + AsMut<[u8]>> DetectBox<B> {
+    pub fn set_center_x(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), CDR_HEADER_SIZE, v)
+    }
+
+    pub fn set_center_y(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), CDR_HEADER_SIZE + 4, v)
+    }
+
+    pub fn set_width(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), CDR_HEADER_SIZE + 8, v)
+    }
+
+    pub fn set_height(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), CDR_HEADER_SIZE + 12, v)
+    }
+
+    pub fn set_score(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), align(self.offsets[0], 4), v)
+    }
+
+    pub fn set_distance(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), align(self.offsets[0], 4) + 4, v)
+    }
+
+    pub fn set_speed(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), align(self.offsets[0], 4) + 8, v)
+    }
+
+    pub fn set_track_lifetime(&mut self, v: i32) -> Result<(), CdrError> {
+        wr_i32(self.buf.as_mut(), align(self.offsets[1], 4), v)
+    }
+
+    pub fn set_track_created(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        let p = align(self.offsets[1], 4) + 4;
+        wr_i32(b, p, t.sec)?;
+        wr_u32(b, p + 4, t.nanosec)
     }
 }
 
@@ -1212,6 +2045,10 @@ impl Detect<&'static [u8]> {
 }
 
 impl Detect<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use Detect::builder() for allocation-free buffer reuse; Detect::new will be removed in 4.0"
+    )]
     pub fn new(
         stamp: Time,
         frame_id: &str,
@@ -1254,6 +2091,152 @@ impl Detect<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `DetectBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> DetectBuilder<'a> {
+        DetectBuilder::new()
+    }
+}
+
+// ── DetectBuilder<'a> ───────────────────────────────────────────────
+
+/// Builder for `Detect<Vec<u8>>` with buffer-reuse finalizers.
+///
+/// `boxes` is borrowed from a caller-owned slice for the lifetime of the
+/// builder. Each `DetectBoxView` itself borrows `label` and `track_id`
+/// from caller memory — all borrows must remain valid until `build()`,
+/// `encode_into_vec()`, or `encode_into_slice()` is called.
+pub struct DetectBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    input_timestamp: Time,
+    model_time: Time,
+    output_time: Time,
+    boxes: &'a [DetectBoxView<'a>],
+}
+
+impl<'a> Default for DetectBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            input_timestamp: Time { sec: 0, nanosec: 0 },
+            model_time: Time { sec: 0, nanosec: 0 },
+            output_time: Time { sec: 0, nanosec: 0 },
+            boxes: &[],
+        }
+    }
+}
+
+impl<'a> DetectBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn input_timestamp(&mut self, t: Time) -> &mut Self {
+        self.input_timestamp = t;
+        self
+    }
+    pub fn model_time(&mut self, t: Time) -> &mut Self {
+        self.model_time = t;
+        self
+    }
+    pub fn output_time(&mut self, t: Time) -> &mut Self {
+        self.output_time = t;
+        self
+    }
+    pub fn boxes(&mut self, b: &'a [DetectBoxView<'a>]) -> &mut Self {
+        self.boxes = b;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        Time::size_cdr(&mut s);
+        Time::size_cdr(&mut s);
+        Time::size_cdr(&mut s);
+        s.size_u32();
+        for b in self.boxes {
+            size_box_element(&mut s, b.label, b.track_id);
+        }
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        self.input_timestamp.write_cdr(&mut w);
+        self.model_time.write_cdr(&mut w);
+        self.output_time.write_cdr(&mut w);
+        w.write_u32(self.boxes.len() as u32);
+        for b in self.boxes {
+            write_box_element(&mut w, b);
+        }
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<Detect<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        Detect::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
+    }
+}
+
+impl<B: AsRef<[u8]> + AsMut<[u8]>> Detect<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_input_timestamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        let p = align(self.offsets[0], 4);
+        wr_i32(b, p, t.sec)?;
+        wr_u32(b, p + 4, t.nanosec)
+    }
+
+    pub fn set_model_time(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        let p = align(self.offsets[0], 4) + 8;
+        wr_i32(b, p, t.sec)?;
+        wr_u32(b, p + 4, t.nanosec)
+    }
+
+    pub fn set_output_time(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        let p = align(self.offsets[0], 4) + 16;
+        wr_i32(b, p, t.sec)?;
+        wr_u32(b, p + 4, t.nanosec)
     }
 }
 
@@ -1575,6 +2558,10 @@ impl CameraFrame<Vec<u8>> {
     /// - `plane.fd >= -1` (only -1 is a valid negative sentinel)
     /// - when `plane.fd >= 0`, `plane.data` must be empty
     /// - when `plane.fd == -1` (inlined), `plane.size as usize == plane.data.len()`
+    #[deprecated(
+        since = "3.2.0",
+        note = "use CameraFrame::builder() for allocation-free buffer reuse; CameraFrame::new will be removed in 4.0"
+    )]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         stamp: Time,
@@ -1646,6 +2633,242 @@ impl CameraFrame<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `CameraFrameBuilder` with zero-valued defaults and
+    /// `fence_fd = -1` (the "no fence" sentinel).
+    ///
+    /// Generic in `'a` so the compiler infers it from subsequent
+    /// `.planes(...)` borrows rather than forcing `'static`.
+    pub fn builder<'a>() -> CameraFrameBuilder<'a> {
+        CameraFrameBuilder::new()
+    }
+}
+
+// ── CameraFrameBuilder<'a> ──────────────────────────────────────────
+
+/// Builder for `CameraFrame<Vec<u8>>` with buffer-reuse finalizers.
+///
+/// `planes` is borrowed from a caller-owned slice for the lifetime of the
+/// builder. Each `CameraPlaneView` in that slice itself borrows its `data`
+/// from caller memory — all borrows must remain valid until `build()`,
+/// `encode_into_vec()`, or `encode_into_slice()` is called.
+pub struct CameraFrameBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    seq: u64,
+    pid: u32,
+    width: u32,
+    height: u32,
+    format: std::borrow::Cow<'a, str>,
+    color_space: std::borrow::Cow<'a, str>,
+    color_transfer: std::borrow::Cow<'a, str>,
+    color_encoding: std::borrow::Cow<'a, str>,
+    color_range: std::borrow::Cow<'a, str>,
+    fence_fd: i32,
+    planes: &'a [CameraPlaneView<'a>],
+}
+
+impl<'a> Default for CameraFrameBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            seq: 0,
+            pid: 0,
+            width: 0,
+            height: 0,
+            format: std::borrow::Cow::Borrowed(""),
+            color_space: std::borrow::Cow::Borrowed(""),
+            color_transfer: std::borrow::Cow::Borrowed(""),
+            color_encoding: std::borrow::Cow::Borrowed(""),
+            color_range: std::borrow::Cow::Borrowed(""),
+            fence_fd: -1,
+            planes: &[],
+        }
+    }
+}
+
+impl<'a> CameraFrameBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn seq(&mut self, v: u64) -> &mut Self {
+        self.seq = v;
+        self
+    }
+    pub fn pid(&mut self, v: u32) -> &mut Self {
+        self.pid = v;
+        self
+    }
+    pub fn width(&mut self, v: u32) -> &mut Self {
+        self.width = v;
+        self
+    }
+    pub fn height(&mut self, v: u32) -> &mut Self {
+        self.height = v;
+        self
+    }
+    pub fn format(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.format = s.into();
+        self
+    }
+    pub fn color_space(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.color_space = s.into();
+        self
+    }
+    pub fn color_transfer(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.color_transfer = s.into();
+        self
+    }
+    pub fn color_encoding(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.color_encoding = s.into();
+        self
+    }
+    pub fn color_range(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.color_range = s.into();
+        self
+    }
+    pub fn fence_fd(&mut self, v: i32) -> &mut Self {
+        self.fence_fd = v;
+        self
+    }
+    pub fn planes(&mut self, p: &'a [CameraPlaneView<'a>]) -> &mut Self {
+        self.planes = p;
+        self
+    }
+
+    fn validate(&self) -> Result<(), CdrError> {
+        if self.width == 0 || self.height == 0 {
+            return Err(CdrError::InvalidHeader);
+        }
+        for p in self.planes {
+            validate_plane(p.fd, p.size, p.used, p.data.len())?;
+        }
+        Ok(())
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.size_u64(); // seq
+        s.size_u32(); // pid
+        s.size_u32(); // width
+        s.size_u32(); // height
+        s.size_string(&self.format);
+        s.size_string(&self.color_space);
+        s.size_string(&self.color_transfer);
+        s.size_string(&self.color_encoding);
+        s.size_string(&self.color_range);
+        s.size_i32(); // fence_fd
+        s.size_u32(); // planes count
+        for p in self.planes {
+            size_plane_element(&mut s, p.data.len());
+        }
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.write_u64(self.seq);
+        w.write_u32(self.pid);
+        w.write_u32(self.width);
+        w.write_u32(self.height);
+        w.write_string(&self.format);
+        w.write_string(&self.color_space);
+        w.write_string(&self.color_transfer);
+        w.write_string(&self.color_encoding);
+        w.write_string(&self.color_range);
+        w.write_i32(self.fence_fd);
+        w.write_u32(self.planes.len() as u32);
+        for p in self.planes {
+            write_plane_element(&mut w, p);
+        }
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<CameraFrame<Vec<u8>>, CdrError> {
+        self.validate()?;
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        CameraFrame::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        self.validate()?;
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        self.validate()?;
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
+    }
+}
+
+impl<B: AsRef<[u8]> + AsMut<[u8]>> CameraFrame<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_seq(&mut self, v: u64) -> Result<(), CdrError> {
+        let p = cdr_align(self.offsets[0], 8);
+        wr_u64(self.buf.as_mut(), p, v)
+    }
+
+    pub fn set_pid(&mut self, v: u32) -> Result<(), CdrError> {
+        let p = cdr_align(self.offsets[0], 8) + 8;
+        wr_u32(self.buf.as_mut(), p, v)
+    }
+
+    pub fn set_width(&mut self, v: u32) -> Result<(), CdrError> {
+        let p = cdr_align(self.offsets[0], 8) + 12;
+        wr_u32(self.buf.as_mut(), p, v)
+    }
+
+    pub fn set_height(&mut self, v: u32) -> Result<(), CdrError> {
+        let p = cdr_align(self.offsets[0], 8) + 16;
+        wr_u32(self.buf.as_mut(), p, v)
+    }
+
+    /// Update `fence_fd` in place.
+    ///
+    /// This field follows five variable-length colorimetry strings, so the
+    /// in-place write must re-walk those strings to find the fence position
+    /// (same cost as the getter). Scalar fields before the strings remain
+    /// O(1) writes via constant offsets.
+    pub fn set_fence_fd(&mut self, v: i32) -> Result<(), CdrError> {
+        let strings_start = cdr_align(self.offsets[0], 8) + 20;
+        let b = self.buf.as_ref();
+        let (_, p1) = rd_string(b, strings_start);
+        let (_, p2) = rd_string(b, p1);
+        let (_, p3) = rd_string(b, p2);
+        let (_, p4) = rd_string(b, p3);
+        let (_, p5) = rd_string(b, p4);
+        let pos = align(p5, 4);
+        wr_i32(self.buf.as_mut(), pos, v)
     }
 }
 
@@ -1804,6 +3027,11 @@ impl Model<&'static [u8]> {
 }
 
 impl Model<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use Model::builder() for allocation-free buffer reuse; Model::new will be removed in 4.0"
+    )]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         stamp: Time,
         frame_id: &str,
@@ -1859,6 +3087,181 @@ impl Model<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `ModelBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> ModelBuilder<'a> {
+        ModelBuilder::new()
+    }
+}
+
+// ── ModelBuilder<'a> ────────────────────────────────────────────────
+
+/// Builder for `Model<Vec<u8>>` with buffer-reuse finalizers.
+///
+/// `boxes` and `masks` are borrowed from caller-owned slices. Each view
+/// inside those slices itself borrows strings/byte-data from caller
+/// memory — all borrows must remain valid until `build()`,
+/// `encode_into_vec()`, or `encode_into_slice()` is called.
+pub struct ModelBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    input_time: Duration,
+    model_time: Duration,
+    output_time: Duration,
+    decode_time: Duration,
+    boxes: &'a [DetectBoxView<'a>],
+    masks: &'a [MaskView<'a>],
+}
+
+impl<'a> Default for ModelBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            input_time: Duration { sec: 0, nanosec: 0 },
+            model_time: Duration { sec: 0, nanosec: 0 },
+            output_time: Duration { sec: 0, nanosec: 0 },
+            decode_time: Duration { sec: 0, nanosec: 0 },
+            boxes: &[],
+            masks: &[],
+        }
+    }
+}
+
+impl<'a> ModelBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn input_time(&mut self, d: Duration) -> &mut Self {
+        self.input_time = d;
+        self
+    }
+    pub fn model_time(&mut self, d: Duration) -> &mut Self {
+        self.model_time = d;
+        self
+    }
+    pub fn output_time(&mut self, d: Duration) -> &mut Self {
+        self.output_time = d;
+        self
+    }
+    pub fn decode_time(&mut self, d: Duration) -> &mut Self {
+        self.decode_time = d;
+        self
+    }
+    pub fn boxes(&mut self, b: &'a [DetectBoxView<'a>]) -> &mut Self {
+        self.boxes = b;
+        self
+    }
+    pub fn masks(&mut self, m: &'a [MaskView<'a>]) -> &mut Self {
+        self.masks = m;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        Duration::size_cdr(&mut s);
+        Duration::size_cdr(&mut s);
+        Duration::size_cdr(&mut s);
+        Duration::size_cdr(&mut s);
+        s.size_u32();
+        for b in self.boxes {
+            size_box_element(&mut s, b.label, b.track_id);
+        }
+        s.size_u32();
+        for m in self.masks {
+            size_mask_element(&mut s, m.encoding, m.mask.len());
+        }
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        self.input_time.write_cdr(&mut w);
+        self.model_time.write_cdr(&mut w);
+        self.output_time.write_cdr(&mut w);
+        self.decode_time.write_cdr(&mut w);
+        w.write_u32(self.boxes.len() as u32);
+        for b in self.boxes {
+            write_box_element(&mut w, b);
+        }
+        w.write_u32(self.masks.len() as u32);
+        for m in self.masks {
+            write_mask_element(&mut w, m);
+        }
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<Model<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        Model::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
+    }
+}
+
+impl<B: AsRef<[u8]> + AsMut<[u8]>> Model<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_input_time(&mut self, d: Duration) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        let p = align(self.offsets[0], 4);
+        wr_i32(b, p, d.sec)?;
+        wr_u32(b, p + 4, d.nanosec)
+    }
+
+    pub fn set_model_time(&mut self, d: Duration) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        let p = align(self.offsets[0], 4) + 8;
+        wr_i32(b, p, d.sec)?;
+        wr_u32(b, p + 4, d.nanosec)
+    }
+
+    pub fn set_output_time(&mut self, d: Duration) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        let p = align(self.offsets[0], 4) + 16;
+        wr_i32(b, p, d.sec)?;
+        wr_u32(b, p + 4, d.nanosec)
+    }
+
+    pub fn set_decode_time(&mut self, d: Duration) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        let p = align(self.offsets[0], 4) + 24;
+        wr_i32(b, p, d.sec)?;
+        wr_u32(b, p + 4, d.nanosec)
     }
 }
 
@@ -1982,6 +3385,11 @@ impl<B: AsRef<[u8]>> ModelInfo<B> {
 }
 
 impl ModelInfo<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use ModelInfo::builder() for allocation-free buffer reuse; ModelInfo::new will be removed in 4.0"
+    )]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         stamp: Time,
         frame_id: &str,
@@ -2044,6 +3452,173 @@ impl ModelInfo<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `ModelInfoBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> ModelInfoBuilder<'a> {
+        ModelInfoBuilder::new()
+    }
+}
+
+// ── ModelInfoBuilder<'a> ────────────────────────────────────────────
+
+/// Builder for `ModelInfo<Vec<u8>>` with buffer-reuse finalizers.
+///
+/// `labels` is borrowed as `&'a [&'a str]` so string literals or caller-
+/// owned string slices flow through without copy.
+pub struct ModelInfoBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    input_shape: &'a [u32],
+    input_type: u8,
+    output_shape: &'a [u32],
+    output_type: u8,
+    labels: &'a [&'a str],
+    model_type: std::borrow::Cow<'a, str>,
+    model_format: std::borrow::Cow<'a, str>,
+    model_name: std::borrow::Cow<'a, str>,
+}
+
+impl<'a> Default for ModelInfoBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            input_shape: &[],
+            input_type: 0,
+            output_shape: &[],
+            output_type: 0,
+            labels: &[],
+            model_type: std::borrow::Cow::Borrowed(""),
+            model_format: std::borrow::Cow::Borrowed(""),
+            model_name: std::borrow::Cow::Borrowed(""),
+        }
+    }
+}
+
+impl<'a> ModelInfoBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn input_shape(&mut self, v: &'a [u32]) -> &mut Self {
+        self.input_shape = v;
+        self
+    }
+    pub fn input_type(&mut self, v: u8) -> &mut Self {
+        self.input_type = v;
+        self
+    }
+    pub fn output_shape(&mut self, v: &'a [u32]) -> &mut Self {
+        self.output_shape = v;
+        self
+    }
+    pub fn output_type(&mut self, v: u8) -> &mut Self {
+        self.output_type = v;
+        self
+    }
+    pub fn labels(&mut self, v: &'a [&'a str]) -> &mut Self {
+        self.labels = v;
+        self
+    }
+    pub fn model_type(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.model_type = s.into();
+        self
+    }
+    pub fn model_format(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.model_format = s.into();
+        self
+    }
+    pub fn model_name(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.model_name = s.into();
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.size_u32();
+        s.size_seq_4(self.input_shape.len());
+        s.size_u8();
+        s.size_u32();
+        s.size_seq_4(self.output_shape.len());
+        s.size_u8();
+        s.size_u32();
+        for l in self.labels {
+            s.size_string(l);
+        }
+        s.size_string(&self.model_type);
+        s.size_string(&self.model_format);
+        s.size_string(&self.model_name);
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.write_u32(self.input_shape.len() as u32);
+        w.write_slice_u32(self.input_shape);
+        w.write_u8(self.input_type);
+        w.write_u32(self.output_shape.len() as u32);
+        w.write_slice_u32(self.output_shape);
+        w.write_u8(self.output_type);
+        w.write_u32(self.labels.len() as u32);
+        for l in self.labels {
+            w.write_string(l);
+        }
+        w.write_string(&self.model_type);
+        w.write_string(&self.model_format);
+        w.write_string(&self.model_name);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<ModelInfo<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        ModelInfo::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
+    }
+}
+
+impl<B: AsRef<[u8]> + AsMut<[u8]>> ModelInfo<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_input_type(&mut self, v: u8) -> Result<(), CdrError> {
+        wr_u8(self.buf.as_mut(), self.offsets[1], v)
+    }
+
+    pub fn set_output_type(&mut self, v: u8) -> Result<(), CdrError> {
+        wr_u8(self.buf.as_mut(), self.offsets[2], v)
     }
 }
 
@@ -2186,6 +3761,11 @@ impl<B: AsRef<[u8]>> Vibration<B> {
 }
 
 impl Vibration<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use Vibration::builder() for allocation-free buffer reuse; Vibration::new will be removed in 4.0"
+    )]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         stamp: crate::builtin_interfaces::Time,
         frame_id: &str,
@@ -2234,6 +3814,178 @@ impl Vibration<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `VibrationBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> VibrationBuilder<'a> {
+        VibrationBuilder::new()
+    }
+}
+
+// ── VibrationBuilder<'a> ────────────────────────────────────────────
+
+/// Builder for `Vibration<Vec<u8>>` with buffer-reuse finalizers.
+///
+/// `clipping` is borrowed from a caller-owned slice of 32-bit sample
+/// indices; the borrow must remain valid until `build()`,
+/// `encode_into_vec()`, or `encode_into_slice()` is called.
+pub struct VibrationBuilder<'a> {
+    stamp: crate::builtin_interfaces::Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    measurement_type: u8,
+    unit: u8,
+    band_lower_hz: f32,
+    band_upper_hz: f32,
+    vibration: crate::geometry_msgs::Vector3,
+    clipping: &'a [u32],
+}
+
+impl<'a> Default for VibrationBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: crate::builtin_interfaces::Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            measurement_type: 0,
+            unit: 0,
+            band_lower_hz: 0.0,
+            band_upper_hz: 0.0,
+            vibration: crate::geometry_msgs::Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            clipping: &[],
+        }
+    }
+}
+
+impl<'a> VibrationBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: crate::builtin_interfaces::Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn measurement_type(&mut self, v: u8) -> &mut Self {
+        self.measurement_type = v;
+        self
+    }
+    pub fn unit(&mut self, v: u8) -> &mut Self {
+        self.unit = v;
+        self
+    }
+    pub fn band_lower_hz(&mut self, v: f32) -> &mut Self {
+        self.band_lower_hz = v;
+        self
+    }
+    pub fn band_upper_hz(&mut self, v: f32) -> &mut Self {
+        self.band_upper_hz = v;
+        self
+    }
+    pub fn vibration(&mut self, v: crate::geometry_msgs::Vector3) -> &mut Self {
+        self.vibration = v;
+        self
+    }
+    pub fn clipping(&mut self, v: &'a [u32]) -> &mut Self {
+        self.clipping = v;
+        self
+    }
+
+    fn size(&self) -> usize {
+        use crate::builtin_interfaces::Time;
+        use crate::geometry_msgs::Vector3;
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.align(8);
+        Vector3::size_cdr(&mut s);
+        s.size_f32();
+        s.size_f32();
+        s.size_u8();
+        s.size_u8();
+        s.align(4);
+        s.size_u32();
+        for _ in self.clipping {
+            s.size_u32();
+        }
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        self.vibration.write_cdr(&mut w);
+        w.write_f32(self.band_lower_hz);
+        w.write_f32(self.band_upper_hz);
+        w.write_u8(self.measurement_type);
+        w.write_u8(self.unit);
+        w.write_u32(self.clipping.len() as u32);
+        for v in self.clipping {
+            w.write_u32(*v);
+        }
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<Vibration<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        Vibration::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
+    }
+}
+
+impl<B: AsRef<[u8]> + AsMut<[u8]>> Vibration<B> {
+    pub fn set_stamp(&mut self, t: crate::builtin_interfaces::Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_vibration(&mut self, v: crate::geometry_msgs::Vector3) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        let p = self.offsets[0];
+        wr_f64(b, p, v.x)?;
+        wr_f64(b, p + 8, v.y)?;
+        wr_f64(b, p + 16, v.z)
+    }
+
+    pub fn set_band_lower_hz(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), self.offsets[0] + 24, v)
+    }
+
+    pub fn set_band_upper_hz(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), self.offsets[0] + 28, v)
+    }
+
+    pub fn set_measurement_type(&mut self, v: u8) -> Result<(), CdrError> {
+        wr_u8(self.buf.as_mut(), self.offsets[0] + 32, v)
+    }
+
+    pub fn set_unit(&mut self, v: u8) -> Result<(), CdrError> {
+        wr_u8(self.buf.as_mut(), self.offsets[0] + 33, v)
     }
 }
 
@@ -2288,6 +4040,7 @@ impl SchemaType for Date {
 }
 
 #[cfg(test)]
+#[allow(deprecated)] // Tests exercise CameraFrame::new, which is deprecated in 3.2.0 but still supported until 4.0.
 mod tests {
     use super::*;
     use crate::builtin_interfaces::Time;

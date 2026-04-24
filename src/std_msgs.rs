@@ -96,6 +96,10 @@ impl<B: AsRef<[u8]>> Header<B> {
 }
 
 impl Header<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use Header::builder() for allocation-free buffer reuse; Header::new will be removed in 4.0"
+    )]
     pub fn new(stamp: Time, frame_id: &str) -> Result<Self, CdrError> {
         let mut sizer = CdrSizer::new();
         Time::size_cdr(&mut sizer);
@@ -112,6 +116,97 @@ impl Header<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `HeaderBuilder` with zero-valued defaults.
+    ///
+    /// Returned with a generic lifetime parameter `'a` so the compiler
+    /// infers it from subsequent setter calls — `.frame_id(&local_str)`
+    /// binds `'a` to the caller's scope without forcing `'static`.
+    pub fn builder<'a>() -> HeaderBuilder<'a> {
+        HeaderBuilder::new()
+    }
+}
+
+// ── HeaderBuilder<'a> ───────────────────────────────────────────────
+
+/// Builder for `Header<Vec<u8>>` with buffer-reuse finalizers.
+///
+/// `frame_id` uses `Cow<'a, str>` so that `frame_id("lit")` borrows a
+/// `&'static str` and `frame_id(owned)` takes ownership. The borrow must
+/// remain valid until `build()`, `encode_into_vec()`, or
+/// `encode_into_slice()` is called.
+pub struct HeaderBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+}
+
+impl<'a> Default for HeaderBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+        }
+    }
+}
+
+impl<'a> HeaderBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.finish()
+    }
+
+    /// Allocate a fresh `Vec<u8>` and return a fully-parsed `Header<Vec<u8>>`.
+    pub fn build(&self) -> Result<Header<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        Header::from_cdr(buf)
+    }
+
+    /// Serialize into the caller's `Vec<u8>`, resizing to exactly the encoded
+    /// size. After return, `buf.len()` is the CDR size and `&buf[..]` is a
+    /// complete CDR message. Reuses existing allocation when capacity suffices.
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    /// Serialize into `buf` and return bytes written. Errors with
+    /// `BufferTooShort` when `buf` is smaller than the required size; nothing
+    /// is mutated in that case.
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -143,6 +238,7 @@ impl SchemaType for ColorRGBA {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
     use crate::builtin_interfaces::Time;

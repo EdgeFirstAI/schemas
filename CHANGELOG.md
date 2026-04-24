@@ -7,6 +7,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-04-24
+
+### Added
+
+- **Publisher buffer reuse via Builder pattern (EDGEAI-1289)** — every
+  buffer-backed message type now exposes a `Foo::builder()` entry
+  point returning a `FooBuilder<'a>` with three finalizers:
+
+  - `build() -> Result<Foo<Vec<u8>>, CdrError>` — allocates a fresh
+    buffer (drop-in replacement for the legacy `Foo::new(...)`).
+  - `encode_into_vec(&mut Vec<u8>) -> Result<(), CdrError>` — resizes
+    the caller's `Vec` to exactly the encoded size and writes. Reuses
+    the existing allocation across publishes when capacity suffices.
+  - `encode_into_slice(&mut [u8]) -> Result<usize, CdrError>` — writes
+    into a fixed-capacity slice, returns bytes written, errors
+    `BufferTooShort` without mutating the destination on error.
+
+  Setters are `&mut self -> &mut Self`, supporting both chained
+  one-shot and named-reuse idioms. Strings use `Cow<'a, str>`, bulk
+  data uses `&'a [u8]`, nested views use `&'a [View<'a>]`. Fixed
+  scalars and `CdrFixed` types pass by value.
+
+  27 builders total — every buffer-backed message type in the crate:
+  `Header`, `CompressedImage`, `Image`, `Imu`, `NavSatFix`,
+  `PointField`, `PointCloud2`, `CameraInfo`, `MagneticField`,
+  `FluidPressure`, `Temperature`, `BatteryState`, `Mask`, `LocalTime`,
+  `RadarCube`, `RadarInfo`, `Track`, `DetectBox`, `Detect`,
+  `CameraFrame`, `Model`, `ModelInfo`, `Vibration`,
+  `FoxgloveCompressedVideo`, `FoxgloveTextAnnotation`,
+  `FoxglovePointAnnotation`, `FoxgloveImageAnnotation`.
+
+- **In-place scalar setter audit** — every fixed-size field on every
+  buffer-backed message now has a `set_*` mutator for publishers that
+  update scalars between frames without paying for full
+  re-serialisation. `CameraFrame::set_stamp` is ~8 byte writes vs. the
+  builder's full re-encode of ~2 MB of pixel data.
+
+- **C FFI builder surface** — every Rust builder has a parallel C
+  handle-based API following the `ros_*_builder_t` convention: opaque
+  handle, one setter per field (strings copy internally, bulk data
+  borrows with a documented lifetime contract), `build()` /
+  `encode_into()` finalizers. See `CAPI.md` for the migration pattern.
+
+### Deprecated
+
+- **All legacy `Foo::new(...)` constructors** on buffer-backed message
+  types are marked `#[deprecated(since = "3.2.0")]` and will be
+  removed in 4.0. Use `Foo::builder()` instead.
+
+- **All legacy `ros_*_encode(...)` C FFI functions** continue to work
+  but route through the builder internally. The `ros_*_builder_*` API
+  is the recommended replacement.
+
+### Migration
+
+```rust
+// Before
+let img = Image::new(stamp, "camera", h, w, "rgb8", 0, stride, &pixels)?;
+
+// After (drop-in)
+let img = Image::builder()
+    .stamp(stamp).frame_id("camera").height(h).width(w)
+    .encoding("rgb8").is_bigendian(0).step(stride).data(&pixels)
+    .build()?;
+
+// Or, with buffer reuse across publishes
+let mut cdr_buf = Vec::new();
+let mut b = Image::builder();
+b.frame_id("camera").height(h).width(w).encoding("rgb8").step(stride);
+loop {
+    b.stamp(now()).data(&pixels);
+    b.encode_into_vec(&mut cdr_buf)?;
+    publish(&cdr_buf);
+}
+```
+
 ## [3.1.0] - 2026-04-22
 
 ### Added

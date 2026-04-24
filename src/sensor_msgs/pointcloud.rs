@@ -1405,6 +1405,7 @@ impl<P: Point> ExactSizeIterator for PointIter<'_, P> {}
 // ── Tests ───────────────────────────────────────────────────────────
 
 #[cfg(test)]
+#[allow(deprecated)] // Tests exercise PointCloud2::new, which is deprecated in 3.2.0 but still supported until 4.0.
 mod tests {
     use super::*;
     use crate::builtin_interfaces::Time;

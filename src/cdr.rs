@@ -814,6 +814,62 @@ pub(crate) fn wr_u8(b: &mut [u8], pos: usize, v: u8) -> Result<(), CdrError> {
     Ok(())
 }
 
+#[inline(always)]
+pub(crate) fn wr_u16(b: &mut [u8], pos: usize, v: u16) -> Result<(), CdrError> {
+    if pos + 2 > b.len() {
+        return Err(CdrError::BufferTooShort {
+            need: pos + 2,
+            have: b.len(),
+        });
+    }
+    b[pos..pos + 2].copy_from_slice(&v.to_le_bytes());
+    Ok(())
+}
+
+#[inline(always)]
+pub(crate) fn wr_i16(b: &mut [u8], pos: usize, v: i16) -> Result<(), CdrError> {
+    wr_u16(b, pos, v as u16)
+}
+
+#[inline(always)]
+pub(crate) fn wr_u64(b: &mut [u8], pos: usize, v: u64) -> Result<(), CdrError> {
+    if pos + 8 > b.len() {
+        return Err(CdrError::BufferTooShort {
+            need: pos + 8,
+            have: b.len(),
+        });
+    }
+    b[pos..pos + 8].copy_from_slice(&v.to_le_bytes());
+    Ok(())
+}
+
+#[inline(always)]
+pub(crate) fn wr_i8(b: &mut [u8], pos: usize, v: i8) -> Result<(), CdrError> {
+    wr_u8(b, pos, v as u8)
+}
+
+#[inline(always)]
+pub(crate) fn wr_f32(b: &mut [u8], pos: usize, v: f32) -> Result<(), CdrError> {
+    wr_u32(b, pos, v.to_bits())
+}
+
+#[inline(always)]
+pub(crate) fn wr_f64(b: &mut [u8], pos: usize, v: f64) -> Result<(), CdrError> {
+    if pos + 8 > b.len() {
+        return Err(CdrError::BufferTooShort {
+            need: pos + 8,
+            have: b.len(),
+        });
+    }
+    b[pos..pos + 8].copy_from_slice(&v.to_le_bytes());
+    Ok(())
+}
+
+#[inline(always)]
+pub(crate) fn wr_bool(b: &mut [u8], pos: usize, v: bool) -> Result<(), CdrError> {
+    wr_u8(b, pos, v as u8)
+}
+
 /// Read a CDR string at `pos`: u32 len (already aligned), then bytes.
 /// Returns the string slice and the byte position AFTER the string (including NUL).
 #[inline]

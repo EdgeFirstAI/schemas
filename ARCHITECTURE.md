@@ -237,6 +237,68 @@ assert_eq!(view.frame_id(), "camera"); // reads directly from buffer
 - `pycdr2`: CDR encoding/decoding
 - `dataclasses`: Python 3.7+ for message types
 
+### Publisher Buffer Reuse (Builder Pattern)
+
+Buffer-backed message types expose a `Foo::builder()` entry point that
+returns a `FooBuilder<'a>`. The builder holds field values (strings as
+`Cow<'a, str>`, bulk data as `&'a [u8]`) and offers three finalizers:
+
+- `build() -> Result<Foo<Vec<u8>>, CdrError>` — allocates a fresh buffer.
+  Drop-in replacement for the legacy `Foo::new(...)` constructor.
+- `encode_into_vec(&mut Vec<u8>) -> Result<(), CdrError>` — resizes the
+  caller's `Vec` to exactly the encoded size and writes into it. Reuses
+  existing allocation when capacity suffices. After return, `buf.len()`
+  is the CDR size and `&buf[..]` is a complete CDR message.
+- `encode_into_slice(&mut [u8]) -> Result<usize, CdrError>` — writes into
+  a fixed-capacity slice, returning the number of bytes written. Errors
+  with `BufferTooShort` when the slice is smaller than the required size;
+  nothing is mutated in the error case.
+
+Setters return `&mut Self`, supporting both the chained one-shot style
+and the named-builder reuse style without a separate consuming variant:
+
+```rust
+// One-shot: chained on the temporary (same mechanism as std::process::Command)
+let img = Image::builder()
+    .stamp(now())
+    .frame_id("camera")
+    .height(h).width(w).encoding("rgb8").step(stride)
+    .data(&pixels)
+    .build()?;
+
+// Reuse: set metadata once, overwrite hot fields per frame, reuse cdr_buf
+let mut b = Image::builder();
+b.frame_id("camera").height(h).width(w).encoding("rgb8").step(stride);
+let mut cdr_buf = Vec::new();
+loop {
+    b.stamp(now()).data(&pixels);
+    b.encode_into_vec(&mut cdr_buf)?;
+    publish(&cdr_buf);
+}
+```
+
+As of 3.2.0 the builder pattern is applied to **every** buffer-backed
+message type in the crate (27 types across `std_msgs`, `sensor_msgs`,
+`edgefirst_msgs`, `foxglove_msgs`). The legacy `Foo::new(...)`
+constructors remain as `#[deprecated(since = "3.2.0")]` shims and are
+scheduled for removal in 4.0. The C FFI exposes a parallel
+`ros_<type>_builder_*` handle-based API with the same semantics.
+
+**Scalar fast path (in-place setters).** The builder re-serialises the
+whole buffer, which is wasteful when only a scalar field changes
+between frames. Every fixed-size field on every buffer-backed message
+has an in-place `set_*` mutator on `impl<B: AsRef<[u8]> + AsMut<[u8]>> Foo<B>`
+that writes directly into the existing CDR buffer — no re-encoding.
+For a 2 MB camera frame, `camera.set_stamp(now())` is ~8 byte writes
+vs. the builder's full re-encode. Use the scalar setter when only
+scalars change; use the builder when any variable-length field
+(string, byte sequence, nested view) changes.
+
+**Important:** the bulk-data borrow (`data: &'a [u8]`) must not alias the
+destination `&mut Vec<u8>`. Typical publishers keep pixel / point-cloud
+data in a separate allocation from the CDR buffer, which satisfies this
+trivially. Aliasing is not detected at compile time.
+
 ---
 
 ## Language Bindings
