@@ -1389,7 +1389,15 @@ pub extern "C" fn ros_mask_encode(
     } else {
         unsafe { slice::from_raw_parts(data, data_len) }
     };
-    let v = match edgefirst_msgs::Mask::new(height, width, length, enc, d, boxed) {
+    let v = match edgefirst_msgs::Mask::builder()
+        .height(height)
+        .width(width)
+        .length(length)
+        .encoding(enc)
+        .mask(d)
+        .boxed(boxed)
+        .build()
+    {
         Ok(v) => v,
         Err(_) => {
             set_errno(EBADMSG);
