@@ -730,6 +730,33 @@ impl<'a> LocalTimeBuilder<'a> {
     }
 }
 
+impl<B: AsRef<[u8]> + AsMut<[u8]>> LocalTime<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_date(&mut self, d: Date) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        let p = self.offsets[0];
+        wr_u16(b, p, d.year)?;
+        wr_u8(b, p + 2, d.month)?;
+        wr_u8(b, p + 3, d.day)
+    }
+
+    pub fn set_time(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        let p = self.offsets[0] + 4;
+        wr_i32(b, p, t.sec)?;
+        wr_u32(b, p + 4, t.nanosec)
+    }
+
+    pub fn set_timezone(&mut self, v: i16) -> Result<(), CdrError> {
+        wr_i16(self.buf.as_mut(), self.offsets[0] + 12, v)
+    }
+}
+
 // ── RadarCube<B> — edgefirst_msgs/msg/RadarCube ─────────────────────
 //
 // CDR layout: Header → offsets[0],
@@ -1032,6 +1059,23 @@ impl<'a> RadarCubeBuilder<'a> {
     }
 }
 
+impl<B: AsRef<[u8]> + AsMut<[u8]>> RadarCube<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_timestamp(&mut self, v: u64) -> Result<(), CdrError> {
+        let p = cdr_align(self.offsets[0], 8);
+        wr_u64(self.buf.as_mut(), p, v)
+    }
+
+    pub fn set_is_complex(&mut self, v: bool) -> Result<(), CdrError> {
+        wr_bool(self.buf.as_mut(), self.offsets[4], v)
+    }
+}
+
 // ── RadarInfo<B> — edgefirst_msgs/msg/RadarInfo ─────────────────────
 //
 // CDR layout: Header → offsets[0],
@@ -1272,6 +1316,18 @@ impl<'a> RadarInfoBuilder<'a> {
     }
 }
 
+impl<B: AsRef<[u8]> + AsMut<[u8]>> RadarInfo<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_cube(&mut self, v: bool) -> Result<(), CdrError> {
+        wr_bool(self.buf.as_mut(), self.offsets[4], v)
+    }
+}
+
 // ── Track<B> — edgefirst_msgs/msg/Track ─────────────────────────────
 //
 // CDR layout: id(string) → offsets[0], lifetime(i32), created(Time)
@@ -1426,6 +1482,19 @@ impl<'a> TrackBuilder<'a> {
         }
         self.write_into(&mut buf[..need])?;
         Ok(need)
+    }
+}
+
+impl<B: AsRef<[u8]> + AsMut<[u8]>> Track<B> {
+    pub fn set_lifetime(&mut self, v: i32) -> Result<(), CdrError> {
+        wr_i32(self.buf.as_mut(), align(self.offsets[0], 4), v)
+    }
+
+    pub fn set_created(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        let p = align(self.offsets[0], 4) + 4;
+        wr_i32(b, p, t.sec)?;
+        wr_u32(b, p + 4, t.nanosec)
     }
 }
 
@@ -1807,6 +1876,47 @@ impl<'a> DetectBoxBuilder<'a> {
     }
 }
 
+impl<B: AsRef<[u8]> + AsMut<[u8]>> DetectBox<B> {
+    pub fn set_center_x(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), CDR_HEADER_SIZE, v)
+    }
+
+    pub fn set_center_y(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), CDR_HEADER_SIZE + 4, v)
+    }
+
+    pub fn set_width(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), CDR_HEADER_SIZE + 8, v)
+    }
+
+    pub fn set_height(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), CDR_HEADER_SIZE + 12, v)
+    }
+
+    pub fn set_score(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), align(self.offsets[0], 4), v)
+    }
+
+    pub fn set_distance(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), align(self.offsets[0], 4) + 4, v)
+    }
+
+    pub fn set_speed(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), align(self.offsets[0], 4) + 8, v)
+    }
+
+    pub fn set_track_lifetime(&mut self, v: i32) -> Result<(), CdrError> {
+        wr_i32(self.buf.as_mut(), align(self.offsets[1], 4), v)
+    }
+
+    pub fn set_track_created(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        let p = align(self.offsets[1], 4) + 4;
+        wr_i32(b, p, t.sec)?;
+        wr_u32(b, p + 4, t.nanosec)
+    }
+}
+
 // ── Detect<B> — edgefirst_msgs/msg/Detect ───────────────────────────
 //
 // CDR layout: Header → offsets[0],
@@ -2090,6 +2200,35 @@ impl<'a> DetectBuilder<'a> {
         }
         self.write_into(&mut buf[..need])?;
         Ok(need)
+    }
+}
+
+impl<B: AsRef<[u8]> + AsMut<[u8]>> Detect<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_input_timestamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        let p = align(self.offsets[0], 4);
+        wr_i32(b, p, t.sec)?;
+        wr_u32(b, p + 4, t.nanosec)
+    }
+
+    pub fn set_model_time(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        let p = align(self.offsets[0], 4) + 8;
+        wr_i32(b, p, t.sec)?;
+        wr_u32(b, p + 4, t.nanosec)
+    }
+
+    pub fn set_output_time(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        let p = align(self.offsets[0], 4) + 16;
+        wr_i32(b, p, t.sec)?;
+        wr_u32(b, p + 4, t.nanosec)
     }
 }
 
@@ -2679,6 +2818,52 @@ impl<'a> CameraFrameBuilder<'a> {
     }
 }
 
+impl<B: AsRef<[u8]> + AsMut<[u8]>> CameraFrame<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_seq(&mut self, v: u64) -> Result<(), CdrError> {
+        let p = cdr_align(self.offsets[0], 8);
+        wr_u64(self.buf.as_mut(), p, v)
+    }
+
+    pub fn set_pid(&mut self, v: u32) -> Result<(), CdrError> {
+        let p = cdr_align(self.offsets[0], 8) + 8;
+        wr_u32(self.buf.as_mut(), p, v)
+    }
+
+    pub fn set_width(&mut self, v: u32) -> Result<(), CdrError> {
+        let p = cdr_align(self.offsets[0], 8) + 12;
+        wr_u32(self.buf.as_mut(), p, v)
+    }
+
+    pub fn set_height(&mut self, v: u32) -> Result<(), CdrError> {
+        let p = cdr_align(self.offsets[0], 8) + 16;
+        wr_u32(self.buf.as_mut(), p, v)
+    }
+
+    /// Update `fence_fd` in place.
+    ///
+    /// This field follows five variable-length colorimetry strings, so the
+    /// in-place write must re-walk those strings to find the fence position
+    /// (same cost as the getter). Scalar fields before the strings remain
+    /// O(1) writes via constant offsets.
+    pub fn set_fence_fd(&mut self, v: i32) -> Result<(), CdrError> {
+        let strings_start = cdr_align(self.offsets[0], 8) + 20;
+        let b = self.buf.as_ref();
+        let (_, p1) = rd_string(b, strings_start);
+        let (_, p2) = rd_string(b, p1);
+        let (_, p3) = rd_string(b, p2);
+        let (_, p4) = rd_string(b, p3);
+        let (_, p5) = rd_string(b, p4);
+        let pos = align(p5, 4);
+        wr_i32(self.buf.as_mut(), pos, v)
+    }
+}
+
 // ── Model<B> — edgefirst_msgs/msg/Model ─────────────────────────────
 //
 // CDR layout: Header → offsets[0],
@@ -3036,6 +3221,42 @@ impl<'a> ModelBuilder<'a> {
     }
 }
 
+impl<B: AsRef<[u8]> + AsMut<[u8]>> Model<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_input_time(&mut self, d: Duration) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        let p = align(self.offsets[0], 4);
+        wr_i32(b, p, d.sec)?;
+        wr_u32(b, p + 4, d.nanosec)
+    }
+
+    pub fn set_model_time(&mut self, d: Duration) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        let p = align(self.offsets[0], 4) + 8;
+        wr_i32(b, p, d.sec)?;
+        wr_u32(b, p + 4, d.nanosec)
+    }
+
+    pub fn set_output_time(&mut self, d: Duration) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        let p = align(self.offsets[0], 4) + 16;
+        wr_i32(b, p, d.sec)?;
+        wr_u32(b, p + 4, d.nanosec)
+    }
+
+    pub fn set_decode_time(&mut self, d: Duration) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        let p = align(self.offsets[0], 4) + 24;
+        wr_i32(b, p, d.sec)?;
+        wr_u32(b, p + 4, d.nanosec)
+    }
+}
+
 // ── ModelInfo<B> — edgefirst_msgs/msg/ModelInfo ─────────────────────
 //
 // CDR layout: Header → offsets[0],
@@ -3377,6 +3598,22 @@ impl<'a> ModelInfoBuilder<'a> {
     }
 }
 
+impl<B: AsRef<[u8]> + AsMut<[u8]>> ModelInfo<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_input_type(&mut self, v: u8) -> Result<(), CdrError> {
+        wr_u8(self.buf.as_mut(), self.offsets[1], v)
+    }
+
+    pub fn set_output_type(&mut self, v: u8) -> Result<(), CdrError> {
+        wr_u8(self.buf.as_mut(), self.offsets[2], v)
+    }
+}
+
 // ── Vibration<B> ────────────────────────────────────────────────────
 //
 // CDR layout: Header → pad to 8 → offsets[0] (Vector3 vibration start),
@@ -3709,6 +3946,38 @@ impl<'a> VibrationBuilder<'a> {
         }
         self.write_into(&mut buf[..need])?;
         Ok(need)
+    }
+}
+
+impl<B: AsRef<[u8]> + AsMut<[u8]>> Vibration<B> {
+    pub fn set_stamp(&mut self, t: crate::builtin_interfaces::Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_vibration(&mut self, v: crate::geometry_msgs::Vector3) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        let p = self.offsets[0];
+        wr_f64(b, p, v.x)?;
+        wr_f64(b, p + 8, v.y)?;
+        wr_f64(b, p + 16, v.z)
+    }
+
+    pub fn set_band_lower_hz(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), self.offsets[0] + 24, v)
+    }
+
+    pub fn set_band_upper_hz(&mut self, v: f32) -> Result<(), CdrError> {
+        wr_f32(self.buf.as_mut(), self.offsets[0] + 28, v)
+    }
+
+    pub fn set_measurement_type(&mut self, v: u8) -> Result<(), CdrError> {
+        wr_u8(self.buf.as_mut(), self.offsets[0] + 32, v)
+    }
+
+    pub fn set_unit(&mut self, v: u8) -> Result<(), CdrError> {
+        wr_u8(self.buf.as_mut(), self.offsets[0] + 33, v)
     }
 }
 
