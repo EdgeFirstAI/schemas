@@ -739,7 +739,8 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> LocalTime<B> {
 
     pub fn set_date(&mut self, d: Date) -> Result<(), CdrError> {
         let b = self.buf.as_mut();
-        let p = self.offsets[0];
+        // Date starts with u16 year — align(2) from offsets[0].
+        let p = cdr_align(self.offsets[0], 2);
         wr_u16(b, p, d.year)?;
         wr_u8(b, p + 2, d.month)?;
         wr_u8(b, p + 3, d.day)
@@ -747,13 +748,20 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> LocalTime<B> {
 
     pub fn set_time(&mut self, t: Time) -> Result<(), CdrError> {
         let b = self.buf.as_mut();
-        let p = self.offsets[0] + 4;
-        wr_i32(b, p, t.sec)?;
-        wr_u32(b, p + 4, t.nanosec)
+        // Date is 4 bytes at 2-aligned position; Time starts with i32
+        // and needs 4-alignment — this may require padding after Date.
+        let date_start = cdr_align(self.offsets[0], 2);
+        let time_start = cdr_align(date_start + 4, 4);
+        wr_i32(b, time_start, t.sec)?;
+        wr_u32(b, time_start + 4, t.nanosec)
     }
 
     pub fn set_timezone(&mut self, v: i16) -> Result<(), CdrError> {
-        wr_i16(self.buf.as_mut(), self.offsets[0] + 12, v)
+        // timezone is i16 after Time (8 bytes, 4-aligned) — needs 2-align.
+        let date_start = cdr_align(self.offsets[0], 2);
+        let time_start = cdr_align(date_start + 4, 4);
+        let tz_pos = cdr_align(time_start + 8, 2);
+        wr_i16(self.buf.as_mut(), tz_pos, v)
     }
 }
 

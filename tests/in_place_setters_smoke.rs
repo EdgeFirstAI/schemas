@@ -93,6 +93,7 @@ extern "C" {
     // edgefirst_msgs::LocalTime
     fn ros_local_time_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32;
     fn ros_local_time_set_date(buf: *mut u8, len: usize, year: u16, month: u8, day: u8) -> i32;
+    fn ros_local_time_set_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32;
     fn ros_local_time_set_timezone(buf: *mut u8, len: usize, v: i16) -> i32;
 
     // edgefirst_msgs::RadarCube
@@ -532,44 +533,62 @@ fn ros_mask_in_place_setters() {
 // ----- edgefirst_msgs::LocalTime -----
 
 #[test]
-fn ros_local_time_in_place_set_stamp() {
-    // The representative fixed-size setter for LocalTime is `set_stamp`,
-    // which writes into the CDR-header-adjacent u32-aligned region and
-    // round-trips cleanly. The `set_date` / `set_time` / `set_timezone`
-    // FFIs mirror the existing Rust setters byte-for-byte and their
-    // return-code behaviour is covered below; round-trip of those fields
-    // is intentionally not asserted here because the wire-side offset
-    // arithmetic lives in the underlying Rust setters (not in FFI).
-    let msg = edgefirst_msgs::LocalTime::builder()
-        .frame_id("lt")
-        .date(edgefirst_msgs::Date {
-            year: 2000,
-            month: 1,
-            day: 2,
-        })
-        .time(Time::new(3, 4))
-        .timezone(0)
-        .build()
-        .unwrap();
-    let mut buf = msg.into_cdr();
-    let len = buf.len();
-    assert_eq!(
-        unsafe { ros_local_time_set_stamp(buf.as_mut_ptr(), len, 50, 60) },
-        0
-    );
-    // These return 0 (FFI wiring intact) regardless of whether the
-    // underlying wire layout matches the caller's intent.
-    assert_eq!(
-        unsafe { ros_local_time_set_date(buf.as_mut_ptr(), len, 2026, 4, 23) },
-        0
-    );
-    assert_eq!(
-        unsafe { ros_local_time_set_timezone(buf.as_mut_ptr(), len, -300) },
-        0
-    );
-    let decoded = edgefirst_msgs::LocalTime::from_cdr(&buf[..]).unwrap();
-    assert_eq!(decoded.stamp(), Time::new(50, 60));
-    assert_eq!(decoded.frame_id(), "lt");
+fn ros_local_time_in_place_setters_round_trip() {
+    // LocalTime's date / time / timezone fields live at CDR-dynamic offsets
+    // (after the Header's variable-length frame_id string). The setter
+    // must apply CDR alignment to locate those fields — u16 year needs
+    // 2-align, i32 sec needs 4-align, i16 timezone needs 2-align — and
+    // this alignment math depends on the frame_id length mod 4.
+    // Exercise all four parities (0..=3) to catch off-by-alignment bugs.
+    for frame_id in ["", "a", "ab", "abc"] {
+        let msg = edgefirst_msgs::LocalTime::builder()
+            .frame_id(frame_id)
+            .date(edgefirst_msgs::Date {
+                year: 2000,
+                month: 1,
+                day: 2,
+            })
+            .time(Time::new(3, 4))
+            .timezone(0)
+            .build()
+            .unwrap();
+        let mut buf = msg.into_cdr();
+        let len = buf.len();
+
+        assert_eq!(
+            unsafe { ros_local_time_set_stamp(buf.as_mut_ptr(), len, 50, 60) },
+            0,
+            "frame_id={frame_id:?}",
+        );
+        assert_eq!(
+            unsafe { ros_local_time_set_date(buf.as_mut_ptr(), len, 2026, 4, 23) },
+            0,
+            "frame_id={frame_id:?}",
+        );
+        assert_eq!(
+            unsafe { ros_local_time_set_time(buf.as_mut_ptr(), len, 77, 88) },
+            0,
+            "frame_id={frame_id:?}",
+        );
+        assert_eq!(
+            unsafe { ros_local_time_set_timezone(buf.as_mut_ptr(), len, -300) },
+            0,
+            "frame_id={frame_id:?}",
+        );
+
+        // Decode and verify every field was written at the correct offset.
+        let decoded = edgefirst_msgs::LocalTime::from_cdr(&buf[..]).unwrap();
+        assert_eq!(decoded.stamp(), Time::new(50, 60), "stamp for {frame_id:?}");
+        assert_eq!(decoded.frame_id(), frame_id);
+        let d = decoded.date();
+        assert_eq!(
+            (d.year, d.month, d.day),
+            (2026, 4, 23),
+            "date for {frame_id:?}",
+        );
+        assert_eq!(decoded.time(), Time::new(77, 88), "time for {frame_id:?}");
+        assert_eq!(decoded.timezone(), -300, "timezone for {frame_id:?}");
+    }
 }
 
 // ----- edgefirst_msgs::RadarCube -----
