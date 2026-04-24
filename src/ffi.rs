@@ -826,7 +826,11 @@ pub extern "C" fn ros_header_encode(
     frame_id: *const c_char,
 ) -> i32 {
     let fid = unsafe { c_to_str(frame_id) };
-    let v = match std_msgs::Header::new(Time::new(stamp_sec, stamp_nanosec), fid) {
+    let v = match std_msgs::Header::builder()
+        .stamp(Time::new(stamp_sec, stamp_nanosec))
+        .frame_id(fid)
+        .build()
+    {
         Ok(v) => v,
         Err(_) => {
             set_errno(EBADMSG);
