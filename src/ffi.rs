@@ -36,7 +36,7 @@ use crate::edgefirst_msgs;
 use crate::foxglove_msgs;
 use crate::geometry_msgs::{self, *};
 use crate::nav_msgs;
-use crate::sensor_msgs::{self, NavSatStatus};
+use crate::sensor_msgs::{self, NavSatStatus, PointFieldView, RegionOfInterest};
 use crate::std_msgs;
 
 // =============================================================================
@@ -4895,6 +4895,1971 @@ pub extern "C" fn ros_fluid_pressure_builder_encode_into(
         .frame_id(inner.frame_id.as_str())
         .fluid_pressure(inner.fluid_pressure)
         .variance(inner.variance)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── sensor_msgs::CompressedImage ────────────────────────────────────
+
+struct CompressedImageBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    format: String,
+    data: *const u8,
+    data_len: usize,
+}
+
+pub struct ros_compressed_image_builder_t(CompressedImageBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_compressed_image_builder_new() -> *mut ros_compressed_image_builder_t {
+    Box::into_raw(Box::new(ros_compressed_image_builder_t(
+        CompressedImageBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            format: String::new(),
+            data: ptr::null(),
+            data_len: 0,
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_compressed_image_builder_free(b: *mut ros_compressed_image_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_compressed_image_builder_set_stamp(
+    b: *mut ros_compressed_image_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_compressed_image_builder_set_frame_id(
+    b: *mut ros_compressed_image_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = unsafe { c_to_str(s) };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_compressed_image_builder_set_format(
+    b: *mut ros_compressed_image_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = unsafe { c_to_str(s) };
+    unsafe {
+        (*b).0.format = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_compressed_image_builder_set_data(
+    b: *mut ros_compressed_image_builder_t,
+    data: *const u8,
+    len: usize,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.data = data;
+        (*b).0.data_len = len;
+    }
+}
+
+fn ros_compressed_image_builder_data_slice(inner: &CompressedImageBuilderOwned) -> &[u8] {
+    if inner.data.is_null() || inner.data_len == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(inner.data, inner.data_len) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_compressed_image_builder_build(
+    b: *mut ros_compressed_image_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let data_slice = ros_compressed_image_builder_data_slice(inner);
+    let r = sensor_msgs::CompressedImage::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .format(inner.format.as_str())
+        .data(data_slice)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_compressed_image_builder_encode_into(
+    b: *mut ros_compressed_image_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let data_slice = ros_compressed_image_builder_data_slice(inner);
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::CompressedImage::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .format(inner.format.as_str())
+        .data(data_slice)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── sensor_msgs::Imu ────────────────────────────────────────────────
+
+struct ImuBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    orientation: Quaternion,
+    orientation_covariance: [f64; 9],
+    angular_velocity: Vector3,
+    angular_velocity_covariance: [f64; 9],
+    linear_acceleration: Vector3,
+    linear_acceleration_covariance: [f64; 9],
+}
+
+pub struct ros_imu_builder_t(ImuBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_new() -> *mut ros_imu_builder_t {
+    Box::into_raw(Box::new(ros_imu_builder_t(ImuBuilderOwned {
+        stamp_sec: 0,
+        stamp_nanosec: 0,
+        frame_id: String::new(),
+        orientation: Quaternion {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            w: 0.0,
+        },
+        orientation_covariance: [0.0; 9],
+        angular_velocity: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        angular_velocity_covariance: [0.0; 9],
+        linear_acceleration: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        linear_acceleration_covariance: [0.0; 9],
+    })))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_free(b: *mut ros_imu_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_set_stamp(b: *mut ros_imu_builder_t, sec: i32, nanosec: u32) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_set_frame_id(b: *mut ros_imu_builder_t, s: *const c_char) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = unsafe { c_to_str(s) };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_set_orientation(
+    b: *mut ros_imu_builder_t,
+    x: f64,
+    y: f64,
+    z: f64,
+    w: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.orientation = Quaternion { x, y, z, w };
+    }
+}
+
+/// Copies 9 f64 elements from `cov` into the builder's orientation_covariance.
+/// Caller contract: `cov` must point to at least 9 valid f64 values.
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_set_orientation_covariance(
+    b: *mut ros_imu_builder_t,
+    cov: *const f64,
+) {
+    if b.is_null() || cov.is_null() {
+        return;
+    }
+    unsafe {
+        let src = slice::from_raw_parts(cov, 9);
+        (*b).0.orientation_covariance.copy_from_slice(src);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_set_angular_velocity(
+    b: *mut ros_imu_builder_t,
+    x: f64,
+    y: f64,
+    z: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.angular_velocity = Vector3 { x, y, z };
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_set_angular_velocity_covariance(
+    b: *mut ros_imu_builder_t,
+    cov: *const f64,
+) {
+    if b.is_null() || cov.is_null() {
+        return;
+    }
+    unsafe {
+        let src = slice::from_raw_parts(cov, 9);
+        (*b).0.angular_velocity_covariance.copy_from_slice(src);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_set_linear_acceleration(
+    b: *mut ros_imu_builder_t,
+    x: f64,
+    y: f64,
+    z: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.linear_acceleration = Vector3 { x, y, z };
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_set_linear_acceleration_covariance(
+    b: *mut ros_imu_builder_t,
+    cov: *const f64,
+) {
+    if b.is_null() || cov.is_null() {
+        return;
+    }
+    unsafe {
+        let src = slice::from_raw_parts(cov, 9);
+        (*b).0.linear_acceleration_covariance.copy_from_slice(src);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_build(
+    b: *mut ros_imu_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = sensor_msgs::Imu::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .orientation(inner.orientation)
+        .orientation_covariance(inner.orientation_covariance)
+        .angular_velocity(inner.angular_velocity)
+        .angular_velocity_covariance(inner.angular_velocity_covariance)
+        .linear_acceleration(inner.linear_acceleration)
+        .linear_acceleration_covariance(inner.linear_acceleration_covariance)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_imu_builder_encode_into(
+    b: *mut ros_imu_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::Imu::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .orientation(inner.orientation)
+        .orientation_covariance(inner.orientation_covariance)
+        .angular_velocity(inner.angular_velocity)
+        .angular_velocity_covariance(inner.angular_velocity_covariance)
+        .linear_acceleration(inner.linear_acceleration)
+        .linear_acceleration_covariance(inner.linear_acceleration_covariance)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── sensor_msgs::NavSatFix ──────────────────────────────────────────
+
+struct NavSatFixBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    status: NavSatStatus,
+    latitude: f64,
+    longitude: f64,
+    altitude: f64,
+    position_covariance: [f64; 9],
+    position_covariance_type: u8,
+}
+
+pub struct ros_nav_sat_fix_builder_t(NavSatFixBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_new() -> *mut ros_nav_sat_fix_builder_t {
+    Box::into_raw(Box::new(ros_nav_sat_fix_builder_t(NavSatFixBuilderOwned {
+        stamp_sec: 0,
+        stamp_nanosec: 0,
+        frame_id: String::new(),
+        status: NavSatStatus {
+            status: 0,
+            service: 0,
+        },
+        latitude: 0.0,
+        longitude: 0.0,
+        altitude: 0.0,
+        position_covariance: [0.0; 9],
+        position_covariance_type: 0,
+    })))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_free(b: *mut ros_nav_sat_fix_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_set_stamp(
+    b: *mut ros_nav_sat_fix_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_set_frame_id(
+    b: *mut ros_nav_sat_fix_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = unsafe { c_to_str(s) };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_set_status(
+    b: *mut ros_nav_sat_fix_builder_t,
+    status: i8,
+    service: u16,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.status = NavSatStatus { status, service };
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_set_latitude(b: *mut ros_nav_sat_fix_builder_t, v: f64) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.latitude = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_set_longitude(b: *mut ros_nav_sat_fix_builder_t, v: f64) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.longitude = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_set_altitude(b: *mut ros_nav_sat_fix_builder_t, v: f64) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.altitude = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_set_position_covariance(
+    b: *mut ros_nav_sat_fix_builder_t,
+    cov: *const f64,
+) {
+    if b.is_null() || cov.is_null() {
+        return;
+    }
+    unsafe {
+        let src = slice::from_raw_parts(cov, 9);
+        (*b).0.position_covariance.copy_from_slice(src);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_set_position_covariance_type(
+    b: *mut ros_nav_sat_fix_builder_t,
+    v: u8,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.position_covariance_type = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_build(
+    b: *mut ros_nav_sat_fix_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = sensor_msgs::NavSatFix::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .status(inner.status)
+        .latitude(inner.latitude)
+        .longitude(inner.longitude)
+        .altitude(inner.altitude)
+        .position_covariance(inner.position_covariance)
+        .position_covariance_type(inner.position_covariance_type)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_builder_encode_into(
+    b: *mut ros_nav_sat_fix_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::NavSatFix::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .status(inner.status)
+        .latitude(inner.latitude)
+        .longitude(inner.longitude)
+        .altitude(inner.altitude)
+        .position_covariance(inner.position_covariance)
+        .position_covariance_type(inner.position_covariance_type)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── sensor_msgs::PointField ─────────────────────────────────────────
+
+struct PointFieldBuilderOwned {
+    name: String,
+    offset: u32,
+    datatype: u8,
+    count: u32,
+}
+
+pub struct ros_point_field_builder_t(PointFieldBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_point_field_builder_new() -> *mut ros_point_field_builder_t {
+    Box::into_raw(Box::new(ros_point_field_builder_t(
+        PointFieldBuilderOwned {
+            name: String::new(),
+            offset: 0,
+            datatype: 0,
+            count: 0,
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_field_builder_free(b: *mut ros_point_field_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_field_builder_set_name(
+    b: *mut ros_point_field_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = unsafe { c_to_str(s) };
+    unsafe {
+        (*b).0.name = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_field_builder_set_offset(b: *mut ros_point_field_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.offset = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_field_builder_set_datatype(b: *mut ros_point_field_builder_t, v: u8) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.datatype = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_field_builder_set_count(b: *mut ros_point_field_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.count = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_field_builder_build(
+    b: *mut ros_point_field_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = sensor_msgs::PointField::builder()
+        .name(inner.name.as_str())
+        .offset(inner.offset)
+        .datatype(inner.datatype)
+        .count(inner.count)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_field_builder_encode_into(
+    b: *mut ros_point_field_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::PointField::builder()
+        .name(inner.name.as_str())
+        .offset(inner.offset)
+        .datatype(inner.datatype)
+        .count(inner.count)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── sensor_msgs::PointCloud2 ────────────────────────────────────────
+//
+// Field-sequence elements are passed as a C-POD array of descriptors; each
+// descriptor names a field whose `name` string must outlive the next builder
+// setter/build/encode_into/free.
+
+/// C-POD descriptor for a single PointField element used by
+/// `ros_point_cloud2_builder_set_fields`. The `name` pointer is borrowed:
+/// the caller must keep the backing string alive until the next setter on
+/// the fields slot or the builder is freed.
+#[repr(C)]
+pub struct ros_point_field_elem_t {
+    pub name: *const c_char,
+    pub offset: u32,
+    pub datatype: u8,
+    pub count: u32,
+}
+
+struct PointCloud2BuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    height: u32,
+    width: u32,
+    fields: *const ros_point_field_elem_t,
+    fields_count: usize,
+    is_bigendian: bool,
+    point_step: u32,
+    row_step: u32,
+    data: *const u8,
+    data_len: usize,
+    is_dense: bool,
+}
+
+pub struct ros_point_cloud2_builder_t(PointCloud2BuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_new() -> *mut ros_point_cloud2_builder_t {
+    Box::into_raw(Box::new(ros_point_cloud2_builder_t(
+        PointCloud2BuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            height: 0,
+            width: 0,
+            fields: ptr::null(),
+            fields_count: 0,
+            is_bigendian: false,
+            point_step: 0,
+            row_step: 0,
+            data: ptr::null(),
+            data_len: 0,
+            is_dense: false,
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_free(b: *mut ros_point_cloud2_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_set_stamp(
+    b: *mut ros_point_cloud2_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_set_frame_id(
+    b: *mut ros_point_cloud2_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = unsafe { c_to_str(s) };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_set_height(b: *mut ros_point_cloud2_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.height = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_set_width(b: *mut ros_point_cloud2_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.width = v;
+    }
+}
+
+/// Set the field descriptor sequence (BORROWED — `fields` and every `name`
+/// pointer inside it must remain valid until the next setter on the fields
+/// slot, a subsequent build/encode_into, or free).
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_set_fields(
+    b: *mut ros_point_cloud2_builder_t,
+    fields: *const ros_point_field_elem_t,
+    count: usize,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.fields = fields;
+        (*b).0.fields_count = count;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_set_is_bigendian(
+    b: *mut ros_point_cloud2_builder_t,
+    v: bool,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.is_bigendian = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_set_point_step(
+    b: *mut ros_point_cloud2_builder_t,
+    v: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.point_step = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_set_row_step(
+    b: *mut ros_point_cloud2_builder_t,
+    v: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.row_step = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_set_data(
+    b: *mut ros_point_cloud2_builder_t,
+    data: *const u8,
+    len: usize,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.data = data;
+        (*b).0.data_len = len;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_set_is_dense(
+    b: *mut ros_point_cloud2_builder_t,
+    v: bool,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.is_dense = v;
+    }
+}
+
+fn ros_point_cloud2_builder_data_slice(inner: &PointCloud2BuilderOwned) -> &[u8] {
+    if inner.data.is_null() || inner.data_len == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(inner.data, inner.data_len) }
+    }
+}
+
+/// Materialise PointFieldView borrowers from the owned C-POD descriptor array.
+///
+/// # Safety
+/// Each descriptor's `name` pointer must be a valid NUL-terminated C string
+/// (or NULL, treated as "") whose backing storage outlives the returned Vec.
+unsafe fn point_cloud2_fields_to_views(inner: &PointCloud2BuilderOwned) -> Vec<PointFieldView<'_>> {
+    if inner.fields.is_null() || inner.fields_count == 0 {
+        return Vec::new();
+    }
+    let descs = slice::from_raw_parts(inner.fields, inner.fields_count);
+    descs
+        .iter()
+        .map(|d| PointFieldView {
+            name: c_to_str(d.name),
+            offset: d.offset,
+            datatype: d.datatype,
+            count: d.count,
+        })
+        .collect()
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_build(
+    b: *mut ros_point_cloud2_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let data_slice = ros_point_cloud2_builder_data_slice(inner);
+    let fields = unsafe { point_cloud2_fields_to_views(inner) };
+    let r = sensor_msgs::PointCloud2::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .height(inner.height)
+        .width(inner.width)
+        .fields(&fields)
+        .is_bigendian(inner.is_bigendian)
+        .point_step(inner.point_step)
+        .row_step(inner.row_step)
+        .data(data_slice)
+        .is_dense(inner.is_dense)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_builder_encode_into(
+    b: *mut ros_point_cloud2_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let data_slice = ros_point_cloud2_builder_data_slice(inner);
+    let fields = unsafe { point_cloud2_fields_to_views(inner) };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::PointCloud2::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .height(inner.height)
+        .width(inner.width)
+        .fields(&fields)
+        .is_bigendian(inner.is_bigendian)
+        .point_step(inner.point_step)
+        .row_step(inner.row_step)
+        .data(data_slice)
+        .is_dense(inner.is_dense)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── sensor_msgs::CameraInfo ─────────────────────────────────────────
+
+struct CameraInfoBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    height: u32,
+    width: u32,
+    distortion_model: String,
+    d: *const f64,
+    d_len: usize,
+    k: [f64; 9],
+    r: [f64; 9],
+    p: [f64; 12],
+    binning_x: u32,
+    binning_y: u32,
+    roi: RegionOfInterest,
+}
+
+pub struct ros_camera_info_builder_t(CameraInfoBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_new() -> *mut ros_camera_info_builder_t {
+    Box::into_raw(Box::new(ros_camera_info_builder_t(
+        CameraInfoBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            height: 0,
+            width: 0,
+            distortion_model: String::new(),
+            d: ptr::null(),
+            d_len: 0,
+            k: [0.0; 9],
+            r: [0.0; 9],
+            p: [0.0; 12],
+            binning_x: 0,
+            binning_y: 0,
+            roi: RegionOfInterest {
+                x_offset: 0,
+                y_offset: 0,
+                height: 0,
+                width: 0,
+                do_rectify: false,
+            },
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_free(b: *mut ros_camera_info_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_stamp(
+    b: *mut ros_camera_info_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_frame_id(
+    b: *mut ros_camera_info_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = unsafe { c_to_str(s) };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_height(b: *mut ros_camera_info_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.height = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_width(b: *mut ros_camera_info_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.width = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_distortion_model(
+    b: *mut ros_camera_info_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = unsafe { c_to_str(s) };
+    unsafe {
+        (*b).0.distortion_model = s_str.to_string();
+    }
+    0
+}
+
+/// Set the distortion coefficients (BORROWED `[f64; d_len]` slice —
+/// the pointer must remain valid until the next setter on this slot,
+/// a subsequent build/encode_into, or free).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_d(
+    b: *mut ros_camera_info_builder_t,
+    data: *const f64,
+    len: usize,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.d = data;
+        (*b).0.d_len = len;
+    }
+}
+
+/// Copy 9 f64 elements from `k` into the intrinsics matrix (row-major 3x3).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_k(b: *mut ros_camera_info_builder_t, k: *const f64) {
+    if b.is_null() || k.is_null() {
+        return;
+    }
+    unsafe {
+        let src = slice::from_raw_parts(k, 9);
+        (*b).0.k.copy_from_slice(src);
+    }
+}
+
+/// Copy 9 f64 elements from `r` into the rectification matrix (row-major 3x3).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_r(b: *mut ros_camera_info_builder_t, r: *const f64) {
+    if b.is_null() || r.is_null() {
+        return;
+    }
+    unsafe {
+        let src = slice::from_raw_parts(r, 9);
+        (*b).0.r.copy_from_slice(src);
+    }
+}
+
+/// Copy 12 f64 elements from `p` into the projection matrix (row-major 3x4).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_p(b: *mut ros_camera_info_builder_t, p: *const f64) {
+    if b.is_null() || p.is_null() {
+        return;
+    }
+    unsafe {
+        let src = slice::from_raw_parts(p, 12);
+        (*b).0.p.copy_from_slice(src);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_binning_x(b: *mut ros_camera_info_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.binning_x = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_binning_y(b: *mut ros_camera_info_builder_t, v: u32) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.binning_y = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_set_roi(
+    b: *mut ros_camera_info_builder_t,
+    x_offset: u32,
+    y_offset: u32,
+    height: u32,
+    width: u32,
+    do_rectify: u8,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.roi = RegionOfInterest {
+            x_offset,
+            y_offset,
+            height,
+            width,
+            do_rectify: do_rectify != 0,
+        };
+    }
+}
+
+fn ros_camera_info_builder_d_slice(inner: &CameraInfoBuilderOwned) -> &[f64] {
+    if inner.d.is_null() || inner.d_len == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(inner.d, inner.d_len) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_build(
+    b: *mut ros_camera_info_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let d_slice = ros_camera_info_builder_d_slice(inner);
+    let r = sensor_msgs::CameraInfo::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .height(inner.height)
+        .width(inner.width)
+        .distortion_model(inner.distortion_model.as_str())
+        .d(d_slice)
+        .k(inner.k)
+        .r(inner.r)
+        .p(inner.p)
+        .binning_x(inner.binning_x)
+        .binning_y(inner.binning_y)
+        .roi(inner.roi)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_camera_info_builder_encode_into(
+    b: *mut ros_camera_info_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let d_slice = ros_camera_info_builder_d_slice(inner);
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::CameraInfo::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .height(inner.height)
+        .width(inner.width)
+        .distortion_model(inner.distortion_model.as_str())
+        .d(d_slice)
+        .k(inner.k)
+        .r(inner.r)
+        .p(inner.p)
+        .binning_x(inner.binning_x)
+        .binning_y(inner.binning_y)
+        .roi(inner.roi)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── sensor_msgs::MagneticField ──────────────────────────────────────
+
+struct MagneticFieldBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    magnetic_field: Vector3,
+    magnetic_field_covariance: [f64; 9],
+}
+
+pub struct ros_magnetic_field_builder_t(MagneticFieldBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_builder_new() -> *mut ros_magnetic_field_builder_t {
+    Box::into_raw(Box::new(ros_magnetic_field_builder_t(
+        MagneticFieldBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            magnetic_field: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            magnetic_field_covariance: [0.0; 9],
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_builder_free(b: *mut ros_magnetic_field_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_builder_set_stamp(
+    b: *mut ros_magnetic_field_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_builder_set_frame_id(
+    b: *mut ros_magnetic_field_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = unsafe { c_to_str(s) };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_builder_set_magnetic_field(
+    b: *mut ros_magnetic_field_builder_t,
+    x: f64,
+    y: f64,
+    z: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.magnetic_field = Vector3 { x, y, z };
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_builder_set_magnetic_field_covariance(
+    b: *mut ros_magnetic_field_builder_t,
+    cov: *const f64,
+) {
+    if b.is_null() || cov.is_null() {
+        return;
+    }
+    unsafe {
+        let src = slice::from_raw_parts(cov, 9);
+        (*b).0.magnetic_field_covariance.copy_from_slice(src);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_builder_build(
+    b: *mut ros_magnetic_field_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = sensor_msgs::MagneticField::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .magnetic_field(inner.magnetic_field)
+        .magnetic_field_covariance(inner.magnetic_field_covariance)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_builder_encode_into(
+    b: *mut ros_magnetic_field_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::MagneticField::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .magnetic_field(inner.magnetic_field)
+        .magnetic_field_covariance(inner.magnetic_field_covariance)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// ── sensor_msgs::BatteryState ───────────────────────────────────────
+
+#[allow(clippy::struct_excessive_bools)]
+struct BatteryStateBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    voltage: f32,
+    temperature: f32,
+    current: f32,
+    charge: f32,
+    capacity: f32,
+    design_capacity: f32,
+    percentage: f32,
+    power_supply_status: u8,
+    power_supply_health: u8,
+    power_supply_technology: u8,
+    present: bool,
+    cell_voltage: *const f32,
+    cell_voltage_len: usize,
+    cell_temperature: *const f32,
+    cell_temperature_len: usize,
+    location: String,
+    serial_number: String,
+}
+
+pub struct ros_battery_state_builder_t(BatteryStateBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_new() -> *mut ros_battery_state_builder_t {
+    Box::into_raw(Box::new(ros_battery_state_builder_t(
+        BatteryStateBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            voltage: 0.0,
+            temperature: 0.0,
+            current: 0.0,
+            charge: 0.0,
+            capacity: 0.0,
+            design_capacity: 0.0,
+            percentage: 0.0,
+            power_supply_status: 0,
+            power_supply_health: 0,
+            power_supply_technology: 0,
+            present: false,
+            cell_voltage: ptr::null(),
+            cell_voltage_len: 0,
+            cell_temperature: ptr::null(),
+            cell_temperature_len: 0,
+            location: String::new(),
+            serial_number: String::new(),
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_free(b: *mut ros_battery_state_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_stamp(
+    b: *mut ros_battery_state_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_frame_id(
+    b: *mut ros_battery_state_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = unsafe { c_to_str(s) };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_voltage(
+    b: *mut ros_battery_state_builder_t,
+    v: f32,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.voltage = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_temperature(
+    b: *mut ros_battery_state_builder_t,
+    v: f32,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.temperature = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_current(
+    b: *mut ros_battery_state_builder_t,
+    v: f32,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.current = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_charge(
+    b: *mut ros_battery_state_builder_t,
+    v: f32,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.charge = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_capacity(
+    b: *mut ros_battery_state_builder_t,
+    v: f32,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.capacity = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_design_capacity(
+    b: *mut ros_battery_state_builder_t,
+    v: f32,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.design_capacity = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_percentage(
+    b: *mut ros_battery_state_builder_t,
+    v: f32,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.percentage = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_power_supply_status(
+    b: *mut ros_battery_state_builder_t,
+    v: u8,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.power_supply_status = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_power_supply_health(
+    b: *mut ros_battery_state_builder_t,
+    v: u8,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.power_supply_health = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_power_supply_technology(
+    b: *mut ros_battery_state_builder_t,
+    v: u8,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.power_supply_technology = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_present(
+    b: *mut ros_battery_state_builder_t,
+    v: bool,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.present = v;
+    }
+}
+
+/// Set the cell_voltage sequence (BORROWED `*const f32` — pointer must
+/// remain valid until the next setter on this slot, a subsequent
+/// build/encode_into, or free).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_cell_voltage(
+    b: *mut ros_battery_state_builder_t,
+    data: *const f32,
+    len: usize,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.cell_voltage = data;
+        (*b).0.cell_voltage_len = len;
+    }
+}
+
+/// Set the cell_temperature sequence (BORROWED `*const f32` — pointer must
+/// remain valid until the next setter on this slot, a subsequent
+/// build/encode_into, or free).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_cell_temperature(
+    b: *mut ros_battery_state_builder_t,
+    data: *const f32,
+    len: usize,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.cell_temperature = data;
+        (*b).0.cell_temperature_len = len;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_location(
+    b: *mut ros_battery_state_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = unsafe { c_to_str(s) };
+    unsafe {
+        (*b).0.location = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_set_serial_number(
+    b: *mut ros_battery_state_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = unsafe { c_to_str(s) };
+    unsafe {
+        (*b).0.serial_number = s_str.to_string();
+    }
+    0
+}
+
+fn ros_battery_state_cell_voltage_slice(inner: &BatteryStateBuilderOwned) -> &[f32] {
+    if inner.cell_voltage.is_null() || inner.cell_voltage_len == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(inner.cell_voltage, inner.cell_voltage_len) }
+    }
+}
+
+fn ros_battery_state_cell_temperature_slice(inner: &BatteryStateBuilderOwned) -> &[f32] {
+    if inner.cell_temperature.is_null() || inner.cell_temperature_len == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(inner.cell_temperature, inner.cell_temperature_len) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_build(
+    b: *mut ros_battery_state_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let cv = ros_battery_state_cell_voltage_slice(inner);
+    let ct = ros_battery_state_cell_temperature_slice(inner);
+    let r = sensor_msgs::BatteryState::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .voltage(inner.voltage)
+        .temperature(inner.temperature)
+        .current(inner.current)
+        .charge(inner.charge)
+        .capacity(inner.capacity)
+        .design_capacity(inner.design_capacity)
+        .percentage(inner.percentage)
+        .power_supply_status(inner.power_supply_status)
+        .power_supply_health(inner.power_supply_health)
+        .power_supply_technology(inner.power_supply_technology)
+        .present(inner.present)
+        .cell_voltage(cv)
+        .cell_temperature(ct)
+        .location(inner.location.as_str())
+        .serial_number(inner.serial_number.as_str())
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_battery_state_builder_encode_into(
+    b: *mut ros_battery_state_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let cv = ros_battery_state_cell_voltage_slice(inner);
+    let ct = ros_battery_state_cell_temperature_slice(inner);
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::BatteryState::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .voltage(inner.voltage)
+        .temperature(inner.temperature)
+        .current(inner.current)
+        .charge(inner.charge)
+        .capacity(inner.capacity)
+        .design_capacity(inner.design_capacity)
+        .percentage(inner.percentage)
+        .power_supply_status(inner.power_supply_status)
+        .power_supply_health(inner.power_supply_health)
+        .power_supply_technology(inner.power_supply_technology)
+        .present(inner.present)
+        .cell_voltage(cv)
+        .cell_temperature(ct)
+        .location(inner.location.as_str())
+        .serial_number(inner.serial_number.as_str())
         .encode_into_slice(dst);
     match r {
         Ok(n) => {

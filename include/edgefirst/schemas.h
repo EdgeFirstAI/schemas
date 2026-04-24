@@ -852,6 +852,65 @@ int ros_compressed_image_encode(uint8_t** out_bytes, size_t* out_len,
                                 const char* frame_id, const char* format,
                                 const uint8_t* data, size_t data_len);
 
+/* ----------------------------------------------------------------------------
+ * sensor_msgs - CompressedImage (builder, 3.2.0+)
+ * --------------------------------------------------------------------------*/
+
+/** @brief Opaque builder handle for ros_compressed_image_t messages. */
+typedef struct ros_compressed_image_builder_s ros_compressed_image_builder_t;
+
+/**
+ * @brief Create a new CompressedImage builder with zero-valued defaults.
+ * @return Opaque handle, or NULL on allocation failure. Free with
+ *         ros_compressed_image_builder_free.
+ */
+ros_compressed_image_builder_t* ros_compressed_image_builder_new(void);
+
+/** @brief Free a CompressedImage builder handle. NULL-safe. */
+void ros_compressed_image_builder_free(ros_compressed_image_builder_t* b);
+
+/** @brief Set the stamp field. */
+void ros_compressed_image_builder_set_stamp(ros_compressed_image_builder_t* b,
+                                            int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the frame_id field (string is copied into the builder).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ */
+int  ros_compressed_image_builder_set_frame_id(
+    ros_compressed_image_builder_t* b, const char* s);
+
+/**
+ * @brief Set the format field (string is copied), e.g. "jpeg", "png".
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ */
+int  ros_compressed_image_builder_set_format(
+    ros_compressed_image_builder_t* b, const char* s);
+
+/**
+ * @brief Set the compressed data bulk byte sequence (BORROWED — must remain
+ *        valid until the next setter, build, encode_into, or free call).
+ */
+void ros_compressed_image_builder_set_data(ros_compressed_image_builder_t* b,
+                                           const uint8_t* data, size_t len);
+
+/**
+ * @brief Allocate a fresh CDR buffer and encode the message.
+ * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
+ */
+int  ros_compressed_image_builder_build(ros_compressed_image_builder_t* b,
+                                        uint8_t** out_bytes, size_t* out_len);
+
+/**
+ * @brief Encode the message into a caller-owned buffer.
+ * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
+ *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
+ */
+int  ros_compressed_image_builder_encode_into(
+    ros_compressed_image_builder_t* b, uint8_t* buf, size_t cap,
+    size_t* out_len);
+
 /* ============================================================================
  * foxglove_msgs - CompressedVideo (buffer-backed)
  * ========================================================================= */
@@ -1221,6 +1280,78 @@ void ros_imu_get_linear_acceleration_covariance(const ros_imu_t* view, double* o
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_imu_as_cdr(const ros_imu_t* view, size_t* out_len);
 
+/* ----------------------------------------------------------------------------
+ * sensor_msgs - Imu (builder, 3.2.0+)
+ * --------------------------------------------------------------------------*/
+
+/** @brief Opaque builder handle for ros_imu_t messages. */
+typedef struct ros_imu_builder_s ros_imu_builder_t;
+
+/**
+ * @brief Create a new Imu builder with zero-valued defaults.
+ * @return Opaque handle, or NULL on allocation failure. Free with
+ *         ros_imu_builder_free.
+ */
+ros_imu_builder_t* ros_imu_builder_new(void);
+
+/** @brief Free an Imu builder handle. NULL-safe. */
+void ros_imu_builder_free(ros_imu_builder_t* b);
+
+/** @brief Set the stamp field. */
+void ros_imu_builder_set_stamp(ros_imu_builder_t* b,
+                               int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the frame_id field (string is copied into the builder).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ */
+int  ros_imu_builder_set_frame_id(ros_imu_builder_t* b, const char* s);
+
+/** @brief Set the orientation quaternion (x, y, z, w). */
+void ros_imu_builder_set_orientation(ros_imu_builder_t* b,
+                                     double x, double y, double z, double w);
+
+/**
+ * @brief Copy 9 f64 covariance values (row-major 3x3) into the builder.
+ * @param cov Pointer to a double[9] buffer. The caller must ensure at least
+ *            9 valid f64 elements are readable; values are copied.
+ */
+void ros_imu_builder_set_orientation_covariance(ros_imu_builder_t* b,
+                                                const double* cov);
+
+/** @brief Set the angular_velocity (rad/s, x, y, z). */
+void ros_imu_builder_set_angular_velocity(ros_imu_builder_t* b,
+                                          double x, double y, double z);
+
+/** @brief Copy 9 f64 covariance values for angular velocity. */
+void ros_imu_builder_set_angular_velocity_covariance(ros_imu_builder_t* b,
+                                                     const double* cov);
+
+/** @brief Set the linear_acceleration (m/s², x, y, z). */
+void ros_imu_builder_set_linear_acceleration(ros_imu_builder_t* b,
+                                             double x, double y, double z);
+
+/** @brief Copy 9 f64 covariance values for linear acceleration. */
+void ros_imu_builder_set_linear_acceleration_covariance(ros_imu_builder_t* b,
+                                                        const double* cov);
+
+/**
+ * @brief Allocate a fresh CDR buffer and encode the message.
+ * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
+ */
+int  ros_imu_builder_build(ros_imu_builder_t* b,
+                           uint8_t** out_bytes, size_t* out_len);
+
+/**
+ * @brief Encode the message into a caller-owned buffer.
+ * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
+ *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
+ */
+int  ros_imu_builder_encode_into(ros_imu_builder_t* b,
+                                 uint8_t* buf, size_t cap,
+                                 size_t* out_len);
+
 /* ============================================================================
  * sensor_msgs - NavSatFix (buffer-backed)
  * ========================================================================= */
@@ -1256,6 +1387,77 @@ double ros_nav_sat_fix_get_altitude(const ros_nav_sat_fix_t* view);
 
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_nav_sat_fix_as_cdr(const ros_nav_sat_fix_t* view, size_t* out_len);
+
+/* ----------------------------------------------------------------------------
+ * sensor_msgs - NavSatFix (builder, 3.2.0+)
+ * --------------------------------------------------------------------------*/
+
+/** @brief Opaque builder handle for ros_nav_sat_fix_t messages. */
+typedef struct ros_nav_sat_fix_builder_s ros_nav_sat_fix_builder_t;
+
+/**
+ * @brief Create a new NavSatFix builder with zero-valued defaults.
+ * @return Opaque handle, or NULL on allocation failure. Free with
+ *         ros_nav_sat_fix_builder_free.
+ */
+ros_nav_sat_fix_builder_t* ros_nav_sat_fix_builder_new(void);
+
+/** @brief Free a NavSatFix builder handle. NULL-safe. */
+void ros_nav_sat_fix_builder_free(ros_nav_sat_fix_builder_t* b);
+
+/** @brief Set the stamp field. */
+void ros_nav_sat_fix_builder_set_stamp(ros_nav_sat_fix_builder_t* b,
+                                       int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the frame_id field (string is copied into the builder).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ */
+int  ros_nav_sat_fix_builder_set_frame_id(ros_nav_sat_fix_builder_t* b,
+                                          const char* s);
+
+/**
+ * @brief Set the status field (NavSatStatus: int8 status + uint16 service).
+ */
+void ros_nav_sat_fix_builder_set_status(ros_nav_sat_fix_builder_t* b,
+                                        int8_t status, uint16_t service);
+
+/** @brief Set the latitude field (degrees). */
+void ros_nav_sat_fix_builder_set_latitude(ros_nav_sat_fix_builder_t* b,
+                                          double v);
+
+/** @brief Set the longitude field (degrees). */
+void ros_nav_sat_fix_builder_set_longitude(ros_nav_sat_fix_builder_t* b,
+                                           double v);
+
+/** @brief Set the altitude field (metres). */
+void ros_nav_sat_fix_builder_set_altitude(ros_nav_sat_fix_builder_t* b,
+                                          double v);
+
+/** @brief Copy 9 f64 position covariance values (row-major 3x3). */
+void ros_nav_sat_fix_builder_set_position_covariance(
+    ros_nav_sat_fix_builder_t* b, const double* cov);
+
+/** @brief Set the position_covariance_type field. */
+void ros_nav_sat_fix_builder_set_position_covariance_type(
+    ros_nav_sat_fix_builder_t* b, uint8_t v);
+
+/**
+ * @brief Allocate a fresh CDR buffer and encode the message.
+ * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
+ */
+int  ros_nav_sat_fix_builder_build(ros_nav_sat_fix_builder_t* b,
+                                   uint8_t** out_bytes, size_t* out_len);
+
+/**
+ * @brief Encode the message into a caller-owned buffer.
+ * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
+ *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
+ */
+int  ros_nav_sat_fix_builder_encode_into(ros_nav_sat_fix_builder_t* b,
+                                         uint8_t* buf, size_t cap,
+                                         size_t* out_len);
 
 /* ============================================================================
  * geometry_msgs - TransformStamped (buffer-backed)
@@ -1593,6 +1795,161 @@ uint32_t ros_point_cloud2_get_fields_len(const ros_point_cloud2_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_point_cloud2_as_cdr(const ros_point_cloud2_t* view, size_t* out_len);
 
+/* ----------------------------------------------------------------------------
+ * sensor_msgs - PointField (builder, 3.2.0+)
+ * --------------------------------------------------------------------------*/
+
+/** @brief Opaque builder handle for standalone PointField messages. */
+typedef struct ros_point_field_builder_s ros_point_field_builder_t;
+
+/**
+ * @brief Create a new PointField builder with zero-valued defaults.
+ * @return Opaque handle, or NULL on allocation failure. Free with
+ *         ros_point_field_builder_free.
+ */
+ros_point_field_builder_t* ros_point_field_builder_new(void);
+
+/** @brief Free a PointField builder handle. NULL-safe. */
+void ros_point_field_builder_free(ros_point_field_builder_t* b);
+
+/**
+ * @brief Set the name field (string is copied into the builder).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ */
+int  ros_point_field_builder_set_name(ros_point_field_builder_t* b,
+                                      const char* s);
+
+/** @brief Set the byte offset of this field within a point. */
+void ros_point_field_builder_set_offset(ros_point_field_builder_t* b,
+                                        uint32_t v);
+
+/** @brief Set the datatype code (INT8=1, UINT8=2, INT16=3, ..., FLOAT32=7, FLOAT64=8). */
+void ros_point_field_builder_set_datatype(ros_point_field_builder_t* b,
+                                          uint8_t v);
+
+/** @brief Set the number of elements of this datatype per point. */
+void ros_point_field_builder_set_count(ros_point_field_builder_t* b,
+                                       uint32_t v);
+
+/**
+ * @brief Allocate a fresh CDR buffer and encode the message.
+ * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
+ */
+int  ros_point_field_builder_build(ros_point_field_builder_t* b,
+                                   uint8_t** out_bytes, size_t* out_len);
+
+/**
+ * @brief Encode the message into a caller-owned buffer.
+ * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
+ *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
+ */
+int  ros_point_field_builder_encode_into(ros_point_field_builder_t* b,
+                                         uint8_t* buf, size_t cap,
+                                         size_t* out_len);
+
+/* ----------------------------------------------------------------------------
+ * sensor_msgs - PointCloud2 (builder, 3.2.0+)
+ * --------------------------------------------------------------------------*/
+
+/**
+ * @brief C-POD descriptor for one element of a PointCloud2 `fields` sequence.
+ *
+ * The `name` pointer is BORROWED: the caller must keep the backing
+ * NUL-terminated string alive (and the enclosing array) until the next
+ * `ros_point_cloud2_builder_set_fields` call on the builder, the next
+ * `build`/`encode_into`, or `free`.
+ */
+typedef struct ros_point_field_elem_s {
+    const char* name;
+    uint32_t    offset;
+    uint8_t     datatype;
+    uint32_t    count;
+} ros_point_field_elem_t;
+
+/** @brief Opaque builder handle for ros_point_cloud2_t messages. */
+typedef struct ros_point_cloud2_builder_s ros_point_cloud2_builder_t;
+
+/**
+ * @brief Create a new PointCloud2 builder with zero-valued defaults.
+ * @return Opaque handle, or NULL on allocation failure. Free with
+ *         ros_point_cloud2_builder_free.
+ */
+ros_point_cloud2_builder_t* ros_point_cloud2_builder_new(void);
+
+/** @brief Free a PointCloud2 builder handle. NULL-safe. */
+void ros_point_cloud2_builder_free(ros_point_cloud2_builder_t* b);
+
+/** @brief Set the stamp field. */
+void ros_point_cloud2_builder_set_stamp(ros_point_cloud2_builder_t* b,
+                                        int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the frame_id field (string is copied into the builder).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ */
+int  ros_point_cloud2_builder_set_frame_id(ros_point_cloud2_builder_t* b,
+                                           const char* s);
+
+/** @brief Set the cloud height (number of rows). */
+void ros_point_cloud2_builder_set_height(ros_point_cloud2_builder_t* b,
+                                         uint32_t v);
+
+/** @brief Set the cloud width (number of points per row). */
+void ros_point_cloud2_builder_set_width(ros_point_cloud2_builder_t* b,
+                                        uint32_t v);
+
+/**
+ * @brief Set the field descriptor array (BORROWED — both the array and
+ *        each element's `name` pointer must remain valid until the next
+ *        setter on this slot, build, encode_into, or free call).
+ * @param fields Array of `count` ros_point_field_elem_t descriptors
+ * @param count  Number of descriptors
+ */
+void ros_point_cloud2_builder_set_fields(
+    ros_point_cloud2_builder_t* b,
+    const ros_point_field_elem_t* fields, size_t count);
+
+/** @brief Set the is_bigendian flag. */
+void ros_point_cloud2_builder_set_is_bigendian(
+    ros_point_cloud2_builder_t* b, bool v);
+
+/** @brief Set the point_step (bytes per point). */
+void ros_point_cloud2_builder_set_point_step(ros_point_cloud2_builder_t* b,
+                                             uint32_t v);
+
+/** @brief Set the row_step (bytes per row). */
+void ros_point_cloud2_builder_set_row_step(ros_point_cloud2_builder_t* b,
+                                           uint32_t v);
+
+/**
+ * @brief Set the data bulk byte sequence (BORROWED — must remain valid
+ *        until the next setter, build, encode_into, or free call).
+ */
+void ros_point_cloud2_builder_set_data(ros_point_cloud2_builder_t* b,
+                                       const uint8_t* data, size_t len);
+
+/** @brief Set the is_dense flag (true iff no invalid points). */
+void ros_point_cloud2_builder_set_is_dense(ros_point_cloud2_builder_t* b,
+                                           bool v);
+
+/**
+ * @brief Allocate a fresh CDR buffer and encode the message.
+ * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
+ */
+int  ros_point_cloud2_builder_build(ros_point_cloud2_builder_t* b,
+                                    uint8_t** out_bytes, size_t* out_len);
+
+/**
+ * @brief Encode the message into a caller-owned buffer.
+ * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
+ *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
+ */
+int  ros_point_cloud2_builder_encode_into(ros_point_cloud2_builder_t* b,
+                                          uint8_t* buf, size_t cap,
+                                          size_t* out_len);
+
 /* ============================================================================
  * sensor_msgs - CameraInfo (buffer-backed)
  * ========================================================================= */
@@ -1634,6 +1991,103 @@ uint32_t ros_camera_info_get_binning_y(const ros_camera_info_t* view);
 
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_camera_info_as_cdr(const ros_camera_info_t* view, size_t* out_len);
+
+/* ----------------------------------------------------------------------------
+ * sensor_msgs - CameraInfo (builder, 3.2.0+)
+ * --------------------------------------------------------------------------*/
+
+/** @brief Opaque builder handle for ros_camera_info_t messages. */
+typedef struct ros_camera_info_builder_s ros_camera_info_builder_t;
+
+/**
+ * @brief Create a new CameraInfo builder with zero-valued defaults.
+ * @return Opaque handle, or NULL on allocation failure. Free with
+ *         ros_camera_info_builder_free.
+ */
+ros_camera_info_builder_t* ros_camera_info_builder_new(void);
+
+/** @brief Free a CameraInfo builder handle. NULL-safe. */
+void ros_camera_info_builder_free(ros_camera_info_builder_t* b);
+
+/** @brief Set the stamp field. */
+void ros_camera_info_builder_set_stamp(ros_camera_info_builder_t* b,
+                                       int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the frame_id field (string is copied into the builder).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ */
+int  ros_camera_info_builder_set_frame_id(ros_camera_info_builder_t* b,
+                                          const char* s);
+
+/** @brief Set the image height in pixels. */
+void ros_camera_info_builder_set_height(ros_camera_info_builder_t* b,
+                                        uint32_t v);
+
+/** @brief Set the image width in pixels. */
+void ros_camera_info_builder_set_width(ros_camera_info_builder_t* b,
+                                       uint32_t v);
+
+/**
+ * @brief Set the distortion model string (copied), e.g. "plumb_bob".
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ */
+int  ros_camera_info_builder_set_distortion_model(
+    ros_camera_info_builder_t* b, const char* s);
+
+/**
+ * @brief Set the distortion coefficients `d` (BORROWED `double[len]` — the
+ *        pointer must remain valid until the next setter on this slot,
+ *        build, encode_into, or free call).
+ */
+void ros_camera_info_builder_set_d(ros_camera_info_builder_t* b,
+                                   const double* data, size_t len);
+
+/** @brief Copy 9 f64 intrinsics matrix elements (row-major 3x3). */
+void ros_camera_info_builder_set_k(ros_camera_info_builder_t* b,
+                                   const double* k);
+
+/** @brief Copy 9 f64 rectification matrix elements (row-major 3x3). */
+void ros_camera_info_builder_set_r(ros_camera_info_builder_t* b,
+                                   const double* r);
+
+/** @brief Copy 12 f64 projection matrix elements (row-major 3x4). */
+void ros_camera_info_builder_set_p(ros_camera_info_builder_t* b,
+                                   const double* p);
+
+/** @brief Set the horizontal binning factor. */
+void ros_camera_info_builder_set_binning_x(ros_camera_info_builder_t* b,
+                                           uint32_t v);
+
+/** @brief Set the vertical binning factor. */
+void ros_camera_info_builder_set_binning_y(ros_camera_info_builder_t* b,
+                                           uint32_t v);
+
+/**
+ * @brief Set the RegionOfInterest (ROI) via its primitive fields.
+ * @param do_rectify Non-zero = true, zero = false.
+ */
+void ros_camera_info_builder_set_roi(ros_camera_info_builder_t* b,
+                                     uint32_t x_offset, uint32_t y_offset,
+                                     uint32_t height, uint32_t width,
+                                     uint8_t do_rectify);
+
+/**
+ * @brief Allocate a fresh CDR buffer and encode the message.
+ * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
+ */
+int  ros_camera_info_builder_build(ros_camera_info_builder_t* b,
+                                   uint8_t** out_bytes, size_t* out_len);
+
+/**
+ * @brief Encode the message into a caller-owned buffer.
+ * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
+ *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
+ */
+int  ros_camera_info_builder_encode_into(ros_camera_info_builder_t* b,
+                                         uint8_t* buf, size_t cap,
+                                         size_t* out_len);
 
 /* ============================================================================
  * edgefirst_msgs - Track (buffer-backed)
@@ -1791,6 +2245,59 @@ void ros_magnetic_field_get_magnetic_field_covariance(
     const ros_magnetic_field_t* view, double* out);
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_magnetic_field_as_cdr(const ros_magnetic_field_t* view, size_t* out_len);
+
+/* ----------------------------------------------------------------------------
+ * sensor_msgs - MagneticField (builder, 3.2.0+)
+ * --------------------------------------------------------------------------*/
+
+/** @brief Opaque builder handle for ros_magnetic_field_t messages. */
+typedef struct ros_magnetic_field_builder_s ros_magnetic_field_builder_t;
+
+/**
+ * @brief Create a new MagneticField builder with zero-valued defaults.
+ * @return Opaque handle, or NULL on allocation failure. Free with
+ *         ros_magnetic_field_builder_free.
+ */
+ros_magnetic_field_builder_t* ros_magnetic_field_builder_new(void);
+
+/** @brief Free a MagneticField builder handle. NULL-safe. */
+void ros_magnetic_field_builder_free(ros_magnetic_field_builder_t* b);
+
+/** @brief Set the stamp field. */
+void ros_magnetic_field_builder_set_stamp(ros_magnetic_field_builder_t* b,
+                                          int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the frame_id field (string is copied into the builder).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ */
+int  ros_magnetic_field_builder_set_frame_id(
+    ros_magnetic_field_builder_t* b, const char* s);
+
+/** @brief Set the magnetic_field vector (Tesla, x, y, z). */
+void ros_magnetic_field_builder_set_magnetic_field(
+    ros_magnetic_field_builder_t* b, double x, double y, double z);
+
+/** @brief Copy 9 f64 covariance values (row-major 3x3). */
+void ros_magnetic_field_builder_set_magnetic_field_covariance(
+    ros_magnetic_field_builder_t* b, const double* cov);
+
+/**
+ * @brief Allocate a fresh CDR buffer and encode the message.
+ * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
+ */
+int  ros_magnetic_field_builder_build(ros_magnetic_field_builder_t* b,
+                                      uint8_t** out_bytes, size_t* out_len);
+
+/**
+ * @brief Encode the message into a caller-owned buffer.
+ * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
+ *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
+ */
+int  ros_magnetic_field_builder_encode_into(
+    ros_magnetic_field_builder_t* b, uint8_t* buf, size_t cap,
+    size_t* out_len);
 
 /* =========================================================================
  * sensor_msgs/FluidPressure  (buffer-backed, decode-only)
@@ -1987,6 +2494,106 @@ uint32_t ros_battery_state_get_cell_temperature(const ros_battery_state_t* view,
 const char* ros_battery_state_get_location(const ros_battery_state_t* view);
 const char* ros_battery_state_get_serial_number(const ros_battery_state_t* view);
 const uint8_t* ros_battery_state_as_cdr(const ros_battery_state_t* view, size_t* out_len);
+
+/* ----------------------------------------------------------------------------
+ * sensor_msgs - BatteryState (builder, 3.2.0+)
+ * --------------------------------------------------------------------------*/
+
+/** @brief Opaque builder handle for ros_battery_state_t messages. */
+typedef struct ros_battery_state_builder_s ros_battery_state_builder_t;
+
+/**
+ * @brief Create a new BatteryState builder with zero-valued defaults.
+ * @return Opaque handle, or NULL on allocation failure. Free with
+ *         ros_battery_state_builder_free.
+ */
+ros_battery_state_builder_t* ros_battery_state_builder_new(void);
+
+/** @brief Free a BatteryState builder handle. NULL-safe. */
+void ros_battery_state_builder_free(ros_battery_state_builder_t* b);
+
+/** @brief Set the stamp field. */
+void ros_battery_state_builder_set_stamp(ros_battery_state_builder_t* b,
+                                         int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the frame_id field (string is copied into the builder).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ */
+int  ros_battery_state_builder_set_frame_id(
+    ros_battery_state_builder_t* b, const char* s);
+
+/** @brief Set the pack voltage (volts). */
+void ros_battery_state_builder_set_voltage(ros_battery_state_builder_t* b, float v);
+/** @brief Set the pack temperature (Celsius). */
+void ros_battery_state_builder_set_temperature(ros_battery_state_builder_t* b, float v);
+/** @brief Set the instantaneous current (amps; negative = discharging). */
+void ros_battery_state_builder_set_current(ros_battery_state_builder_t* b, float v);
+/** @brief Set the current charge (amp-hours). */
+void ros_battery_state_builder_set_charge(ros_battery_state_builder_t* b, float v);
+/** @brief Set the pack capacity (amp-hours). */
+void ros_battery_state_builder_set_capacity(ros_battery_state_builder_t* b, float v);
+/** @brief Set the design capacity (amp-hours). */
+void ros_battery_state_builder_set_design_capacity(ros_battery_state_builder_t* b, float v);
+/** @brief Set the charge percentage (0.0 to 1.0). */
+void ros_battery_state_builder_set_percentage(ros_battery_state_builder_t* b, float v);
+/** @brief Set the power_supply_status enum (see ROS_BATTERY_STATE_POWER_SUPPLY_STATUS_*). */
+void ros_battery_state_builder_set_power_supply_status(
+    ros_battery_state_builder_t* b, uint8_t v);
+/** @brief Set the power_supply_health enum (see ROS_BATTERY_STATE_POWER_SUPPLY_HEALTH_*). */
+void ros_battery_state_builder_set_power_supply_health(
+    ros_battery_state_builder_t* b, uint8_t v);
+/** @brief Set the power_supply_technology enum (see ROS_BATTERY_STATE_POWER_SUPPLY_TECHNOLOGY_*). */
+void ros_battery_state_builder_set_power_supply_technology(
+    ros_battery_state_builder_t* b, uint8_t v);
+/** @brief Set the present flag. */
+void ros_battery_state_builder_set_present(
+    ros_battery_state_builder_t* b, bool v);
+
+/**
+ * @brief Set the cell_voltage array (BORROWED `float[len]` — must remain
+ *        valid until the next setter on this slot, build, encode_into, or free).
+ */
+void ros_battery_state_builder_set_cell_voltage(
+    ros_battery_state_builder_t* b, const float* data, size_t len);
+
+/**
+ * @brief Set the cell_temperature array (BORROWED `float[len]` — must remain
+ *        valid until the next setter on this slot, build, encode_into, or free).
+ */
+void ros_battery_state_builder_set_cell_temperature(
+    ros_battery_state_builder_t* b, const float* data, size_t len);
+
+/**
+ * @brief Set the location field (string is copied into the builder).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ */
+int  ros_battery_state_builder_set_location(
+    ros_battery_state_builder_t* b, const char* s);
+
+/**
+ * @brief Set the serial_number field (string is copied into the builder).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle).
+ */
+int  ros_battery_state_builder_set_serial_number(
+    ros_battery_state_builder_t* b, const char* s);
+
+/**
+ * @brief Allocate a fresh CDR buffer and encode the message.
+ * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
+ */
+int  ros_battery_state_builder_build(ros_battery_state_builder_t* b,
+                                     uint8_t** out_bytes, size_t* out_len);
+
+/**
+ * @brief Encode the message into a caller-owned buffer.
+ * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
+ *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
+ */
+int  ros_battery_state_builder_encode_into(
+    ros_battery_state_builder_t* b, uint8_t* buf, size_t cap,
+    size_t* out_len);
 
 /* =========================================================================
  * nav_msgs/Odometry  (buffer-backed, decode-only)
