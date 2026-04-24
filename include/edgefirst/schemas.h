@@ -3198,6 +3198,1756 @@ int  ros_foxglove_image_annotation_builder_encode_into(
     ros_foxglove_image_annotation_builder_t* b,
     uint8_t* buf, size_t cap, size_t* out_len);
 
+/* ============================================================================
+ * In-place scalar setters (3.2.0+)
+ *
+ * Stateless mutators over a caller-owned CDR buffer. Each call re-parses the
+ * buffer via from_cdr to locate the field, then writes the new value in
+ * place. Only fixed-size fields are exposed — variable-length fields
+ * (strings, bulk data, nested sequences) require the builder API.
+ *
+ * Signature: ros_<type>_set_<field>(buf, len, value...) -> int32_t
+ *   buf:  uint8_t* — CDR buffer to mutate
+ *   len:  size_t   — buffer length (must match the encoded CDR length)
+ *   ...:  primitive field args
+ * Returns:
+ *   0           — success
+ *   -1, EINVAL  — NULL buf
+ *   -1, EBADMSG — buffer not a valid encoded message of this type
+ * ========================================================================= */
+
+/* ---- std_msgs - Header ---- */
+
+/**
+ * @brief Set the stamp field in place on an existing CDR-encoded Header buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_header_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/* ---- sensor_msgs - Image ---- */
+
+/**
+ * @brief Set the stamp field in place on an existing CDR-encoded Image buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_image_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the height field in place on an Image buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_image_set_height(uint8_t* buf, size_t len, uint32_t v);
+
+/**
+ * @brief Set the width field in place on an Image buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_image_set_width(uint8_t* buf, size_t len, uint32_t v);
+
+/**
+ * @brief Set the is_bigendian field in place on an Image buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_image_set_is_bigendian(uint8_t* buf, size_t len, uint8_t v);
+
+/**
+ * @brief Set the step (row stride) field in place on an Image buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_image_set_step(uint8_t* buf, size_t len, uint32_t v);
+
+/* ---- sensor_msgs - CompressedImage ---- */
+
+/**
+ * @brief Set the stamp field in place on a CompressedImage buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_compressed_image_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/* ---- sensor_msgs - Imu ---- */
+
+/**
+ * @brief Set the stamp field in place on an Imu buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_imu_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the orientation (Quaternion) field in place on an Imu buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_imu_set_orientation(uint8_t* buf, size_t len, double x, double y, double z, double w);
+
+/**
+ * @brief Set the 3x3 orientation covariance (row-major, 9 f64 elements) in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_imu_set_orientation_covariance(uint8_t* buf, size_t len, const double* c);
+
+/**
+ * @brief Set the angular_velocity (Vector3) field in place on an Imu buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_imu_set_angular_velocity(uint8_t* buf, size_t len, double x, double y, double z);
+
+/**
+ * @brief Set the 3x3 angular velocity covariance (row-major, 9 f64 elements) in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_imu_set_angular_velocity_covariance(uint8_t* buf, size_t len, const double* c);
+
+/**
+ * @brief Set the linear_acceleration (Vector3) field in place on an Imu buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_imu_set_linear_acceleration(uint8_t* buf, size_t len, double x, double y, double z);
+
+/**
+ * @brief Set the 3x3 linear acceleration covariance (row-major, 9 f64 elements) in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_imu_set_linear_acceleration_covariance(uint8_t* buf, size_t len, const double* c);
+
+/* ---- sensor_msgs - NavSatFix ---- */
+
+/**
+ * @brief Set the stamp field in place on a NavSatFix buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_nav_sat_fix_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the NavSatStatus in place on a NavSatFix buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_nav_sat_fix_set_status(uint8_t* buf, size_t len, int8_t status, uint16_t service);
+
+/**
+ * @brief Set the latitude field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_nav_sat_fix_set_latitude(uint8_t* buf, size_t len, double v);
+
+/**
+ * @brief Set the longitude field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_nav_sat_fix_set_longitude(uint8_t* buf, size_t len, double v);
+
+/**
+ * @brief Set the altitude field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_nav_sat_fix_set_altitude(uint8_t* buf, size_t len, double v);
+
+/**
+ * @brief Set the 3x3 position covariance (row-major, 9 f64 elements) in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_nav_sat_fix_set_position_covariance(uint8_t* buf, size_t len, const double* c);
+
+/**
+ * @brief Set the position_covariance_type in place on a NavSatFix buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_nav_sat_fix_set_position_covariance_type(uint8_t* buf, size_t len, uint8_t v);
+
+/* ---- sensor_msgs - PointField ---- */
+
+/**
+ * @brief Set the offset field in place on a PointField buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_point_field_set_offset(uint8_t* buf, size_t len, uint32_t v);
+
+/**
+ * @brief Set the datatype field in place on a PointField buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_point_field_set_datatype(uint8_t* buf, size_t len, uint8_t v);
+
+/**
+ * @brief Set the count field in place on a PointField buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_point_field_set_count(uint8_t* buf, size_t len, uint32_t v);
+
+/* ---- sensor_msgs - PointCloud2 ---- */
+
+/**
+ * @brief Set the stamp field in place on a PointCloud2 buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_point_cloud2_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the height field in place on a PointCloud2 buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_point_cloud2_set_height(uint8_t* buf, size_t len, uint32_t v);
+
+/**
+ * @brief Set the width field in place on a PointCloud2 buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_point_cloud2_set_width(uint8_t* buf, size_t len, uint32_t v);
+
+/**
+ * @brief Set the is_bigendian field in place on a PointCloud2 buffer (0=false, nonzero=true).
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_point_cloud2_set_is_bigendian(uint8_t* buf, size_t len, uint8_t v);
+
+/**
+ * @brief Set the point_step field in place on a PointCloud2 buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_point_cloud2_set_point_step(uint8_t* buf, size_t len, uint32_t v);
+
+/**
+ * @brief Set the row_step field in place on a PointCloud2 buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_point_cloud2_set_row_step(uint8_t* buf, size_t len, uint32_t v);
+
+/**
+ * @brief Set the is_dense field in place on a PointCloud2 buffer (0=false, nonzero=true).
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_point_cloud2_set_is_dense(uint8_t* buf, size_t len, uint8_t v);
+
+/* ---- sensor_msgs - CameraInfo ---- */
+
+/**
+ * @brief Set the stamp field in place on a CameraInfo buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_camera_info_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the height field in place on a CameraInfo buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_camera_info_set_height(uint8_t* buf, size_t len, uint32_t v);
+
+/**
+ * @brief Set the width field in place on a CameraInfo buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_camera_info_set_width(uint8_t* buf, size_t len, uint32_t v);
+
+/**
+ * @brief Set the 3x3 intrinsic matrix K (row-major, 9 f64 elements) in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_camera_info_set_k(uint8_t* buf, size_t len, const double* k);
+
+/**
+ * @brief Set the 3x3 rectification matrix R (row-major, 9 f64 elements) in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_camera_info_set_r(uint8_t* buf, size_t len, const double* r);
+
+/**
+ * @brief Set the 3x4 projection matrix P (row-major, 12 f64 elements) in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_camera_info_set_p(uint8_t* buf, size_t len, const double* p);
+
+/**
+ * @brief Set the binning_x field in place on a CameraInfo buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_camera_info_set_binning_x(uint8_t* buf, size_t len, uint32_t v);
+
+/**
+ * @brief Set the binning_y field in place on a CameraInfo buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_camera_info_set_binning_y(uint8_t* buf, size_t len, uint32_t v);
+
+/**
+ * @brief Set the RegionOfInterest (roi) field in place on a CameraInfo buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_camera_info_set_roi(uint8_t* buf, size_t len, uint32_t x_offset, uint32_t y_offset, uint32_t height, uint32_t width, uint8_t do_rectify);
+
+/* ---- sensor_msgs - MagneticField ---- */
+
+/**
+ * @brief Set the stamp field in place on a MagneticField buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_magnetic_field_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the magnetic_field (Vector3) in place on a MagneticField buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_magnetic_field_set_magnetic_field(uint8_t* buf, size_t len, double x, double y, double z);
+
+/**
+ * @brief Set the 3x3 magnetic field covariance (row-major, 9 f64 elements) in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_magnetic_field_set_magnetic_field_covariance(uint8_t* buf, size_t len, const double* c);
+
+/* ---- sensor_msgs - FluidPressure ---- */
+
+/**
+ * @brief Set the stamp field in place on a FluidPressure buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_fluid_pressure_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the fluid_pressure field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_fluid_pressure_set_fluid_pressure(uint8_t* buf, size_t len, double v);
+
+/**
+ * @brief Set the variance field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_fluid_pressure_set_variance(uint8_t* buf, size_t len, double v);
+
+/* ---- sensor_msgs - Temperature ---- */
+
+/**
+ * @brief Set the stamp field in place on a Temperature buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_temperature_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the temperature field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_temperature_set_temperature(uint8_t* buf, size_t len, double v);
+
+/**
+ * @brief Set the variance field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_temperature_set_variance(uint8_t* buf, size_t len, double v);
+
+/* ---- sensor_msgs - BatteryState ---- */
+
+/**
+ * @brief Set the stamp field in place on a BatteryState buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_battery_state_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the voltage field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_battery_state_set_voltage(uint8_t* buf, size_t len, float v);
+
+/**
+ * @brief Set the temperature field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_battery_state_set_temperature(uint8_t* buf, size_t len, float v);
+
+/**
+ * @brief Set the current field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_battery_state_set_current(uint8_t* buf, size_t len, float v);
+
+/**
+ * @brief Set the charge field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_battery_state_set_charge(uint8_t* buf, size_t len, float v);
+
+/**
+ * @brief Set the capacity field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_battery_state_set_capacity(uint8_t* buf, size_t len, float v);
+
+/**
+ * @brief Set the design_capacity field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_battery_state_set_design_capacity(uint8_t* buf, size_t len, float v);
+
+/**
+ * @brief Set the percentage field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_battery_state_set_percentage(uint8_t* buf, size_t len, float v);
+
+/**
+ * @brief Set the power_supply_status field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_battery_state_set_power_supply_status(uint8_t* buf, size_t len, uint8_t v);
+
+/**
+ * @brief Set the power_supply_health field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_battery_state_set_power_supply_health(uint8_t* buf, size_t len, uint8_t v);
+
+/**
+ * @brief Set the power_supply_technology field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_battery_state_set_power_supply_technology(uint8_t* buf, size_t len, uint8_t v);
+
+/**
+ * @brief Set the present field in place (0=false, nonzero=true).
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_battery_state_set_present(uint8_t* buf, size_t len, uint8_t v);
+
+/* ---- edgefirst_msgs - Mask ---- */
+
+/**
+ * @brief Set the height field in place on a Mask buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_mask_set_height(uint8_t* buf, size_t len, uint32_t v);
+
+/**
+ * @brief Set the width field in place on a Mask buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_mask_set_width(uint8_t* buf, size_t len, uint32_t v);
+
+/**
+ * @brief Set the length field in place on a Mask buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_mask_set_length(uint8_t* buf, size_t len, uint32_t v);
+
+/**
+ * @brief Set the boxed field in place (0=false, nonzero=true).
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_mask_set_boxed(uint8_t* buf, size_t len, uint8_t v);
+
+/* ---- edgefirst_msgs - LocalTime ---- */
+
+/**
+ * @brief Set the stamp field in place on a LocalTime buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_local_time_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the Date field in place on a LocalTime buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_local_time_set_date(uint8_t* buf, size_t len, uint16_t year, uint8_t month, uint8_t day);
+
+/**
+ * @brief Set the time (Time) field in place on a LocalTime buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_local_time_set_time(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the timezone field in place on a LocalTime buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_local_time_set_timezone(uint8_t* buf, size_t len, int16_t v);
+
+/* ---- edgefirst_msgs - RadarCube ---- */
+
+/**
+ * @brief Set the stamp field in place on a RadarCube buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_radar_cube_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the timestamp (u64 ns) field in place on a RadarCube buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_radar_cube_set_timestamp(uint8_t* buf, size_t len, uint64_t v);
+
+/**
+ * @brief Set the is_complex field in place (0=false, nonzero=true).
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_radar_cube_set_is_complex(uint8_t* buf, size_t len, uint8_t v);
+
+/* ---- edgefirst_msgs - RadarInfo ---- */
+
+/**
+ * @brief Set the stamp field in place on a RadarInfo buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_radar_info_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the cube field in place on a RadarInfo buffer (0=false, nonzero=true).
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_radar_info_set_cube(uint8_t* buf, size_t len, uint8_t v);
+
+/* ---- edgefirst_msgs - Track ---- */
+
+/**
+ * @brief Set the lifetime field in place on a Track buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_track_set_lifetime(uint8_t* buf, size_t len, int32_t v);
+
+/**
+ * @brief Set the created (Time) field in place on a Track buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_track_set_created(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/* ---- edgefirst_msgs - DetectBox ---- */
+
+/**
+ * @brief Set the center_x field in place on a DetectBox buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_detect_box_set_center_x(uint8_t* buf, size_t len, float v);
+
+/**
+ * @brief Set the center_y field in place on a DetectBox buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_detect_box_set_center_y(uint8_t* buf, size_t len, float v);
+
+/**
+ * @brief Set the width field in place on a DetectBox buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_detect_box_set_width(uint8_t* buf, size_t len, float v);
+
+/**
+ * @brief Set the height field in place on a DetectBox buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_detect_box_set_height(uint8_t* buf, size_t len, float v);
+
+/**
+ * @brief Set the score field in place on a DetectBox buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_detect_box_set_score(uint8_t* buf, size_t len, float v);
+
+/**
+ * @brief Set the distance field in place on a DetectBox buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_detect_box_set_distance(uint8_t* buf, size_t len, float v);
+
+/**
+ * @brief Set the speed field in place on a DetectBox buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_detect_box_set_speed(uint8_t* buf, size_t len, float v);
+
+/**
+ * @brief Set the track_lifetime field in place on a DetectBox buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_detect_box_set_track_lifetime(uint8_t* buf, size_t len, int32_t v);
+
+/**
+ * @brief Set the track_created (Time) field in place on a DetectBox buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_detect_box_set_track_created(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/* ---- edgefirst_msgs - Detect ---- */
+
+/**
+ * @brief Set the stamp (Time) field in place on a Detect buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_detect_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the input_timestamp (Time) field in place on a Detect buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_detect_set_input_timestamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the model_time (Time) field in place on a Detect buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_detect_set_model_time(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the output_time (Time) field in place on a Detect buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_detect_set_output_time(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/* ---- edgefirst_msgs - CameraFrame ---- */
+
+/**
+ * @brief Set the stamp field in place on a CameraFrame buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_camera_frame_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the seq field in place on a CameraFrame buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_camera_frame_set_seq(uint8_t* buf, size_t len, uint64_t v);
+
+/**
+ * @brief Set the pid field in place on a CameraFrame buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_camera_frame_set_pid(uint8_t* buf, size_t len, uint32_t v);
+
+/**
+ * @brief Set the width field in place on a CameraFrame buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_camera_frame_set_width(uint8_t* buf, size_t len, uint32_t v);
+
+/**
+ * @brief Set the height field in place on a CameraFrame buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_camera_frame_set_height(uint8_t* buf, size_t len, uint32_t v);
+
+/**
+ * @brief Set the fence_fd field in place on a CameraFrame buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_camera_frame_set_fence_fd(uint8_t* buf, size_t len, int32_t v);
+
+/* ---- edgefirst_msgs - Model ---- */
+
+/**
+ * @brief Set the stamp (Time) field in place on a Model buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_model_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the input_time (Duration) field in place on a Model buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_model_set_input_time(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the model_time (Duration) field in place on a Model buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_model_set_model_time(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the output_time (Duration) field in place on a Model buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_model_set_output_time(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the decode_time (Duration) field in place on a Model buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_model_set_decode_time(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/* ---- edgefirst_msgs - ModelInfo ---- */
+
+/**
+ * @brief Set the stamp field in place on a ModelInfo buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_model_info_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the input_type field in place on a ModelInfo buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_model_info_set_input_type(uint8_t* buf, size_t len, uint8_t v);
+
+/**
+ * @brief Set the output_type field in place on a ModelInfo buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_model_info_set_output_type(uint8_t* buf, size_t len, uint8_t v);
+
+/* ---- edgefirst_msgs - Vibration ---- */
+
+/**
+ * @brief Set the stamp field in place on a Vibration buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_vibration_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the vibration (Vector3) field in place on a Vibration buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_vibration_set_vibration(uint8_t* buf, size_t len, double x, double y, double z);
+
+/**
+ * @brief Set the band_lower_hz field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_vibration_set_band_lower_hz(uint8_t* buf, size_t len, float v);
+
+/**
+ * @brief Set the band_upper_hz field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_vibration_set_band_upper_hz(uint8_t* buf, size_t len, float v);
+
+/**
+ * @brief Set the measurement_type field in place on a Vibration buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_vibration_set_measurement_type(uint8_t* buf, size_t len, uint8_t v);
+
+/**
+ * @brief Set the unit field in place on a Vibration buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_vibration_set_unit(uint8_t* buf, size_t len, uint8_t v);
+
+/* ---- foxglove_msgs - FoxgloveCompressedVideo ---- */
+
+/**
+ * @brief Set the stamp field in place on a FoxgloveCompressedVideo buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_foxglove_compressed_video_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/* ---- foxglove_msgs - FoxgloveTextAnnotation ---- */
+
+/**
+ * @brief Set the timestamp field in place on a FoxgloveTextAnnotation buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_foxglove_text_annotation_set_timestamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the position (FoxglovePoint2) field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_foxglove_text_annotation_set_position(uint8_t* buf, size_t len, double x, double y);
+
+/**
+ * @brief Set the font_size field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_foxglove_text_annotation_set_font_size(uint8_t* buf, size_t len, double v);
+
+/**
+ * @brief Set the text_color (FoxgloveColor) field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_foxglove_text_annotation_set_text_color(uint8_t* buf, size_t len, double r, double g, double b, double a);
+
+/**
+ * @brief Set the background_color (FoxgloveColor) field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_foxglove_text_annotation_set_background_color(uint8_t* buf, size_t len, double r, double g, double b, double a);
+
+/* ---- foxglove_msgs - FoxglovePointAnnotation ---- */
+
+/**
+ * @brief Set the timestamp field in place on a FoxglovePointAnnotation buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_foxglove_point_annotation_set_timestamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief Set the type_ field in place on a FoxglovePointAnnotation buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_foxglove_point_annotation_set_type(uint8_t* buf, size_t len, uint8_t v);
+
+/**
+ * @brief Set the outline_color (FoxgloveColor) field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_foxglove_point_annotation_set_outline_color(uint8_t* buf, size_t len, double r, double g, double b, double a);
+
+/**
+ * @brief Set the fill_color (FoxgloveColor) field in place.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_foxglove_point_annotation_set_fill_color(uint8_t* buf, size_t len, double r, double g, double b, double a);
+
+/**
+ * @brief Set the thickness field in place on a FoxglovePointAnnotation buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_foxglove_point_annotation_set_thickness(uint8_t* buf, size_t len, double v);
+
 #ifdef __cplusplus
 }
 #endif

@@ -276,7 +276,7 @@ Every buffer-backed type provides these entry points:
 |----------|---------|
 | `ros_<type>_from_cdr(data, len)` | Zero-copy view over caller's CDR buffer (data must outlive handle) |
 | `ros_<type>_get_<field>(handle)` | Read a field (O(1), zero-copy for strings/blobs) |
-| `ros_<type>_set_<field>(handle, ...)` | Write a fixed-size field in place (no re-serialisation) |
+| `ros_<type>_set_<field>(buf, len, ...)` | Write a fixed-size field in place on a raw CDR buffer (no re-serialisation) |
 | `ros_<type>_as_cdr(handle, &len)` | Borrow the raw CDR buffer (points into caller's data) |
 | `ros_<type>_free(handle)` | Release the handle (does NOT free the source data) |
 | `ros_<type>_builder_new()` | Create a builder handle |
@@ -285,6 +285,26 @@ Every buffer-backed type provides these entry points:
 | `ros_<type>_builder_encode_into(b, buf, cap, &out_len)` | Encode into caller-owned buffer; errors if too small |
 | `ros_<type>_builder_free(b)` | Release the builder handle |
 | `ros_<type>_encode(...)` | **Deprecated** — one-shot encoder, removed in 4.0 |
+
+**When to use in-place setters vs. the builder.** Fixed-size fields
+(scalars, fixed-size arrays, CdrFixed struct fields like `Vector3`)
+can be mutated cheaply via `ros_<type>_set_<field>(buf, len, ...)` —
+this re-parses the CDR buffer to locate the field, then writes
+directly in place. No allocation, no re-serialisation.
+
+Variable-length fields (strings, byte sequences, nested view
+sequences) **cannot** be mutated in place because changing their
+length would shift every subsequent field. Use the builder API
+(`ros_<type>_builder_*`) for those — it re-serialises the whole
+buffer, reusing the existing allocation via `encode_into`.
+
+Rule of thumb: if the field's wire size can change, use the builder.
+Otherwise, use the in-place setter.
+
+In-place setters are stateless: the contract is `(buf, len,
+value...) -> int32_t` with `0` on success, `-1` with `errno=EINVAL`
+on NULL buffer, and `-1` with `errno=EBADMSG` when the buffer is
+not a valid encoding of that message type. They never allocate.
 
 ## Memory Management
 

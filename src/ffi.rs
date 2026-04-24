@@ -10801,3 +10801,3576 @@ pub extern "C" fn ros_foxglove_image_annotation_builder_encode_into(
         }
     }
 }
+
+// =============================================================================
+// In-place scalar setters (3.2.0+)
+//
+// Stateless mutators over a caller-owned CDR buffer. Each call re-parses the
+// buffer via from_cdr to locate the field, then writes the new value in place.
+// Only fixed-size fields are exposed — variable-length fields (strings, bulk
+// data, nested sequences) require the builder API.
+//
+// Signature: ros_<type>_set_<field>(buf, len, value...) -> i32
+//   buf:  *mut u8  — CDR buffer to mutate
+//   len:  usize    — buffer length (must match the encoded CDR length)
+//   ...:  primitive field args
+// Returns:
+//   0          — success
+//   -1, EINVAL — NULL buf
+//   -1, EBADMSG — buffer not a valid encoded message of this type
+// =============================================================================
+
+/// Set the stamp field in place on an existing CDR-encoded Header buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_header_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: std_msgs::Header<&mut [u8]> = match std_msgs::Header::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on an existing CDR-encoded Image buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_image_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Image<&mut [u8]> = match sensor_msgs::Image::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the height field in place on an Image buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_image_set_height(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Image<&mut [u8]> = match sensor_msgs::Image::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_height(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the width field in place on an Image buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_image_set_width(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Image<&mut [u8]> = match sensor_msgs::Image::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_width(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the is_bigendian field in place on an Image buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_image_set_is_bigendian(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Image<&mut [u8]> = match sensor_msgs::Image::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_is_bigendian(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the step (row stride) field in place on an Image buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_image_set_step(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Image<&mut [u8]> = match sensor_msgs::Image::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_step(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a CompressedImage buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_compressed_image_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::CompressedImage<&mut [u8]> =
+        match sensor_msgs::CompressedImage::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on an Imu buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_imu_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Imu<&mut [u8]> = match sensor_msgs::Imu::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the orientation (Quaternion) field in place on an Imu buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_imu_set_orientation(
+    buf: *mut u8,
+    len: usize,
+    x: f64,
+    y: f64,
+    z: f64,
+    w: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Imu<&mut [u8]> = match sensor_msgs::Imu::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_orientation(Quaternion { x, y, z, w }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the 3x3 orientation covariance (row-major, 9 f64 elements) in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_imu_set_orientation_covariance(
+    buf: *mut u8,
+    len: usize,
+    c: *const f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if c.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let mut arr = [0.0f64; 9];
+    unsafe {
+        ptr::copy_nonoverlapping(c, arr.as_mut_ptr(), 9);
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Imu<&mut [u8]> = match sensor_msgs::Imu::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_orientation_covariance(arr) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the angular_velocity (Vector3) field in place on an Imu buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_imu_set_angular_velocity(
+    buf: *mut u8,
+    len: usize,
+    x: f64,
+    y: f64,
+    z: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Imu<&mut [u8]> = match sensor_msgs::Imu::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_angular_velocity(Vector3 { x, y, z }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the 3x3 angular velocity covariance (row-major, 9 f64 elements) in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_imu_set_angular_velocity_covariance(
+    buf: *mut u8,
+    len: usize,
+    c: *const f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if c.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let mut arr = [0.0f64; 9];
+    unsafe {
+        ptr::copy_nonoverlapping(c, arr.as_mut_ptr(), 9);
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Imu<&mut [u8]> = match sensor_msgs::Imu::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_angular_velocity_covariance(arr) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the linear_acceleration (Vector3) field in place on an Imu buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_imu_set_linear_acceleration(
+    buf: *mut u8,
+    len: usize,
+    x: f64,
+    y: f64,
+    z: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Imu<&mut [u8]> = match sensor_msgs::Imu::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_linear_acceleration(Vector3 { x, y, z }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the 3x3 linear acceleration covariance (row-major, 9 f64 elements) in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_imu_set_linear_acceleration_covariance(
+    buf: *mut u8,
+    len: usize,
+    c: *const f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if c.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let mut arr = [0.0f64; 9];
+    unsafe {
+        ptr::copy_nonoverlapping(c, arr.as_mut_ptr(), 9);
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Imu<&mut [u8]> = match sensor_msgs::Imu::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_linear_acceleration_covariance(arr) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a NavSatFix buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::NavSatFix<&mut [u8]> = match sensor_msgs::NavSatFix::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the NavSatStatus in place on a NavSatFix buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_set_status(
+    buf: *mut u8,
+    len: usize,
+    status: i8,
+    service: u16,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::NavSatFix<&mut [u8]> = match sensor_msgs::NavSatFix::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_status(NavSatStatus { status, service }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the latitude field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_set_latitude(buf: *mut u8, len: usize, v: f64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::NavSatFix<&mut [u8]> = match sensor_msgs::NavSatFix::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_latitude(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the longitude field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_set_longitude(buf: *mut u8, len: usize, v: f64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::NavSatFix<&mut [u8]> = match sensor_msgs::NavSatFix::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_longitude(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the altitude field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_set_altitude(buf: *mut u8, len: usize, v: f64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::NavSatFix<&mut [u8]> = match sensor_msgs::NavSatFix::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_altitude(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the 3x3 position covariance (row-major, 9 f64 elements) in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_set_position_covariance(
+    buf: *mut u8,
+    len: usize,
+    c: *const f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if c.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let mut arr = [0.0f64; 9];
+    unsafe {
+        ptr::copy_nonoverlapping(c, arr.as_mut_ptr(), 9);
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::NavSatFix<&mut [u8]> = match sensor_msgs::NavSatFix::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_position_covariance(arr) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the position_covariance_type in place on a NavSatFix buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_nav_sat_fix_set_position_covariance_type(
+    buf: *mut u8,
+    len: usize,
+    v: u8,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::NavSatFix<&mut [u8]> = match sensor_msgs::NavSatFix::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_position_covariance_type(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the offset field in place on a PointField buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_point_field_set_offset(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::PointField<&mut [u8]> = match sensor_msgs::PointField::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_offset(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the datatype field in place on a PointField buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_point_field_set_datatype(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::PointField<&mut [u8]> = match sensor_msgs::PointField::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_datatype(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the count field in place on a PointField buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_point_field_set_count(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::PointField<&mut [u8]> = match sensor_msgs::PointField::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_count(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a PointCloud2 buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::PointCloud2<&mut [u8]> = match sensor_msgs::PointCloud2::from_cdr(slice)
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the height field in place on a PointCloud2 buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_set_height(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::PointCloud2<&mut [u8]> = match sensor_msgs::PointCloud2::from_cdr(slice)
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_height(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the width field in place on a PointCloud2 buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_set_width(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::PointCloud2<&mut [u8]> = match sensor_msgs::PointCloud2::from_cdr(slice)
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_width(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the is_bigendian field in place on a PointCloud2 buffer (0=false, nonzero=true).
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_set_is_bigendian(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::PointCloud2<&mut [u8]> = match sensor_msgs::PointCloud2::from_cdr(slice)
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_is_bigendian(v != 0) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the point_step field in place on a PointCloud2 buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_set_point_step(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::PointCloud2<&mut [u8]> = match sensor_msgs::PointCloud2::from_cdr(slice)
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_point_step(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the row_step field in place on a PointCloud2 buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_set_row_step(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::PointCloud2<&mut [u8]> = match sensor_msgs::PointCloud2::from_cdr(slice)
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_row_step(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the is_dense field in place on a PointCloud2 buffer (0=false, nonzero=true).
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_point_cloud2_set_is_dense(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::PointCloud2<&mut [u8]> = match sensor_msgs::PointCloud2::from_cdr(slice)
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_is_dense(v != 0) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a CameraInfo buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::CameraInfo<&mut [u8]> = match sensor_msgs::CameraInfo::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the height field in place on a CameraInfo buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_set_height(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::CameraInfo<&mut [u8]> = match sensor_msgs::CameraInfo::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_height(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the width field in place on a CameraInfo buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_set_width(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::CameraInfo<&mut [u8]> = match sensor_msgs::CameraInfo::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_width(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the 3x3 intrinsic matrix K (row-major, 9 f64 elements) in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_set_k(buf: *mut u8, len: usize, k: *const f64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if k.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let mut arr = [0.0f64; 9];
+    unsafe {
+        ptr::copy_nonoverlapping(k, arr.as_mut_ptr(), 9);
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::CameraInfo<&mut [u8]> = match sensor_msgs::CameraInfo::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_k(arr) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the 3x3 rectification matrix R (row-major, 9 f64 elements) in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_set_r(buf: *mut u8, len: usize, r: *const f64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if r.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let mut arr = [0.0f64; 9];
+    unsafe {
+        ptr::copy_nonoverlapping(r, arr.as_mut_ptr(), 9);
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::CameraInfo<&mut [u8]> = match sensor_msgs::CameraInfo::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_r(arr) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the 3x4 projection matrix P (row-major, 12 f64 elements) in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_set_p(buf: *mut u8, len: usize, p: *const f64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if p.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let mut arr = [0.0f64; 12];
+    unsafe {
+        ptr::copy_nonoverlapping(p, arr.as_mut_ptr(), 12);
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::CameraInfo<&mut [u8]> = match sensor_msgs::CameraInfo::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_p(arr) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the binning_x field in place on a CameraInfo buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_set_binning_x(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::CameraInfo<&mut [u8]> = match sensor_msgs::CameraInfo::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_binning_x(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the binning_y field in place on a CameraInfo buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_set_binning_y(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::CameraInfo<&mut [u8]> = match sensor_msgs::CameraInfo::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_binning_y(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the RegionOfInterest (roi) field in place on a CameraInfo buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_info_set_roi(
+    buf: *mut u8,
+    len: usize,
+    x_offset: u32,
+    y_offset: u32,
+    height: u32,
+    width: u32,
+    do_rectify: u8,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::CameraInfo<&mut [u8]> = match sensor_msgs::CameraInfo::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_roi(RegionOfInterest {
+        x_offset,
+        y_offset,
+        height,
+        width,
+        do_rectify: do_rectify != 0,
+    }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a MagneticField buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::MagneticField<&mut [u8]> =
+        match sensor_msgs::MagneticField::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the magnetic_field (Vector3) in place on a MagneticField buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_set_magnetic_field(
+    buf: *mut u8,
+    len: usize,
+    x: f64,
+    y: f64,
+    z: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::MagneticField<&mut [u8]> =
+        match sensor_msgs::MagneticField::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_magnetic_field(Vector3 { x, y, z }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the 3x3 magnetic field covariance (row-major, 9 f64 elements) in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_magnetic_field_set_magnetic_field_covariance(
+    buf: *mut u8,
+    len: usize,
+    c: *const f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if c.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let mut arr = [0.0f64; 9];
+    unsafe {
+        ptr::copy_nonoverlapping(c, arr.as_mut_ptr(), 9);
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::MagneticField<&mut [u8]> =
+        match sensor_msgs::MagneticField::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_magnetic_field_covariance(arr) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a FluidPressure buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::FluidPressure<&mut [u8]> =
+        match sensor_msgs::FluidPressure::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the fluid_pressure field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_set_fluid_pressure(buf: *mut u8, len: usize, v: f64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::FluidPressure<&mut [u8]> =
+        match sensor_msgs::FluidPressure::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_fluid_pressure(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the variance field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_fluid_pressure_set_variance(buf: *mut u8, len: usize, v: f64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::FluidPressure<&mut [u8]> =
+        match sensor_msgs::FluidPressure::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_variance(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a Temperature buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_temperature_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Temperature<&mut [u8]> = match sensor_msgs::Temperature::from_cdr(slice)
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the temperature field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_temperature_set_temperature(buf: *mut u8, len: usize, v: f64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Temperature<&mut [u8]> = match sensor_msgs::Temperature::from_cdr(slice)
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_temperature(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the variance field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_temperature_set_variance(buf: *mut u8, len: usize, v: f64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::Temperature<&mut [u8]> = match sensor_msgs::Temperature::from_cdr(slice)
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_variance(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a BatteryState buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the voltage field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_voltage(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_voltage(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the temperature field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_temperature(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_temperature(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the current field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_current(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_current(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the charge field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_charge(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_charge(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the capacity field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_capacity(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_capacity(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the design_capacity field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_design_capacity(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_design_capacity(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the percentage field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_percentage(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_percentage(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the power_supply_status field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_power_supply_status(
+    buf: *mut u8,
+    len: usize,
+    v: u8,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_power_supply_status(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the power_supply_health field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_power_supply_health(
+    buf: *mut u8,
+    len: usize,
+    v: u8,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_power_supply_health(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the power_supply_technology field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_power_supply_technology(
+    buf: *mut u8,
+    len: usize,
+    v: u8,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_power_supply_technology(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the present field in place (0=false, nonzero=true).
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_battery_state_set_present(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: sensor_msgs::BatteryState<&mut [u8]> =
+        match sensor_msgs::BatteryState::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_present(v != 0) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the height field in place on a Mask buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_mask_set_height(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Mask<&mut [u8]> = match edgefirst_msgs::Mask::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_height(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the width field in place on a Mask buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_mask_set_width(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Mask<&mut [u8]> = match edgefirst_msgs::Mask::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_width(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the length field in place on a Mask buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_mask_set_length(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Mask<&mut [u8]> = match edgefirst_msgs::Mask::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_length(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the boxed field in place (0=false, nonzero=true).
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_mask_set_boxed(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Mask<&mut [u8]> = match edgefirst_msgs::Mask::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_boxed(v != 0) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a LocalTime buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_local_time_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::LocalTime<&mut [u8]> =
+        match edgefirst_msgs::LocalTime::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the Date field in place on a LocalTime buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_local_time_set_date(
+    buf: *mut u8,
+    len: usize,
+    year: u16,
+    month: u8,
+    day: u8,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::LocalTime<&mut [u8]> =
+        match edgefirst_msgs::LocalTime::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_date(edgefirst_msgs::Date { year, month, day }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the time (Time) field in place on a LocalTime buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_local_time_set_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::LocalTime<&mut [u8]> =
+        match edgefirst_msgs::LocalTime::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_time(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the timezone field in place on a LocalTime buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_local_time_set_timezone(buf: *mut u8, len: usize, v: i16) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::LocalTime<&mut [u8]> =
+        match edgefirst_msgs::LocalTime::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_timezone(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a RadarCube buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_radar_cube_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::RadarCube<&mut [u8]> =
+        match edgefirst_msgs::RadarCube::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the timestamp (u64 ns) field in place on a RadarCube buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_radar_cube_set_timestamp(buf: *mut u8, len: usize, v: u64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::RadarCube<&mut [u8]> =
+        match edgefirst_msgs::RadarCube::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_timestamp(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the is_complex field in place (0=false, nonzero=true).
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_radar_cube_set_is_complex(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::RadarCube<&mut [u8]> =
+        match edgefirst_msgs::RadarCube::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_is_complex(v != 0) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a RadarInfo buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_radar_info_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::RadarInfo<&mut [u8]> =
+        match edgefirst_msgs::RadarInfo::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the cube field in place on a RadarInfo buffer (0=false, nonzero=true).
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_radar_info_set_cube(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::RadarInfo<&mut [u8]> =
+        match edgefirst_msgs::RadarInfo::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_cube(v != 0) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the lifetime field in place on a Track buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_track_set_lifetime(buf: *mut u8, len: usize, v: i32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Track<&mut [u8]> = match edgefirst_msgs::Track::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_lifetime(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the created (Time) field in place on a Track buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_track_set_created(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Track<&mut [u8]> = match edgefirst_msgs::Track::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_created(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the center_x field in place on a DetectBox buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_box_set_center_x(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::DetectBox<&mut [u8]> =
+        match edgefirst_msgs::DetectBox::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_center_x(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the center_y field in place on a DetectBox buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_box_set_center_y(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::DetectBox<&mut [u8]> =
+        match edgefirst_msgs::DetectBox::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_center_y(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the width field in place on a DetectBox buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_box_set_width(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::DetectBox<&mut [u8]> =
+        match edgefirst_msgs::DetectBox::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_width(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the height field in place on a DetectBox buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_box_set_height(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::DetectBox<&mut [u8]> =
+        match edgefirst_msgs::DetectBox::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_height(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the score field in place on a DetectBox buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_box_set_score(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::DetectBox<&mut [u8]> =
+        match edgefirst_msgs::DetectBox::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_score(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the distance field in place on a DetectBox buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_box_set_distance(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::DetectBox<&mut [u8]> =
+        match edgefirst_msgs::DetectBox::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_distance(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the speed field in place on a DetectBox buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_box_set_speed(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::DetectBox<&mut [u8]> =
+        match edgefirst_msgs::DetectBox::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_speed(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the track_lifetime field in place on a DetectBox buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_box_set_track_lifetime(buf: *mut u8, len: usize, v: i32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::DetectBox<&mut [u8]> =
+        match edgefirst_msgs::DetectBox::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_track_lifetime(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the track_created (Time) field in place on a DetectBox buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_box_set_track_created(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::DetectBox<&mut [u8]> =
+        match edgefirst_msgs::DetectBox::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_track_created(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp (Time) field in place on a Detect buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Detect<&mut [u8]> = match edgefirst_msgs::Detect::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the input_timestamp (Time) field in place on a Detect buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_set_input_timestamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Detect<&mut [u8]> = match edgefirst_msgs::Detect::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_input_timestamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the model_time (Time) field in place on a Detect buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_set_model_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Detect<&mut [u8]> = match edgefirst_msgs::Detect::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_model_time(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the output_time (Time) field in place on a Detect buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_detect_set_output_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Detect<&mut [u8]> = match edgefirst_msgs::Detect::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_output_time(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a CameraFrame buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::CameraFrame<&mut [u8]> =
+        match edgefirst_msgs::CameraFrame::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the seq field in place on a CameraFrame buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_set_seq(buf: *mut u8, len: usize, v: u64) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::CameraFrame<&mut [u8]> =
+        match edgefirst_msgs::CameraFrame::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_seq(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the pid field in place on a CameraFrame buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_set_pid(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::CameraFrame<&mut [u8]> =
+        match edgefirst_msgs::CameraFrame::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_pid(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the width field in place on a CameraFrame buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_set_width(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::CameraFrame<&mut [u8]> =
+        match edgefirst_msgs::CameraFrame::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_width(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the height field in place on a CameraFrame buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_set_height(buf: *mut u8, len: usize, v: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::CameraFrame<&mut [u8]> =
+        match edgefirst_msgs::CameraFrame::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_height(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the fence_fd field in place on a CameraFrame buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_camera_frame_set_fence_fd(buf: *mut u8, len: usize, v: i32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::CameraFrame<&mut [u8]> =
+        match edgefirst_msgs::CameraFrame::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_fence_fd(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp (Time) field in place on a Model buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_model_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Model<&mut [u8]> = match edgefirst_msgs::Model::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the input_time (Duration) field in place on a Model buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_model_set_input_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Model<&mut [u8]> = match edgefirst_msgs::Model::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_input_time(Duration::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the model_time (Duration) field in place on a Model buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_model_set_model_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Model<&mut [u8]> = match edgefirst_msgs::Model::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_model_time(Duration::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the output_time (Duration) field in place on a Model buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_model_set_output_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Model<&mut [u8]> = match edgefirst_msgs::Model::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_output_time(Duration::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the decode_time (Duration) field in place on a Model buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_model_set_decode_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Model<&mut [u8]> = match edgefirst_msgs::Model::from_cdr(slice) {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    match m.set_decode_time(Duration::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a ModelInfo buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_model_info_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::ModelInfo<&mut [u8]> =
+        match edgefirst_msgs::ModelInfo::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the input_type field in place on a ModelInfo buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_model_info_set_input_type(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::ModelInfo<&mut [u8]> =
+        match edgefirst_msgs::ModelInfo::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_input_type(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the output_type field in place on a ModelInfo buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_model_info_set_output_type(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::ModelInfo<&mut [u8]> =
+        match edgefirst_msgs::ModelInfo::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_output_type(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a Vibration buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_vibration_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Vibration<&mut [u8]> =
+        match edgefirst_msgs::Vibration::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the vibration (Vector3) field in place on a Vibration buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_vibration_set_vibration(
+    buf: *mut u8,
+    len: usize,
+    x: f64,
+    y: f64,
+    z: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Vibration<&mut [u8]> =
+        match edgefirst_msgs::Vibration::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_vibration(Vector3 { x, y, z }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the band_lower_hz field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_vibration_set_band_lower_hz(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Vibration<&mut [u8]> =
+        match edgefirst_msgs::Vibration::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_band_lower_hz(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the band_upper_hz field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_vibration_set_band_upper_hz(buf: *mut u8, len: usize, v: f32) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Vibration<&mut [u8]> =
+        match edgefirst_msgs::Vibration::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_band_upper_hz(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the measurement_type field in place on a Vibration buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_vibration_set_measurement_type(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Vibration<&mut [u8]> =
+        match edgefirst_msgs::Vibration::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_measurement_type(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the unit field in place on a Vibration buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_vibration_set_unit(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::Vibration<&mut [u8]> =
+        match edgefirst_msgs::Vibration::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_unit(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the stamp field in place on a FoxgloveCompressedVideo buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_video_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxgloveCompressedVideo<&mut [u8]> =
+        match foxglove_msgs::FoxgloveCompressedVideo::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the timestamp field in place on a FoxgloveTextAnnotation buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_text_annotation_set_timestamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxgloveTextAnnotation<&mut [u8]> =
+        match foxglove_msgs::FoxgloveTextAnnotation::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_timestamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the position (FoxglovePoint2) field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_text_annotation_set_position(
+    buf: *mut u8,
+    len: usize,
+    x: f64,
+    y: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxgloveTextAnnotation<&mut [u8]> =
+        match foxglove_msgs::FoxgloveTextAnnotation::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_position(foxglove_msgs::FoxglovePoint2 { x, y }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the font_size field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_text_annotation_set_font_size(
+    buf: *mut u8,
+    len: usize,
+    v: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxgloveTextAnnotation<&mut [u8]> =
+        match foxglove_msgs::FoxgloveTextAnnotation::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_font_size(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the text_color (FoxgloveColor) field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_text_annotation_set_text_color(
+    buf: *mut u8,
+    len: usize,
+    r: f64,
+    g: f64,
+    b: f64,
+    a: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxgloveTextAnnotation<&mut [u8]> =
+        match foxglove_msgs::FoxgloveTextAnnotation::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_text_color(foxglove_msgs::FoxgloveColor { r, g, b, a }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the background_color (FoxgloveColor) field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_text_annotation_set_background_color(
+    buf: *mut u8,
+    len: usize,
+    r: f64,
+    g: f64,
+    b: f64,
+    a: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxgloveTextAnnotation<&mut [u8]> =
+        match foxglove_msgs::FoxgloveTextAnnotation::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_background_color(foxglove_msgs::FoxgloveColor { r, g, b, a }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the timestamp field in place on a FoxglovePointAnnotation buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_point_annotation_set_timestamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxglovePointAnnotation<&mut [u8]> =
+        match foxglove_msgs::FoxglovePointAnnotation::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_timestamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the type_ field in place on a FoxglovePointAnnotation buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_point_annotation_set_type(buf: *mut u8, len: usize, v: u8) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxglovePointAnnotation<&mut [u8]> =
+        match foxglove_msgs::FoxglovePointAnnotation::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_type_(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the outline_color (FoxgloveColor) field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_point_annotation_set_outline_color(
+    buf: *mut u8,
+    len: usize,
+    r: f64,
+    g: f64,
+    b: f64,
+    a: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxglovePointAnnotation<&mut [u8]> =
+        match foxglove_msgs::FoxglovePointAnnotation::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_outline_color(foxglove_msgs::FoxgloveColor { r, g, b, a }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the fill_color (FoxgloveColor) field in place.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_point_annotation_set_fill_color(
+    buf: *mut u8,
+    len: usize,
+    r: f64,
+    g: f64,
+    b: f64,
+    a: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxglovePointAnnotation<&mut [u8]> =
+        match foxglove_msgs::FoxglovePointAnnotation::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_fill_color(foxglove_msgs::FoxgloveColor { r, g, b, a }) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the thickness field in place on a FoxglovePointAnnotation buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_point_annotation_set_thickness(
+    buf: *mut u8,
+    len: usize,
+    v: f64,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxglovePointAnnotation<&mut [u8]> =
+        match foxglove_msgs::FoxglovePointAnnotation::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_thickness(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
