@@ -15,7 +15,7 @@
  *
  * @section ownership Ownership model
  *
- * The wrapper exposes two type categories per buffer-backed message:
+ * The wrapper exposes three type categories per buffer-backed message:
  *
  * - **View types** (`HeaderView`, `ImageView`, `DetectView`, …) — non-owning,
  *   move-only references into a CDR byte buffer supplied by the caller. They
@@ -30,11 +30,19 @@
  *   They own both the encoded bytes and a view handle over them; their
  *   accessors are safe to use as long as the owning instance is alive.
  *
- * Not every type has an owning sibling: types without a corresponding
- * `ros_<type>_encode` function in the C API are view-only. These include
- * `ImuView`, `NavSatFixView`, `CameraInfoView`, `TransformStampedView`,
- * `PointCloud2View`, `RadarCubeView`, `RadarInfoView`, `DetectView`,
- * `ModelView`, `ModelInfoView`, `LocalTimeView`, `TrackView`, `BoxView`.
+ * - **Builder types** (`HeaderBuilder`, `ImuBuilder`, `DetectBuilder`, …) —
+ *   move-only RAII wrappers around the C builder API. Created via a static
+ *   `create()` factory returning `expected<Builder, Error>`. Fluent
+ *   setter methods allow field-by-field message construction; `build()`
+ *   allocates and encodes a CDR buffer (returned as `Released`), while
+ *   `encode_into(span<uint8_t>)` writes into a caller-provided buffer
+ *   for zero-allocation publishing. Builders are available for all message
+ *   types that have a C builder API (27 types).
+ *
+ * A few types have only a view and no owning `encode()` factory. These
+ * can still be constructed via their corresponding builder. The only
+ * truly read-only type is `OdometryView`, which has neither an owning
+ * type nor a builder in the C API.
  *
  * @section errors Error handling
  *
@@ -83,10 +91,10 @@
  * of the wrapper with `release()` to hand the buffer to a downstream
  * sink without an intermediate copy (see the publishing example below).
  *
- * A future release may introduce an `encode_into(span<uint8_t>)` variant
- * that encodes into a caller-provided buffer, eliminating the
- * per-message allocation entirely. This is a C API change and is
- * tracked separately.
+ * Builder types offer an `encode_into(span<uint8_t>)` method that encodes
+ * directly into a caller-provided buffer, eliminating per-message
+ * allocation entirely. This is the recommended path for latency-sensitive
+ * or allocation-sensitive code.
  *
  * @section interop Interop with zenoh-cpp and raw buffers
  *
@@ -120,6 +128,22 @@
  *     [size = owned.size](std::uint8_t* p) { ros_bytes_free(p, size); }
  * };
  * publisher.put(std::move(payload));
+ * @endcode
+ *
+ * **Builder-based publishing** (zero allocation with `encode_into`):
+ *
+ * @code{.cpp}
+ * namespace ef = edgefirst::schemas;
+ * auto b = ef::ImuBuilder::create();
+ * if (!b) return;
+ * b->stamp({now_s, now_ns}).orientation({qx, qy, qz, qw})
+ *   .angular_velocity({gx, gy, gz}).linear_acceleration({ax, ay, az});
+ * b->frame_id("imu_link");
+ *
+ * std::array<std::uint8_t, 512> buf;
+ * auto len = b->encode_into({buf.data(), buf.size()});
+ * if (!len) return;
+ * publisher.put({buf.data(), *len});
  * @endcode
  */
 
@@ -1219,6 +1243,91 @@ private:
     handle_type*  handle_{nullptr};
 };
 
+/**
+ * @internal
+ * @brief CRTP base for move-only builder wrappers.
+ *
+ * Wraps the lifecycle of an opaque C builder handle (`*_builder_new`,
+ * `*_builder_free`) and the two build paths: allocating (`build()` →
+ * `Released`) and caller-buffer (`encode_into()` → size).
+ *
+ * Derived builder classes inherit this and add per-message fluent setters.
+ * `BuilderTraits` must provide:
+ *   - `using builder_type = <opaque C builder type>;`
+ *   - `static constexpr auto new_fn  = <fn ptr>;`  // () → builder*
+ *   - `static constexpr auto free_fn = <fn ptr>;`  // (builder*) → void
+ *   - `static constexpr auto build_fn = <fn ptr>;`  // (builder*, uint8_t**, size_t*) → int
+ *   - `static constexpr auto encode_into_fn = <fn ptr>;`  // (builder*, uint8_t*, size_t, size_t*) → int
+ *   - `static constexpr std::string_view name = "...";`
+ *   - `static constexpr std::string_view build_name = "...";`
+ *   - `static constexpr std::string_view encode_into_name = "...";`
+ *
+ * The `name` field identifies the builder constructor for errors during
+ * wrapper creation. `build_name` and `encode_into_name` identify the
+ * underlying C entry points used by `build()` and `encode_into()`,
+ * respectively, so error reports name the failing operation precisely.
+ */
+template <typename Derived, typename BuilderTraits>
+class BuilderBase {
+public:
+    using builder_type = typename BuilderTraits::builder_type;
+
+    BuilderBase(const BuilderBase&)            = delete;
+    BuilderBase& operator=(const BuilderBase&) = delete;
+
+    BuilderBase(BuilderBase&& o) noexcept
+        : b_(o.b_) { o.b_ = nullptr; }
+    BuilderBase& operator=(BuilderBase&& o) noexcept {
+        if (this != &o) {
+            if (b_) BuilderTraits::free_fn(b_);
+            b_ = o.b_;
+            o.b_ = nullptr;
+        }
+        return *this;
+    }
+    ~BuilderBase() { if (b_) BuilderTraits::free_fn(b_); }
+
+    /// @brief Create a new builder instance.
+    /// @return The builder on success, or an Error if allocation fails.
+    [[nodiscard]] static expected<Derived, Error> create() noexcept {
+        auto* raw = BuilderTraits::new_fn();
+        if (!raw)
+            return unexpected<Error>(Error::from_errno(BuilderTraits::name));
+        Derived d{raw};
+        return d;
+    }
+
+    /// @brief Allocate a fresh CDR buffer and encode the message.
+    /// @return A `Released` POD on success (caller frees via
+    ///         `ros_bytes_free`), or an Error.
+    [[nodiscard]] expected<Released, Error> build() noexcept {
+        std::uint8_t* out = nullptr;
+        std::size_t len = 0;
+        if (BuilderTraits::build_fn(b_, &out, &len) != 0)
+            return unexpected<Error>(Error::from_errno(BuilderTraits::build_name));
+        return Released{out, len};
+    }
+
+    /// @brief Encode the message into a caller-provided buffer.
+    /// @param buf Destination buffer.
+    /// @return Number of bytes written on success, or an Error (ENOBUFS
+    ///         if buffer too small).
+    [[nodiscard]] expected<std::size_t, Error>
+    encode_into(span<std::uint8_t> buf) noexcept {
+        std::size_t len = 0;
+        if (BuilderTraits::encode_into_fn(b_, buf.data(), buf.size(), &len) != 0)
+            return unexpected<Error>(Error::from_errno(BuilderTraits::encode_into_name));
+        return len;
+    }
+
+protected:
+    explicit BuilderBase(builder_type* raw) noexcept : b_(raw) {}
+    [[nodiscard]] builder_type* ptr() const noexcept { return b_; }
+
+private:
+    builder_type* b_{nullptr};
+};
+
 // ---------------------------------------------------------------------------
 // Traits structs — one per buffer-backed C handle type
 // ---------------------------------------------------------------------------
@@ -1443,6 +1552,307 @@ struct VibrationTraits {
     static constexpr auto free     = ros_vibration_free;
     static constexpr auto as_cdr   = ros_vibration_as_cdr;
     static constexpr std::string_view name = "ros_vibration";
+};
+
+// ---------------------------------------------------------------------------
+// Builder traits structs — one per C builder type
+// ---------------------------------------------------------------------------
+
+struct HeaderBuilderTraits {
+    using builder_type = ros_header_builder_t;
+    static constexpr auto new_fn = ros_header_builder_new;
+    static constexpr auto free_fn = ros_header_builder_free;
+    static constexpr auto build_fn = ros_header_builder_build;
+    static constexpr auto encode_into_fn = ros_header_builder_encode_into;
+    static constexpr std::string_view name = "ros_header_builder";
+    static constexpr std::string_view build_name = "ros_header_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_header_builder_encode_into";
+};
+
+struct ImageBuilderTraits {
+    using builder_type = ros_image_builder_t;
+    static constexpr auto new_fn = ros_image_builder_new;
+    static constexpr auto free_fn = ros_image_builder_free;
+    static constexpr auto build_fn = ros_image_builder_build;
+    static constexpr auto encode_into_fn = ros_image_builder_encode_into;
+    static constexpr std::string_view name = "ros_image_builder";
+    static constexpr std::string_view build_name = "ros_image_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_image_builder_encode_into";
+};
+
+struct CompressedImageBuilderTraits {
+    using builder_type = ros_compressed_image_builder_t;
+    static constexpr auto new_fn = ros_compressed_image_builder_new;
+    static constexpr auto free_fn = ros_compressed_image_builder_free;
+    static constexpr auto build_fn = ros_compressed_image_builder_build;
+    static constexpr auto encode_into_fn = ros_compressed_image_builder_encode_into;
+    static constexpr std::string_view name = "ros_compressed_image_builder";
+    static constexpr std::string_view build_name = "ros_compressed_image_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_compressed_image_builder_encode_into";
+};
+
+struct ImuBuilderTraits {
+    using builder_type = ros_imu_builder_t;
+    static constexpr auto new_fn = ros_imu_builder_new;
+    static constexpr auto free_fn = ros_imu_builder_free;
+    static constexpr auto build_fn = ros_imu_builder_build;
+    static constexpr auto encode_into_fn = ros_imu_builder_encode_into;
+    static constexpr std::string_view name = "ros_imu_builder";
+    static constexpr std::string_view build_name = "ros_imu_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_imu_builder_encode_into";
+};
+
+struct NavSatFixBuilderTraits {
+    using builder_type = ros_nav_sat_fix_builder_t;
+    static constexpr auto new_fn = ros_nav_sat_fix_builder_new;
+    static constexpr auto free_fn = ros_nav_sat_fix_builder_free;
+    static constexpr auto build_fn = ros_nav_sat_fix_builder_build;
+    static constexpr auto encode_into_fn = ros_nav_sat_fix_builder_encode_into;
+    static constexpr std::string_view name = "ros_nav_sat_fix_builder";
+    static constexpr std::string_view build_name = "ros_nav_sat_fix_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_nav_sat_fix_builder_encode_into";
+};
+
+struct PointFieldBuilderTraits {
+    using builder_type = ros_point_field_builder_t;
+    static constexpr auto new_fn = ros_point_field_builder_new;
+    static constexpr auto free_fn = ros_point_field_builder_free;
+    static constexpr auto build_fn = ros_point_field_builder_build;
+    static constexpr auto encode_into_fn = ros_point_field_builder_encode_into;
+    static constexpr std::string_view name = "ros_point_field_builder";
+    static constexpr std::string_view build_name = "ros_point_field_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_point_field_builder_encode_into";
+};
+
+struct PointCloud2BuilderTraits {
+    using builder_type = ros_point_cloud2_builder_t;
+    static constexpr auto new_fn = ros_point_cloud2_builder_new;
+    static constexpr auto free_fn = ros_point_cloud2_builder_free;
+    static constexpr auto build_fn = ros_point_cloud2_builder_build;
+    static constexpr auto encode_into_fn = ros_point_cloud2_builder_encode_into;
+    static constexpr std::string_view name = "ros_point_cloud2_builder";
+    static constexpr std::string_view build_name = "ros_point_cloud2_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_point_cloud2_builder_encode_into";
+};
+
+struct CameraInfoBuilderTraits {
+    using builder_type = ros_camera_info_builder_t;
+    static constexpr auto new_fn = ros_camera_info_builder_new;
+    static constexpr auto free_fn = ros_camera_info_builder_free;
+    static constexpr auto build_fn = ros_camera_info_builder_build;
+    static constexpr auto encode_into_fn = ros_camera_info_builder_encode_into;
+    static constexpr std::string_view name = "ros_camera_info_builder";
+    static constexpr std::string_view build_name = "ros_camera_info_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_camera_info_builder_encode_into";
+};
+
+struct MagneticFieldBuilderTraits {
+    using builder_type = ros_magnetic_field_builder_t;
+    static constexpr auto new_fn = ros_magnetic_field_builder_new;
+    static constexpr auto free_fn = ros_magnetic_field_builder_free;
+    static constexpr auto build_fn = ros_magnetic_field_builder_build;
+    static constexpr auto encode_into_fn = ros_magnetic_field_builder_encode_into;
+    static constexpr std::string_view name = "ros_magnetic_field_builder";
+    static constexpr std::string_view build_name = "ros_magnetic_field_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_magnetic_field_builder_encode_into";
+};
+
+struct FluidPressureBuilderTraits {
+    using builder_type = ros_fluid_pressure_builder_t;
+    static constexpr auto new_fn = ros_fluid_pressure_builder_new;
+    static constexpr auto free_fn = ros_fluid_pressure_builder_free;
+    static constexpr auto build_fn = ros_fluid_pressure_builder_build;
+    static constexpr auto encode_into_fn = ros_fluid_pressure_builder_encode_into;
+    static constexpr std::string_view name = "ros_fluid_pressure_builder";
+    static constexpr std::string_view build_name = "ros_fluid_pressure_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_fluid_pressure_builder_encode_into";
+};
+
+struct TemperatureBuilderTraits {
+    using builder_type = ros_temperature_builder_t;
+    static constexpr auto new_fn = ros_temperature_builder_new;
+    static constexpr auto free_fn = ros_temperature_builder_free;
+    static constexpr auto build_fn = ros_temperature_builder_build;
+    static constexpr auto encode_into_fn = ros_temperature_builder_encode_into;
+    static constexpr std::string_view name = "ros_temperature_builder";
+    static constexpr std::string_view build_name = "ros_temperature_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_temperature_builder_encode_into";
+};
+
+struct BatteryStateBuilderTraits {
+    using builder_type = ros_battery_state_builder_t;
+    static constexpr auto new_fn = ros_battery_state_builder_new;
+    static constexpr auto free_fn = ros_battery_state_builder_free;
+    static constexpr auto build_fn = ros_battery_state_builder_build;
+    static constexpr auto encode_into_fn = ros_battery_state_builder_encode_into;
+    static constexpr std::string_view name = "ros_battery_state_builder";
+    static constexpr std::string_view build_name = "ros_battery_state_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_battery_state_builder_encode_into";
+};
+
+struct MaskBuilderTraits {
+    using builder_type = ros_mask_builder_t;
+    static constexpr auto new_fn = ros_mask_builder_new;
+    static constexpr auto free_fn = ros_mask_builder_free;
+    static constexpr auto build_fn = ros_mask_builder_build;
+    static constexpr auto encode_into_fn = ros_mask_builder_encode_into;
+    static constexpr std::string_view name = "ros_mask_builder";
+    static constexpr std::string_view build_name = "ros_mask_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_mask_builder_encode_into";
+};
+
+struct LocalTimeBuilderTraits {
+    using builder_type = ros_local_time_builder_t;
+    static constexpr auto new_fn = ros_local_time_builder_new;
+    static constexpr auto free_fn = ros_local_time_builder_free;
+    static constexpr auto build_fn = ros_local_time_builder_build;
+    static constexpr auto encode_into_fn = ros_local_time_builder_encode_into;
+    static constexpr std::string_view name = "ros_local_time_builder";
+    static constexpr std::string_view build_name = "ros_local_time_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_local_time_builder_encode_into";
+};
+
+struct RadarCubeBuilderTraits {
+    using builder_type = ros_radar_cube_builder_t;
+    static constexpr auto new_fn = ros_radar_cube_builder_new;
+    static constexpr auto free_fn = ros_radar_cube_builder_free;
+    static constexpr auto build_fn = ros_radar_cube_builder_build;
+    static constexpr auto encode_into_fn = ros_radar_cube_builder_encode_into;
+    static constexpr std::string_view name = "ros_radar_cube_builder";
+    static constexpr std::string_view build_name = "ros_radar_cube_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_radar_cube_builder_encode_into";
+};
+
+struct RadarInfoBuilderTraits {
+    using builder_type = ros_radar_info_builder_t;
+    static constexpr auto new_fn = ros_radar_info_builder_new;
+    static constexpr auto free_fn = ros_radar_info_builder_free;
+    static constexpr auto build_fn = ros_radar_info_builder_build;
+    static constexpr auto encode_into_fn = ros_radar_info_builder_encode_into;
+    static constexpr std::string_view name = "ros_radar_info_builder";
+    static constexpr std::string_view build_name = "ros_radar_info_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_radar_info_builder_encode_into";
+};
+
+struct TrackBuilderTraits {
+    using builder_type = ros_track_builder_t;
+    static constexpr auto new_fn = ros_track_builder_new;
+    static constexpr auto free_fn = ros_track_builder_free;
+    static constexpr auto build_fn = ros_track_builder_build;
+    static constexpr auto encode_into_fn = ros_track_builder_encode_into;
+    static constexpr std::string_view name = "ros_track_builder";
+    static constexpr std::string_view build_name = "ros_track_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_track_builder_encode_into";
+};
+
+struct DetectBoxBuilderTraits {
+    using builder_type = ros_detect_box_builder_t;
+    static constexpr auto new_fn = ros_detect_box_builder_new;
+    static constexpr auto free_fn = ros_detect_box_builder_free;
+    static constexpr auto build_fn = ros_detect_box_builder_build;
+    static constexpr auto encode_into_fn = ros_detect_box_builder_encode_into;
+    static constexpr std::string_view name = "ros_detect_box_builder";
+    static constexpr std::string_view build_name = "ros_detect_box_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_detect_box_builder_encode_into";
+};
+
+struct DetectBuilderTraits {
+    using builder_type = ros_detect_builder_t;
+    static constexpr auto new_fn = ros_detect_builder_new;
+    static constexpr auto free_fn = ros_detect_builder_free;
+    static constexpr auto build_fn = ros_detect_builder_build;
+    static constexpr auto encode_into_fn = ros_detect_builder_encode_into;
+    static constexpr std::string_view name = "ros_detect_builder";
+    static constexpr std::string_view build_name = "ros_detect_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_detect_builder_encode_into";
+};
+
+struct CameraFrameBuilderTraits {
+    using builder_type = ros_camera_frame_builder_t;
+    static constexpr auto new_fn = ros_camera_frame_builder_new;
+    static constexpr auto free_fn = ros_camera_frame_builder_free;
+    static constexpr auto build_fn = ros_camera_frame_builder_build;
+    static constexpr auto encode_into_fn = ros_camera_frame_builder_encode_into;
+    static constexpr std::string_view name = "ros_camera_frame_builder";
+    static constexpr std::string_view build_name = "ros_camera_frame_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_camera_frame_builder_encode_into";
+};
+
+struct ModelBuilderTraits {
+    using builder_type = ros_model_builder_t;
+    static constexpr auto new_fn = ros_model_builder_new;
+    static constexpr auto free_fn = ros_model_builder_free;
+    static constexpr auto build_fn = ros_model_builder_build;
+    static constexpr auto encode_into_fn = ros_model_builder_encode_into;
+    static constexpr std::string_view name = "ros_model_builder";
+    static constexpr std::string_view build_name = "ros_model_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_model_builder_encode_into";
+};
+
+struct ModelInfoBuilderTraits {
+    using builder_type = ros_model_info_builder_t;
+    static constexpr auto new_fn = ros_model_info_builder_new;
+    static constexpr auto free_fn = ros_model_info_builder_free;
+    static constexpr auto build_fn = ros_model_info_builder_build;
+    static constexpr auto encode_into_fn = ros_model_info_builder_encode_into;
+    static constexpr std::string_view name = "ros_model_info_builder";
+    static constexpr std::string_view build_name = "ros_model_info_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_model_info_builder_encode_into";
+};
+
+struct VibrationBuilderTraits {
+    using builder_type = ros_vibration_builder_t;
+    static constexpr auto new_fn = ros_vibration_builder_new;
+    static constexpr auto free_fn = ros_vibration_builder_free;
+    static constexpr auto build_fn = ros_vibration_builder_build;
+    static constexpr auto encode_into_fn = ros_vibration_builder_encode_into;
+    static constexpr std::string_view name = "ros_vibration_builder";
+    static constexpr std::string_view build_name = "ros_vibration_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_vibration_builder_encode_into";
+};
+
+struct FoxgloveCompressedVideoBuilderTraits {
+    using builder_type = ros_foxglove_compressed_video_builder_t;
+    static constexpr auto new_fn = ros_foxglove_compressed_video_builder_new;
+    static constexpr auto free_fn = ros_foxglove_compressed_video_builder_free;
+    static constexpr auto build_fn = ros_foxglove_compressed_video_builder_build;
+    static constexpr auto encode_into_fn = ros_foxglove_compressed_video_builder_encode_into;
+    static constexpr std::string_view name = "ros_foxglove_compressed_video_builder";
+    static constexpr std::string_view build_name = "ros_foxglove_compressed_video_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_foxglove_compressed_video_builder_encode_into";
+};
+
+struct FoxgloveTextAnnotationBuilderTraits {
+    using builder_type = ros_foxglove_text_annotation_builder_t;
+    static constexpr auto new_fn = ros_foxglove_text_annotation_builder_new;
+    static constexpr auto free_fn = ros_foxglove_text_annotation_builder_free;
+    static constexpr auto build_fn = ros_foxglove_text_annotation_builder_build;
+    static constexpr auto encode_into_fn = ros_foxglove_text_annotation_builder_encode_into;
+    static constexpr std::string_view name = "ros_foxglove_text_annotation_builder";
+    static constexpr std::string_view build_name = "ros_foxglove_text_annotation_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_foxglove_text_annotation_builder_encode_into";
+};
+
+struct FoxglovePointAnnotationBuilderTraits {
+    using builder_type = ros_foxglove_point_annotation_builder_t;
+    static constexpr auto new_fn = ros_foxglove_point_annotation_builder_new;
+    static constexpr auto free_fn = ros_foxglove_point_annotation_builder_free;
+    static constexpr auto build_fn = ros_foxglove_point_annotation_builder_build;
+    static constexpr auto encode_into_fn = ros_foxglove_point_annotation_builder_encode_into;
+    static constexpr std::string_view name = "ros_foxglove_point_annotation_builder";
+    static constexpr std::string_view build_name = "ros_foxglove_point_annotation_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_foxglove_point_annotation_builder_encode_into";
+};
+
+struct FoxgloveImageAnnotationBuilderTraits {
+    using builder_type = ros_foxglove_image_annotation_builder_t;
+    static constexpr auto new_fn = ros_foxglove_image_annotation_builder_new;
+    static constexpr auto free_fn = ros_foxglove_image_annotation_builder_free;
+    static constexpr auto build_fn = ros_foxglove_image_annotation_builder_build;
+    static constexpr auto encode_into_fn = ros_foxglove_image_annotation_builder_encode_into;
+    static constexpr std::string_view name = "ros_foxglove_image_annotation_builder";
+    static constexpr std::string_view build_name = "ros_foxglove_image_annotation_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_foxglove_image_annotation_builder_encode_into";
 };
 
 /**
@@ -3778,6 +4188,1381 @@ public:
     /// @brief Copy up to `out.size()` clipping counters; returns total count.
     std::uint32_t clipping(span<std::uint32_t> out) const noexcept {
         return ros_vibration_get_clipping(handle(), out.data(), out.size());
+    }
+};
+
+// ============================================================================
+// Builder types — fluent RAII wrappers around the C builder API
+//
+// Each builder wraps an opaque C builder handle with RAII lifecycle, fluent
+// setter chaining, and two build paths:
+//   - build()       → expected<Released, Error>   (allocating)
+//   - encode_into() → expected<std::size_t, Error> (caller buffer)
+//
+// Builders are move-only; create via the static `create()` factory.
+//
+// String arguments (const char*) must be valid null-terminated UTF-8.
+// This is the same contract as the existing encode() factories.
+// ============================================================================
+
+// ---------------------------------------------------------------------------
+// std_msgs - HeaderBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `std_msgs::Header` messages.
+///
+/// @code{.cpp}
+/// auto b = ef::HeaderBuilder::create();
+/// if (!b) { /* handle error */ }
+/// b->stamp({10, 0}).frame_id("camera");
+/// auto r = b->build();
+/// @endcode
+class HeaderBuilder
+    : public detail::BuilderBase<HeaderBuilder, detail::HeaderBuilderTraits> {
+    using Base = detail::BuilderBase<HeaderBuilder, detail::HeaderBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    /// @brief Set the stamp field.
+    HeaderBuilder& stamp(Time t) noexcept {
+        ros_header_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    /// @brief Set the frame_id field (string copied into builder).
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_header_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_header_builder_set_frame_id"));
+        return {};
+    }
+};
+
+// ---------------------------------------------------------------------------
+// sensor_msgs - ImageBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `sensor_msgs::Image` messages.
+class ImageBuilder
+    : public detail::BuilderBase<ImageBuilder, detail::ImageBuilderTraits> {
+    using Base = detail::BuilderBase<ImageBuilder, detail::ImageBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    ImageBuilder& stamp(Time t) noexcept {
+        ros_image_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_image_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_image_builder_set_frame_id"));
+        return {};
+    }
+    ImageBuilder& height(std::uint32_t v) noexcept {
+        ros_image_builder_set_height(ptr(), v); return *this;
+    }
+    ImageBuilder& width(std::uint32_t v) noexcept {
+        ros_image_builder_set_width(ptr(), v); return *this;
+    }
+    [[nodiscard]] expected<void, Error> encoding(const char* s) noexcept {
+        if (ros_image_builder_set_encoding(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_image_builder_set_encoding"));
+        return {};
+    }
+    ImageBuilder& is_bigendian(std::uint8_t v) noexcept {
+        ros_image_builder_set_is_bigendian(ptr(), v); return *this;
+    }
+    ImageBuilder& step(std::uint32_t v) noexcept {
+        ros_image_builder_set_step(ptr(), v); return *this;
+    }
+    /// @brief Set the pixel data (BORROWED — must remain valid until
+    ///        next setter, build, encode_into, or destruction).
+    [[nodiscard]] expected<void, Error>
+    data(span<const std::uint8_t> d) noexcept {
+        if (ros_image_builder_set_data(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_image_builder_set_data"));
+        return {};
+    }
+};
+
+// ---------------------------------------------------------------------------
+// sensor_msgs - CompressedImageBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `sensor_msgs::CompressedImage` messages.
+class CompressedImageBuilder
+    : public detail::BuilderBase<CompressedImageBuilder,
+                                 detail::CompressedImageBuilderTraits> {
+    using Base = detail::BuilderBase<CompressedImageBuilder,
+                                     detail::CompressedImageBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    CompressedImageBuilder& stamp(Time t) noexcept {
+        ros_compressed_image_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_compressed_image_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_compressed_image_builder_set_frame_id"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error> format(const char* s) noexcept {
+        if (ros_compressed_image_builder_set_format(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_compressed_image_builder_set_format"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error>
+    data(span<const std::uint8_t> d) noexcept {
+        if (ros_compressed_image_builder_set_data(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_compressed_image_builder_set_data"));
+        return {};
+    }
+};
+
+// ---------------------------------------------------------------------------
+// sensor_msgs - ImuBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `sensor_msgs::Imu` messages.
+class ImuBuilder
+    : public detail::BuilderBase<ImuBuilder, detail::ImuBuilderTraits> {
+    using Base = detail::BuilderBase<ImuBuilder, detail::ImuBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    ImuBuilder& stamp(Time t) noexcept {
+        ros_imu_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_imu_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_imu_builder_set_frame_id"));
+        return {};
+    }
+    ImuBuilder& orientation(Quaternion q) noexcept {
+        ros_imu_builder_set_orientation(ptr(), q.x, q.y, q.z, q.w);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error>
+    orientation_covariance(const std::array<double, 9>& cov) noexcept {
+        if (ros_imu_builder_set_orientation_covariance(ptr(), cov.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_imu_builder_set_orientation_covariance"));
+        return {};
+    }
+    ImuBuilder& angular_velocity(Vector3 v) noexcept {
+        ros_imu_builder_set_angular_velocity(ptr(), v.x, v.y, v.z);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error>
+    angular_velocity_covariance(const std::array<double, 9>& cov) noexcept {
+        if (ros_imu_builder_set_angular_velocity_covariance(ptr(), cov.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_imu_builder_set_angular_velocity_covariance"));
+        return {};
+    }
+    ImuBuilder& linear_acceleration(Vector3 v) noexcept {
+        ros_imu_builder_set_linear_acceleration(ptr(), v.x, v.y, v.z);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error>
+    linear_acceleration_covariance(const std::array<double, 9>& cov) noexcept {
+        if (ros_imu_builder_set_linear_acceleration_covariance(ptr(), cov.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_imu_builder_set_linear_acceleration_covariance"));
+        return {};
+    }
+};
+
+// ---------------------------------------------------------------------------
+// sensor_msgs - NavSatFixBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `sensor_msgs::NavSatFix` messages.
+class NavSatFixBuilder
+    : public detail::BuilderBase<NavSatFixBuilder,
+                                 detail::NavSatFixBuilderTraits> {
+    using Base = detail::BuilderBase<NavSatFixBuilder,
+                                     detail::NavSatFixBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    NavSatFixBuilder& stamp(Time t) noexcept {
+        ros_nav_sat_fix_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_nav_sat_fix_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_nav_sat_fix_builder_set_frame_id"));
+        return {};
+    }
+    NavSatFixBuilder& status(std::int8_t st, std::uint16_t svc) noexcept {
+        ros_nav_sat_fix_builder_set_status(ptr(), st, svc);
+        return *this;
+    }
+    NavSatFixBuilder& latitude(double v) noexcept {
+        ros_nav_sat_fix_builder_set_latitude(ptr(), v); return *this;
+    }
+    NavSatFixBuilder& longitude(double v) noexcept {
+        ros_nav_sat_fix_builder_set_longitude(ptr(), v); return *this;
+    }
+    NavSatFixBuilder& altitude(double v) noexcept {
+        ros_nav_sat_fix_builder_set_altitude(ptr(), v); return *this;
+    }
+    [[nodiscard]] expected<void, Error>
+    position_covariance(const std::array<double, 9>& cov) noexcept {
+        if (ros_nav_sat_fix_builder_set_position_covariance(ptr(), cov.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_nav_sat_fix_builder_set_position_covariance"));
+        return {};
+    }
+    NavSatFixBuilder& position_covariance_type(std::uint8_t v) noexcept {
+        ros_nav_sat_fix_builder_set_position_covariance_type(ptr(), v);
+        return *this;
+    }
+};
+
+// ---------------------------------------------------------------------------
+// sensor_msgs - PointFieldBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `sensor_msgs::PointField` messages.
+class PointFieldBuilder
+    : public detail::BuilderBase<PointFieldBuilder,
+                                 detail::PointFieldBuilderTraits> {
+    using Base = detail::BuilderBase<PointFieldBuilder,
+                                     detail::PointFieldBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    [[nodiscard]] expected<void, Error> name(const char* s) noexcept {
+        if (ros_point_field_builder_set_name(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_point_field_builder_set_name"));
+        return {};
+    }
+    PointFieldBuilder& offset(std::uint32_t v) noexcept {
+        ros_point_field_builder_set_offset(ptr(), v); return *this;
+    }
+    PointFieldBuilder& datatype(std::uint8_t v) noexcept {
+        ros_point_field_builder_set_datatype(ptr(), v); return *this;
+    }
+    PointFieldBuilder& count(std::uint32_t v) noexcept {
+        ros_point_field_builder_set_count(ptr(), v); return *this;
+    }
+};
+
+// ---------------------------------------------------------------------------
+// sensor_msgs - PointCloud2Builder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `sensor_msgs::PointCloud2` messages.
+class PointCloud2Builder
+    : public detail::BuilderBase<PointCloud2Builder,
+                                 detail::PointCloud2BuilderTraits> {
+    using Base = detail::BuilderBase<PointCloud2Builder,
+                                     detail::PointCloud2BuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    PointCloud2Builder& stamp(Time t) noexcept {
+        ros_point_cloud2_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_point_cloud2_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_point_cloud2_builder_set_frame_id"));
+        return {};
+    }
+    PointCloud2Builder& height(std::uint32_t v) noexcept {
+        ros_point_cloud2_builder_set_height(ptr(), v); return *this;
+    }
+    PointCloud2Builder& width(std::uint32_t v) noexcept {
+        ros_point_cloud2_builder_set_width(ptr(), v); return *this;
+    }
+    /// @brief Set the field descriptors (BORROWED — array and each
+    ///        element's `name` must remain valid until next setter/build/free).
+    [[nodiscard]] expected<void, Error>
+    fields(span<const ros_point_field_elem_t> f) noexcept {
+        if (ros_point_cloud2_builder_set_fields(ptr(), f.data(), f.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_point_cloud2_builder_set_fields"));
+        return {};
+    }
+    PointCloud2Builder& is_bigendian(bool v) noexcept {
+        ros_point_cloud2_builder_set_is_bigendian(ptr(), v); return *this;
+    }
+    PointCloud2Builder& point_step(std::uint32_t v) noexcept {
+        ros_point_cloud2_builder_set_point_step(ptr(), v); return *this;
+    }
+    PointCloud2Builder& row_step(std::uint32_t v) noexcept {
+        ros_point_cloud2_builder_set_row_step(ptr(), v); return *this;
+    }
+    /// @brief Set the data bulk (BORROWED).
+    [[nodiscard]] expected<void, Error>
+    data(span<const std::uint8_t> d) noexcept {
+        if (ros_point_cloud2_builder_set_data(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_point_cloud2_builder_set_data"));
+        return {};
+    }
+    PointCloud2Builder& is_dense(bool v) noexcept {
+        ros_point_cloud2_builder_set_is_dense(ptr(), v); return *this;
+    }
+};
+
+// ---------------------------------------------------------------------------
+// sensor_msgs - CameraInfoBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `sensor_msgs::CameraInfo` messages.
+class CameraInfoBuilder
+    : public detail::BuilderBase<CameraInfoBuilder,
+                                 detail::CameraInfoBuilderTraits> {
+    using Base = detail::BuilderBase<CameraInfoBuilder,
+                                     detail::CameraInfoBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    CameraInfoBuilder& stamp(Time t) noexcept {
+        ros_camera_info_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_camera_info_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_camera_info_builder_set_frame_id"));
+        return {};
+    }
+    CameraInfoBuilder& height(std::uint32_t v) noexcept {
+        ros_camera_info_builder_set_height(ptr(), v); return *this;
+    }
+    CameraInfoBuilder& width(std::uint32_t v) noexcept {
+        ros_camera_info_builder_set_width(ptr(), v); return *this;
+    }
+    [[nodiscard]] expected<void, Error>
+    distortion_model(const char* s) noexcept {
+        if (ros_camera_info_builder_set_distortion_model(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_camera_info_builder_set_distortion_model"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error>
+    d(span<const double> v) noexcept {
+        if (ros_camera_info_builder_set_d(ptr(), v.data(), v.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_camera_info_builder_set_d"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error>
+    k(const std::array<double, 9>& v) noexcept {
+        if (ros_camera_info_builder_set_k(ptr(), v.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_camera_info_builder_set_k"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error>
+    r(const std::array<double, 9>& v) noexcept {
+        if (ros_camera_info_builder_set_r(ptr(), v.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_camera_info_builder_set_r"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error>
+    p(const std::array<double, 12>& v) noexcept {
+        if (ros_camera_info_builder_set_p(ptr(), v.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_camera_info_builder_set_p"));
+        return {};
+    }
+    CameraInfoBuilder& binning_x(std::uint32_t v) noexcept {
+        ros_camera_info_builder_set_binning_x(ptr(), v); return *this;
+    }
+    CameraInfoBuilder& binning_y(std::uint32_t v) noexcept {
+        ros_camera_info_builder_set_binning_y(ptr(), v); return *this;
+    }
+    /// @brief Set the RegionOfInterest.
+    CameraInfoBuilder& roi(std::uint32_t x_offset, std::uint32_t y_offset,
+                           std::uint32_t h, std::uint32_t w,
+                           bool do_rectify) noexcept {
+        ros_camera_info_builder_set_roi(ptr(), x_offset, y_offset, h, w,
+                                        static_cast<std::uint8_t>(do_rectify));
+        return *this;
+    }
+};
+
+// ---------------------------------------------------------------------------
+// sensor_msgs - MagneticFieldBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `sensor_msgs::MagneticField` messages.
+class MagneticFieldBuilder
+    : public detail::BuilderBase<MagneticFieldBuilder,
+                                 detail::MagneticFieldBuilderTraits> {
+    using Base = detail::BuilderBase<MagneticFieldBuilder,
+                                     detail::MagneticFieldBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    MagneticFieldBuilder& stamp(Time t) noexcept {
+        ros_magnetic_field_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_magnetic_field_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_magnetic_field_builder_set_frame_id"));
+        return {};
+    }
+    MagneticFieldBuilder& magnetic_field(Vector3 v) noexcept {
+        ros_magnetic_field_builder_set_magnetic_field(ptr(), v.x, v.y, v.z);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error>
+    magnetic_field_covariance(const std::array<double, 9>& cov) noexcept {
+        if (ros_magnetic_field_builder_set_magnetic_field_covariance(ptr(), cov.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_magnetic_field_builder_set_magnetic_field_covariance"));
+        return {};
+    }
+};
+
+// ---------------------------------------------------------------------------
+// sensor_msgs - FluidPressureBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `sensor_msgs::FluidPressure` messages.
+class FluidPressureBuilder
+    : public detail::BuilderBase<FluidPressureBuilder,
+                                 detail::FluidPressureBuilderTraits> {
+    using Base = detail::BuilderBase<FluidPressureBuilder,
+                                     detail::FluidPressureBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    FluidPressureBuilder& stamp(Time t) noexcept {
+        ros_fluid_pressure_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_fluid_pressure_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_fluid_pressure_builder_set_frame_id"));
+        return {};
+    }
+    FluidPressureBuilder& fluid_pressure(double v) noexcept {
+        ros_fluid_pressure_builder_set_fluid_pressure(ptr(), v); return *this;
+    }
+    FluidPressureBuilder& variance(double v) noexcept {
+        ros_fluid_pressure_builder_set_variance(ptr(), v); return *this;
+    }
+};
+
+// ---------------------------------------------------------------------------
+// sensor_msgs - TemperatureBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `sensor_msgs::Temperature` messages.
+class TemperatureBuilder
+    : public detail::BuilderBase<TemperatureBuilder,
+                                 detail::TemperatureBuilderTraits> {
+    using Base = detail::BuilderBase<TemperatureBuilder,
+                                     detail::TemperatureBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    TemperatureBuilder& stamp(Time t) noexcept {
+        ros_temperature_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_temperature_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_temperature_builder_set_frame_id"));
+        return {};
+    }
+    TemperatureBuilder& temperature(double v) noexcept {
+        ros_temperature_builder_set_temperature(ptr(), v); return *this;
+    }
+    TemperatureBuilder& variance(double v) noexcept {
+        ros_temperature_builder_set_variance(ptr(), v); return *this;
+    }
+};
+
+// ---------------------------------------------------------------------------
+// sensor_msgs - BatteryStateBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `sensor_msgs::BatteryState` messages.
+class BatteryStateBuilder
+    : public detail::BuilderBase<BatteryStateBuilder,
+                                 detail::BatteryStateBuilderTraits> {
+    using Base = detail::BuilderBase<BatteryStateBuilder,
+                                     detail::BatteryStateBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    BatteryStateBuilder& stamp(Time t) noexcept {
+        ros_battery_state_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_battery_state_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_battery_state_builder_set_frame_id"));
+        return {};
+    }
+    BatteryStateBuilder& voltage(float v) noexcept {
+        ros_battery_state_builder_set_voltage(ptr(), v); return *this;
+    }
+    BatteryStateBuilder& temperature(float v) noexcept {
+        ros_battery_state_builder_set_temperature(ptr(), v); return *this;
+    }
+    BatteryStateBuilder& current(float v) noexcept {
+        ros_battery_state_builder_set_current(ptr(), v); return *this;
+    }
+    BatteryStateBuilder& charge(float v) noexcept {
+        ros_battery_state_builder_set_charge(ptr(), v); return *this;
+    }
+    BatteryStateBuilder& capacity(float v) noexcept {
+        ros_battery_state_builder_set_capacity(ptr(), v); return *this;
+    }
+    BatteryStateBuilder& design_capacity(float v) noexcept {
+        ros_battery_state_builder_set_design_capacity(ptr(), v); return *this;
+    }
+    BatteryStateBuilder& percentage(float v) noexcept {
+        ros_battery_state_builder_set_percentage(ptr(), v); return *this;
+    }
+    BatteryStateBuilder& power_supply_status(std::uint8_t v) noexcept {
+        ros_battery_state_builder_set_power_supply_status(ptr(), v); return *this;
+    }
+    BatteryStateBuilder& power_supply_health(std::uint8_t v) noexcept {
+        ros_battery_state_builder_set_power_supply_health(ptr(), v); return *this;
+    }
+    BatteryStateBuilder& power_supply_technology(std::uint8_t v) noexcept {
+        ros_battery_state_builder_set_power_supply_technology(ptr(), v); return *this;
+    }
+    BatteryStateBuilder& present(bool v) noexcept {
+        ros_battery_state_builder_set_present(ptr(), v); return *this;
+    }
+    [[nodiscard]] expected<void, Error>
+    cell_voltage(span<const float> v) noexcept {
+        if (ros_battery_state_builder_set_cell_voltage(ptr(), v.data(), v.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_battery_state_builder_set_cell_voltage"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error>
+    cell_temperature(span<const float> v) noexcept {
+        if (ros_battery_state_builder_set_cell_temperature(ptr(), v.data(), v.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_battery_state_builder_set_cell_temperature"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error> location(const char* s) noexcept {
+        if (ros_battery_state_builder_set_location(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_battery_state_builder_set_location"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error> serial_number(const char* s) noexcept {
+        if (ros_battery_state_builder_set_serial_number(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_battery_state_builder_set_serial_number"));
+        return {};
+    }
+};
+
+// ---------------------------------------------------------------------------
+// edgefirst_msgs - MaskBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `edgefirst_msgs::Mask` messages.
+class MaskBuilder
+    : public detail::BuilderBase<MaskBuilder, detail::MaskBuilderTraits> {
+    using Base = detail::BuilderBase<MaskBuilder, detail::MaskBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    MaskBuilder& height(std::uint32_t v) noexcept {
+        ros_mask_builder_set_height(ptr(), v); return *this;
+    }
+    MaskBuilder& width(std::uint32_t v) noexcept {
+        ros_mask_builder_set_width(ptr(), v); return *this;
+    }
+    MaskBuilder& length(std::uint32_t v) noexcept {
+        ros_mask_builder_set_length(ptr(), v); return *this;
+    }
+    [[nodiscard]] expected<void, Error> encoding(const char* s) noexcept {
+        if (ros_mask_builder_set_encoding(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_mask_builder_set_encoding"));
+        return {};
+    }
+    /// @brief Set mask payload (BORROWED).
+    [[nodiscard]] expected<void, Error>
+    mask(span<const std::uint8_t> d) noexcept {
+        if (ros_mask_builder_set_mask(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_mask_builder_set_mask"));
+        return {};
+    }
+    MaskBuilder& boxed(bool v) noexcept {
+        ros_mask_builder_set_boxed(ptr(), v); return *this;
+    }
+};
+
+// ---------------------------------------------------------------------------
+// edgefirst_msgs - LocalTimeBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `edgefirst_msgs::LocalTime` messages.
+class LocalTimeBuilder
+    : public detail::BuilderBase<LocalTimeBuilder,
+                                 detail::LocalTimeBuilderTraits> {
+    using Base = detail::BuilderBase<LocalTimeBuilder,
+                                     detail::LocalTimeBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    LocalTimeBuilder& stamp(Time t) noexcept {
+        ros_local_time_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_local_time_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_local_time_builder_set_frame_id"));
+        return {};
+    }
+    LocalTimeBuilder& date(std::uint16_t year, std::uint8_t month,
+                           std::uint8_t day) noexcept {
+        ros_local_time_builder_set_date(ptr(), year, month, day);
+        return *this;
+    }
+    LocalTimeBuilder& time(std::int32_t sec, std::uint32_t nsec) noexcept {
+        ros_local_time_builder_set_time(ptr(), sec, nsec);
+        return *this;
+    }
+    LocalTimeBuilder& timezone(std::int16_t v) noexcept {
+        ros_local_time_builder_set_timezone(ptr(), v); return *this;
+    }
+};
+
+// ---------------------------------------------------------------------------
+// edgefirst_msgs - RadarCubeBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `edgefirst_msgs::RadarCube` messages.
+class RadarCubeBuilder
+    : public detail::BuilderBase<RadarCubeBuilder,
+                                 detail::RadarCubeBuilderTraits> {
+    using Base = detail::BuilderBase<RadarCubeBuilder,
+                                     detail::RadarCubeBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    RadarCubeBuilder& stamp(Time t) noexcept {
+        ros_radar_cube_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_radar_cube_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_radar_cube_builder_set_frame_id"));
+        return {};
+    }
+    RadarCubeBuilder& timestamp(std::uint64_t v) noexcept {
+        ros_radar_cube_builder_set_timestamp(ptr(), v); return *this;
+    }
+    /// @brief Set layout descriptor (BORROWED).
+    [[nodiscard]] expected<void, Error>
+    layout(span<const std::uint8_t> d) noexcept {
+        if (ros_radar_cube_builder_set_layout(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_radar_cube_builder_set_layout"));
+        return {};
+    }
+    /// @brief Set shape array (BORROWED).
+    [[nodiscard]] expected<void, Error>
+    shape(span<const std::uint16_t> d) noexcept {
+        if (ros_radar_cube_builder_set_shape(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_radar_cube_builder_set_shape"));
+        return {};
+    }
+    /// @brief Set scales array (BORROWED).
+    [[nodiscard]] expected<void, Error>
+    scales(span<const float> d) noexcept {
+        if (ros_radar_cube_builder_set_scales(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_radar_cube_builder_set_scales"));
+        return {};
+    }
+    /// @brief Set cube samples (BORROWED).
+    [[nodiscard]] expected<void, Error>
+    cube(span<const std::int16_t> d) noexcept {
+        if (ros_radar_cube_builder_set_cube(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_radar_cube_builder_set_cube"));
+        return {};
+    }
+    RadarCubeBuilder& is_complex(bool v) noexcept {
+        ros_radar_cube_builder_set_is_complex(ptr(), v); return *this;
+    }
+};
+
+// ---------------------------------------------------------------------------
+// edgefirst_msgs - RadarInfoBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `edgefirst_msgs::RadarInfo` messages.
+class RadarInfoBuilder
+    : public detail::BuilderBase<RadarInfoBuilder,
+                                 detail::RadarInfoBuilderTraits> {
+    using Base = detail::BuilderBase<RadarInfoBuilder,
+                                     detail::RadarInfoBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    RadarInfoBuilder& stamp(Time t) noexcept {
+        ros_radar_info_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_radar_info_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_radar_info_builder_set_frame_id"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error>
+    center_frequency(const char* s) noexcept {
+        if (ros_radar_info_builder_set_center_frequency(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_radar_info_builder_set_center_frequency"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error>
+    frequency_sweep(const char* s) noexcept {
+        if (ros_radar_info_builder_set_frequency_sweep(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_radar_info_builder_set_frequency_sweep"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error>
+    range_toggle(const char* s) noexcept {
+        if (ros_radar_info_builder_set_range_toggle(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_radar_info_builder_set_range_toggle"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error>
+    detection_sensitivity(const char* s) noexcept {
+        if (ros_radar_info_builder_set_detection_sensitivity(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_radar_info_builder_set_detection_sensitivity"));
+        return {};
+    }
+    RadarInfoBuilder& cube(bool v) noexcept {
+        ros_radar_info_builder_set_cube(ptr(), v); return *this;
+    }
+};
+
+// ---------------------------------------------------------------------------
+// edgefirst_msgs - TrackBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `edgefirst_msgs::Track` messages.
+class TrackBuilder
+    : public detail::BuilderBase<TrackBuilder, detail::TrackBuilderTraits> {
+    using Base = detail::BuilderBase<TrackBuilder, detail::TrackBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    [[nodiscard]] expected<void, Error> id(const char* s) noexcept {
+        if (ros_track_builder_set_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_track_builder_set_id"));
+        return {};
+    }
+    TrackBuilder& lifetime(std::int32_t v) noexcept {
+        ros_track_builder_set_lifetime(ptr(), v); return *this;
+    }
+    TrackBuilder& created(Time t) noexcept {
+        ros_track_builder_set_created(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+};
+
+// ---------------------------------------------------------------------------
+// edgefirst_msgs - DetectBoxBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for a standalone `edgefirst_msgs::DetectBox`.
+class DetectBoxBuilder
+    : public detail::BuilderBase<DetectBoxBuilder,
+                                 detail::DetectBoxBuilderTraits> {
+    using Base = detail::BuilderBase<DetectBoxBuilder,
+                                     detail::DetectBoxBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    DetectBoxBuilder& center_x(float v) noexcept {
+        ros_detect_box_builder_set_center_x(ptr(), v); return *this;
+    }
+    DetectBoxBuilder& center_y(float v) noexcept {
+        ros_detect_box_builder_set_center_y(ptr(), v); return *this;
+    }
+    DetectBoxBuilder& width(float v) noexcept {
+        ros_detect_box_builder_set_width(ptr(), v); return *this;
+    }
+    DetectBoxBuilder& height(float v) noexcept {
+        ros_detect_box_builder_set_height(ptr(), v); return *this;
+    }
+    [[nodiscard]] expected<void, Error> label(const char* s) noexcept {
+        if (ros_detect_box_builder_set_label(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_detect_box_builder_set_label"));
+        return {};
+    }
+    DetectBoxBuilder& score(float v) noexcept {
+        ros_detect_box_builder_set_score(ptr(), v); return *this;
+    }
+    DetectBoxBuilder& distance(float v) noexcept {
+        ros_detect_box_builder_set_distance(ptr(), v); return *this;
+    }
+    DetectBoxBuilder& speed(float v) noexcept {
+        ros_detect_box_builder_set_speed(ptr(), v); return *this;
+    }
+    [[nodiscard]] expected<void, Error> track_id(const char* s) noexcept {
+        if (ros_detect_box_builder_set_track_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_detect_box_builder_set_track_id"));
+        return {};
+    }
+    DetectBoxBuilder& track_lifetime(std::int32_t v) noexcept {
+        ros_detect_box_builder_set_track_lifetime(ptr(), v); return *this;
+    }
+    DetectBoxBuilder& track_created(Time t) noexcept {
+        ros_detect_box_builder_set_track_created(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+};
+
+// ---------------------------------------------------------------------------
+// edgefirst_msgs - DetectBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `edgefirst_msgs::Detect` messages.
+class DetectBuilder
+    : public detail::BuilderBase<DetectBuilder, detail::DetectBuilderTraits> {
+    using Base = detail::BuilderBase<DetectBuilder, detail::DetectBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    DetectBuilder& stamp(Time t) noexcept {
+        ros_detect_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_detect_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_detect_builder_set_frame_id"));
+        return {};
+    }
+    DetectBuilder& input_timestamp(Time t) noexcept {
+        ros_detect_builder_set_input_timestamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    DetectBuilder& model_time(Time t) noexcept {
+        ros_detect_builder_set_model_time(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    DetectBuilder& output_time(Time t) noexcept {
+        ros_detect_builder_set_output_time(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    /// @brief Set the boxes array (BORROWED — each element's label and
+    ///        track_id pointers must remain valid until next setter/build/free).
+    [[nodiscard]] expected<void, Error>
+    boxes(span<const ros_detect_box_elem_t> b) noexcept {
+        if (ros_detect_builder_set_boxes(ptr(), b.data(), b.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_detect_builder_set_boxes"));
+        return {};
+    }
+};
+
+// ---------------------------------------------------------------------------
+// edgefirst_msgs - CameraFrameBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `edgefirst_msgs::CameraFrame` messages.
+class CameraFrameBuilder
+    : public detail::BuilderBase<CameraFrameBuilder,
+                                 detail::CameraFrameBuilderTraits> {
+    using Base = detail::BuilderBase<CameraFrameBuilder,
+                                     detail::CameraFrameBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    CameraFrameBuilder& stamp(Time t) noexcept {
+        ros_camera_frame_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_camera_frame_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_camera_frame_builder_set_frame_id"));
+        return {};
+    }
+    CameraFrameBuilder& seq(std::uint64_t v) noexcept {
+        ros_camera_frame_builder_set_seq(ptr(), v); return *this;
+    }
+    CameraFrameBuilder& pid(std::uint32_t v) noexcept {
+        ros_camera_frame_builder_set_pid(ptr(), v); return *this;
+    }
+    CameraFrameBuilder& width(std::uint32_t v) noexcept {
+        ros_camera_frame_builder_set_width(ptr(), v); return *this;
+    }
+    CameraFrameBuilder& height(std::uint32_t v) noexcept {
+        ros_camera_frame_builder_set_height(ptr(), v); return *this;
+    }
+    [[nodiscard]] expected<void, Error> format(const char* s) noexcept {
+        if (ros_camera_frame_builder_set_format(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_camera_frame_builder_set_format"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error> color_space(const char* s) noexcept {
+        if (ros_camera_frame_builder_set_color_space(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_camera_frame_builder_set_color_space"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error>
+    color_transfer(const char* s) noexcept {
+        if (ros_camera_frame_builder_set_color_transfer(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_camera_frame_builder_set_color_transfer"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error>
+    color_encoding(const char* s) noexcept {
+        if (ros_camera_frame_builder_set_color_encoding(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_camera_frame_builder_set_color_encoding"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error> color_range(const char* s) noexcept {
+        if (ros_camera_frame_builder_set_color_range(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_camera_frame_builder_set_color_range"));
+        return {};
+    }
+    CameraFrameBuilder& fence_fd(std::int32_t v) noexcept {
+        ros_camera_frame_builder_set_fence_fd(ptr(), v); return *this;
+    }
+    /// @brief Set planes (BORROWED — each element's data must remain valid).
+    [[nodiscard]] expected<void, Error>
+    planes(span<const ros_camera_plane_elem_t> p) noexcept {
+        if (ros_camera_frame_builder_set_planes(ptr(), p.data(), p.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_camera_frame_builder_set_planes"));
+        return {};
+    }
+};
+
+// ---------------------------------------------------------------------------
+// edgefirst_msgs - ModelBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `edgefirst_msgs::Model` messages.
+class ModelBuilder
+    : public detail::BuilderBase<ModelBuilder, detail::ModelBuilderTraits> {
+    using Base = detail::BuilderBase<ModelBuilder, detail::ModelBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    ModelBuilder& stamp(Time t) noexcept {
+        ros_model_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_model_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_model_builder_set_frame_id"));
+        return {};
+    }
+    ModelBuilder& input_time(Time t) noexcept {
+        ros_model_builder_set_input_time(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    ModelBuilder& model_time(Time t) noexcept {
+        ros_model_builder_set_model_time(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    ModelBuilder& output_time(Time t) noexcept {
+        ros_model_builder_set_output_time(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    ModelBuilder& decode_time(Time t) noexcept {
+        ros_model_builder_set_decode_time(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    /// @brief Set boxes (BORROWED — see DetectBuilder::boxes).
+    [[nodiscard]] expected<void, Error>
+    boxes(span<const ros_detect_box_elem_t> b) noexcept {
+        if (ros_model_builder_set_boxes(ptr(), b.data(), b.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_model_builder_set_boxes"));
+        return {};
+    }
+    /// @brief Set masks (BORROWED — each element's encoding/mask must
+    ///        remain valid until next setter/build/free).
+    [[nodiscard]] expected<void, Error>
+    masks(span<const ros_mask_elem_t> m) noexcept {
+        if (ros_model_builder_set_masks(ptr(), m.data(), m.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_model_builder_set_masks"));
+        return {};
+    }
+};
+
+// ---------------------------------------------------------------------------
+// edgefirst_msgs - ModelInfoBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `edgefirst_msgs::ModelInfo` messages.
+class ModelInfoBuilder
+    : public detail::BuilderBase<ModelInfoBuilder,
+                                 detail::ModelInfoBuilderTraits> {
+    using Base = detail::BuilderBase<ModelInfoBuilder,
+                                     detail::ModelInfoBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    ModelInfoBuilder& stamp(Time t) noexcept {
+        ros_model_info_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_model_info_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_model_info_builder_set_frame_id"));
+        return {};
+    }
+    /// @brief Set input shape (BORROWED).
+    [[nodiscard]] expected<void, Error>
+    input_shape(span<const std::uint32_t> d) noexcept {
+        if (ros_model_info_builder_set_input_shape(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_model_info_builder_set_input_shape"));
+        return {};
+    }
+    ModelInfoBuilder& input_type(std::uint8_t v) noexcept {
+        ros_model_info_builder_set_input_type(ptr(), v); return *this;
+    }
+    /// @brief Set output shape (BORROWED).
+    [[nodiscard]] expected<void, Error>
+    output_shape(span<const std::uint32_t> d) noexcept {
+        if (ros_model_info_builder_set_output_shape(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_model_info_builder_set_output_shape"));
+        return {};
+    }
+    ModelInfoBuilder& output_type(std::uint8_t v) noexcept {
+        ros_model_info_builder_set_output_type(ptr(), v); return *this;
+    }
+    /// @brief Set labels (strings are copied into the builder).
+    [[nodiscard]] expected<void, Error>
+    labels(const char* const* lbl, std::size_t count) noexcept {
+        if (ros_model_info_builder_set_labels(ptr(), lbl, count) != 0)
+            return unexpected<Error>(Error::from_errno("ros_model_info_builder_set_labels"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error>
+    model_type(const char* s) noexcept {
+        if (ros_model_info_builder_set_model_type(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_model_info_builder_set_model_type"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error>
+    model_format(const char* s) noexcept {
+        if (ros_model_info_builder_set_model_format(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_model_info_builder_set_model_format"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error>
+    model_name(const char* s) noexcept {
+        if (ros_model_info_builder_set_model_name(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_model_info_builder_set_model_name"));
+        return {};
+    }
+};
+
+// ---------------------------------------------------------------------------
+// edgefirst_msgs - VibrationBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `edgefirst_msgs::Vibration` messages.
+class VibrationBuilder
+    : public detail::BuilderBase<VibrationBuilder,
+                                 detail::VibrationBuilderTraits> {
+    using Base = detail::BuilderBase<VibrationBuilder,
+                                     detail::VibrationBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    VibrationBuilder& stamp(Time t) noexcept {
+        ros_vibration_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_vibration_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_vibration_builder_set_frame_id"));
+        return {};
+    }
+    VibrationBuilder& vibration(Vector3 v) noexcept {
+        ros_vibration_builder_set_vibration(ptr(), v.x, v.y, v.z);
+        return *this;
+    }
+    VibrationBuilder& band_lower_hz(float v) noexcept {
+        ros_vibration_builder_set_band_lower_hz(ptr(), v); return *this;
+    }
+    VibrationBuilder& band_upper_hz(float v) noexcept {
+        ros_vibration_builder_set_band_upper_hz(ptr(), v); return *this;
+    }
+    VibrationBuilder& measurement_type(std::uint8_t v) noexcept {
+        ros_vibration_builder_set_measurement_type(ptr(), v); return *this;
+    }
+    VibrationBuilder& unit(std::uint8_t v) noexcept {
+        ros_vibration_builder_set_unit(ptr(), v); return *this;
+    }
+    [[nodiscard]] expected<void, Error>
+    clipping(span<const std::uint32_t> d) noexcept {
+        if (ros_vibration_builder_set_clipping(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_vibration_builder_set_clipping"));
+        return {};
+    }
+};
+
+// ---------------------------------------------------------------------------
+// foxglove_msgs - FoxgloveCompressedVideoBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `foxglove_msgs::CompressedVideo` messages.
+class FoxgloveCompressedVideoBuilder
+    : public detail::BuilderBase<FoxgloveCompressedVideoBuilder,
+                                 detail::FoxgloveCompressedVideoBuilderTraits> {
+    using Base = detail::BuilderBase<FoxgloveCompressedVideoBuilder,
+                                     detail::FoxgloveCompressedVideoBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    FoxgloveCompressedVideoBuilder& stamp(Time t) noexcept {
+        ros_foxglove_compressed_video_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_foxglove_compressed_video_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_video_builder_set_frame_id"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error>
+    data(span<const std::uint8_t> d) noexcept {
+        if (ros_foxglove_compressed_video_builder_set_data(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_video_builder_set_data"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error> format(const char* s) noexcept {
+        if (ros_foxglove_compressed_video_builder_set_format(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_video_builder_set_format"));
+        return {};
+    }
+};
+
+// ---------------------------------------------------------------------------
+// foxglove_msgs - FoxgloveTextAnnotationBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `foxglove_msgs::TextAnnotation` messages.
+class FoxgloveTextAnnotationBuilder
+    : public detail::BuilderBase<FoxgloveTextAnnotationBuilder,
+                                 detail::FoxgloveTextAnnotationBuilderTraits> {
+    using Base = detail::BuilderBase<FoxgloveTextAnnotationBuilder,
+                                     detail::FoxgloveTextAnnotationBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    FoxgloveTextAnnotationBuilder& timestamp(Time t) noexcept {
+        ros_foxglove_text_annotation_builder_set_timestamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    FoxgloveTextAnnotationBuilder& position(double x, double y) noexcept {
+        ros_foxglove_text_annotation_builder_set_position(ptr(), x, y);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> text(const char* s) noexcept {
+        if (ros_foxglove_text_annotation_builder_set_text(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_foxglove_text_annotation_builder_set_text"));
+        return {};
+    }
+    FoxgloveTextAnnotationBuilder& font_size(double v) noexcept {
+        ros_foxglove_text_annotation_builder_set_font_size(ptr(), v);
+        return *this;
+    }
+    FoxgloveTextAnnotationBuilder& text_color(double r, double g,
+                                              double b, double a) noexcept {
+        ros_foxglove_text_annotation_builder_set_text_color(ptr(), r, g, b, a);
+        return *this;
+    }
+    FoxgloveTextAnnotationBuilder& background_color(double r, double g,
+                                                    double b, double a) noexcept {
+        ros_foxglove_text_annotation_builder_set_background_color(ptr(), r, g, b, a);
+        return *this;
+    }
+};
+
+// ---------------------------------------------------------------------------
+// foxglove_msgs - FoxglovePointAnnotationBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `foxglove_msgs::PointsAnnotation` messages.
+class FoxglovePointAnnotationBuilder
+    : public detail::BuilderBase<FoxglovePointAnnotationBuilder,
+                                 detail::FoxglovePointAnnotationBuilderTraits> {
+    using Base = detail::BuilderBase<FoxglovePointAnnotationBuilder,
+                                     detail::FoxglovePointAnnotationBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    FoxglovePointAnnotationBuilder& timestamp(Time t) noexcept {
+        ros_foxglove_point_annotation_builder_set_timestamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    FoxglovePointAnnotationBuilder& type(std::uint8_t v) noexcept {
+        ros_foxglove_point_annotation_builder_set_type(ptr(), v);
+        return *this;
+    }
+    /// @brief Set points array (BORROWED).
+    [[nodiscard]] expected<void, Error>
+    points(span<const ros_foxglove_point2_elem_t> pts) noexcept {
+        if (ros_foxglove_point_annotation_builder_set_points(ptr(), pts.data(), pts.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_foxglove_point_annotation_builder_set_points"));
+        return {};
+    }
+    FoxglovePointAnnotationBuilder& outline_color(double r, double g,
+                                                  double b, double a) noexcept {
+        ros_foxglove_point_annotation_builder_set_outline_color(ptr(), r, g, b, a);
+        return *this;
+    }
+    /// @brief Set per-point outline colors (BORROWED).
+    [[nodiscard]] expected<void, Error>
+    outline_colors(span<const ros_foxglove_color_elem_t> colors) noexcept {
+        if (ros_foxglove_point_annotation_builder_set_outline_colors(ptr(), colors.data(), colors.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_foxglove_point_annotation_builder_set_outline_colors"));
+        return {};
+    }
+    FoxglovePointAnnotationBuilder& fill_color(double r, double g,
+                                               double b, double a) noexcept {
+        ros_foxglove_point_annotation_builder_set_fill_color(ptr(), r, g, b, a);
+        return *this;
+    }
+    FoxglovePointAnnotationBuilder& thickness(double v) noexcept {
+        ros_foxglove_point_annotation_builder_set_thickness(ptr(), v);
+        return *this;
+    }
+};
+
+// ---------------------------------------------------------------------------
+// foxglove_msgs - FoxgloveImageAnnotationBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `foxglove_msgs::ImageAnnotations` messages.
+class FoxgloveImageAnnotationBuilder
+    : public detail::BuilderBase<FoxgloveImageAnnotationBuilder,
+                                 detail::FoxgloveImageAnnotationBuilderTraits> {
+    using Base = detail::BuilderBase<FoxgloveImageAnnotationBuilder,
+                                     detail::FoxgloveImageAnnotationBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    /// @brief Set circle annotations (BORROWED).
+    [[nodiscard]] expected<void, Error>
+    circles(span<const ros_foxglove_circle_annotation_elem_t> c) noexcept {
+        if (ros_foxglove_image_annotation_builder_set_circles(ptr(), c.data(), c.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_foxglove_image_annotation_builder_set_circles"));
+        return {};
+    }
+    /// @brief Set point annotations (BORROWED — inner arrays also borrowed).
+    [[nodiscard]] expected<void, Error>
+    points(span<const ros_foxglove_point_annotation_elem_t> p) noexcept {
+        if (ros_foxglove_image_annotation_builder_set_points(ptr(), p.data(), p.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_foxglove_image_annotation_builder_set_points"));
+        return {};
+    }
+    /// @brief Set text annotations (BORROWED — each element's text must
+    ///        remain valid).
+    [[nodiscard]] expected<void, Error>
+    texts(span<const ros_foxglove_text_annotation_elem_t> t) noexcept {
+        if (ros_foxglove_image_annotation_builder_set_texts(ptr(), t.data(), t.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_foxglove_image_annotation_builder_set_texts"));
+        return {};
     }
 };
 
