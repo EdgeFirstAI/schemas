@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: Apache-2.0
+// Generated from sensor_msgs/msg/PointField.msg
+// Note: constants hoisted to module scope (OMG IDL does not allow const inside struct).
+
+module sensor_msgs {
+  module msg {
+    const octet POINT_FIELD_INT8    = 1;
+    const octet POINT_FIELD_UINT8   = 2;
+    const octet POINT_FIELD_INT16   = 3;
+    const octet POINT_FIELD_UINT16  = 4;
+    const octet POINT_FIELD_INT32   = 5;
+    const octet POINT_FIELD_UINT32  = 6;
+    const octet POINT_FIELD_FLOAT32 = 7;
+    const octet POINT_FIELD_FLOAT64 = 8;
+
+    struct PointField {
+      string name;
+      uint32 offset;
+      uint8 datatype;
+      uint32 count;
+    };
+  };
+};

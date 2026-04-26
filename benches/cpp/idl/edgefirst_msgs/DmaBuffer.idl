@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: Apache-2.0
+// Generated from edgefirst_msgs/msg/DmaBuffer.msg
+
+#include "std_msgs/Header.idl"
+
+module edgefirst_msgs {
+  module msg {
+    struct DmaBuffer {
+      std_msgs::msg::Header header;
+      uint32 pid;
+      int32 fd;
+      uint32 width;
+      uint32 height;
+      uint32 stride;
+      uint32 fourcc;
+      uint32 length;
+    };
+  };
+};

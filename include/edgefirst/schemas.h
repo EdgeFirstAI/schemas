@@ -941,6 +941,12 @@ int32_t ros_compressed_video_get_stamp_sec(const ros_compressed_video_t* view);
 /** @brief Get stamp nanoseconds. */
 uint32_t ros_compressed_video_get_stamp_nanosec(const ros_compressed_video_t* view);
 
+/** @brief Alias for ros_compressed_video_get_stamp_sec; matches Foxglove schema naming. */
+int32_t ros_compressed_video_get_timestamp_sec(const ros_compressed_video_t* view);
+
+/** @brief Alias for ros_compressed_video_get_stamp_nanosec; matches Foxglove schema naming. */
+uint32_t ros_compressed_video_get_timestamp_nanosec(const ros_compressed_video_t* view);
+
 /** @brief Get frame_id (borrowed). */
 const char* ros_compressed_video_get_frame_id(const ros_compressed_video_t* view);
 
@@ -3113,6 +3119,9 @@ void ros_foxglove_compressed_video_builder_free(
     ros_foxglove_compressed_video_builder_t* b);
 void ros_foxglove_compressed_video_builder_set_stamp(
     ros_foxglove_compressed_video_builder_t* b, int32_t sec, uint32_t nsec);
+/** @brief Alias for ros_foxglove_compressed_video_builder_set_stamp; matches Foxglove schema naming. */
+void ros_foxglove_compressed_video_builder_set_timestamp(
+    ros_foxglove_compressed_video_builder_t* b, int32_t sec, uint32_t nsec);
 int  ros_foxglove_compressed_video_builder_set_frame_id(
     ros_foxglove_compressed_video_builder_t* b, const char* s);
 /** BORROWED until next setter / build / free.
@@ -4928,6 +4937,9 @@ int32_t ros_vibration_set_unit(uint8_t* buf, size_t len, uint8_t v);
  *         if buf is not a valid encoded message of this type).
  */
 int32_t ros_foxglove_compressed_video_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/** @brief Alias for ros_foxglove_compressed_video_set_stamp; matches Foxglove schema naming. */
+int32_t ros_foxglove_compressed_video_set_timestamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /* ---- foxglove_msgs - FoxgloveTextAnnotation ---- */
 

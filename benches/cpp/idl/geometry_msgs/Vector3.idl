@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: Apache-2.0
+// Generated from geometry_msgs/msg/Vector3.msg
+
+module geometry_msgs {
+  module msg {
+    struct Vector3 {
+      double x;
+      double y;
+      double z;
+    };
+  };
+};

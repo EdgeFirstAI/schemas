@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: Apache-2.0
+// Generated from edgefirst_msgs/msg/RadarCube.msg
+// Note: constants hoisted to module scope (OMG IDL does not allow const inside struct).
+
+#include "std_msgs/Header.idl"
+
+module edgefirst_msgs {
+  module msg {
+    const octet RADAR_CUBE_UNDEFINED  = 0;
+    const octet RADAR_CUBE_RANGE      = 1;
+    const octet RADAR_CUBE_DOPPLER    = 2;
+    const octet RADAR_CUBE_AZIMUTH    = 3;
+    const octet RADAR_CUBE_ELEVATION  = 4;
+    const octet RADAR_CUBE_RXCHANNEL  = 5;
+    const octet RADAR_CUBE_SEQUENCE   = 6;
+
+    struct RadarCube {
+      std_msgs::msg::Header header;
+      uint64 timestamp;
+      sequence<octet> layout;
+      sequence<uint16> shape;
+      sequence<float> scales;
+      sequence<int16> cube;
+      boolean is_complex;
+    };
+  };
+};

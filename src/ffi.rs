@@ -1194,6 +1194,14 @@ pub extern "C" fn ros_compressed_video_get_stamp_sec(view: *const ros_compressed
     unsafe { (*view).0.stamp().sec }
 }
 
+/// Alias for `ros_compressed_video_get_stamp_sec`; matches the Foxglove schema field name.
+#[no_mangle]
+pub unsafe extern "C" fn ros_compressed_video_get_timestamp_sec(
+    view: *const ros_compressed_video_t,
+) -> i32 {
+    ros_compressed_video_get_stamp_sec(view)
+}
+
 #[no_mangle]
 pub extern "C" fn ros_compressed_video_get_stamp_nanosec(
     view: *const ros_compressed_video_t,
@@ -1202,6 +1210,14 @@ pub extern "C" fn ros_compressed_video_get_stamp_nanosec(
         return 0;
     }
     unsafe { (*view).0.stamp().nanosec }
+}
+
+/// Alias for `ros_compressed_video_get_stamp_nanosec`; matches the Foxglove schema field name.
+#[no_mangle]
+pub unsafe extern "C" fn ros_compressed_video_get_timestamp_nanosec(
+    view: *const ros_compressed_video_t,
+) -> u32 {
+    ros_compressed_video_get_stamp_nanosec(view)
 }
 
 #[no_mangle]
@@ -10127,6 +10143,16 @@ pub extern "C" fn ros_foxglove_compressed_video_builder_set_stamp(
     inner.stamp_nanosec = nanosec;
 }
 
+/// Alias for `ros_foxglove_compressed_video_builder_set_stamp`; matches the Foxglove schema field name.
+#[no_mangle]
+pub unsafe extern "C" fn ros_foxglove_compressed_video_builder_set_timestamp(
+    b: *mut ros_foxglove_compressed_video_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    ros_foxglove_compressed_video_builder_set_stamp(b, sec, nanosec)
+}
+
 #[no_mangle]
 pub extern "C" fn ros_foxglove_compressed_video_builder_set_frame_id(
     b: *mut ros_foxglove_compressed_video_builder_t,
@@ -14424,6 +14450,20 @@ pub extern "C" fn ros_foxglove_compressed_video_set_stamp(
             -1
         }
     }
+}
+
+/// Alias for `ros_foxglove_compressed_video_set_stamp`; matches the Foxglove schema field name.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub unsafe extern "C" fn ros_foxglove_compressed_video_set_timestamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
+    ros_foxglove_compressed_video_set_stamp(buf, len, sec, nsec)
 }
 
 /// Set the timestamp field in place on a FoxgloveTextAnnotation buffer.

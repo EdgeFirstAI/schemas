@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: Apache-2.0
+// Generated from std_msgs/msg/Header.msg
+
+#include "builtin_interfaces/Time.idl"
+
+module std_msgs {
+  module msg {
+    struct Header {
+      builtin_interfaces::msg::Time stamp;
+      string frame_id;
+    };
+  };
+};

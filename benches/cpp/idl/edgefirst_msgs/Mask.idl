@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: Apache-2.0
+// Generated from edgefirst_msgs/msg/Mask.msg
+
+module edgefirst_msgs {
+  module msg {
+    struct Mask {
+      uint32 height;
+      uint32 width;
+      uint32 length;
+      string encoding;
+      sequence<octet> mask;
+      boolean boxed;
+    };
+  };
+};
