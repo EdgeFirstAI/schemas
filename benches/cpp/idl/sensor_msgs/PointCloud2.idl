@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: Apache-2.0
+// Generated from sensor_msgs/msg/PointCloud2.msg
+
+#include "std_msgs/Header.idl"
+#include "sensor_msgs/PointField.idl"
+
+module sensor_msgs {
+  module msg {
+    struct PointCloud2 {
+      std_msgs::msg::Header header;
+      uint32 height;
+      uint32 width;
+      sequence<sensor_msgs::msg::PointField> fields;
+      boolean is_bigendian;
+      uint32 point_step;
+      uint32 row_step;
+      sequence<octet> data;
+      boolean is_dense;
+    };
+  };
+};

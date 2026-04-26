@@ -1,0 +1,75 @@
+{
+  "context": {
+    "date": "2026-04-25T00:00:00Z",
+    "host_name": "imx8mp",
+    "executable": "./bench_fastcdr",
+    "num_cpus": 4,
+    "mhz_per_cpu": 1800,
+    "cpu_scaling_enabled": false,
+    "library_version": "v1.9.1",
+    "library_build_type": "release",
+    "json_schema_version": 1
+  },
+  "benchmarks": [
+    {
+      "name": "Header/encode/new/default",
+      "run_name": "Header/encode/new/default",
+      "run_type": "iteration",
+      "repetitions": 1,
+      "repetition_index": 0,
+      "threads": 1,
+      "iterations": 1000000,
+      "real_time": 210.5,
+      "cpu_time": 210.5,
+      "time_unit": "ns"
+    },
+    {
+      "name": "Header/decode/decode/default",
+      "run_name": "Header/decode/decode/default",
+      "run_type": "iteration",
+      "repetitions": 1,
+      "repetition_index": 0,
+      "threads": 1,
+      "iterations": 2000000,
+      "real_time": 48.2,
+      "cpu_time": 48.2,
+      "time_unit": "ns"
+    },
+    {
+      "name": "Header/access/one_field/default",
+      "run_name": "Header/access/one_field/default",
+      "run_type": "iteration",
+      "repetitions": 1,
+      "repetition_index": 0,
+      "threads": 1,
+      "iterations": 3500000,
+      "real_time": 18.4,
+      "cpu_time": 18.4,
+      "time_unit": "ns"
+    },
+    {
+      "name": "Header/access/all_fields/default",
+      "run_name": "Header/access/all_fields/default",
+      "run_type": "iteration",
+      "repetitions": 1,
+      "repetition_index": 0,
+      "threads": 1,
+      "iterations": 2400000,
+      "real_time": 28.6,
+      "cpu_time": 28.6,
+      "time_unit": "ns"
+    },
+    {
+      "name": "Header/workflow/sub_loop/default",
+      "run_name": "Header/workflow/sub_loop/default",
+      "run_type": "iteration",
+      "repetitions": 1,
+      "repetition_index": 0,
+      "threads": 1,
+      "iterations": 2500,
+      "real_time": 72000.0,
+      "cpu_time": 72000.0,
+      "time_unit": "ns"
+    }
+  ]
+}

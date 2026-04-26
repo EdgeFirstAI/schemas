@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: Apache-2.0
+// Generated from sensor_msgs/msg/Image.msg
+
+#include "std_msgs/Header.idl"
+
+module sensor_msgs {
+  module msg {
+    struct Image {
+      std_msgs::msg::Header header;
+      uint32 height;
+      uint32 width;
+      string encoding;
+      octet is_bigendian;
+      uint32 step;
+      sequence<octet> data;
+    };
+  };
+};

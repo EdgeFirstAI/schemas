@@ -2590,6 +2590,8 @@ public:
         return {ros_compressed_video_get_stamp_sec(handle()),
                 ros_compressed_video_get_stamp_nanosec(handle())};
     }
+    /// Alias for stamp(); matches the Foxglove schema field name.
+    [[nodiscard]] Time timestamp() const noexcept { return stamp(); }
     /// @brief Coordinate frame identifier.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
@@ -2652,6 +2654,8 @@ public:
         return {ros_compressed_video_get_stamp_sec(handle()),
                 ros_compressed_video_get_stamp_nanosec(handle())};
     }
+    /// Alias for stamp(); matches the Foxglove schema field name.
+    [[nodiscard]] Time timestamp() const noexcept { return stamp(); }
     /// @brief Coordinate frame identifier.
     /// @return A `std::string_view` borrowed from this instance's buffer.
     [[nodiscard]] std::string_view frame_id() const noexcept {
@@ -5406,6 +5410,8 @@ public:
         ros_foxglove_compressed_video_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
+    /// Alias for stamp(); matches the Foxglove schema field name.
+    FoxgloveCompressedVideoBuilder& timestamp(Time t) noexcept { return stamp(t); }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
         if (ros_foxglove_compressed_video_builder_set_frame_id(ptr(), s) != 0)
             return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_video_builder_set_frame_id"));

@@ -1,0 +1,11 @@
+// SPDX-License-Identifier: Apache-2.0
+// Generated from builtin_interfaces/msg/Time.msg
+
+module builtin_interfaces {
+  module msg {
+    struct Time {
+      int32 sec;
+      uint32 nanosec;
+    };
+  };
+};

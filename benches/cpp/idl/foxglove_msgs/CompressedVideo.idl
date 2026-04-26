@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: Apache-2.0
+// Generated from foxglove_msgs/msg/CompressedVideo.msg
+
+#include "builtin_interfaces/Time.idl"
+
+module foxglove_msgs {
+  module msg {
+    struct CompressedVideo {
+      builtin_interfaces::msg::Time timestamp;
+      string frame_id;
+      sequence<octet> data;
+      string format;
+    };
+  };
+};

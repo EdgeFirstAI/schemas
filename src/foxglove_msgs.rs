@@ -160,6 +160,11 @@ impl<B: AsRef<[u8]>> FoxgloveCompressedVideo<B> {
         rd_time(self.buf.as_ref(), CDR_HEADER_SIZE)
     }
 
+    /// Alias for `stamp()`. Matches the Foxglove schema field name.
+    pub fn timestamp(&self) -> Time {
+        self.stamp()
+    }
+
     pub fn frame_id(&self) -> &str {
         rd_string(self.buf.as_ref(), CDR_HEADER_SIZE + 8).0
     }
@@ -258,6 +263,12 @@ impl<'a> FoxgloveCompressedVideoBuilder<'a> {
         self.stamp = t;
         self
     }
+
+    /// Alias for `stamp()`. Matches the Foxglove schema field name.
+    pub fn timestamp(&mut self, t: Time) -> &mut Self {
+        self.stamp(t)
+    }
+
     pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
         self.frame_id = s.into();
         self
@@ -326,6 +337,11 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> FoxgloveCompressedVideo<B> {
         wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
         wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)?;
         Ok(())
+    }
+
+    /// Alias for `set_stamp()`. Matches the Foxglove schema field name.
+    pub fn set_timestamp(&mut self, t: Time) -> Result<(), CdrError> {
+        self.set_stamp(t)
     }
 }
 
@@ -1379,6 +1395,46 @@ mod tests {
         let decoded = FoxgloveCompressedVideo::from_cdr(bytes).unwrap();
         assert_eq!(decoded.format(), "h264");
         assert_eq!(decoded.data().len(), 6);
+    }
+
+    #[test]
+    fn foxglove_compressed_video_timestamp_alias() {
+        // The `timestamp()` accessors are permanent additive aliases for `stamp()`,
+        // matching the Foxglove schema field name. Both must agree on the view side,
+        // the builder side, and the in-place setter side.
+        let mut video = FoxgloveCompressedVideo::new(
+            Time::new(100, 500_000_000),
+            "camera",
+            &[0xab, 0xcd],
+            "h264",
+        )
+        .unwrap();
+
+        // View side: stamp() and timestamp() return identical values.
+        assert_eq!(video.stamp(), video.timestamp());
+        assert_eq!(video.timestamp(), Time::new(100, 500_000_000));
+
+        // In-place setter side: set_timestamp updates what stamp() observes.
+        video.set_timestamp(Time::new(7, 9)).unwrap();
+        assert_eq!(video.stamp(), Time::new(7, 9));
+        assert_eq!(video.timestamp(), Time::new(7, 9));
+
+        // Builder side: timestamp() and stamp() setters produce equivalent output.
+        let via_stamp = FoxgloveCompressedVideoBuilder::default()
+            .stamp(Time::new(42, 100))
+            .frame_id("c")
+            .data(&[1, 2, 3])
+            .format("h264")
+            .build()
+            .unwrap();
+        let via_timestamp = FoxgloveCompressedVideoBuilder::default()
+            .timestamp(Time::new(42, 100))
+            .frame_id("c")
+            .data(&[1, 2, 3])
+            .format("h264")
+            .build()
+            .unwrap();
+        assert_eq!(via_stamp.to_cdr(), via_timestamp.to_cdr());
     }
 
     #[test]
