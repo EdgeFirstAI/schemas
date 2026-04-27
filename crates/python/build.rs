@@ -16,6 +16,6 @@ fn main() {
         .map(|m| m.channel == rustc_version::Channel::Nightly)
         .unwrap_or(false);
     if is_nightly {
-        println!("cargo:rustc-cfg=nightly");
+        println!("cargo::rustc-cfg=nightly");
     }
 }

@@ -3,12 +3,14 @@
 
 # Build Python wheels for every supported platform.
 #
-# The pyo3 module ships as a CPython 3.8+ stable-ABI (abi3) wheel: one wheel
-# per OS/architecture covers every Python 3.8+ on that platform. Linux uses
+# The pyo3 module ships as a CPython 3.11+ stable-ABI (abi3) wheel: one wheel
+# per OS/architecture covers every Python 3.11+ on that platform. Linux uses
 # zig + manylinux2014 for portable GLIBC <= 2.17 wheels (runs on Debian
 # bullseye, Ubuntu 18.04, RHEL 7+, embedded Yocto/Buildroot images). macOS
-# uses the native runner toolchain (Apple-signed binaries). Windows uses
-# the MSVC toolchain via the windows-latest runner.
+# uses the native runner toolchain (Apple-signed binaries); the x86_64 wheel
+# is cross-compiled from the arm64 runner since macos-13 x86_64 runners are
+# no longer available. Windows uses the MSVC toolchain via the windows-latest
+# runner.
 #
 # Trigger model:
 #   * push to main / PR — builds wheels for verification, uploads as
@@ -61,8 +63,10 @@ jobs:
             arch: aarch64
             zig: true
 
-          # macOS Intel — macos-13 is the last x86_64 runner Apple ships.
-          - os: macos-13
+          # macOS Intel — cross-compiled from arm64 runner (macos-13 x86_64
+          # runners are no longer available). The Rust --target flag and
+          # maturin handle cross-compilation.
+          - os: macos-latest
             target: x86_64-apple-darwin
             platform: macos
             arch: x86_64
@@ -93,8 +97,8 @@ jobs:
 
       - name: Set up Python
         # 3.11 is the build-host interpreter for maturin; the produced
-        # wheels are abi3-py38 so they're compatible with every CPython
-        # 3.8+ at install time regardless of which version built them.
+        # wheels are abi3-py311 so they're compatible with every CPython
+        # 3.11+ at install time regardless of which version built them.
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.11'
@@ -117,7 +121,7 @@ jobs:
             pip install maturin
           fi
 
-      # Build wheel. abi3-py38 makes one wheel cover Python 3.8+; the
+      # Build wheel. abi3-py311 makes one wheel cover Python 3.11+; the
       # default features in pyproject.toml already enable this so a plain
       # `maturin build --release` produces the right artifact.
       - name: Build wheel (Linux + zig + manylinux2014)
@@ -152,6 +156,7 @@ jobs:
         shell: bash
         env:
           PLATFORM: ${{ matrix.platform }}
+          TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
           WHEEL=$(ls target/wheels/edgefirst_schemas-*.whl | head -1)
@@ -201,6 +206,21 @@ jobs:
               exit 1
             fi
             echo "OK GLIBC $GLIBC_MAX <= 2.17"
+          fi
+
+          # macOS wheels: confirm the binary targets the expected architecture.
+          if [ "$PLATFORM" = "macos" ]; then
+            ARCH_INFO=$(lipo -info "$EXT_FILE" 2>/dev/null || file "$EXT_FILE")
+            if echo "$TARGET" | grep -q x86_64; then
+              EXPECT="x86_64"
+            else
+              EXPECT="arm64"
+            fi
+            if ! echo "$ARCH_INFO" | grep -qi "$EXPECT"; then
+              echo "::error::expected $EXPECT architecture, got: $ARCH_INFO"
+              exit 1
+            fi
+            echo "OK macOS arch: $EXPECT ($ARCH_INFO)"
           fi
 
           rm -rf "$TMP"

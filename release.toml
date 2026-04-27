@@ -40,8 +40,8 @@ pre-release-replacements = [
   # Update CHANGELOG.md
   { file = "CHANGELOG.md", search = "## \\[Unreleased\\]", replace = "## [Unreleased]\n\n## [{{version}}] - {{date}}", exactly = 1 },
   
-  # Update Python __init__.py version
-  { file = "edgefirst/schemas/__init__.py", search = '__version__ = ".*"', replace = '__version__ = "{{version}}"', exactly = 1 },
+  # Update Python pyproject.toml version
+  { file = "crates/python/pyproject.toml", search = 'version = ".*"', replace = 'version = "{{version}}"', exactly = 1 },
   
   # Update ROS2 package.xml version
   { file = "edgefirst_msgs/package.xml", search = '<version>.*</version>', replace = '<version>{{version}}</version>', exactly = 1 },

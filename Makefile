@@ -222,7 +222,6 @@ test-cpp-asan-xml: $(CPP_TEST_BINARIES_ASAN)
 # Both targets expect a `venv/` at the repo root with maturin + pytest
 # installed; if none exists, they fall back to the system-installed tools.
 
-PYTHON_VENV       := $(shell if [ -x venv/bin/python ]; then echo "venv/bin/python"; else echo "python3"; fi)
 PYTHON_PYTEST     := $(shell if [ -x venv/bin/pytest ]; then echo "venv/bin/pytest"; else echo "pytest"; fi)
 PYTHON_MATURIN    := $(shell if [ -x venv/bin/maturin ]; then echo "venv/bin/maturin"; else echo "maturin"; fi)
 

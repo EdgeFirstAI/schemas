@@ -42,9 +42,9 @@ use edgefirst_schemas::sensor_msgs::{
 };
 use edgefirst_schemas::std_msgs::{ColorRGBA, Header};
 
-use pyo3::exceptions::PyValueError;
 #[cfg(any(not(Py_LIMITED_API), Py_3_11))]
 use pyo3::exceptions::PyBufferError;
+use pyo3::exceptions::PyValueError;
 #[cfg(any(not(Py_LIMITED_API), Py_3_11))]
 use pyo3::ffi::{self, Py_buffer};
 use pyo3::prelude::*;
@@ -160,9 +160,7 @@ fn buffer_as_bytes(obj: &Bound<'_, PyAny>) -> PyResult<(BufferGuard, *const u8, 
         }
     }
     let owned: Vec<u8> = obj.extract().map_err(|e| {
-        PyValueError::new_err(format!(
-            "expected bytes / bytearray / sequence of u8: {e}"
-        ))
+        PyValueError::new_err(format!("expected bytes / bytearray / sequence of u8: {e}"))
     })?;
     let ptr = owned.as_ptr();
     let len = owned.len();
@@ -417,7 +415,11 @@ impl PyTime {
     }
 
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         Ok(Self(cdrfixed_decode::<Time>(py, buf)?))
     }
 
@@ -465,7 +467,11 @@ impl PyDuration {
     }
 
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         Ok(Self(cdrfixed_decode::<Duration>(py, buf)?))
     }
 
@@ -522,7 +528,11 @@ impl PyColorRGBA {
     }
 
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         Ok(Self(cdrfixed_decode::<ColorRGBA>(py, buf)?))
     }
 
@@ -547,17 +557,32 @@ impl PyVector3 {
     fn new(x: f64, y: f64, z: f64) -> Self {
         Self(Vector3 { x, y, z })
     }
-    #[getter] fn x(&self) -> f64 { self.0.x }
-    #[getter] fn y(&self) -> f64 { self.0.y }
-    #[getter] fn z(&self) -> f64 { self.0.z }
+    #[getter]
+    fn x(&self) -> f64 {
+        self.0.x
+    }
+    #[getter]
+    fn y(&self) -> f64 {
+        self.0.y
+    }
+    #[getter]
+    fn z(&self) -> f64 {
+        self.0.z
+    }
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         cdrfixed_encode(py, &self.0)
     }
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         Ok(Self(cdrfixed_decode::<Vector3>(py, buf)?))
     }
-    fn __repr__(&self) -> String { format!("Vector3(x={}, y={}, z={})", self.0.x, self.0.y, self.0.z) }
+    fn __repr__(&self) -> String {
+        format!("Vector3(x={}, y={}, z={})", self.0.x, self.0.y, self.0.z)
+    }
 }
 
 #[pyclass(name = "Point", module = "edgefirst.schemas.geometry_msgs", frozen)]
@@ -571,17 +596,32 @@ impl PyPoint {
     fn new(x: f64, y: f64, z: f64) -> Self {
         Self(Point { x, y, z })
     }
-    #[getter] fn x(&self) -> f64 { self.0.x }
-    #[getter] fn y(&self) -> f64 { self.0.y }
-    #[getter] fn z(&self) -> f64 { self.0.z }
+    #[getter]
+    fn x(&self) -> f64 {
+        self.0.x
+    }
+    #[getter]
+    fn y(&self) -> f64 {
+        self.0.y
+    }
+    #[getter]
+    fn z(&self) -> f64 {
+        self.0.z
+    }
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         cdrfixed_encode(py, &self.0)
     }
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         Ok(Self(cdrfixed_decode::<Point>(py, buf)?))
     }
-    fn __repr__(&self) -> String { format!("Point(x={}, y={}, z={})", self.0.x, self.0.y, self.0.z) }
+    fn __repr__(&self) -> String {
+        format!("Point(x={}, y={}, z={})", self.0.x, self.0.y, self.0.z)
+    }
 }
 
 #[pyclass(name = "Point32", module = "edgefirst.schemas.geometry_msgs", frozen)]
@@ -595,20 +635,39 @@ impl PyPoint32 {
     fn new(x: f32, y: f32, z: f32) -> Self {
         Self(Point32 { x, y, z })
     }
-    #[getter] fn x(&self) -> f32 { self.0.x }
-    #[getter] fn y(&self) -> f32 { self.0.y }
-    #[getter] fn z(&self) -> f32 { self.0.z }
+    #[getter]
+    fn x(&self) -> f32 {
+        self.0.x
+    }
+    #[getter]
+    fn y(&self) -> f32 {
+        self.0.y
+    }
+    #[getter]
+    fn z(&self) -> f32 {
+        self.0.z
+    }
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         cdrfixed_encode(py, &self.0)
     }
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         Ok(Self(cdrfixed_decode::<Point32>(py, buf)?))
     }
-    fn __repr__(&self) -> String { format!("Point32(x={}, y={}, z={})", self.0.x, self.0.y, self.0.z) }
+    fn __repr__(&self) -> String {
+        format!("Point32(x={}, y={}, z={})", self.0.x, self.0.y, self.0.z)
+    }
 }
 
-#[pyclass(name = "Quaternion", module = "edgefirst.schemas.geometry_msgs", frozen)]
+#[pyclass(
+    name = "Quaternion",
+    module = "edgefirst.schemas.geometry_msgs",
+    frozen
+)]
 #[derive(Clone, Copy)]
 pub struct PyQuaternion(pub Quaternion);
 
@@ -619,19 +678,38 @@ impl PyQuaternion {
     fn new(x: f64, y: f64, z: f64, w: f64) -> Self {
         Self(Quaternion { x, y, z, w })
     }
-    #[getter] fn x(&self) -> f64 { self.0.x }
-    #[getter] fn y(&self) -> f64 { self.0.y }
-    #[getter] fn z(&self) -> f64 { self.0.z }
-    #[getter] fn w(&self) -> f64 { self.0.w }
+    #[getter]
+    fn x(&self) -> f64 {
+        self.0.x
+    }
+    #[getter]
+    fn y(&self) -> f64 {
+        self.0.y
+    }
+    #[getter]
+    fn z(&self) -> f64 {
+        self.0.z
+    }
+    #[getter]
+    fn w(&self) -> f64 {
+        self.0.w
+    }
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         cdrfixed_encode(py, &self.0)
     }
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         Ok(Self(cdrfixed_decode::<Quaternion>(py, buf)?))
     }
     fn __repr__(&self) -> String {
-        format!("Quaternion(x={}, y={}, z={}, w={})", self.0.x, self.0.y, self.0.z, self.0.w)
+        format!(
+            "Quaternion(x={}, y={}, z={}, w={})",
+            self.0.x, self.0.y, self.0.z, self.0.w
+        )
     }
 }
 
@@ -646,18 +724,34 @@ impl PyPose2D {
     fn new(x: f64, y: f64, theta: f64) -> Self {
         Self(Pose2D { x, y, theta })
     }
-    #[getter] fn x(&self) -> f64 { self.0.x }
-    #[getter] fn y(&self) -> f64 { self.0.y }
-    #[getter] fn theta(&self) -> f64 { self.0.theta }
+    #[getter]
+    fn x(&self) -> f64 {
+        self.0.x
+    }
+    #[getter]
+    fn y(&self) -> f64 {
+        self.0.y
+    }
+    #[getter]
+    fn theta(&self) -> f64 {
+        self.0.theta
+    }
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         cdrfixed_encode(py, &self.0)
     }
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         Ok(Self(cdrfixed_decode::<Pose2D>(py, buf)?))
     }
     fn __repr__(&self) -> String {
-        format!("Pose2D(x={}, y={}, theta={})", self.0.x, self.0.y, self.0.theta)
+        format!(
+            "Pose2D(x={}, y={}, theta={})",
+            self.0.x, self.0.y, self.0.theta
+        )
     }
 }
 
@@ -671,23 +765,43 @@ impl PyPose {
     #[pyo3(signature = (position=None, orientation=None))]
     fn new(position: Option<PyPoint>, orientation: Option<PyQuaternion>) -> Self {
         Self(Pose {
-            position: position.map(|p| p.0).unwrap_or(Point { x: 0.0, y: 0.0, z: 0.0 }),
-            orientation: orientation
-                .map(|q| q.0)
-                .unwrap_or(Quaternion { x: 0.0, y: 0.0, z: 0.0, w: 1.0 }),
+            position: position.map(|p| p.0).unwrap_or(Point {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            }),
+            orientation: orientation.map(|q| q.0).unwrap_or(Quaternion {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                w: 1.0,
+            }),
         })
     }
-    #[getter] fn position(&self) -> PyPoint { PyPoint(self.0.position) }
-    #[getter] fn orientation(&self) -> PyQuaternion { PyQuaternion(self.0.orientation) }
+    #[getter]
+    fn position(&self) -> PyPoint {
+        PyPoint(self.0.position)
+    }
+    #[getter]
+    fn orientation(&self) -> PyQuaternion {
+        PyQuaternion(self.0.orientation)
+    }
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         cdrfixed_encode(py, &self.0)
     }
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         Ok(Self(cdrfixed_decode::<Pose>(py, buf)?))
     }
     fn __repr__(&self) -> String {
-        format!("Pose(position={:?}, orientation={:?})", self.0.position, self.0.orientation)
+        format!(
+            "Pose(position={:?}, orientation={:?})",
+            self.0.position, self.0.orientation
+        )
     }
 }
 
@@ -701,21 +815,36 @@ impl PyTransform {
     #[pyo3(signature = (translation=None, rotation=None))]
     fn new(translation: Option<PyVector3>, rotation: Option<PyQuaternion>) -> Self {
         Self(Transform {
-            translation: translation
-                .map(|v| v.0)
-                .unwrap_or(Vector3 { x: 0.0, y: 0.0, z: 0.0 }),
-            rotation: rotation
-                .map(|q| q.0)
-                .unwrap_or(Quaternion { x: 0.0, y: 0.0, z: 0.0, w: 1.0 }),
+            translation: translation.map(|v| v.0).unwrap_or(Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            }),
+            rotation: rotation.map(|q| q.0).unwrap_or(Quaternion {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                w: 1.0,
+            }),
         })
     }
-    #[getter] fn translation(&self) -> PyVector3 { PyVector3(self.0.translation) }
-    #[getter] fn rotation(&self) -> PyQuaternion { PyQuaternion(self.0.rotation) }
+    #[getter]
+    fn translation(&self) -> PyVector3 {
+        PyVector3(self.0.translation)
+    }
+    #[getter]
+    fn rotation(&self) -> PyQuaternion {
+        PyQuaternion(self.0.rotation)
+    }
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         cdrfixed_encode(py, &self.0)
     }
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         Ok(Self(cdrfixed_decode::<Transform>(py, buf)?))
     }
 }
@@ -730,17 +859,35 @@ impl PyTwist {
     #[pyo3(signature = (linear=None, angular=None))]
     fn new(linear: Option<PyVector3>, angular: Option<PyVector3>) -> Self {
         Self(Twist {
-            linear: linear.map(|v| v.0).unwrap_or(Vector3 { x: 0.0, y: 0.0, z: 0.0 }),
-            angular: angular.map(|v| v.0).unwrap_or(Vector3 { x: 0.0, y: 0.0, z: 0.0 }),
+            linear: linear.map(|v| v.0).unwrap_or(Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            }),
+            angular: angular.map(|v| v.0).unwrap_or(Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            }),
         })
     }
-    #[getter] fn linear(&self) -> PyVector3 { PyVector3(self.0.linear) }
-    #[getter] fn angular(&self) -> PyVector3 { PyVector3(self.0.angular) }
+    #[getter]
+    fn linear(&self) -> PyVector3 {
+        PyVector3(self.0.linear)
+    }
+    #[getter]
+    fn angular(&self) -> PyVector3 {
+        PyVector3(self.0.angular)
+    }
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         cdrfixed_encode(py, &self.0)
     }
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         Ok(Self(cdrfixed_decode::<Twist>(py, buf)?))
     }
 }
@@ -771,7 +918,11 @@ impl PyHeader {
     /// Decode an existing CDR buffer. Currently copies the buffer into a
     /// `Vec<u8>` (memcpy path); zero-copy borrow lands in phase 2.
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
         let ptr_addr = ptr as usize;
         let owned: Vec<u8> = py.detach(|| {
@@ -877,7 +1028,11 @@ impl PyImage {
     /// Decode an existing CDR buffer. Phase 1 copies; phase 2 will offer a
     /// zero-copy borrow path.
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
         let ptr_addr = ptr as usize;
         let owned: Vec<u8> = py.detach(|| {
@@ -999,12 +1154,19 @@ impl PyClock {
     }
 
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         Ok(Self(cdrfixed_decode::<Clock>(py, buf)?))
     }
 
     fn __repr__(&self) -> String {
-        format!("Clock(clock=Time(sec={}, nanosec={}))", self.0.clock.sec, self.0.clock.nanosec)
+        format!(
+            "Clock(clock=Time(sec={}, nanosec={}))",
+            self.0.clock.sec, self.0.clock.nanosec
+        )
     }
 }
 
@@ -1017,7 +1179,11 @@ impl PyClock {
 ///
 /// Service bitmask:
 ///     0x01 = GPS, 0x02 = GLONASS, 0x04 = COMPASS, 0x08 = GALILEO
-#[pyclass(name = "NavSatStatus", module = "edgefirst.schemas.sensor_msgs", frozen)]
+#[pyclass(
+    name = "NavSatStatus",
+    module = "edgefirst.schemas.sensor_msgs",
+    frozen
+)]
 #[derive(Clone, Copy)]
 pub struct PyNavSatStatus(pub NavSatStatus);
 
@@ -1029,20 +1195,33 @@ impl PyNavSatStatus {
         Self(NavSatStatus { status, service })
     }
 
-    #[getter] fn status(&self) -> i8 { self.0.status }
-    #[getter] fn service(&self) -> u16 { self.0.service }
+    #[getter]
+    fn status(&self) -> i8 {
+        self.0.status
+    }
+    #[getter]
+    fn service(&self) -> u16 {
+        self.0.service
+    }
 
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         cdrfixed_encode(py, &self.0)
     }
 
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         Ok(Self(cdrfixed_decode::<NavSatStatus>(py, buf)?))
     }
 
     fn __repr__(&self) -> String {
-        format!("NavSatStatus(status={}, service={})", self.0.status, self.0.service)
+        format!(
+            "NavSatStatus(status={}, service={})",
+            self.0.status, self.0.service
+        )
     }
 }
 
@@ -1071,18 +1250,37 @@ impl PyRegionOfInterest {
         })
     }
 
-    #[getter] fn x_offset(&self) -> u32 { self.0.x_offset }
-    #[getter] fn y_offset(&self) -> u32 { self.0.y_offset }
-    #[getter] fn height(&self) -> u32 { self.0.height }
-    #[getter] fn width(&self) -> u32 { self.0.width }
-    #[getter] fn do_rectify(&self) -> bool { self.0.do_rectify }
+    #[getter]
+    fn x_offset(&self) -> u32 {
+        self.0.x_offset
+    }
+    #[getter]
+    fn y_offset(&self) -> u32 {
+        self.0.y_offset
+    }
+    #[getter]
+    fn height(&self) -> u32 {
+        self.0.height
+    }
+    #[getter]
+    fn width(&self) -> u32 {
+        self.0.width
+    }
+    #[getter]
+    fn do_rectify(&self) -> bool {
+        self.0.do_rectify
+    }
 
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         cdrfixed_encode(py, &self.0)
     }
 
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         Ok(Self(cdrfixed_decode::<RegionOfInterest>(py, buf)?))
     }
 
@@ -1109,21 +1307,37 @@ impl PyDate {
         Self(Date { year, month, day })
     }
 
-    #[getter] fn year(&self) -> u16 { self.0.year }
-    #[getter] fn month(&self) -> u8 { self.0.month }
-    #[getter] fn day(&self) -> u8 { self.0.day }
+    #[getter]
+    fn year(&self) -> u16 {
+        self.0.year
+    }
+    #[getter]
+    fn month(&self) -> u8 {
+        self.0.month
+    }
+    #[getter]
+    fn day(&self) -> u8 {
+        self.0.day
+    }
 
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         cdrfixed_encode(py, &self.0)
     }
 
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         Ok(Self(cdrfixed_decode::<Date>(py, buf)?))
     }
 
     fn __repr__(&self) -> String {
-        format!("Date(year={}, month={}, day={})", self.0.year, self.0.month, self.0.day)
+        format!(
+            "Date(year={}, month={}, day={})",
+            self.0.year, self.0.month, self.0.day
+        )
     }
 }
 
@@ -1170,7 +1384,11 @@ impl PyCompressedImage {
     }
 
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
         let ptr_addr = ptr as usize;
         let owned: Vec<u8> = py.detach(|| {
@@ -1182,10 +1400,22 @@ impl PyCompressedImage {
         Ok(Self { inner })
     }
 
-    #[getter] fn stamp(&self) -> PyTime { PyTime(self.inner.stamp()) }
-    #[getter] fn frame_id(&self) -> &str { self.inner.frame_id() }
-    #[getter] fn format(&self) -> &str { self.inner.format() }
-    #[getter] fn cdr_size(&self) -> usize { self.inner.cdr_size() }
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn format(&self) -> &str {
+        self.inner.format()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.cdr_size()
+    }
 
     /// Zero-copy view of the encoded image bytes.
     #[getter]
@@ -1259,7 +1489,11 @@ impl PyMask {
     }
 
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
         let ptr_addr = ptr as usize;
         let owned: Vec<u8> = py.detach(|| {
@@ -1333,7 +1567,11 @@ impl PyMask {
 /// `edgefirst_msgs.DmaBuffer` — DMA-buf reference (header + 7 small
 /// metadata fields). Deprecated upstream in favour of `CameraFrame`,
 /// kept here for API parity with pycdr2 benches.
-#[pyclass(name = "DmaBuffer", module = "edgefirst.schemas.edgefirst_msgs", frozen)]
+#[pyclass(
+    name = "DmaBuffer",
+    module = "edgefirst.schemas.edgefirst_msgs",
+    frozen
+)]
 #[allow(deprecated)]
 pub struct PyDmaBuffer {
     inner: DmaBuffer<Vec<u8>>,
@@ -1356,13 +1594,19 @@ impl PyDmaBuffer {
     ) -> PyResult<Self> {
         let stamp = header.inner.stamp();
         let frame_id = header.inner.frame_id();
-        let inner = DmaBuffer::new(stamp, frame_id, pid, fd, width, height, stride, fourcc, length)
-            .map_err(map_cdr_err)?;
+        let inner = DmaBuffer::new(
+            stamp, frame_id, pid, fd, width, height, stride, fourcc, length,
+        )
+        .map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
         let ptr_addr = ptr as usize;
         let owned: Vec<u8> = py.detach(|| {
@@ -1374,16 +1618,46 @@ impl PyDmaBuffer {
         Ok(Self { inner })
     }
 
-    #[getter] fn stamp(&self) -> PyTime { PyTime(self.inner.stamp()) }
-    #[getter] fn frame_id(&self) -> &str { self.inner.frame_id() }
-    #[getter] fn pid(&self) -> u32 { self.inner.pid() }
-    #[getter] fn fd(&self) -> i32 { self.inner.fd() }
-    #[getter] fn width(&self) -> u32 { self.inner.width() }
-    #[getter] fn height(&self) -> u32 { self.inner.height() }
-    #[getter] fn stride(&self) -> u32 { self.inner.stride() }
-    #[getter] fn fourcc(&self) -> u32 { self.inner.fourcc() }
-    #[getter] fn length(&self) -> u32 { self.inner.length() }
-    #[getter] fn cdr_size(&self) -> usize { self.inner.as_cdr().len() }
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn pid(&self) -> u32 {
+        self.inner.pid()
+    }
+    #[getter]
+    fn fd(&self) -> i32 {
+        self.inner.fd()
+    }
+    #[getter]
+    fn width(&self) -> u32 {
+        self.inner.width()
+    }
+    #[getter]
+    fn height(&self) -> u32 {
+        self.inner.height()
+    }
+    #[getter]
+    fn stride(&self) -> u32 {
+        self.inner.stride()
+    }
+    #[getter]
+    fn fourcc(&self) -> u32 {
+        self.inner.fourcc()
+    }
+    #[getter]
+    fn length(&self) -> u32 {
+        self.inner.length()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
 
     fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
         PyBytes::new(py, self.inner.as_cdr())
@@ -1400,7 +1674,11 @@ impl PyDmaBuffer {
 /// - `shape` → `np.frombuffer(rc.shape, dtype=np.uint16)`
 /// - `scales` → `np.frombuffer(rc.scales, dtype=np.float32)`
 /// - `layout` → `bytes(rc.layout)` (single bytes; small)
-#[pyclass(name = "RadarCube", module = "edgefirst.schemas.edgefirst_msgs", frozen)]
+#[pyclass(
+    name = "RadarCube",
+    module = "edgefirst.schemas.edgefirst_msgs",
+    frozen
+)]
 pub struct PyRadarCube {
     inner: RadarCube<Vec<u8>>,
 }
@@ -1486,7 +1764,11 @@ impl PyRadarCube {
     }
 
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
         let ptr_addr = ptr as usize;
         let owned: Vec<u8> = py.detach(|| {
@@ -1723,7 +2005,11 @@ impl PyPointCloud2 {
     }
 
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
         let ptr_addr = ptr as usize;
         let owned: Vec<u8> = py.detach(|| {
@@ -1862,7 +2148,11 @@ impl PyFoxgloveCompressedVideo {
     }
 
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
         let ptr_addr = ptr as usize;
         let owned: Vec<u8> = py.detach(|| {
@@ -1971,17 +2261,35 @@ impl PyAccel {
     #[pyo3(signature = (linear=None, angular=None))]
     fn new(linear: Option<PyVector3>, angular: Option<PyVector3>) -> Self {
         Self(Accel {
-            linear: linear.map(|v| v.0).unwrap_or(Vector3 { x: 0.0, y: 0.0, z: 0.0 }),
-            angular: angular.map(|v| v.0).unwrap_or(Vector3 { x: 0.0, y: 0.0, z: 0.0 }),
+            linear: linear.map(|v| v.0).unwrap_or(Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            }),
+            angular: angular.map(|v| v.0).unwrap_or(Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            }),
         })
     }
-    #[getter] fn linear(&self) -> PyVector3 { PyVector3(self.0.linear) }
-    #[getter] fn angular(&self) -> PyVector3 { PyVector3(self.0.angular) }
+    #[getter]
+    fn linear(&self) -> PyVector3 {
+        PyVector3(self.0.linear)
+    }
+    #[getter]
+    fn angular(&self) -> PyVector3 {
+        PyVector3(self.0.angular)
+    }
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         cdrfixed_encode(py, &self.0)
     }
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         Ok(Self(cdrfixed_decode::<Accel>(py, buf)?))
     }
 }
@@ -1997,33 +2305,78 @@ impl PyInertia {
     fn new(
         m: f64,
         com: Option<PyVector3>,
-        ixx: f64, ixy: f64, ixz: f64,
-        iyy: f64, iyz: f64, izz: f64,
+        ixx: f64,
+        ixy: f64,
+        ixz: f64,
+        iyy: f64,
+        iyz: f64,
+        izz: f64,
     ) -> Self {
         Self(Inertia {
             m,
-            com: com.map(|v| v.0).unwrap_or(Vector3 { x: 0.0, y: 0.0, z: 0.0 }),
-            ixx, ixy, ixz, iyy, iyz, izz,
+            com: com.map(|v| v.0).unwrap_or(Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            }),
+            ixx,
+            ixy,
+            ixz,
+            iyy,
+            iyz,
+            izz,
         })
     }
-    #[getter] fn m(&self) -> f64 { self.0.m }
-    #[getter] fn com(&self) -> PyVector3 { PyVector3(self.0.com) }
-    #[getter] fn ixx(&self) -> f64 { self.0.ixx }
-    #[getter] fn ixy(&self) -> f64 { self.0.ixy }
-    #[getter] fn ixz(&self) -> f64 { self.0.ixz }
-    #[getter] fn iyy(&self) -> f64 { self.0.iyy }
-    #[getter] fn iyz(&self) -> f64 { self.0.iyz }
-    #[getter] fn izz(&self) -> f64 { self.0.izz }
+    #[getter]
+    fn m(&self) -> f64 {
+        self.0.m
+    }
+    #[getter]
+    fn com(&self) -> PyVector3 {
+        PyVector3(self.0.com)
+    }
+    #[getter]
+    fn ixx(&self) -> f64 {
+        self.0.ixx
+    }
+    #[getter]
+    fn ixy(&self) -> f64 {
+        self.0.ixy
+    }
+    #[getter]
+    fn ixz(&self) -> f64 {
+        self.0.ixz
+    }
+    #[getter]
+    fn iyy(&self) -> f64 {
+        self.0.iyy
+    }
+    #[getter]
+    fn iyz(&self) -> f64 {
+        self.0.iyz
+    }
+    #[getter]
+    fn izz(&self) -> f64 {
+        self.0.izz
+    }
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         cdrfixed_encode(py, &self.0)
     }
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         Ok(Self(cdrfixed_decode::<Inertia>(py, buf)?))
     }
 }
 
-#[pyclass(name = "PoseWithCovariance", module = "edgefirst.schemas.geometry_msgs", frozen)]
+#[pyclass(
+    name = "PoseWithCovariance",
+    module = "edgefirst.schemas.geometry_msgs",
+    frozen
+)]
 #[derive(Clone, Copy)]
 pub struct PyPoseWithCovariance(pub PoseWithCovariance);
 
@@ -2033,15 +2386,27 @@ impl PyPoseWithCovariance {
     #[pyo3(signature = (pose=None, covariance=None))]
     fn new(pose: Option<PyPose>, covariance: Option<Vec<f64>>) -> PyResult<Self> {
         let pose = pose.map(|p| p.0).unwrap_or(Pose {
-            position: Point { x: 0.0, y: 0.0, z: 0.0 },
-            orientation: Quaternion { x: 0.0, y: 0.0, z: 0.0, w: 1.0 },
+            position: Point {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            orientation: Quaternion {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                w: 1.0,
+            },
         });
         Ok(Self(PoseWithCovariance {
             pose,
             covariance: extract_array36(covariance)?,
         }))
     }
-    #[getter] fn pose(&self) -> PyPose { PyPose(self.0.pose) }
+    #[getter]
+    fn pose(&self) -> PyPose {
+        PyPose(self.0.pose)
+    }
     #[getter]
     fn covariance(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         array36_to_list(py, self.0.covariance)
@@ -2050,12 +2415,20 @@ impl PyPoseWithCovariance {
         cdrfixed_encode(py, &self.0)
     }
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         Ok(Self(cdrfixed_decode::<PoseWithCovariance>(py, buf)?))
     }
 }
 
-#[pyclass(name = "TwistWithCovariance", module = "edgefirst.schemas.geometry_msgs", frozen)]
+#[pyclass(
+    name = "TwistWithCovariance",
+    module = "edgefirst.schemas.geometry_msgs",
+    frozen
+)]
 #[derive(Clone, Copy)]
 pub struct PyTwistWithCovariance(pub TwistWithCovariance);
 
@@ -2065,15 +2438,26 @@ impl PyTwistWithCovariance {
     #[pyo3(signature = (twist=None, covariance=None))]
     fn new(twist: Option<PyTwist>, covariance: Option<Vec<f64>>) -> PyResult<Self> {
         let twist = twist.map(|t| t.0).unwrap_or(Twist {
-            linear: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
-            angular: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
+            linear: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            angular: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
         });
         Ok(Self(TwistWithCovariance {
             twist,
             covariance: extract_array36(covariance)?,
         }))
     }
-    #[getter] fn twist(&self) -> PyTwist { PyTwist(self.0.twist) }
+    #[getter]
+    fn twist(&self) -> PyTwist {
+        PyTwist(self.0.twist)
+    }
     #[getter]
     fn covariance(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         array36_to_list(py, self.0.covariance)
@@ -2082,7 +2466,11 @@ impl PyTwistWithCovariance {
         cdrfixed_encode(py, &self.0)
     }
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         Ok(Self(cdrfixed_decode::<TwistWithCovariance>(py, buf)?))
     }
 }
@@ -2124,11 +2512,22 @@ impl PyImu {
         // zero quaternion (w=0) isn't a rotation and using it as a
         // default would silently corrupt downstream consumers that
         // re-normalize.
-        let q = orientation
-            .map(|q| q.0)
-            .unwrap_or(Quaternion { x: 0.0, y: 0.0, z: 0.0, w: 1.0 });
-        let av = angular_velocity.map(|v| v.0).unwrap_or(Vector3 { x: 0.0, y: 0.0, z: 0.0 });
-        let la = linear_acceleration.map(|v| v.0).unwrap_or(Vector3 { x: 0.0, y: 0.0, z: 0.0 });
+        let q = orientation.map(|q| q.0).unwrap_or(Quaternion {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            w: 1.0,
+        });
+        let av = angular_velocity.map(|v| v.0).unwrap_or(Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        });
+        let la = linear_acceleration.map(|v| v.0).unwrap_or(Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        });
         let oc = extract_array9(orientation_covariance)?;
         let avc = extract_array9(angular_velocity_covariance)?;
         let lac = extract_array9(linear_acceleration_covariance)?;
@@ -2147,7 +2546,11 @@ impl PyImu {
     }
 
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
         let ptr_addr = ptr as usize;
         let owned: Vec<u8> = py.detach(|| {
@@ -2159,24 +2562,42 @@ impl PyImu {
         Ok(Self { inner })
     }
 
-    #[getter] fn stamp(&self) -> PyTime { PyTime(self.inner.stamp()) }
-    #[getter] fn frame_id(&self) -> &str { self.inner.frame_id() }
-    #[getter] fn orientation(&self) -> PyQuaternion { PyQuaternion(self.inner.orientation()) }
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn orientation(&self) -> PyQuaternion {
+        PyQuaternion(self.inner.orientation())
+    }
     #[getter]
     fn orientation_covariance(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         array9_to_list(py, self.inner.orientation_covariance())
     }
-    #[getter] fn angular_velocity(&self) -> PyVector3 { PyVector3(self.inner.angular_velocity()) }
+    #[getter]
+    fn angular_velocity(&self) -> PyVector3 {
+        PyVector3(self.inner.angular_velocity())
+    }
     #[getter]
     fn angular_velocity_covariance(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         array9_to_list(py, self.inner.angular_velocity_covariance())
     }
-    #[getter] fn linear_acceleration(&self) -> PyVector3 { PyVector3(self.inner.linear_acceleration()) }
+    #[getter]
+    fn linear_acceleration(&self) -> PyVector3 {
+        PyVector3(self.inner.linear_acceleration())
+    }
     #[getter]
     fn linear_acceleration_covariance(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         array9_to_list(py, self.inner.linear_acceleration_covariance())
     }
-    #[getter] fn cdr_size(&self) -> usize { self.inner.as_cdr().len() }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
 
     fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
         PyBytes::new(py, self.inner.as_cdr())
@@ -2213,7 +2634,10 @@ impl PyNavSatFix {
     ) -> PyResult<Self> {
         let stamp = header.inner.stamp();
         let frame_id = header.inner.frame_id().to_string();
-        let st = status.map(|s| s.0).unwrap_or(NavSatStatus { status: 0, service: 0 });
+        let st = status.map(|s| s.0).unwrap_or(NavSatStatus {
+            status: 0,
+            service: 0,
+        });
         let cov = extract_array9(position_covariance)?;
         let inner = NavSatFix::builder()
             .stamp(stamp)
@@ -2230,7 +2654,11 @@ impl PyNavSatFix {
     }
 
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
         let ptr_addr = ptr as usize;
         let owned: Vec<u8> = py.detach(|| {
@@ -2242,18 +2670,42 @@ impl PyNavSatFix {
         Ok(Self { inner })
     }
 
-    #[getter] fn stamp(&self) -> PyTime { PyTime(self.inner.stamp()) }
-    #[getter] fn frame_id(&self) -> &str { self.inner.frame_id() }
-    #[getter] fn status(&self) -> PyNavSatStatus { PyNavSatStatus(self.inner.status()) }
-    #[getter] fn latitude(&self) -> f64 { self.inner.latitude() }
-    #[getter] fn longitude(&self) -> f64 { self.inner.longitude() }
-    #[getter] fn altitude(&self) -> f64 { self.inner.altitude() }
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn status(&self) -> PyNavSatStatus {
+        PyNavSatStatus(self.inner.status())
+    }
+    #[getter]
+    fn latitude(&self) -> f64 {
+        self.inner.latitude()
+    }
+    #[getter]
+    fn longitude(&self) -> f64 {
+        self.inner.longitude()
+    }
+    #[getter]
+    fn altitude(&self) -> f64 {
+        self.inner.altitude()
+    }
     #[getter]
     fn position_covariance(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         array9_to_list(py, self.inner.position_covariance())
     }
-    #[getter] fn position_covariance_type(&self) -> u8 { self.inner.position_covariance_type() }
-    #[getter] fn cdr_size(&self) -> usize { self.inner.as_cdr().len() }
+    #[getter]
+    fn position_covariance_type(&self) -> u8 {
+        self.inner.position_covariance_type()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
 
     fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
         PyBytes::new(py, self.inner.as_cdr())
@@ -2262,7 +2714,11 @@ impl PyNavSatFix {
 
 // ── sensor_msgs.MagneticField ───────────────────────────────────────
 
-#[pyclass(name = "MagneticField", module = "edgefirst.schemas.sensor_msgs", frozen)]
+#[pyclass(
+    name = "MagneticField",
+    module = "edgefirst.schemas.sensor_msgs",
+    frozen
+)]
 pub struct PyMagneticField {
     inner: MagneticField<Vec<u8>>,
 }
@@ -2278,7 +2734,11 @@ impl PyMagneticField {
     ) -> PyResult<Self> {
         let stamp = header.inner.stamp();
         let frame_id = header.inner.frame_id().to_string();
-        let mf = magnetic_field.map(|v| v.0).unwrap_or(Vector3 { x: 0.0, y: 0.0, z: 0.0 });
+        let mf = magnetic_field.map(|v| v.0).unwrap_or(Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        });
         let cov = extract_array9(magnetic_field_covariance)?;
         let inner = MagneticField::builder()
             .stamp(stamp)
@@ -2291,7 +2751,11 @@ impl PyMagneticField {
     }
 
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
         let ptr_addr = ptr as usize;
         let owned: Vec<u8> = py.detach(|| {
@@ -2303,14 +2767,26 @@ impl PyMagneticField {
         Ok(Self { inner })
     }
 
-    #[getter] fn stamp(&self) -> PyTime { PyTime(self.inner.stamp()) }
-    #[getter] fn frame_id(&self) -> &str { self.inner.frame_id() }
-    #[getter] fn magnetic_field(&self) -> PyVector3 { PyVector3(self.inner.magnetic_field()) }
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn magnetic_field(&self) -> PyVector3 {
+        PyVector3(self.inner.magnetic_field())
+    }
     #[getter]
     fn magnetic_field_covariance(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         array9_to_list(py, self.inner.magnetic_field_covariance())
     }
-    #[getter] fn cdr_size(&self) -> usize { self.inner.as_cdr().len() }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
     fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
         PyBytes::new(py, self.inner.as_cdr())
     }
@@ -2318,7 +2794,11 @@ impl PyMagneticField {
 
 // ── sensor_msgs.FluidPressure ───────────────────────────────────────
 
-#[pyclass(name = "FluidPressure", module = "edgefirst.schemas.sensor_msgs", frozen)]
+#[pyclass(
+    name = "FluidPressure",
+    module = "edgefirst.schemas.sensor_msgs",
+    frozen
+)]
 pub struct PyFluidPressure {
     inner: FluidPressure<Vec<u8>>,
 }
@@ -2341,7 +2821,11 @@ impl PyFluidPressure {
     }
 
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
         let ptr_addr = ptr as usize;
         let owned: Vec<u8> = py.detach(|| {
@@ -2353,11 +2837,26 @@ impl PyFluidPressure {
         Ok(Self { inner })
     }
 
-    #[getter] fn stamp(&self) -> PyTime { PyTime(self.inner.stamp()) }
-    #[getter] fn frame_id(&self) -> &str { self.inner.frame_id() }
-    #[getter] fn fluid_pressure(&self) -> f64 { self.inner.fluid_pressure() }
-    #[getter] fn variance(&self) -> f64 { self.inner.variance() }
-    #[getter] fn cdr_size(&self) -> usize { self.inner.as_cdr().len() }
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn fluid_pressure(&self) -> f64 {
+        self.inner.fluid_pressure()
+    }
+    #[getter]
+    fn variance(&self) -> f64 {
+        self.inner.variance()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
     fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
         PyBytes::new(py, self.inner.as_cdr())
     }
@@ -2388,7 +2887,11 @@ impl PyTemperature {
     }
 
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
         let ptr_addr = ptr as usize;
         let owned: Vec<u8> = py.detach(|| {
@@ -2400,11 +2903,26 @@ impl PyTemperature {
         Ok(Self { inner })
     }
 
-    #[getter] fn stamp(&self) -> PyTime { PyTime(self.inner.stamp()) }
-    #[getter] fn frame_id(&self) -> &str { self.inner.frame_id() }
-    #[getter] fn temperature(&self) -> f64 { self.inner.temperature() }
-    #[getter] fn variance(&self) -> f64 { self.inner.variance() }
-    #[getter] fn cdr_size(&self) -> usize { self.inner.as_cdr().len() }
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn temperature(&self) -> f64 {
+        self.inner.temperature()
+    }
+    #[getter]
+    fn variance(&self) -> f64 {
+        self.inner.variance()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
     fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
         PyBytes::new(py, self.inner.as_cdr())
     }
@@ -2431,15 +2949,32 @@ impl PyOdometry {
         let frame_id = header.inner.frame_id().to_string();
         let p = pose.map(|x| x.0).unwrap_or(PoseWithCovariance {
             pose: Pose {
-                position: Point { x: 0.0, y: 0.0, z: 0.0 },
-                orientation: Quaternion { x: 0.0, y: 0.0, z: 0.0, w: 1.0 },
+                position: Point {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                orientation: Quaternion {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                    w: 1.0,
+                },
             },
             covariance: [0.0; 36],
         });
         let t = twist.map(|x| x.0).unwrap_or(TwistWithCovariance {
             twist: Twist {
-                linear: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
-                angular: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
+                linear: Vector3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                angular: Vector3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
             },
             covariance: [0.0; 36],
         });
@@ -2452,7 +2987,11 @@ impl PyOdometry {
     }
 
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
         let ptr_addr = ptr as usize;
         let owned: Vec<u8> = py.detach(|| {
@@ -2464,12 +3003,30 @@ impl PyOdometry {
         Ok(Self { inner })
     }
 
-    #[getter] fn stamp(&self) -> PyTime { PyTime(self.inner.stamp()) }
-    #[getter] fn frame_id(&self) -> &str { self.inner.frame_id() }
-    #[getter] fn child_frame_id(&self) -> &str { self.inner.child_frame_id() }
-    #[getter] fn pose(&self) -> PyPoseWithCovariance { PyPoseWithCovariance(self.inner.pose()) }
-    #[getter] fn twist(&self) -> PyTwistWithCovariance { PyTwistWithCovariance(self.inner.twist()) }
-    #[getter] fn cdr_size(&self) -> usize { self.inner.as_cdr().len() }
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn child_frame_id(&self) -> &str {
+        self.inner.child_frame_id()
+    }
+    #[getter]
+    fn pose(&self) -> PyPoseWithCovariance {
+        PyPoseWithCovariance(self.inner.pose())
+    }
+    #[getter]
+    fn twist(&self) -> PyTwistWithCovariance {
+        PyTwistWithCovariance(self.inner.twist())
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
     fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
         PyBytes::new(py, self.inner.as_cdr())
     }
@@ -2486,7 +3043,11 @@ impl PyOdometry {
 
 // ── edgefirst_msgs.LocalTime ────────────────────────────────────────
 
-#[pyclass(name = "LocalTime", module = "edgefirst.schemas.edgefirst_msgs", frozen)]
+#[pyclass(
+    name = "LocalTime",
+    module = "edgefirst.schemas.edgefirst_msgs",
+    frozen
+)]
 pub struct PyLocalTime {
     inner: LocalTime<Vec<u8>>,
 }
@@ -2503,7 +3064,11 @@ impl PyLocalTime {
     ) -> PyResult<Self> {
         let stamp = header.inner.stamp();
         let frame_id = header.inner.frame_id().to_string();
-        let d = date.map(|d| d.0).unwrap_or(Date { year: 1970, month: 1, day: 1 });
+        let d = date.map(|d| d.0).unwrap_or(Date {
+            year: 1970,
+            month: 1,
+            day: 1,
+        });
         let t = time.map(|t| t.0).unwrap_or(Time { sec: 0, nanosec: 0 });
         let inner = LocalTime::builder()
             .stamp(stamp)
@@ -2517,7 +3082,11 @@ impl PyLocalTime {
     }
 
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
         let ptr_addr = ptr as usize;
         let owned: Vec<u8> = py.detach(|| {
@@ -2529,12 +3098,30 @@ impl PyLocalTime {
         Ok(Self { inner })
     }
 
-    #[getter] fn stamp(&self) -> PyTime { PyTime(self.inner.stamp()) }
-    #[getter] fn frame_id(&self) -> &str { self.inner.frame_id() }
-    #[getter] fn date(&self) -> PyDate { PyDate(self.inner.date()) }
-    #[getter] fn time(&self) -> PyTime { PyTime(self.inner.time()) }
-    #[getter] fn timezone(&self) -> i16 { self.inner.timezone() }
-    #[getter] fn cdr_size(&self) -> usize { self.inner.as_cdr().len() }
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn date(&self) -> PyDate {
+        PyDate(self.inner.date())
+    }
+    #[getter]
+    fn time(&self) -> PyTime {
+        PyTime(self.inner.time())
+    }
+    #[getter]
+    fn timezone(&self) -> i16 {
+        self.inner.timezone()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
     fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
         PyBytes::new(py, self.inner.as_cdr())
     }
@@ -2563,7 +3150,11 @@ impl PyTrack {
     }
 
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
         let ptr_addr = ptr as usize;
         let owned: Vec<u8> = py.detach(|| {
@@ -2575,10 +3166,22 @@ impl PyTrack {
         Ok(Self { inner })
     }
 
-    #[getter] fn id(&self) -> &str { self.inner.id() }
-    #[getter] fn lifetime(&self) -> i32 { self.inner.lifetime() }
-    #[getter] fn created(&self) -> PyTime { PyTime(self.inner.created()) }
-    #[getter] fn cdr_size(&self) -> usize { self.inner.as_cdr().len() }
+    #[getter]
+    fn id(&self) -> &str {
+        self.inner.id()
+    }
+    #[getter]
+    fn lifetime(&self) -> i32 {
+        self.inner.lifetime()
+    }
+    #[getter]
+    fn created(&self) -> PyTime {
+        PyTime(self.inner.created())
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
     fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
         PyBytes::new(py, self.inner.as_cdr())
     }
@@ -2597,13 +3200,23 @@ impl PyFoxglovePoint2 {
     fn new(x: f64, y: f64) -> Self {
         Self(FoxglovePoint2 { x, y })
     }
-    #[getter] fn x(&self) -> f64 { self.0.x }
-    #[getter] fn y(&self) -> f64 { self.0.y }
+    #[getter]
+    fn x(&self) -> f64 {
+        self.0.x
+    }
+    #[getter]
+    fn y(&self) -> f64 {
+        self.0.y
+    }
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         cdrfixed_encode(py, &self.0)
     }
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         Ok(Self(cdrfixed_decode::<FoxglovePoint2>(py, buf)?))
     }
 }
@@ -2619,15 +3232,31 @@ impl PyFoxgloveColor {
     fn new(r: f64, g: f64, b: f64, a: f64) -> Self {
         Self(FoxgloveColor { r, g, b, a })
     }
-    #[getter] fn r(&self) -> f64 { self.0.r }
-    #[getter] fn g(&self) -> f64 { self.0.g }
-    #[getter] fn b(&self) -> f64 { self.0.b }
-    #[getter] fn a(&self) -> f64 { self.0.a }
+    #[getter]
+    fn r(&self) -> f64 {
+        self.0.r
+    }
+    #[getter]
+    fn g(&self) -> f64 {
+        self.0.g
+    }
+    #[getter]
+    fn b(&self) -> f64 {
+        self.0.b
+    }
+    #[getter]
+    fn a(&self) -> f64 {
+        self.0.a
+    }
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         cdrfixed_encode(py, &self.0)
     }
     #[classmethod]
-    fn from_cdr(_cls: &Bound<'_, PyType>, py: Python<'_>, buf: &Bound<'_, PyAny>) -> PyResult<Self> {
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
         Ok(Self(cdrfixed_decode::<FoxgloveColor>(py, buf)?))
     }
 }
@@ -2744,4 +3373,3 @@ fn register_submodule(
     sys_modules.set_item(&full_name, child)?;
     Ok(())
 }
-
