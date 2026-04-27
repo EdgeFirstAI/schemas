@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright © 2026 Au-Zone Technologies. All Rights Reserved.
+
+[package]
+name = "edgefirst-schemas-python"
+version = "0.1.0"
+edition = "2021"
+authors = ["Au-Zone Technologies <support@au-zone.com>"]
+license = "Apache-2.0"
+description = "Python bindings for edgefirst-schemas zero-copy CDR messages"
+homepage = "https://doc.edgefirst.ai"
+repository = "https://github.com/EdgeFirstAI/schemas"
+publish = false  # Python bindings only — distributed via PyPI, not crates.io
+
+[lib]
+# Maturin renames the produced .so/.pyd to match `module-name` from
+# pyproject.toml (`edgefirst.schemas` → `edgefirst/schemas.abi3.so`).
+# This `name` is the cargo crate output stem; keeping it short keeps
+# cargo build output legible.
+name = "edgefirst_schemas_python"
+crate-type = ["cdylib"]
+
+# ABI selection (mirrors hal/crates/python).
+#
+# default — interpreter-tagged build (cp313-cp313 etc.); fastest, but
+#           each Python minor version needs its own wheel.
+#
+# abi3-py311 — Python 3.11+ stable ABI (Py_LIMITED_API). One wheel
+#           covers every CPython 3.11+. Includes Py_buffer in the
+#           limited API, so zero-copy input/output (np.frombuffer,
+#           memoryview, typed numpy arrays) works without forks.
+#           **This is the default** — see crates/python/pyproject.toml.
+#
+# abi3-py38 — Python 3.8+ stable ABI. Drops below 3.11 means Py_buffer
+#           isn't available; we fall back to a Vec<u8>::extract copy on
+#           construct (rejecting typed numpy with a clear error) and
+#           return `bytes` (not memoryview) from BorrowedBuf::view().
+#           Opt-in only — for embedded targets that pin an older Python.
+#           Build with: maturin build --no-default-features --features abi3-py38.
+[features]
+default = []
+abi3-py38 = ["pyo3/abi3-py38"]
+abi3-py311 = ["pyo3/abi3-py311"]
+
+[dependencies]
+edgefirst-schemas = { path = "../.." }
+pyo3 = { version = "0.26", features = ["extension-module"] }
+numpy = "0.26"
+
+[build-dependencies]
+pyo3-build-config = { version = "0.26", features = ["resolve-config"] }
+rustc_version = "0.4"

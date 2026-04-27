@@ -56,7 +56,8 @@ TEST_DIR = tests/c
 TEST_SOURCES = $(wildcard $(TEST_DIR)/test_*.c)
 TEST_BINARIES = $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/%,$(TEST_SOURCES))
 
-.PHONY: all lib test-c test-c-xml test-cpp test-cpp-asan test-cpp-xml test-cpp-asan-xml example-cpp install docs docs-clean clean help
+.PHONY: all lib test-c test-c-xml test-cpp test-cpp-asan test-cpp-xml test-cpp-asan-xml example-cpp install docs docs-clean clean help \
+        test-python test-python-coverage
 
 all: lib $(TEST_BINARIES)
 
@@ -207,6 +208,46 @@ test-cpp-asan-xml: $(CPP_TEST_BINARIES_ASAN)
 	@echo "ASan test results written to $(BUILD_DIR)/test-results/"
 
 # ============================================================================
+# Python tests + Python-driven coverage
+# ============================================================================
+# Since the Python module is now a pyo3 cdylib (Rust-backed) rather than
+# pure Python, we measure Python-driven coverage by instrumenting the
+# Rust build and accumulating profraw files via cargo-llvm-cov. This
+# matches the rust-and-c-test job's coverage flow.
+#
+# Usage:
+#   make test-python                         # run pytest, no coverage
+#   make test-python-coverage                # pytest + emit coverage-python.lcov
+#
+# Both targets expect a `venv/` at the repo root with maturin + pytest
+# installed; if none exists, they fall back to the system-installed tools.
+
+PYTHON_PYTEST     := $(shell if [ -x venv/bin/pytest ]; then echo "venv/bin/pytest"; else echo "pytest"; fi)
+PYTHON_MATURIN    := $(shell if [ -x venv/bin/maturin ]; then echo "venv/bin/maturin"; else echo "maturin"; fi)
+
+test-python:
+	@echo "Building pyo3 module (release) and running Python tests..."
+	@$(PYTHON_MATURIN) develop --release --manifest-path crates/python/Cargo.toml
+	@$(PYTHON_PYTEST) tests/python/ -v
+
+test-python-coverage:
+	@command -v cargo-llvm-cov >/dev/null 2>&1 || { \
+		echo "ERROR: cargo-llvm-cov not installed. Install with: cargo install cargo-llvm-cov"; \
+		exit 1; \
+	}
+	@echo "Running Python tests under cargo-llvm-cov instrumentation..."
+	@# cargo llvm-cov show-env exports RUSTFLAGS / LLVM_PROFILE_FILE so
+	@# the subsequent maturin build links the cdylib with profraw emission.
+	@# The shell `eval` (rather than `source`) keeps this portable across
+	@# /bin/sh implementations make may invoke.
+	@eval "$$(cargo llvm-cov show-env --export-prefix)" \
+		&& $(PYTHON_MATURIN) develop --manifest-path crates/python/Cargo.toml \
+		&& $(PYTHON_PYTEST) tests/python/ -v \
+		&& cargo llvm-cov report --lcov --output-path coverage-python.lcov
+	@echo "Python-driven coverage written to coverage-python.lcov"
+	@echo "Lines with coverage: $$(grep -c '^DA:' coverage-python.lcov)"
+
+# ============================================================================
 # Documentation
 # ============================================================================
 # Generate API documentation using Doxygen. Reads Doxyfile.in as a template
@@ -286,6 +327,12 @@ help:
 	@echo "  test-cpp-asan - Build and run C++ tests under ASan/UBSan"
 	@echo "  test-cpp-xml - Build and run C++ tests with JUnit XML output"
 	@echo "  test-cpp-asan-xml - Build and run C++ tests under ASan/UBSan with JUnit XML output"
+	@echo "  test-python  - Run Python tests (pyo3 binding); requires maturin + a venv"
+	@echo "  test-python-coverage - Run Python tests under cargo-llvm-cov; emits"
+	@echo "                          coverage-python.lcov attributing Python-driven"
+	@echo "                          execution to the Rust source (the .pyi/.so module"
+	@echo "                          is now Rust, so we use llvm-cov rather than"
+	@echo "                          coverage.py)"
 	@echo "  example-cpp  - Build the C++ example"
 	@echo "  install      - Install headers and library to PREFIX (default /usr/local)"
 	@echo "  docs         - Generate API documentation (Doxygen) to build/docs/"

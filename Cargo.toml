@@ -1,3 +1,6 @@
+[workspace]
+members = [".", "crates/python"]
+
 [package]
 name = "edgefirst-schemas"
 description = "Message schemas for EdgeFirst Perception - ROS2 Common Interfaces, Foxglove, and custom types"

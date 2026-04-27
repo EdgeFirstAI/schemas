@@ -1,534 +1,253 @@
-"""Tests for edgefirst_msgs module."""
+# SPDX-License-Identifier: Apache-2.0
+# Copyright © 2026 Au-Zone Technologies. All Rights Reserved.
 
+"""Tests for `edgefirst.schemas.edgefirst_msgs`.
+
+Exercises the four wrapped types:
+- ``Date`` — CdrFixed (4-byte payload, year/month/day).
+- ``DmaBuffer`` — buffer-backed metadata-only message (deprecated upstream).
+- ``Mask`` — buffer-backed segmentation mask with bulk byte payload.
+- ``RadarCube`` — buffer-backed with multiple typed array fields
+  (layout u8, shape u16, scales f32, cube i16).
+"""
+
+import numpy as np
 import pytest
 
-from edgefirst.schemas import (
-    builtin_interfaces,
-    edgefirst_msgs,
-)
+from edgefirst.schemas.builtin_interfaces import Time
+from edgefirst.schemas.edgefirst_msgs import Date, DmaBuffer, LocalTime, Mask, RadarCube, Track
+from edgefirst.schemas.std_msgs import Header
+
+
+# ── Date ───────────────────────────────────────────────────────────
 
 
 class TestDate:
-    """Tests for Date message."""
+    def test_defaults(self):
+        d = Date()
+        assert (d.year, d.month, d.day) == (1970, 1, 1)
 
-    def test_date_creation(self):
-        """Test Date structure."""
-        date = edgefirst_msgs.Date(year=2025, month=1, day=15)
-        assert date.year == 2025
-        assert date.month == 1
-        assert date.day == 15
-
-    def test_date_serialize_deserialize(self):
-        """Test CDR serialization roundtrip."""
-        date = edgefirst_msgs.Date(year=2024, month=12, day=31)
-        data = date.serialize()
-        restored = edgefirst_msgs.Date.deserialize(data)
-        assert restored.year == 2024
-        assert restored.month == 12
-        assert restored.day == 31
-
-
-class TestLocalTime:
-    """Tests for LocalTime message."""
-
-    def test_local_time_creation(self, sample_header):
-        """Test LocalTime structure."""
-        lt = edgefirst_msgs.LocalTime(
-            header=sample_header,
-            date=edgefirst_msgs.Date(year=2025, month=1, day=15),
-            time=builtin_interfaces.Time(sec=43200, nanosec=0),  # Noon
-            timezone=-300,  # EST (UTC-5)
-        )
-        assert lt.timezone == -300
-        assert lt.date.year == 2025
-
-    def test_local_time_serialize_deserialize(self, sample_header):
-        """Test CDR serialization roundtrip."""
-        lt = edgefirst_msgs.LocalTime(
-            header=sample_header,
-            date=edgefirst_msgs.Date(year=2025, month=6, day=21),
-            time=builtin_interfaces.Time(sec=36000, nanosec=500000000),
-            timezone=120,  # UTC+2
-        )
-        data = lt.serialize()
-        restored = edgefirst_msgs.LocalTime.deserialize(data)
-        assert restored.date.month == 6
-        assert restored.timezone == 120
+    @pytest.mark.parametrize(
+        "year,month,day",
+        [
+            (2026, 4, 27),
+            (1970, 1, 1),
+            (2099, 12, 31),
+            (2000, 2, 29),  # leap day
+        ],
+    )
+    def test_round_trip(self, year, month, day):
+        d = Date(year=year, month=month, day=day)
+        restored = Date.from_cdr(d.to_bytes())
+        assert (restored.year, restored.month, restored.day) == (year, month, day)
 
 
-class TestTrack:
-    """Tests for Track message (object tracking)."""
-
-    def test_track_creation(self):
-        """Test Track structure."""
-        track = edgefirst_msgs.Track(
-            id="track_42",
-            lifetime=100,
-            created=builtin_interfaces.Time(sec=1000, nanosec=0),
-        )
-        assert track.id == "track_42"
-        assert track.lifetime == 100
-
-    def test_track_serialize_deserialize(self):
-        """Test CDR serialization roundtrip."""
-        track = edgefirst_msgs.Track(
-            id="person_1",
-            lifetime=50,
-            created=builtin_interfaces.Time(sec=500, nanosec=123456),
-        )
-        data = track.serialize()
-        restored = edgefirst_msgs.Track.deserialize(data)
-        assert restored.id == "person_1"
-        assert restored.lifetime == 50
-
-
-class TestBox:
-    """Tests for Box message (detection bounding box)."""
-
-    def test_box_creation(self, sample_detect_box2d):
-        """Test Box structure (matches Rust normalized coords)."""
-        assert sample_detect_box2d.center_x == pytest.approx(0.5)
-        assert sample_detect_box2d.center_y == pytest.approx(0.5)
-        assert sample_detect_box2d.width == pytest.approx(0.1)
-        assert sample_detect_box2d.height == pytest.approx(0.2)
-        assert sample_detect_box2d.label == "car"
-        assert sample_detect_box2d.score == pytest.approx(0.98)
-        assert sample_detect_box2d.distance == pytest.approx(10.0)
-        assert sample_detect_box2d.speed == pytest.approx(5.0)
-        assert sample_detect_box2d.track.id == "t1"
-        assert sample_detect_box2d.track.lifetime == 5
-
-    def test_box_serialize_deserialize(self):
-        """Test CDR serialization roundtrip."""
-        box = edgefirst_msgs.Box(
-            center_x=0.5,
-            center_y=0.5,
-            width=0.3,
-            height=0.4,
-            label="car",
-            score=0.88,
-            distance=15.0,
-            speed=5.5,
-            track=edgefirst_msgs.Track(id="car_1", lifetime=10),
-        )
-        data = box.serialize()
-        restored = edgefirst_msgs.Box.deserialize(data)
-        assert restored.label == "car"
-        assert restored.score == pytest.approx(0.88)
-        assert restored.distance == pytest.approx(15.0)
-        assert restored.track.id == "car_1"
-
-    def test_box_normalized_coords(self):
-        """Test Box with normalized coordinates (0-1)."""
-        box = edgefirst_msgs.Box(
-            center_x=0.25,
-            center_y=0.75,
-            width=0.1,
-            height=0.2,
-            label="bicycle",
-            score=0.72,
-            track=edgefirst_msgs.Track(),
-        )
-        data = box.serialize()
-        restored = edgefirst_msgs.Box.deserialize(data)
-        assert restored.center_x == pytest.approx(0.25)
-        assert restored.center_y == pytest.approx(0.75)
-
-
-class TestMask:
-    """Tests for Mask message."""
-
-    def test_mask_creation(self, sample_mask):
-        """Test Mask structure (matches Rust VGA uncompressed)."""
-        assert sample_mask.width == 640
-        assert sample_mask.height == 480
-        assert sample_mask.length == 0  # Uncompressed
-        assert sample_mask.boxed is False
-
-    def test_mask_serialize_deserialize(self, sample_mask):
-        """Test CDR serialization roundtrip."""
-        data = sample_mask.serialize()
-        restored = edgefirst_msgs.Mask.deserialize(data)
-        assert restored.width == sample_mask.width
-        assert restored.height == sample_mask.height
-        assert len(restored.mask) == len(sample_mask.mask)
-
-    def test_mask_compressed(self):
-        """Test Mask FHD compressed (matches Rust compressed test)."""
-        mask = edgefirst_msgs.Mask(
-            width=1920,
-            height=1080,
-            length=5,  # Compressed data length
-            encoding="zstd",  # Matches Rust
-            mask=[1, 2, 3, 4, 5],  # Matches Rust compressed data
-            boxed=True,  # Matches Rust
-        )
-        data = mask.serialize()
-        restored = edgefirst_msgs.Mask.deserialize(data)
-        assert restored.width == 1920
-        assert restored.height == 1080
-        assert restored.length == 5
-        assert restored.encoding == "zstd"
-        assert list(restored.mask) == [1, 2, 3, 4, 5]
-        assert restored.boxed is True
-
-    def test_mask_binary_pattern(self):
-        """Test Mask with binary pattern."""
-        width, height = 8, 8
-        mask_data = [
-            0xFF if (i + j) % 2 == 0 else 0x00
-            for j in range(height)
-            for i in range(width)
-        ]
-        mask = edgefirst_msgs.Mask(
-            width=width,
-            height=height,
-            length=0,  # Uncompressed
-            mask=mask_data,
-            boxed=True,
-        )
-        serialized = mask.serialize()
-        restored = edgefirst_msgs.Mask.deserialize(serialized)
-        assert list(restored.mask) == mask_data
-
-
-class TestModel:
-    """Tests for Model message (inference results)."""
-
-    def test_model_creation(self, sample_header):
-        """Test Model structure."""
-        model = edgefirst_msgs.Model(
-            header=sample_header,
-            input_time=builtin_interfaces.Duration(sec=0, nanosec=1000000),
-            model_time=builtin_interfaces.Duration(sec=0, nanosec=5000000),
-            output_time=builtin_interfaces.Duration(sec=0, nanosec=500000),
-            decode_time=builtin_interfaces.Duration(sec=0, nanosec=200000),
-            boxes=[
-                edgefirst_msgs.Box(
-                    center_x=0.5,
-                    center_y=0.5,
-                    width=0.2,
-                    height=0.3,
-                    label="person",
-                    score=0.95,
-                )
-            ],
-        )
-        assert len(model.boxes) == 1
-        assert model.boxes[0].label == "person"
-
-    def test_model_serialize_deserialize(self, sample_header):
-        """Test CDR serialization roundtrip."""
-        model = edgefirst_msgs.Model(
-            header=sample_header,
-            input_time=builtin_interfaces.Duration(sec=0, nanosec=1000000),
-            model_time=builtin_interfaces.Duration(sec=0, nanosec=8000000),
-            output_time=builtin_interfaces.Duration(sec=0, nanosec=300000),
-            decode_time=builtin_interfaces.Duration(sec=0, nanosec=100000),
-            boxes=[],
-        )
-        data = model.serialize()
-        restored = edgefirst_msgs.Model.deserialize(data)
-        assert restored.model_time.nanosec == 8000000
-
-
-class TestModelInfo:
-    """Tests for ModelInfo message."""
-
-    def test_model_info_creation(self, sample_header):
-        """Test ModelInfo structure."""
-        info = edgefirst_msgs.ModelInfo(
-            header=sample_header,
-            input_shape=[1, 640, 640, 3],
-            input_type=edgefirst_msgs.model_info.UINT8.value,
-            output_shape=[1, 8400, 84],
-            output_type=edgefirst_msgs.model_info.FLOAT32.value,
-            labels=["person", "car", "bicycle"],
-            model_type="object_detection",
-            model_format="TFLite",
-            model_name="yolov8n",
-        )
-        assert info.model_name == "yolov8n"
-        assert len(info.labels) == 3
-
-    def test_model_info_serialize_deserialize(self, sample_header):
-        """Test CDR serialization roundtrip."""
-        info = edgefirst_msgs.ModelInfo(
-            header=sample_header,
-            input_shape=[1, 224, 224, 3],
-            input_type=edgefirst_msgs.model_info.FLOAT32.value,
-            output_shape=[1, 1000],
-            output_type=edgefirst_msgs.model_info.FLOAT32.value,
-            labels=[],
-            model_type="classification",
-            model_format="ONNX",
-            model_name="resnet50",
-        )
-        data = info.serialize()
-        restored = edgefirst_msgs.ModelInfo.deserialize(data)
-        assert restored.model_type == "classification"
-        assert restored.model_format == "ONNX"
-
-
-class TestDetect:
-    """Tests for Detect message."""
-
-    def test_detect_creation(self, sample_detect):
-        """Test Detect structure."""
-        assert sample_detect.boxes is not None
-        assert len(sample_detect.boxes) > 0
-
-    def test_detect_serialize_deserialize(self, sample_detect):
-        """Test CDR serialization roundtrip."""
-        data = sample_detect.serialize()
-        restored = edgefirst_msgs.Detect.deserialize(data)
-        assert len(restored.boxes) == len(sample_detect.boxes)
-
-    def test_detect_multiple_boxes(self, sample_header, sample_time):
-        """Test Detect with multiple detections."""
-        boxes = [
-            edgefirst_msgs.Box(
-                center_x=0.2 * i,
-                center_y=0.3,
-                width=0.1,
-                height=0.15,
-                label=f"obj_{i}",
-                score=0.9 - 0.1 * i,
-                track=edgefirst_msgs.Track(),
-            )
-            for i in range(5)
-        ]
-        detect = edgefirst_msgs.Detect(
-            header=sample_header,
-            input_timestamp=sample_time,
-            boxes=boxes,
-        )
-        data = detect.serialize()
-        restored = edgefirst_msgs.Detect.deserialize(data)
-        assert len(restored.boxes) == 5
-        assert restored.boxes[0].label == "obj_0"
+# ── DmaBuffer (deprecated upstream, kept for bench parity) ─────────
 
 
 class TestDmaBuffer:
-    """Tests for DmaBuffer message."""
-
-    def test_dma_buffer_creation(self, sample_dmabuf):
-        """Test DmaBuffer structure (matches Rust FHD RG24)."""
-        assert sample_dmabuf.fd == 42  # Matches Rust
-        assert sample_dmabuf.width == 1920
-        assert sample_dmabuf.height == 1080
-        assert sample_dmabuf.stride == 5760  # 1920 * 3 (matches Rust)
-        assert sample_dmabuf.fourcc == 0x34325247  # RG24 (matches Rust)
-        assert sample_dmabuf.length == 1920 * 1080 * 3
-
-    def test_dma_buffer_serialize_deserialize(self, sample_dmabuf):
-        """Test CDR serialization roundtrip."""
-        data = sample_dmabuf.serialize()
-        restored = edgefirst_msgs.DmaBuffer.deserialize(data)
-        assert restored.fd == sample_dmabuf.fd
-        assert restored.width == sample_dmabuf.width
-        assert restored.height == sample_dmabuf.height
-        assert restored.fourcc == sample_dmabuf.fourcc
-
-    def test_dma_buffer_formats(self, sample_header):
-        """Test DmaBuffer with different pixel formats."""
-        formats = [
-            (0x56595559, "YUYV"),  # YUYV
-            (0x32315559, "YU12"),  # YU12 (I420)
-            (0x3231564E, "NV12"),  # NV12
-        ]
-        for fourcc, _ in formats:
-            with pytest.warns(DeprecationWarning):
-                buf = edgefirst_msgs.DmaBuffer(
-                    header=sample_header,
-                    pid=1000,
-                    fd=5,
-                    width=640,
-                    height=480,
-                    stride=640 * 2,
-                    fourcc=fourcc,
-                    length=640 * 480 * 2,
-                )
-            data = buf.serialize()
-            with pytest.warns(DeprecationWarning):
-                restored = edgefirst_msgs.DmaBuffer.deserialize(data)
-            assert restored.fourcc == fourcc
-
-    def test_dmabuffer_emits_deprecation_warning(self, sample_header):
-        """DmaBuffer must emit DeprecationWarning on instantiation so downstream
-        consumers get a runtime signal matching the Rust/C++ compile-time
-        deprecation. Removed in 4.0.0."""
-        with pytest.warns(DeprecationWarning, match="edgefirst_msgs.CameraFrame"):
-            edgefirst_msgs.DmaBuffer(
-                header=sample_header,
-                pid=1,
-                fd=-1,
-                width=16,
-                height=16,
-                stride=16,
-                fourcc=0,
-                length=16 * 16,
-            )
-
-
-class TestCameraFrame:
-    """Tests for CameraFrame / CameraPlane messages."""
-
-    def test_camera_frame_round_trip_empty(self, sample_header):
-        cf = edgefirst_msgs.CameraFrame(
+    @pytest.mark.filterwarnings("ignore::DeprecationWarning")
+    def test_round_trip(self, sample_header):
+        # YUYV fourcc = 'YUYV' = 0x56595559
+        db = DmaBuffer(
             header=sample_header,
-            seq=1, pid=1234, width=1920, height=1080,
-            format="NV12",
-            color_space="bt709", color_transfer="bt709",
-            color_encoding="bt709", color_range="limited",
-            fence_fd=-1, planes=[],
+            pid=12345, fd=42,
+            width=1920, height=1080,
+            stride=1920 * 2, fourcc=0x56595559,
+            length=1920 * 1080 * 2,
         )
-        data = cf.serialize()
-        r = edgefirst_msgs.CameraFrame.deserialize(data)
-        assert r.seq == 1
-        assert r.width == 1920
-        assert r.format == "NV12"
-        assert r.color_range == "limited"
-        assert len(r.planes) == 0
+        restored = DmaBuffer.from_cdr(db.to_bytes())
+        assert restored.pid == 12345
+        assert restored.fd == 42
+        assert restored.width == 1920
+        assert restored.height == 1080
+        assert restored.stride == 1920 * 2
+        assert restored.fourcc == 0x56595559
+        assert restored.length == 1920 * 1080 * 2
 
-    def test_camera_frame_two_planes(self, sample_header):
-        y = edgefirst_msgs.CameraPlane(
-            fd=42, offset=0, stride=1920, size=2_073_600, used=2_073_600)
-        uv = edgefirst_msgs.CameraPlane(
-            fd=42, offset=2_073_600, stride=1920, size=1_036_800, used=1_036_800)
-        cf = edgefirst_msgs.CameraFrame(
-            header=sample_header, seq=2, pid=1234, width=1920, height=1080,
-            format="NV12",
-            color_space="bt709", color_transfer="bt709",
-            color_encoding="bt709", color_range="limited", fence_fd=-1,
-            planes=[y, uv])
-        r = edgefirst_msgs.CameraFrame.deserialize(cf.serialize())
-        assert len(r.planes) == 2
-        assert r.planes[1].offset == 2_073_600
+    @pytest.mark.filterwarnings("ignore::DeprecationWarning")
+    def test_negative_fd_round_trip(self, sample_header):
+        # fd is i32 — sentinel values may be negative in producer code.
+        db = DmaBuffer(
+            header=sample_header,
+            pid=1, fd=-1,
+            width=1, height=1, stride=1, fourcc=0, length=0,
+        )
+        assert DmaBuffer.from_cdr(db.to_bytes()).fd == -1
 
-    def test_camera_plane_inlined_data(self, sample_header):
-        payload = list(range(256)) * 4
-        p = edgefirst_msgs.CameraPlane(
-            fd=-1, offset=0, stride=64, size=1024, used=1024, data=payload)
-        cf = edgefirst_msgs.CameraFrame(
-            header=sample_header, seq=7, pid=0, width=16, height=16,
-            format="rgb8",
-            color_space="srgb", color_transfer="srgb",
-            color_encoding="", color_range="full", fence_fd=-1,
-            planes=[p])
-        r = edgefirst_msgs.CameraFrame.deserialize(cf.serialize())
-        assert r.planes[0].fd == -1
-        assert list(r.planes[0].data[:4]) == [0, 1, 2, 3]
-        assert len(r.planes[0].data) == 1024
 
-    @pytest.mark.parametrize("variant", [
-        "CameraFrame",
-        "CameraFrame_nv12",
-        "CameraFrame_i420",
-        "CameraFrame_planar_nchw",
-        "CameraFrame_split_fd",
-        "CameraFrame_h264",
-        "CameraFrame_inlined",
-        "CameraFrame_empty",
-    ])
-    def test_camera_frame_golden_round_trip(self, variant):
-        """Deserialize a golden fixture and re-serialize byte-for-byte."""
-        from pathlib import Path
-        path = Path(__file__).resolve().parents[2] / "testdata" / "cdr" / "edgefirst_msgs" / f"{variant}.cdr"
-        data = path.read_bytes()
-        cf = edgefirst_msgs.CameraFrame.deserialize(data)
-        assert cf.serialize() == data, f"{variant} did not round-trip identically"
+# ── Mask ───────────────────────────────────────────────────────────
+
+
+class TestMask:
+    @pytest.mark.parametrize(
+        "h,w,channels",
+        [
+            (320, 320, 1),    # ModelPack semantic HD
+            (480, 480, 1),    # ModelPack semantic FHD
+            (640, 640, 1),    # YOLO instance mask
+            (1280, 720, 1),   # retina-scaled HD
+        ],
+    )
+    def test_uncompressed_round_trip(self, h, w, channels):
+        # encoding="" is the raw uint8 path.
+        rng = np.random.default_rng(seed=h * w + channels)
+        payload = rng.integers(0, 256, size=h * w * channels, dtype=np.uint8)
+        m = Mask(
+            height=h, width=w, length=channels,
+            encoding="", mask=payload, boxed=False,
+        )
+        restored = Mask.from_cdr(m.to_bytes())
+        assert restored.height == h
+        assert restored.width == w
+        assert restored.length == channels
+        assert restored.encoding == ""
+        assert restored.boxed is False
+        # Bulk payload — verify byte-for-byte preservation.
+        assert restored.mask.tobytes() == bytes(payload)
+
+    def test_zstd_encoding_marker(self):
+        # `encoding` is just a string — payload bytes are opaque to the
+        # codec, so we don't actually compress here, just check the
+        # marker round-trips.
+        m = Mask(
+            height=1, width=1, length=1,
+            encoding="zstd", mask=b"\x01\x02\x03",
+            boxed=True,
+        )
+        restored = Mask.from_cdr(m.to_bytes())
+        assert restored.encoding == "zstd"
+        assert restored.boxed is True
+        assert restored.mask.tobytes() == b"\x01\x02\x03"
+
+
+# ── RadarCube ──────────────────────────────────────────────────────
 
 
 class TestRadarCube:
-    """Tests for RadarCube message."""
+    def test_round_trip_typed_arrays(self, sample_header):
+        # DRVEGRD-169 short-range shape: (chirps, ranges, rx, doppler×2).
+        shape = np.array([2, 128, 12, 128], dtype=np.uint16)
+        scales = np.array([1.0, 0.117, 1.0, 0.156], dtype=np.float32)
+        layout = np.array([6, 1, 5, 2], dtype=np.uint8)
+        cube_len = int(np.prod(shape))
+        rng = np.random.default_rng(seed=42)
+        cube = rng.integers(-32768, 32767, size=cube_len, dtype=np.int16)
 
-    def test_radar_cube_creation(self, sample_radar_cube):
-        """Test RadarCube structure (matches Rust dimensions)."""
-        assert len(sample_radar_cube.shape) == 4
-        assert list(sample_radar_cube.shape) == [16, 256, 4, 64]
-        assert sample_radar_cube.is_complex is False
-        assert len(sample_radar_cube.cube) == 16 * 256 * 4 * 64
-
-    def test_radar_cube_serialize_deserialize(self, sample_radar_cube):
-        """Test CDR serialization roundtrip (matches Rust)."""
-        data = sample_radar_cube.serialize()
-        restored = edgefirst_msgs.RadarCube.deserialize(data)
-        assert list(restored.shape) == list(sample_radar_cube.shape)
-        assert list(restored.layout) == list(sample_radar_cube.layout)
-        assert len(restored.cube) == len(sample_radar_cube.cube)
-        # Verify some values survived roundtrip
-        assert restored.cube[0] == sample_radar_cube.cube[0]
-        assert restored.cube[1000] == sample_radar_cube.cube[1000]
-
-    def test_radar_cube_layout(self, sample_header):
-        """Test RadarCube with Range-Doppler layout (matches Rust complex)."""
-        # Range-Doppler cube (matches Rust complex_cube shape)
-        cube = edgefirst_msgs.RadarCube(
+        # `.tobytes()` is the portable input form — abi3-py38 wheels
+        # don't expose Py_buffer in the limited API, so typed numpy
+        # arrays go through bytes. On Py 3.11+ / non-abi3 builds the
+        # typed arrays themselves work directly.
+        rc = RadarCube(
             header=sample_header,
-            timestamp=0,
-            layout=[
-                edgefirst_msgs.RadarChannel.RANGE.value,
-                edgefirst_msgs.RadarChannel.DOPPLER.value,
-            ],
-            shape=[64, 32],
-            scales=[1.0, 0.1],  # Matches Rust
-            cube=[0] * (64 * 32),
-            is_complex=False,
-        )
-        data = cube.serialize()
-        restored = edgefirst_msgs.RadarCube.deserialize(data)
-        assert restored.layout[0] == edgefirst_msgs.RadarChannel.RANGE.value
-        assert restored.layout[1] == edgefirst_msgs.RadarChannel.DOPPLER.value
-
-    def test_radar_cube_complex(self, sample_header):
-        """Test RadarCube with complex data (matches Rust complex_cube)."""
-        cube = edgefirst_msgs.RadarCube(
-            header=sample_header,
-            timestamp=0,
-            layout=[
-                edgefirst_msgs.RadarChannel.RANGE.value,
-                edgefirst_msgs.RadarChannel.DOPPLER.value,
-            ],
-            shape=[64, 32],
-            scales=[1.0, 0.1],
-            cube=[100, 200, -100, -200],  # Matches Rust test values
+            timestamp=1234567890123456,
+            layout=layout.tobytes(),
+            shape=shape.tobytes(),
+            scales=scales.tobytes(),
+            cube=cube.tobytes(),
             is_complex=True,
         )
-        data = cube.serialize()
-        restored = edgefirst_msgs.RadarCube.deserialize(data)
+
+        restored = RadarCube.from_cdr(rc.to_bytes())
+        assert restored.timestamp == 1234567890123456
         assert restored.is_complex is True
-        assert list(restored.cube) == [100, 200, -100, -200]
 
+        # Each typed array reinterprets through the documented dtype.
+        layout_back = np.frombuffer(restored.layout.view(), dtype=np.uint8)
+        shape_back = np.frombuffer(restored.shape.view(), dtype=np.uint16)
+        scales_back = np.frombuffer(restored.scales.view(), dtype=np.float32)
+        cube_back = np.frombuffer(restored.cube.view(), dtype=np.int16)
 
-class TestRadarInfo:
-    """Tests for RadarInfo message."""
+        assert np.array_equal(layout_back, layout)
+        assert np.array_equal(shape_back, shape)
+        assert np.allclose(scales_back, scales)
+        assert np.array_equal(cube_back, cube)
 
-    def test_radar_info_creation(self, sample_header):
-        """Test RadarInfo structure."""
-        info = edgefirst_msgs.RadarInfo(
+    def test_accepts_bytes_for_layout(self, sample_header):
+        # `layout` is a uint8 sequence — bytes objects work as input
+        # without needing `.tobytes()` because they're already byte-typed.
+        rc = RadarCube(
             header=sample_header,
-            center_frequency="77GHz",
-            frequency_sweep="1GHz",
-            range_toggle="off",
-            detection_sensitivity="high",
-            cube=True,
+            timestamp=0,
+            layout=b"\x06\x01\x05\x02",
+            shape=np.array([1, 1, 1, 1], dtype=np.uint16).tobytes(),
+            scales=np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32).tobytes(),
+            cube=np.array([0], dtype=np.int16).tobytes(),
+            is_complex=False,
         )
-        assert info.center_frequency == "77GHz"
-        assert info.cube is True
+        assert rc.layout.tobytes() == b"\x06\x01\x05\x02"
 
-    def test_radar_info_serialize_deserialize(self, sample_header):
-        """Test CDR serialization roundtrip."""
-        info = edgefirst_msgs.RadarInfo(
+    def test_invalid_shape_byte_count_raises(self, sample_header):
+        # shape is uint16 — the buffer length must be a multiple of 2.
+        with pytest.raises(ValueError, match="shape"):
+            RadarCube(
+                header=sample_header,
+                timestamp=0,
+                layout=b"",
+                shape=b"\x01\x02\x03",  # 3 bytes — invalid
+                scales=b"",
+                cube=b"",
+                is_complex=False,
+            )
+
+    def test_invalid_scales_byte_count_raises(self, sample_header):
+        # scales is f32 — buffer must be a multiple of 4.
+        with pytest.raises(ValueError, match="scales"):
+            RadarCube(
+                header=sample_header,
+                timestamp=0,
+                layout=b"",
+                shape=b"",
+                scales=b"\x01\x02\x03",  # 3 bytes — invalid
+                cube=b"",
+                is_complex=False,
+            )
+
+
+# ── LocalTime ──────────────────────────────────────────────────────
+
+
+class TestLocalTime:
+    def test_round_trip(self, sample_header):
+        lt = LocalTime(
             header=sample_header,
-            center_frequency="79GHz",
-            frequency_sweep="2GHz",
-            range_toggle="short-long",
-            detection_sensitivity="medium",
-            cube=False,
+            date=Date(year=2026, month=4, day=27),
+            time=Time(sec=3600, nanosec=500_000_000),  # 01:00:00.5
+            timezone=-300,  # UTC-5 in minutes
         )
-        data = info.serialize()
-        restored = edgefirst_msgs.RadarInfo.deserialize(data)
-        assert restored.center_frequency == "79GHz"
-        assert restored.range_toggle == "short-long"
-        assert restored.cube is False
+        restored = LocalTime.from_cdr(lt.to_bytes())
+        assert restored.frame_id == sample_header.frame_id
+        assert restored.date.year == 2026
+        assert restored.date.month == 4
+        assert restored.date.day == 27
+        assert restored.time.sec == 3600
+        assert restored.time.nanosec == 500_000_000
+        assert restored.timezone == -300
+
+    @pytest.mark.parametrize(
+        "tz",
+        [-720, -300, 0, 60, 330, 720],  # UTC-12, UTC-5, UTC, UTC+1, UTC+5:30, UTC+12
+    )
+    def test_timezone_range(self, sample_header, tz):
+        # Timezones span ±12 hours in minutes; +05:30 (India) is the
+        # canonical 30-minute offset case.
+        lt = LocalTime(header=sample_header, timezone=tz)
+        assert LocalTime.from_cdr(lt.to_bytes()).timezone == tz
+
+
+# ── Track ──────────────────────────────────────────────────────────
+
+
+class TestTrack:
+    def test_round_trip(self):
+        # Track has no Header — it's a standalone tracking record.
+        t = Track(id="object-42", lifetime=120, created=Time(sec=1234567890, nanosec=0))
+        restored = Track.from_cdr(t.to_bytes())
+        assert restored.id == "object-42"
+        assert restored.lifetime == 120
+        assert restored.created.sec == 1234567890
+
+    def test_empty_id_means_untracked(self):
+        # The id is empty when the object isn't being tracked.
+        t = Track(id="", lifetime=0, created=Time(0, 0))
+        assert Track.from_cdr(t.to_bytes()).id == ""

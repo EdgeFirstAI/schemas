@@ -41,7 +41,7 @@ echo "  Scanning Python sources..."
 "$ORIGINAL_DIR/venv/bin/scancode" -clpieu \
     --cyclonedx "$ORIGINAL_DIR/source-python-raw.json" \
     --only-findings \
-    "$PROJECT_NAME/edgefirst/"
+    "$PROJECT_NAME/crates/python/"
 
 echo "  Scanning message definitions..."
 "$ORIGINAL_DIR/venv/bin/scancode" -clpieu \

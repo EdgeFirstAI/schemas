@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright © 2026 Au-Zone Technologies. All Rights Reserved.
+
+[project]
+name = "edgefirst-schemas"
+version = "3.2.0"
+description = "Zero-copy CDR message types for EdgeFirst Perception (ROS 2 + Foxglove + custom)"
+readme = "README.md"
+# Default wheel floors at Python 3.11 (abi3-py311). Python 3.10 reaches
+# upstream EOL on 2026-10; 3.9 reached EOL 2025-10; 3.8 on 2024-10. The
+# 3.11 floor restored Py_buffer to the limited API, which lets us keep
+# zero-copy input/output paths without an `abi3-py38` cfg fork. Builds
+# that genuinely need to target an older interpreter (e.g. embedded
+# Yocto images that pin Python 3.10) can opt in via
+# `--no-default-features --features abi3-py38` and pay the documented
+# cost (input-side memcpy fallback, view() returns bytes not memoryview).
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Au-Zone Technologies", email = "support@au-zone.com" }]
+keywords = ["ros2", "cdr", "foxglove", "zenoh", "perception", "edge-ai", "zero-copy"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=7", "numpy>=1.21"]
+
+[project.urls]
+Homepage = "https://doc.edgefirst.ai"
+Repository = "https://github.com/EdgeFirstAI/schemas"
+Issues = "https://github.com/EdgeFirstAI/schemas/issues"
+Changelog = "https://github.com/EdgeFirstAI/schemas/blob/main/CHANGELOG.md"
+
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[tool.maturin]
+# The compiled binary IS the user-facing module — no `_native` wrapper
+# layer, no Python re-export files. Maturin places the abi3 .so at
+# `edgefirst/schemas.abi3.so` (or `.pyd` on Windows). Submodules
+# (`sensor_msgs`, etc.) are registered inside the binary via pyo3 and
+# published into `sys.modules` so `from edgefirst.schemas.sensor_msgs
+# import Image` resolves correctly.
+module-name = "edgefirst.schemas"
+python-source = "python"
+
+# Bundle the PEP 561 marker plus per-submodule type stubs. Stub files
+# live in `python/edgefirst/schemas/<submodule>.pyi`; type checkers
+# (mypy, pyright) read them at type-check time without conflicting with
+# the runtime binary at `edgefirst/schemas.abi3.so`.
+include = [
+    { path = "python/edgefirst/schemas/py.typed", format = ["wheel", "sdist"] },
+]
+
+# Default abi3 feature: cp311-abi3 binary covers every CPython 3.11+ on
+# the same OS/arch with proper zero-copy input/output (Py_buffer is in
+# the limited API at this level). For an older Python floor, override
+# on the command line:
+#   maturin build --no-default-features --features abi3-py38
+features = ["abi3-py311"]
