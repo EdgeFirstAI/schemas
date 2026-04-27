@@ -1,6 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright © 2025 Au-Zone Technologies. All Rights Reserved.
 
+"""LEGACY pycdr2-backed schema definitions — benchmark comparison only.
+
+This package is the pre-pyo3 implementation of ``edgefirst.schemas``,
+retired in 4.0 (EDGEAI-1295) and preserved here so ``bench_pycdr2.py``
+can produce numbers for the ``BENCHMARKS_PYTHON.md`` three-way
+comparison. **Do not import from this package in production code** —
+use ``edgefirst.schemas`` (the pyo3 binding) instead. See
+``crates/python/README.md`` for the migration guide.
+"""
+
 import copy
 import struct
 from collections import namedtuple

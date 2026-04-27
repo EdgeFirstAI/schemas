@@ -1,326 +1,198 @@
-"""Tests for geometry_msgs module."""
+# SPDX-License-Identifier: Apache-2.0
+# Copyright © 2026 Au-Zone Technologies. All Rights Reserved.
+
+"""Tests for `edgefirst.schemas.geometry_msgs`.
+
+All eight types are CdrFixed. The composites (Pose, Transform, Twist)
+embed their components by value — no offset tables, no buffer-backed
+storage. Round-trip tests confirm wire compatibility with the Rust
+implementation.
+"""
 
 import pytest
 
-from edgefirst.schemas import geometry_msgs
+from edgefirst.schemas.geometry_msgs import (
+    Accel,
+    Inertia,
+    Point,
+    Point32,
+    Pose,
+    Pose2D,
+    PoseWithCovariance,
+    Quaternion,
+    Transform,
+    Twist,
+    TwistWithCovariance,
+    Vector3,
+)
 
 
 class TestVector3:
-    """Tests for Vector3 message."""
+    def test_defaults(self):
+        v = Vector3()
+        assert v.x == 0.0 and v.y == 0.0 and v.z == 0.0
 
-    def test_vector3_creation_defaults(self):
-        """Test creating a Vector3 with default values."""
-        vec = geometry_msgs.Vector3()
-        assert vec.x == 0.0
-        assert vec.y == 0.0
-        assert vec.z == 0.0
-
-    def test_vector3_with_values(self):
-        """Test creating a Vector3 with specific values."""
-        vec = geometry_msgs.Vector3(x=1.0, y=2.0, z=3.0)
-        assert vec.x == pytest.approx(1.0)
-        assert vec.y == pytest.approx(2.0)
-        assert vec.z == pytest.approx(3.0)
-
-    def test_vector3_serialize_deserialize(self, sample_vector3):
-        """Test CDR serialization roundtrip."""
-        data = sample_vector3.serialize()
-        assert isinstance(data, bytes)
-
-        restored = geometry_msgs.Vector3.deserialize(data)
-        assert restored.x == pytest.approx(sample_vector3.x)
-        assert restored.y == pytest.approx(sample_vector3.y)
-        assert restored.z == pytest.approx(sample_vector3.z)
-
-    def test_vector3_negative_values(self):
-        """Test Vector3 with negative values."""
-        vec = geometry_msgs.Vector3(x=-1.5, y=-2.5, z=-3.5)
-        data = vec.serialize()
-        restored = geometry_msgs.Vector3.deserialize(data)
-        assert restored.x == pytest.approx(-1.5)
-        assert restored.y == pytest.approx(-2.5)
-        assert restored.z == pytest.approx(-3.5)
+    def test_round_trip(self):
+        v = Vector3(x=1.5, y=2.5, z=3.5)
+        restored = Vector3.from_cdr(v.to_bytes())
+        assert (restored.x, restored.y, restored.z) == (1.5, 2.5, 3.5)
 
 
 class TestPoint:
-    """Tests for Point message."""
+    def test_defaults(self):
+        p = Point()
+        assert (p.x, p.y, p.z) == (0.0, 0.0, 0.0)
 
-    def test_point_creation_defaults(self):
-        """Test creating a Point with default values."""
-        point = geometry_msgs.Point()
-        assert point.x == 0.0
-        assert point.y == 0.0
-        assert point.z == 0.0
+    def test_round_trip(self):
+        p = Point(x=10.0, y=20.0, z=30.0)
+        restored = Point.from_cdr(p.to_bytes())
+        assert (restored.x, restored.y, restored.z) == (10.0, 20.0, 30.0)
 
-    def test_point_serialize_deserialize(self, sample_point):
-        """Test CDR serialization roundtrip."""
-        data = sample_point.serialize()
-        restored = geometry_msgs.Point.deserialize(data)
-        assert restored.x == pytest.approx(sample_point.x)
-        assert restored.y == pytest.approx(sample_point.y)
-        assert restored.z == pytest.approx(sample_point.z)
+
+class TestPoint32:
+    def test_defaults(self):
+        p = Point32()
+        assert (p.x, p.y, p.z) == (0.0, 0.0, 0.0)
+
+    def test_round_trip(self):
+        # Use dyadic fractions so the f32 round-trip is exact.
+        p = Point32(x=1.5, y=2.25, z=-3.125)
+        restored = Point32.from_cdr(p.to_bytes())
+        assert (restored.x, restored.y, restored.z) == (1.5, 2.25, -3.125)
 
 
 class TestQuaternion:
-    """Tests for Quaternion message."""
+    def test_default_is_identity(self):
+        # Identity quaternion (w=1) is the natural rotation default.
+        q = Quaternion()
+        assert (q.x, q.y, q.z, q.w) == (0.0, 0.0, 0.0, 1.0)
 
-    def test_quaternion_creation_defaults(self):
-        """Test creating a Quaternion with default values (identity)."""
-        quat = geometry_msgs.Quaternion()
-        assert quat.x == 0.0
-        assert quat.y == 0.0
-        assert quat.z == 0.0
-        assert quat.w == 1.0  # Default is identity quaternion
-
-    def test_quaternion_identity(self, sample_quaternion):
-        """Test identity quaternion."""
-        assert sample_quaternion.x == 0.0
-        assert sample_quaternion.y == 0.0
-        assert sample_quaternion.z == 0.0
-        assert sample_quaternion.w == 1.0
-
-    def test_quaternion_serialize_deserialize(self, sample_quaternion):
-        """Test CDR serialization roundtrip."""
-        data = sample_quaternion.serialize()
-        restored = geometry_msgs.Quaternion.deserialize(data)
-        assert restored.x == pytest.approx(sample_quaternion.x)
-        assert restored.y == pytest.approx(sample_quaternion.y)
-        assert restored.z == pytest.approx(sample_quaternion.z)
-        assert restored.w == pytest.approx(sample_quaternion.w)
-
-    def test_quaternion_rotation(self):
-        """Test quaternion with rotation values."""
-        # 90 degree rotation around Z axis
-        quat = geometry_msgs.Quaternion(x=0.0, y=0.0, z=0.7071068, w=0.7071068)
-        data = quat.serialize()
-        restored = geometry_msgs.Quaternion.deserialize(data)
-        assert restored.z == pytest.approx(0.7071068, rel=1e-6)
-        assert restored.w == pytest.approx(0.7071068, rel=1e-6)
-
-
-class TestPose:
-    """Tests for Pose message."""
-
-    def test_pose_creation_defaults(self):
-        """Test creating a Pose with default values."""
-        pose = geometry_msgs.Pose()
-        assert pose.position is not None
-        assert pose.orientation is not None
-
-    def test_pose_serialize_deserialize(self, sample_pose):
-        """Test CDR serialization roundtrip."""
-        data = sample_pose.serialize()
-        restored = geometry_msgs.Pose.deserialize(data)
-        assert restored.position.x == pytest.approx(sample_pose.position.x)
-        assert restored.position.y == pytest.approx(sample_pose.position.y)
-        assert restored.position.z == pytest.approx(sample_pose.position.z)
-        assert restored.orientation.w == pytest.approx(
-            sample_pose.orientation.w
-        )
-
-
-class TestPoseStamped:
-    """Tests for PoseStamped message."""
-
-    def test_pose_stamped_serialize_deserialize(
-        self, sample_header, sample_pose
-    ):
-        """Test CDR serialization roundtrip."""
-        msg = geometry_msgs.PoseStamped(header=sample_header, pose=sample_pose)
-        data = msg.serialize()
-        restored = geometry_msgs.PoseStamped.deserialize(data)
-        assert restored.header.frame_id == sample_header.frame_id
-        assert restored.pose.position.x == pytest.approx(
-            sample_pose.position.x
-        )
+    def test_round_trip(self):
+        q = Quaternion(x=0.0, y=0.0, z=0.7071067811865476, w=0.7071067811865476)
+        restored = Quaternion.from_cdr(q.to_bytes())
+        assert restored.z == q.z
+        assert restored.w == q.w
 
 
 class TestPose2D:
-    """Tests for Pose2D message."""
+    def test_round_trip(self):
+        p = Pose2D(x=10.0, y=20.0, theta=1.57)
+        restored = Pose2D.from_cdr(p.to_bytes())
+        assert (restored.x, restored.y, restored.theta) == (10.0, 20.0, 1.57)
 
-    def test_pose2d_creation(self):
-        """Test creating a Pose2D."""
-        pose = geometry_msgs.Pose2D(x=1.0, y=2.0, theta=1.57)
-        assert pose.x == pytest.approx(1.0)
-        assert pose.y == pytest.approx(2.0)
-        assert pose.theta == pytest.approx(1.57)
 
-    def test_pose2d_serialize_deserialize(self):
-        """Test CDR serialization roundtrip."""
-        pose = geometry_msgs.Pose2D(x=5.0, y=10.0, theta=3.14159)
-        data = pose.serialize()
-        restored = geometry_msgs.Pose2D.deserialize(data)
-        assert restored.x == pytest.approx(5.0)
-        assert restored.y == pytest.approx(10.0)
-        assert restored.theta == pytest.approx(3.14159)
+class TestPose:
+    def test_default_components(self):
+        # Default pose: zero position + identity orientation.
+        p = Pose()
+        assert (p.position.x, p.position.y, p.position.z) == (0.0, 0.0, 0.0)
+        assert (p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w) == (
+            0.0, 0.0, 0.0, 1.0,
+        )
+
+    def test_round_trip(self):
+        p = Pose(
+            position=Point(10.0, 20.0, 30.0),
+            orientation=Quaternion(0.0, 0.0, 0.7071, 0.7071),
+        )
+        data = p.to_bytes()
+        # CDR header (4) + Point (24) + Quaternion (32) = 60 bytes.
+        assert len(data) == 60
+        restored = Pose.from_cdr(data)
+        assert restored.position.x == 10.0
+        assert restored.orientation.w == 0.7071
 
 
 class TestTransform:
-    """Tests for Transform message."""
-
-    def test_transform_creation_defaults(self):
-        """Test creating a Transform with default values."""
-        transform = geometry_msgs.Transform()
-        assert transform.translation is not None
-        assert transform.rotation is not None
-
-    def test_transform_serialize_deserialize(self, sample_transform):
-        """Test CDR serialization roundtrip."""
-        data = sample_transform.serialize()
-        restored = geometry_msgs.Transform.deserialize(data)
-        assert restored.translation.x == pytest.approx(
-            sample_transform.translation.x
+    def test_round_trip(self):
+        t = Transform(
+            translation=Vector3(1.5, 2.5, 3.5),
+            rotation=Quaternion(0.0, 0.0, 0.7071, 0.7071),
         )
-        assert restored.rotation.w == pytest.approx(
-            sample_transform.rotation.w
-        )
-
-
-class TestTransformStamped:
-    """Tests for TransformStamped message."""
-
-    def test_transform_stamped_serialize_deserialize(
-        self, sample_header, sample_transform
-    ):
-        """Test CDR serialization roundtrip."""
-        msg = geometry_msgs.TransformStamped(
-            header=sample_header,
-            child_frame_id="child_frame",
-            transform=sample_transform,
-        )
-        data = msg.serialize()
-        restored = geometry_msgs.TransformStamped.deserialize(data)
-        assert restored.header.frame_id == sample_header.frame_id
-        assert restored.child_frame_id == "child_frame"
+        restored = Transform.from_cdr(t.to_bytes())
+        assert restored.translation.y == 2.5
+        assert restored.rotation.z == 0.7071
 
 
 class TestTwist:
-    """Tests for Twist message."""
-
-    def test_twist_creation_defaults(self):
-        """Test creating a Twist with default values."""
-        twist = geometry_msgs.Twist()
-        assert twist.linear is not None
-        assert twist.angular is not None
-
-    def test_twist_serialize_deserialize(self, sample_twist):
-        """Test CDR serialization roundtrip."""
-        data = sample_twist.serialize()
-        restored = geometry_msgs.Twist.deserialize(data)
-        assert restored.linear.x == pytest.approx(sample_twist.linear.x)
-        assert restored.angular.z == pytest.approx(sample_twist.angular.z)
+    def test_round_trip(self):
+        t = Twist(linear=Vector3(1.0, 2.0, 3.0), angular=Vector3(0.0, 0.0, 0.5))
+        restored = Twist.from_cdr(t.to_bytes())
+        assert (restored.linear.x, restored.linear.y, restored.linear.z) == (1.0, 2.0, 3.0)
+        assert restored.angular.z == 0.5
 
 
-class TestTwistStamped:
-    """Tests for TwistStamped message."""
+@pytest.mark.parametrize(
+    "cls,kwargs",
+    [
+        (Vector3, dict(x=1.5, y=2.5, z=3.5)),
+        (Point, dict(x=10.0, y=20.0, z=30.0)),
+        (Point32, dict(x=1.5, y=2.5, z=3.5)),
+        (Quaternion, dict(x=0.0, y=0.0, z=0.707, w=0.707)),
+        (Pose2D, dict(x=10.0, y=20.0, theta=1.57)),
+    ],
+)
+def test_simple_round_trip(cls, kwargs):
+    v = cls(**kwargs)
+    restored = cls.from_cdr(v.to_bytes())
+    for k, want in kwargs.items():
+        assert getattr(restored, k) == want, f"{cls.__name__}.{k}"
 
-    def test_twist_stamped_serialize_deserialize(
-        self, sample_header, sample_twist
-    ):
-        """Test CDR serialization roundtrip."""
-        msg = geometry_msgs.TwistStamped(
-            header=sample_header, twist=sample_twist
-        )
-        data = msg.serialize()
-        restored = geometry_msgs.TwistStamped.deserialize(data)
-        assert restored.header.frame_id == sample_header.frame_id
-        assert restored.twist.linear.x == pytest.approx(sample_twist.linear.x)
+
+# ── Composite CdrFixed types ───────────────────────────────────────
 
 
 class TestAccel:
-    """Tests for Accel message."""
-
-    def test_accel_creation_defaults(self):
-        """Test creating an Accel with default values."""
-        accel = geometry_msgs.Accel()
-        assert accel.linear is not None
-        assert accel.angular is not None
-
-    def test_accel_serialize_deserialize(self, sample_vector3):
-        """Test CDR serialization roundtrip."""
-        accel = geometry_msgs.Accel(
-            linear=sample_vector3,
-            angular=geometry_msgs.Vector3(x=0.1, y=0.2, z=0.3),
-        )
-        data = accel.serialize()
-        restored = geometry_msgs.Accel.deserialize(data)
-        assert restored.linear.x == pytest.approx(sample_vector3.x)
-
-
-class TestWrench:
-    """Tests for Wrench message."""
-
-    def test_wrench_creation_defaults(self):
-        """Test creating a Wrench with default values."""
-        wrench = geometry_msgs.Wrench()
-        assert wrench.force is not None
-        assert wrench.torque is not None
-
-    def test_wrench_serialize_deserialize(self, sample_vector3):
-        """Test CDR serialization roundtrip."""
-        wrench = geometry_msgs.Wrench(
-            force=sample_vector3,
-            torque=geometry_msgs.Vector3(x=0.1, y=0.2, z=0.3),
-        )
-        data = wrench.serialize()
-        restored = geometry_msgs.Wrench.deserialize(data)
-        assert restored.force.x == pytest.approx(sample_vector3.x)
+    def test_round_trip(self):
+        a = Accel(linear=Vector3(1.0, 2.0, 3.0), angular=Vector3(0.1, 0.2, 0.3))
+        restored = Accel.from_cdr(a.to_bytes())
+        assert restored.linear.x == 1.0
+        assert restored.angular.z == 0.3
 
 
 class TestInertia:
-    """Tests for Inertia message."""
-
-    def test_inertia_creation_defaults(self):
-        """Test creating an Inertia with default values."""
-        inertia = geometry_msgs.Inertia()
-        assert inertia.m == 0.0
-        assert inertia.com is not None
-
-    def test_inertia_serialize_deserialize(self):
-        """Test CDR serialization roundtrip."""
-        inertia = geometry_msgs.Inertia(
+    def test_round_trip(self):
+        i = Inertia(
             m=10.0,
-            com=geometry_msgs.Vector3(x=0.0, y=0.0, z=0.5),
-            ixx=1.0,
-            ixy=0.0,
-            ixz=0.0,
-            iyy=1.0,
-            iyz=0.0,
-            izz=1.0,
+            com=Vector3(0.1, 0.2, 0.3),
+            ixx=1.0, ixy=0.0, ixz=0.0,
+            iyy=2.0, iyz=0.0, izz=3.0,
         )
-        data = inertia.serialize()
-        restored = geometry_msgs.Inertia.deserialize(data)
-        assert restored.m == pytest.approx(10.0)
-        assert restored.ixx == pytest.approx(1.0)
+        restored = Inertia.from_cdr(i.to_bytes())
+        assert restored.m == 10.0
+        assert restored.com.x == 0.1
+        assert restored.ixx == 1.0
+        assert restored.iyy == 2.0
+        assert restored.izz == 3.0
 
 
 class TestPoseWithCovariance:
-    """Tests for PoseWithCovariance message."""
+    def test_default_covariance(self):
+        p = PoseWithCovariance()
+        assert p.covariance == [0.0] * 36
 
-    def test_pose_with_covariance_serialize_deserialize(self, sample_pose):
-        """Test CDR serialization roundtrip."""
-        msg = geometry_msgs.PoseWithCovariance(
-            pose=sample_pose, covariance=[0.1 * i for i in range(36)]
+    def test_round_trip_with_covariance(self):
+        cov = [float(i) * 0.1 for i in range(36)]
+        p = PoseWithCovariance(
+            pose=Pose(position=Point(1.0, 2.0, 3.0), orientation=Quaternion(0, 0, 0, 1)),
+            covariance=cov,
         )
-        data = msg.serialize()
-        restored = geometry_msgs.PoseWithCovariance.deserialize(data)
-        assert restored.pose.position.x == pytest.approx(
-            sample_pose.position.x
-        )
-        assert len(restored.covariance) == 36
-        assert restored.covariance[0] == pytest.approx(0.0)
-        assert restored.covariance[1] == pytest.approx(0.1)
+        restored = PoseWithCovariance.from_cdr(p.to_bytes())
+        assert restored.pose.position.x == 1.0
+        assert restored.covariance == cov
+
+    def test_invalid_covariance_length_raises(self):
+        with pytest.raises(ValueError, match="36-element"):
+            PoseWithCovariance(covariance=[0.0, 1.0, 2.0])
 
 
 class TestTwistWithCovariance:
-    """Tests for TwistWithCovariance message."""
-
-    def test_twist_with_covariance_serialize_deserialize(self, sample_twist):
-        """Test CDR serialization roundtrip."""
-        msg = geometry_msgs.TwistWithCovariance(
-            twist=sample_twist, covariance=[0.0] * 36
+    def test_round_trip(self):
+        cov = list(range(36))
+        t = TwistWithCovariance(
+            twist=Twist(linear=Vector3(1, 0, 0), angular=Vector3(0, 0, 0.5)),
+            covariance=[float(c) for c in cov],
         )
-        data = msg.serialize()
-        restored = geometry_msgs.TwistWithCovariance.deserialize(data)
-        assert restored.twist.linear.x == pytest.approx(sample_twist.linear.x)
-        assert len(restored.covariance) == 36
+        restored = TwistWithCovariance.from_cdr(t.to_bytes())
+        assert restored.twist.angular.z == 0.5
+        assert restored.covariance == [float(c) for c in cov]

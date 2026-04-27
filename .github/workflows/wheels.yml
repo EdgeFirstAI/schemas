@@ -1,0 +1,281 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright © 2026 Au-Zone Technologies. All Rights Reserved.
+
+# Build Python wheels for every supported platform.
+#
+# The pyo3 module ships as a CPython 3.8+ stable-ABI (abi3) wheel: one wheel
+# per OS/architecture covers every Python 3.8+ on that platform. Linux uses
+# zig + manylinux2014 for portable GLIBC <= 2.17 wheels (runs on Debian
+# bullseye, Ubuntu 18.04, RHEL 7+, embedded Yocto/Buildroot images). macOS
+# uses the native runner toolchain (Apple-signed binaries). Windows uses
+# the MSVC toolchain via the windows-latest runner.
+#
+# Trigger model:
+#   * push to main / PR — builds wheels for verification, uploads as
+#     workflow artifacts (consumed by release.yml on tag push).
+#   * tag (v*.*.*) — same matrix; release.yml downloads the artifacts
+#     produced by this run.
+#   * workflow_dispatch — manual rebuild for ad-hoc smoke testing.
+#
+# Pattern mirrors Studio/client's build.yml: each matrix job uploads a
+# uniquely-named artifact (wheels-<platform>-<arch>); the aggregation
+# job 'Verify Wheels' confirms every matrix entry succeeded so release.yml
+# can wait on a single check name.
+
+name: Wheels
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+      - 'v[0-9]+.[0-9]+.[0-9]+rc[0-9]+'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_STABLE_VERSION: "1.94"
+
+jobs:
+  build-wheels:
+    name: Build Wheel - ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x86_64 — manylinux2014 via zig.
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            platform: linux
+            arch: x86_64
+            zig: true
+
+          # Linux aarch64 — manylinux2014 via zig (cross-compile from x86_64 runner).
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            platform: linux
+            arch: aarch64
+            zig: true
+
+          # macOS Intel — macos-13 is the last x86_64 runner Apple ships.
+          - os: macos-13
+            target: x86_64-apple-darwin
+            platform: macos
+            arch: x86_64
+            zig: false
+
+          # macOS Apple Silicon — macos-latest is arm64 since macos-14.
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            platform: macos
+            arch: aarch64
+            zig: false
+
+          # Windows x86_64 — MSVC native toolchain.
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            platform: windows
+            arch: x86_64
+            zig: false
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9 # master
+        with:
+          toolchain: ${{ env.RUST_STABLE_VERSION }}
+          targets: ${{ matrix.target }}
+
+      - name: Set up Python
+        # 3.11 is the build-host interpreter for maturin; the produced
+        # wheels are abi3-py38 so they're compatible with every CPython
+        # 3.8+ at install time regardless of which version built them.
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.11'
+
+      - name: Cache Rust dependencies and build artifacts
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          key: ${{ matrix.target }}-wheels
+          shared-key: "wheels"
+          save-if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
+
+      - name: Install maturin (with zig extras for Linux)
+        shell: bash
+        env:
+          USE_ZIG: ${{ matrix.zig }}
+        run: |
+          if [ "$USE_ZIG" = "true" ]; then
+            pip install 'maturin[zig]'
+          else
+            pip install maturin
+          fi
+
+      # Build wheel. abi3-py38 makes one wheel cover Python 3.8+; the
+      # default features in pyproject.toml already enable this so a plain
+      # `maturin build --release` produces the right artifact.
+      - name: Build wheel (Linux + zig + manylinux2014)
+        if: matrix.platform == 'linux'
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          maturin build --release --locked --zig \
+            --compatibility manylinux2014 \
+            --target "$TARGET" \
+            -m crates/python/Cargo.toml \
+            -i python3.11
+
+      - name: Build wheel (macOS native)
+        if: matrix.platform == 'macos'
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          maturin build --release --locked \
+            --target "$TARGET" \
+            -m crates/python/Cargo.toml \
+            -i python3.11
+
+      - name: Build wheel (Windows native)
+        if: matrix.platform == 'windows'
+        run: maturin build --release --locked -m crates/python/Cargo.toml -i python3.11
+
+      # Verify the wheel actually contains an abi3 .so/.pyd, the .pyi
+      # stubs, and the py.typed marker. Fail the matrix entry if any are
+      # missing — this catches build-config drift before it ships.
+      - name: Verify wheel contents
+        shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          WHEEL=$(ls target/wheels/edgefirst_schemas-*.whl | head -1)
+          if [ -z "$WHEEL" ]; then
+            echo "::error::No wheel produced under target/wheels/" >&2
+            exit 1
+          fi
+
+          TMP=$(mktemp -d)
+          unzip -q "$WHEEL" -d "$TMP"
+
+          # Native extension — `module-name = "edgefirst.schemas"` puts
+          # the binary at `edgefirst/schemas.abi3.so` (or `schemas.pyd`
+          # on Windows). The `_native*` pattern from the earlier
+          # wrapper-package layout is stale; the binary IS the package
+          # now, so we look for `schemas*` directly.
+          if [ "$PLATFORM" = "windows" ]; then
+            EXT_PATTERN="schemas*.pyd"
+          else
+            EXT_PATTERN="schemas*.so"
+          fi
+          EXT_FILE=$(find "$TMP" -name "$EXT_PATTERN" | head -1)
+          if [ -z "$EXT_FILE" ]; then
+            echo "::error::No native extension matching $EXT_PATTERN in wheel"
+            ls -R "$TMP"
+            exit 1
+          fi
+          echo "OK native extension: $(basename "$EXT_FILE")"
+
+          # Type stubs and PEP 561 marker.
+          for f in __init__.pyi sensor_msgs.pyi edgefirst_msgs.pyi geometry_msgs.pyi py.typed; do
+            if [ ! -f "$TMP/edgefirst/schemas/$f" ]; then
+              echo "::error::missing $f in wheel"
+              exit 1
+            fi
+          done
+          echo "OK .pyi stubs and py.typed marker present"
+
+          # Linux wheels: confirm GLIBC <= 2.17 (manylinux2014 requirement).
+          if [ "$PLATFORM" = "linux" ]; then
+            GLIBC_MAX=$(objdump -T "$EXT_FILE" 2>/dev/null \
+              | grep -oE 'GLIBC_[0-9]+\.[0-9]+' | sort -V | tail -1 || echo "GLIBC_2.17")
+            MAJOR=$(echo "$GLIBC_MAX" | cut -d_ -f2 | cut -d. -f1)
+            MINOR=$(echo "$GLIBC_MAX" | cut -d_ -f2 | cut -d. -f2)
+            if [ "$MAJOR" -gt 2 ] || { [ "$MAJOR" -eq 2 ] && [ "$MINOR" -gt 17 ]; }; then
+              echo "::error::native extension requires $GLIBC_MAX > GLIBC_2.17 (manylinux2014 cap)"
+              exit 1
+            fi
+            echo "OK GLIBC $GLIBC_MAX <= 2.17"
+          fi
+
+          rm -rf "$TMP"
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: wheels-${{ matrix.platform }}-${{ matrix.arch }}
+          path: target/wheels/*.whl
+          if-no-files-found: error
+
+  # Source distribution — one artifact regardless of platform; pip will
+  # fall back to building from sdist on platforms we haven't pre-built
+  # for (e.g. FreeBSD, exotic Linux libc).
+  build-sdist:
+    name: Build sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.11'
+
+      - name: Install maturin
+        run: pip install maturin
+
+      - name: Build sdist
+        run: maturin sdist -m crates/python/Cargo.toml
+
+      - name: Upload sdist artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: sdist
+          path: target/wheels/*.tar.gz
+          if-no-files-found: error
+
+  # Aggregation job — release.yml waits on this single check name to
+  # confirm every matrix entry built a usable wheel before publishing.
+  verify-wheels:
+    name: Verify Wheels
+    runs-on: ubuntu-latest
+    needs: [build-wheels, build-sdist]
+    steps:
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: artifacts
+
+      - name: Summarize
+        run: |
+          echo "## Build Artifacts" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Platform | File |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          find artifacts -name "*.whl" -o -name "*.tar.gz" | sort | while read -r f; do
+            base=$(basename "$f")
+            dir=$(basename "$(dirname "$f")")
+            echo "| $dir | \`$base\` |" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Confirm artifact count
+        run: |
+          set -euo pipefail
+          # 5 wheels (linux x86_64/aarch64, macos x86_64/aarch64, windows x86_64) + 1 sdist.
+          COUNT=$(find artifacts -name "*.whl" | wc -l)
+          if [ "$COUNT" -lt 5 ]; then
+            echo "::error::expected >=5 wheels, got $COUNT"
+            find artifacts -name "*.whl"
+            exit 1
+          fi
+          SDIST=$(find artifacts -name "*.tar.gz" | wc -l)
+          if [ "$SDIST" -lt 1 ]; then
+            echo "::error::expected >=1 sdist, got $SDIST"
+            exit 1
+          fi
+          echo "$COUNT wheels + $SDIST sdist"

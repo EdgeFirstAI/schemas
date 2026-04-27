@@ -1,69 +1,42 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright © 2026 Au-Zone Technologies. All Rights Reserved.
+
+# Top-level pyproject.toml — delegates the wheel build to maturin and
+# the crate manifest at `crates/python/Cargo.toml`. Mirrors the
+# `~/Software/EdgeFirst/hal` layout where the workspace root carries a
+# minimal pyproject so `pip install .` and `maturin develop` from the
+# repo root both work.
+#
+# The actual project metadata (name, version, classifiers, the cp38-abi3
+# feature flag, .pyi includes) lives in `crates/python/pyproject.toml`.
+
 [project]
 name = "edgefirst-schemas"
-description = "Message schemas for EdgeFirst Perception - ROS2 Common Interfaces, Foxglove, and custom types"
-license = { file = "LICENSE" }
-readme = "README.md"
-requires-python = ">= 3.8"
-authors = [
-    { name = "Au-Zone Technologies", email = "support@au-zone.com" }
-]
-keywords = ["ros2", "perception", "schemas", "edge-ai", "zenoh", "cdr", "foxglove"]
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Topic :: Software Development :: Libraries",
-    "Topic :: Scientific/Engineering",
-]
-
-dynamic = ["dependencies", "version"]
-
-[project.optional-dependencies]
-test = [
-    "pytest>=7.0",
-    "pytest-cov>=4.0",
-    "numpy>=1.21",
-    "mcap>=1.0",
-]
-bench = [
-    "pytest>=7.0",
-    "pytest-benchmark>=4.0",
-    "numpy>=1.21",
-]
-dev = [
-    "edgefirst-schemas[test,bench]",
-    "ruff",
-]
+dynamic = ["version"]
+license = { text = "Apache-2.0" }
 
 [project.urls]
 Homepage = "https://doc.edgefirst.ai"
 Documentation = "https://doc.edgefirst.ai/latest/perception/"
 Repository = "https://github.com/EdgeFirstAI/schemas"
-Issues = "https://github.com/EdgeFirstAI/schemas/issues"
-Changelog = "https://github.com/EdgeFirstAI/schemas/blob/main/CHANGELOG.md"
-
-[tool.setuptools]
-packages = [
-    "edgefirst.schemas",
-]
-
-[tool.setuptools.dynamic]
-version = { attr = "edgefirst.schemas.__version__" }
-dependencies = { file = "requirements.txt" }
 
 [build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
+requires = ["maturin>=1,<2"]
+build-backend = "maturin"
+
+[tool.maturin]
+manifest-path = "crates/python/Cargo.toml"
+
+# ---------------------------------------------------------------------------
+# Pytest + coverage settings used by the bench harness and the test suite.
+# Kept here at repo root because pytest's rootdir resolution starts from
+# the directory pytest is invoked from; placing config in `crates/python`
+# would force every pytest call to cd there.
+# ---------------------------------------------------------------------------
 
 [tool.pytest.ini_options]
-testpaths = ["tests/python"]
-python_files = ["test_*.py"]
+testpaths = ["tests/python", "benches/python"]
+python_files = ["test_*.py", "bench_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = [
@@ -74,21 +47,16 @@ addopts = [
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
-# The DmaBuffer deprecation (3.1.0, removed in 4.0.0) fires on every
-# instantiation. Silence it during the suite to avoid drowning out other
-# signal; tests that specifically assert the warning use pytest.warns(),
-# which overrides the filter locally.
-filterwarnings = [
-    "ignore:edgefirst_msgs.DmaBuffer is deprecated:DeprecationWarning",
-]
+
+[tool.pytest-benchmark]
+min_rounds = 5
+warmup = true
+warmup_iterations = 3
 
 [tool.coverage.run]
 source = ["edgefirst"]
 branch = true
-omit = [
-    "*/tests/*",
-    "*/__pycache__/*",
-]
+omit = ["*/tests/*", "*/__pycache__/*"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -101,11 +69,3 @@ show_missing = true
 
 [tool.coverage.xml]
 output = "coverage-python.xml"
-
-[tool.pytest-benchmark]
-# Default benchmark settings (can be overridden via CLI)
-# --benchmark-disable to skip benchmarks in normal test runs
-# --benchmark-only to run only benchmarks
-min_rounds = 5
-warmup = true
-warmup_iterations = 3

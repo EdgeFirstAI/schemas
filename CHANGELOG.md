@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (BREAKING)
+
+- **Python module rewritten as a pyo3 binding (EDGEAI-1295).** The pure-Python
+  `pycdr2`-based `edgefirst.schemas` package is replaced by a Rust extension
+  module that exposes the same wire shapes through zero-copy CDR encode/decode.
+  Wheels ship as `cp311-abi3` (Python 3.11+, single wheel per OS/arch) covering
+  Linux x86_64/aarch64, macOS x86_64/aarch64, and Windows x86_64. An
+  `abi3-py38` opt-in is available for embedded targets that pin an older
+  Python.
+
+  **Migration impact for `edgefirst.schemas` users:**
+
+  - **Frozen pyclasses replace dataclasses.** Field assignment after
+    construction (`img.width = 1280`) now raises `AttributeError`. Build a
+    new instance instead. Constructor kwargs are unchanged (same field names,
+    same order).
+  - **`serialize()` → `to_bytes()`, `deserialize(buf)` → `from_cdr(buf)`** on
+    every message type.
+  - **Bulk byte payloads** (`Image.data`, `Mask.mask`, `RadarCube.cube`, …)
+    return a zero-copy `BorrowedBuf` instead of `bytes`. Use
+    `np.frombuffer(borrowed_buf, dtype=...)` for a zero-copy ndarray, or
+    `borrowed_buf.tobytes()` for an explicit copy.
+  - **Schema-registry helpers** (`from_schema`, `is_supported`,
+    `list_schemas`, `schema_name`, `decode_pcd`, `colormap`) and the
+    primitive `std_msgs` wrappers (`String`, `Int32`, `Float64`, …) are
+    removed. The legacy module is preserved at
+    [`benches/python/legacy/`](benches/python/legacy/) for benchmark
+    comparison only.
+  - **`requires-python` floors at 3.11** (default `cp311-abi3` wheel). Older
+    Python support requires building with `--no-default-features --features
+    abi3-py38`.
+
+  Wire-format compatibility is preserved: bytes encoded by the previous
+  pycdr2 module decode through `from_cdr()` and vice-versa. See
+  [`crates/python/README.md`](crates/python/README.md) for the full
+  migration guide.
+
+### Added
+
+- **pyo3 bindings for 39 message types** with a comprehensive `.pyi` stub
+  package (mypy/pyright-friendly). New types beyond the legacy pycdr2
+  surface: `BorrowedBuf` (zero-copy view primitive), full `Imu`/`NavSatFix`/
+  `MagneticField`/`FluidPressure`/`Temperature` (with covariance arrays),
+  `Odometry`, `LocalTime`, `Track`, `Date`, `Clock`, foxglove `Point2`/`Color`.
+- **`BENCHMARKS_PYTHON.md`** — three-way comparison (native pyo3 /
+  cyclonedds-python / pycdr2) measured on rpi5-hailo, mirroring the C++-tier
+  `BENCHMARKS.md` chart structure. Native pyo3 lands 25–870× faster than the
+  Python alternatives across all message types.
+- **Multi-platform wheel CI** ([`.github/workflows/wheels.yml`](.github/workflows/wheels.yml))
+  building cp311-abi3 wheels for Linux x86_64/aarch64 (zig + manylinux2014),
+  macOS x86_64/aarch64, and Windows x86_64 on every push and tag. Release
+  workflow downloads pre-built wheels and publishes to PyPI via trusted
+  publishing.
+- **Coverage via `cargo-llvm-cov`** — Python tests now contribute to Rust
+  source coverage by instrumenting the cdylib at build time and accumulating
+  profraw across pytest invocations. SonarCloud merges Rust unit + C tests +
+  Python-driven LCOV reports. Replaces the obsolete `pytest --cov=edgefirst`
+  flow that couldn't see into a binary module.
+
 ## [3.2.0] - 2026-04-24
 
 ### Added

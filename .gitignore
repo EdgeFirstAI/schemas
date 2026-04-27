@@ -34,6 +34,9 @@ log/
 
 *.profraw
 .coverage
+coverage-python.lcov
+coverage-python.xml
+lcov.info
 
 # SBOM generation artifacts
 *.cdx.json
@@ -52,3 +55,15 @@ TODO*.md
 
 # Compiled C examples
 examples/c/example
+
+# Local agent planning / status (not for git)
+docs/
+
+# Benchmark run artifacts (timestamped result dirs, regenerable)
+benches/python/results/
+benches/cpp/results/
+
+# Maturin-built Python extensions (artifact, built via maturin develop / wheel CI)
+crates/python/python/edgefirst/schemas*.so
+crates/python/python/edgefirst/schemas*.pyd
+crates/python/python/edgefirst/schemas*.dylib

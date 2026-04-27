@@ -221,30 +221,51 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      # The pyo3 wheel needs an instrumented Rust build for cargo-llvm-cov
+      # to attribute Python-driven coverage to the Rust source files. Once
+      # the env from `cargo llvm-cov show-env` is exported, `maturin
+      # develop` produces a .so with profraw emission wired in; pytest
+      # invocations then accumulate Python-driven coverage into the same
+      # llvm-cov target dir as the Rust unit tests.
+      - name: Install Rust toolchain (with llvm-tools)
+        uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9 # master
+        with:
+          toolchain: stable
+          components: llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@0bc4cd8a3e21db4cb9519857377b0c8c5e150de5 # v2.67.2
+        with:
+          tool: cargo-llvm-cov
+
+      - name: Install Python build/test dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[test]"
+          pip install maturin pytest junitparser numpy
 
-      - name: Run tests with coverage
+      - name: Run pytest under cargo-llvm-cov
+        # `cargo llvm-cov` exports RUSTFLAGS / LLVM_PROFILE_FILE so any
+        # subsequent maturin build picks up the instrumentation. The
+        # Python module is built via `maturin develop` directly, not
+        # `pip install`, because maturin is what links the cdylib with
+        # cargo's instrumentation flags. After the suite runs, the .lcov
+        # report attributes Python-driven coverage to Rust source files.
         run: |
-          pytest tests/python/ \
-            --cov=edgefirst \
-            --cov-report=xml:coverage-python.xml \
-            --cov-report=term-missing \
-            --junitxml=pytest-results.xml \
-            -v
+          set -euo pipefail
+          source <(cargo llvm-cov show-env --export-prefix)
+          maturin develop --manifest-path crates/python/Cargo.toml
+          pytest tests/python/ --junitxml=pytest-results.xml -v
+          cargo llvm-cov report --lcov --output-path coverage-python.lcov
+          echo "=== Python-driven Rust source coverage written to coverage-python.lcov ==="
 
       - name: Verify package import
-        run: |
-          # Verify the package can be imported successfully
-          python -c "import edgefirst.schemas; print('Package import OK')"
+        run: python -c "import edgefirst.schemas; print('Package import OK')"
 
       - name: Upload Python coverage artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: python-coverage
-          path: coverage-python.xml
+          path: coverage-python.lcov
           retention-days: 7
 
       - name: Upload test results
@@ -437,20 +458,17 @@ jobs:
       - name: Verify coverage files
         run: |
           echo "=== Coverage Files ==="
-          ls -la lcov.info coverage-python.xml clippy-report.json 2>/dev/null || echo "Some files missing"
+          ls -la lcov.info coverage-python.lcov clippy-report.json 2>/dev/null || echo "Some files missing"
           echo ""
           if [ -f lcov.info ]; then
-            echo "=== Combined LCOV Summary (Rust + C API) ==="
+            echo "=== Combined LCOV Summary (Rust unit + C API) ==="
             RUST_FILES=$(grep -c "^SF:" lcov.info || echo "0")
             echo "Source files with coverage: $RUST_FILES"
           fi
-          if [ -f coverage-python.xml ]; then
-            echo ""
-            echo "=== Python Coverage Summary ==="
-            # Extract line rate from XML
-            LINE_RATE=$(grep -oP 'line-rate="\K[^"]+' coverage-python.xml | head -1 || echo "0")
-            COVERAGE_PCT=$(echo "$LINE_RATE * 100" | bc 2>/dev/null || echo "N/A")
-            echo "Python line coverage: ${COVERAGE_PCT}%"
+          if [ -f coverage-python.lcov ]; then
+            echo "=== Python-driven Rust LCOV Summary ==="
+            PY_FILES=$(grep -c "^SF:" coverage-python.lcov || echo "0")
+            echo "Source files with Python-driven coverage: $PY_FILES"
           fi
 
       - name: SonarCloud Scan
@@ -459,7 +477,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
+          # Both LCOV files describe the same Rust source files; Sonar
+          # accepts a comma-separated list and merges them, so coverage
+          # exercised by *either* the Rust unit tests or the Python tests
+          # counts toward the line/branch totals. The Python module is now
+          # written in Rust (pyo3); there's no separate Python-language
+          # source to track via the old `sonar.python.coverage` setting.
           args: >
-            -Dsonar.rust.lcov.reportPaths=lcov.info
+            -Dsonar.rust.lcov.reportPaths=lcov.info,coverage-python.lcov
             -Dsonar.rust.clippy.reportPaths=clippy-report.json
-            -Dsonar.python.coverage.reportPaths=coverage-python.xml
