@@ -35,8 +35,8 @@ manifest-path = "crates/python/Cargo.toml"
 # ---------------------------------------------------------------------------
 
 [tool.pytest.ini_options]
-testpaths = ["tests/python", "benches/python"]
-python_files = ["test_*.py", "bench_*.py"]
+testpaths = ["tests/python"]
+python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = [

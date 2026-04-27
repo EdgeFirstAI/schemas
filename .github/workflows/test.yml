@@ -240,6 +240,8 @@ jobs:
 
       - name: Install Python build/test dependencies
         run: |
+          python -m venv .venv
+          source .venv/bin/activate
           python -m pip install --upgrade pip
           pip install maturin pytest junitparser numpy
 
@@ -252,6 +254,7 @@ jobs:
         # report attributes Python-driven coverage to Rust source files.
         run: |
           set -euo pipefail
+          source .venv/bin/activate
           source <(cargo llvm-cov show-env --export-prefix)
           maturin develop --manifest-path crates/python/Cargo.toml
           pytest tests/python/ --junitxml=pytest-results.xml -v
@@ -259,7 +262,9 @@ jobs:
           echo "=== Python-driven Rust source coverage written to coverage-python.lcov ==="
 
       - name: Verify package import
-        run: python -c "import edgefirst.schemas; print('Package import OK')"
+        run: |
+          source .venv/bin/activate
+          python -c "import edgefirst.schemas; print('Package import OK')"
 
       - name: Upload Python coverage artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0

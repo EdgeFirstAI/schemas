@@ -67,17 +67,17 @@ the original message reference is dropped.
 | `borrowed_buf.tobytes()` | owned `bytes` | one memcpy |
 | `borrowed_buf.view()` | memoryview (Py 3.11+) / bytes (abi3-py38) | zero-copy / one memcpy |
 
-## Migrating from the pycdr2-backed `edgefirst.schemas` (3.x → 4.x)
+## Migrating from the pycdr2-backed `edgefirst.schemas`
 
-Version 4 replaces the pure-Python pycdr2 codec with a Rust-backed pyo3
-binding. Wire-format bytes are unchanged — anything encoded under 3.x
-decodes under 4.x and vice-versa — but the Python API surface is
-narrower and stricter.
+This release replaces the pure-Python pycdr2 codec with a Rust-backed
+pyo3 binding. Wire-format bytes are unchanged — anything encoded by the
+previous pycdr2 module decodes through `from_cdr()` and vice-versa — but
+the Python API surface is narrower and stricter.
 
 ### What changed at the call site
 
 ```python
-# 3.x (pycdr2-backed)                    # 4.x (pyo3-backed)
+# pycdr2-backed (old)                    # pyo3-backed (new)
 img = Image()                            img = Image(
 img.height = 720                             header=Header(stamp=Time(1, 0)),
 img.width = 1280                             height=720, width=1280,
@@ -88,7 +88,7 @@ img2 = Image.deserialize(buf)            buf = img.to_bytes()
                                          img2 = Image.from_cdr(buf)
 ```
 
-| 3.x pattern | 4.x replacement |
+| pycdr2 pattern | pyo3 replacement |
 |---|---|
 | `Foo()` then field assignment | `Foo(field=value, …)` constructor only — pyclasses are frozen |
 | `.serialize()` | `.to_bytes()` |
