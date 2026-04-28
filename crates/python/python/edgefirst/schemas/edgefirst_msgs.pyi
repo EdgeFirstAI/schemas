@@ -380,6 +380,16 @@ class MaskBox:
     a :class:`Model` message.
     """
 
+    def __init__(
+        self,
+        height: int = 0,
+        width: int = 0,
+        length: int = 0,
+        encoding: str = "",
+        mask: Optional[bytes] = None,
+        boxed: bool = False,
+    ) -> None: ...
+
     @property
     def height(self) -> int: ...
     @property
@@ -406,7 +416,13 @@ class CameraPlane:
         stride: int = 0,
         size: int = 0,
         used: int = 0,
-    ) -> None: ...
+        data: Optional[bytes] = None,
+    ) -> None:
+        """Construct a camera plane.
+
+        ``data`` provides inline pixel bytes (only valid when ``fd == -1``).
+        Raises ``ValueError`` if ``data`` is non-empty and ``fd != -1``.
+        """
 
     @property
     def fd(self) -> int: ...

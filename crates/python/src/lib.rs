@@ -4378,16 +4378,29 @@ impl PyCameraPlane {
 #[pymethods]
 impl PyCameraPlane {
     #[new]
-    #[pyo3(signature = (fd=-1, offset=0, stride=0, size=0, used=0))]
-    fn new(fd: i32, offset: u32, stride: u32, size: u32, used: u32) -> Self {
-        Self {
+    #[pyo3(signature = (fd=-1, offset=0, stride=0, size=0, used=0, data=None))]
+    fn new(
+        fd: i32,
+        offset: u32,
+        stride: u32,
+        size: u32,
+        used: u32,
+        data: Option<Vec<u8>>,
+    ) -> PyResult<Self> {
+        let data_bytes = data.unwrap_or_default();
+        if fd != -1 && !data_bytes.is_empty() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "camera plane inline data is only valid when fd == -1",
+            ));
+        }
+        Ok(Self {
             fd,
             offset,
             stride,
             size,
             used,
-            data_bytes: Vec::new(),
-        }
+            data_bytes,
+        })
     }
 
     #[getter]
@@ -4609,6 +4622,26 @@ impl PyMaskBox {
 
 #[pymethods]
 impl PyMaskBox {
+    #[new]
+    #[pyo3(signature = (height=0, width=0, length=0, encoding="", mask=None, boxed=false))]
+    fn new(
+        height: u32,
+        width: u32,
+        length: u32,
+        encoding: &str,
+        mask: Option<Vec<u8>>,
+        boxed: bool,
+    ) -> Self {
+        Self {
+            mask_height: height,
+            mask_width: width,
+            length,
+            mask_encoding: encoding.to_string(),
+            mask_data: mask.unwrap_or_default(),
+            boxed,
+        }
+    }
+
     #[getter]
     fn height(&self) -> u32 {
         self.mask_height
