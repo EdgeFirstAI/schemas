@@ -3,8 +3,8 @@
 
 """Type stubs for ``edgefirst.schemas.geometry_msgs``.
 
-All types here are ``CdrFixed`` — small, ``Copy``-style structs with a
-fixed wire size. Encode/decode via ``to_bytes()`` / ``from_cdr()``.
+Fixed-size types (``CdrFixed``) use ``to_bytes()`` / ``from_cdr()``.
+Stamped types are buffer-backed with header + inner CdrFixed payload.
 """
 
 from __future__ import annotations
@@ -13,18 +13,25 @@ from typing import Optional
 from typing import List, Sequence
 
 from . import BufferLike
+from .builtin_interfaces import Time
+from .std_msgs import Header
 
 __all__ = [
     "Accel",
+    "AccelStamped",
     "Inertia",
+    "InertiaStamped",
     "Point",
     "Point32",
+    "PointStamped",
     "Pose",
     "Pose2D",
     "PoseWithCovariance",
     "Quaternion",
     "Transform",
+    "TransformStamped",
     "Twist",
+    "TwistStamped",
     "TwistWithCovariance",
     "Vector3",
 ]
@@ -278,3 +285,136 @@ class TwistWithCovariance:
     def to_bytes(self) -> bytes: ...
     @classmethod
     def from_cdr(cls, buf: BufferLike) -> TwistWithCovariance: ...
+
+
+class TwistStamped:
+    """``geometry_msgs.TwistStamped`` — header + :class:`Twist`.
+
+    Buffer-backed; ``from_cdr`` deserializes via offset table.
+    """
+
+    def __init__(
+        self,
+        header: Header,
+        twist: Optional[Twist] = None,
+    ) -> None: ...
+
+    @property
+    def stamp(self) -> Time: ...
+    @property
+    def frame_id(self) -> str: ...
+    @property
+    def twist(self) -> Twist: ...
+    @property
+    def cdr_size(self) -> int: ...
+
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> TwistStamped: ...
+
+
+class AccelStamped:
+    """``geometry_msgs.AccelStamped`` — header + :class:`Accel`.
+
+    Buffer-backed; ``from_cdr`` deserializes via offset table.
+    """
+
+    def __init__(
+        self,
+        header: Header,
+        accel: Optional[Accel] = None,
+    ) -> None: ...
+
+    @property
+    def stamp(self) -> Time: ...
+    @property
+    def frame_id(self) -> str: ...
+    @property
+    def accel(self) -> Accel: ...
+    @property
+    def cdr_size(self) -> int: ...
+
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> AccelStamped: ...
+
+
+class InertiaStamped:
+    """``geometry_msgs.InertiaStamped`` — header + :class:`Inertia`.
+
+    Buffer-backed; ``from_cdr`` deserializes via offset table.
+    """
+
+    def __init__(
+        self,
+        header: Header,
+        inertia: Optional[Inertia] = None,
+    ) -> None: ...
+
+    @property
+    def stamp(self) -> Time: ...
+    @property
+    def frame_id(self) -> str: ...
+    @property
+    def inertia(self) -> Inertia: ...
+    @property
+    def cdr_size(self) -> int: ...
+
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> InertiaStamped: ...
+
+
+class PointStamped:
+    """``geometry_msgs.PointStamped`` — header + :class:`Point`.
+
+    Buffer-backed; ``from_cdr`` deserializes via offset table.
+    """
+
+    def __init__(
+        self,
+        header: Header,
+        point: Optional[Point] = None,
+    ) -> None: ...
+
+    @property
+    def stamp(self) -> Time: ...
+    @property
+    def frame_id(self) -> str: ...
+    @property
+    def point(self) -> Point: ...
+    @property
+    def cdr_size(self) -> int: ...
+
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> PointStamped: ...
+
+
+class TransformStamped:
+    """``geometry_msgs.TransformStamped`` — header + child_frame_id + :class:`Transform`.
+
+    Buffer-backed; ``from_cdr`` deserializes via offset table.
+    """
+
+    def __init__(
+        self,
+        header: Header,
+        child_frame_id: str = "",
+        transform: Optional[Transform] = None,
+    ) -> None: ...
+
+    @property
+    def stamp(self) -> Time: ...
+    @property
+    def frame_id(self) -> str: ...
+    @property
+    def child_frame_id(self) -> str: ...
+    @property
+    def transform(self) -> Transform: ...
+    @property
+    def cdr_size(self) -> int: ...
+
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> TransformStamped: ...

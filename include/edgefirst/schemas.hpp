@@ -1380,6 +1380,38 @@ struct TransformStampedTraits {
     static constexpr std::string_view name = "ros_transform_stamped";
 };
 
+struct TwistStampedTraits {
+    using handle_type = ros_twist_stamped_t;
+    static constexpr auto from_cdr = ros_twist_stamped_from_cdr;
+    static constexpr auto free     = ros_twist_stamped_free;
+    static constexpr auto as_cdr   = ros_twist_stamped_as_cdr;
+    static constexpr std::string_view name = "ros_twist_stamped";
+};
+
+struct AccelStampedTraits {
+    using handle_type = ros_accel_stamped_t;
+    static constexpr auto from_cdr = ros_accel_stamped_from_cdr;
+    static constexpr auto free     = ros_accel_stamped_free;
+    static constexpr auto as_cdr   = ros_accel_stamped_as_cdr;
+    static constexpr std::string_view name = "ros_accel_stamped";
+};
+
+struct PointStampedTraits {
+    using handle_type = ros_point_stamped_t;
+    static constexpr auto from_cdr = ros_point_stamped_from_cdr;
+    static constexpr auto free     = ros_point_stamped_free;
+    static constexpr auto as_cdr   = ros_point_stamped_as_cdr;
+    static constexpr std::string_view name = "ros_point_stamped";
+};
+
+struct InertiaStampedTraits {
+    using handle_type = ros_inertia_stamped_t;
+    static constexpr auto from_cdr = ros_inertia_stamped_from_cdr;
+    static constexpr auto free     = ros_inertia_stamped_free;
+    static constexpr auto as_cdr   = ros_inertia_stamped_as_cdr;
+    static constexpr std::string_view name = "ros_inertia_stamped";
+};
+
 struct CompressedVideoTraits {
     using handle_type = ros_compressed_video_t;
     static constexpr auto from_cdr = ros_compressed_video_from_cdr;
@@ -2557,6 +2589,126 @@ public:
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view child_frame_id() const noexcept {
         return ros_transform_stamped_get_child_frame_id(handle());
+    }
+};
+
+// ---------------------------------------------------------------------------
+// geometry_msgs - TwistStamped (view-only)
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Non-owning, move-only view over a `geometry_msgs::TwistStamped`.
+ *
+ * @warning Backing CDR buffer must outlive this view.
+ * @note Move-only.
+ */
+class TwistStampedView
+    : public detail::ViewBase<TwistStampedView, detail::TwistStampedTraits> {
+    using Base = detail::ViewBase<TwistStampedView, detail::TwistStampedTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    /// @brief Message timestamp.
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_twist_stamped_get_stamp_sec(handle()),
+                ros_twist_stamped_get_stamp_nanosec(handle())};
+    }
+    /// @brief Coordinate frame identifier.
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_twist_stamped_get_frame_id(handle());
+    }
+};
+
+// ---------------------------------------------------------------------------
+// geometry_msgs - AccelStamped (view-only)
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Non-owning, move-only view over a `geometry_msgs::AccelStamped`.
+ *
+ * @warning Backing CDR buffer must outlive this view.
+ * @note Move-only.
+ */
+class AccelStampedView
+    : public detail::ViewBase<AccelStampedView, detail::AccelStampedTraits> {
+    using Base = detail::ViewBase<AccelStampedView, detail::AccelStampedTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    /// @brief Message timestamp.
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_accel_stamped_get_stamp_sec(handle()),
+                ros_accel_stamped_get_stamp_nanosec(handle())};
+    }
+    /// @brief Coordinate frame identifier.
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_accel_stamped_get_frame_id(handle());
+    }
+};
+
+// ---------------------------------------------------------------------------
+// geometry_msgs - PointStamped (view-only)
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Non-owning, move-only view over a `geometry_msgs::PointStamped`.
+ *
+ * @warning Backing CDR buffer must outlive this view.
+ * @note Move-only.
+ */
+class PointStampedView
+    : public detail::ViewBase<PointStampedView, detail::PointStampedTraits> {
+    using Base = detail::ViewBase<PointStampedView, detail::PointStampedTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    /// @brief Message timestamp.
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_point_stamped_get_stamp_sec(handle()),
+                ros_point_stamped_get_stamp_nanosec(handle())};
+    }
+    /// @brief Coordinate frame identifier.
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_point_stamped_get_frame_id(handle());
+    }
+};
+
+// ---------------------------------------------------------------------------
+// geometry_msgs - InertiaStamped (view-only)
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Non-owning, move-only view over a `geometry_msgs::InertiaStamped`.
+ *
+ * @warning Backing CDR buffer must outlive this view.
+ * @note Move-only.
+ */
+class InertiaStampedView
+    : public detail::ViewBase<InertiaStampedView, detail::InertiaStampedTraits> {
+    using Base = detail::ViewBase<InertiaStampedView, detail::InertiaStampedTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    /// @brief Message timestamp.
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_inertia_stamped_get_stamp_sec(handle()),
+                ros_inertia_stamped_get_stamp_nanosec(handle())};
+    }
+    /// @brief Coordinate frame identifier.
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_inertia_stamped_get_frame_id(handle());
     }
 };
 

@@ -87,3 +87,107 @@ class TestColor:
         c = Color(*rgba)
         restored = Color.from_cdr(c.to_bytes())
         assert (restored.r, restored.g, restored.b, restored.a) == rgba
+
+
+# ── CircleAnnotations ──────────────────────────────────────────────
+
+from edgefirst.schemas.foxglove_msgs import CircleAnnotations
+
+
+class TestCircleAnnotations:
+    def test_round_trip(self):
+        ca = CircleAnnotations(
+            timestamp=Time(1, 0),
+            position=Point2(100.0, 200.0),
+            diameter=50.0,
+            thickness=2.0,
+            fill_color=Color(1.0, 0.0, 0.0, 1.0),
+            outline_color=Color(0.0, 1.0, 0.0, 1.0),
+        )
+        restored = CircleAnnotations.from_cdr(ca.to_bytes())
+        assert restored.timestamp.sec == 1
+        assert restored.position.x == 100.0
+        assert restored.diameter == 50.0
+        assert restored.fill_color.r == 1.0
+
+    def test_defaults(self):
+        ca = CircleAnnotations()
+        assert ca.diameter == 0.0
+
+
+# ── TextAnnotation ─────────────────────────────────────────────────
+
+from edgefirst.schemas.foxglove_msgs import TextAnnotation
+
+
+class TestTextAnnotation:
+    def test_round_trip(self):
+        ta = TextAnnotation(
+            timestamp=Time(1, 0),
+            position=Point2(10.0, 20.0),
+            text="Hello, world!",
+            font_size=14.0,
+            text_color=Color(1.0, 1.0, 1.0, 1.0),
+        )
+        restored = TextAnnotation.from_cdr(ta.to_bytes())
+        assert restored.text == "Hello, world!"
+        assert restored.font_size == 14.0
+        assert restored.timestamp.sec == 1
+
+    def test_empty_text(self):
+        ta = TextAnnotation()
+        restored = TextAnnotation.from_cdr(ta.to_bytes())
+        assert restored.text == ""
+
+
+# ── PointAnnotation ────────────────────────────────────────────────
+
+from edgefirst.schemas.foxglove_msgs import PointAnnotation
+
+
+class TestPointAnnotation:
+    def test_round_trip(self):
+        pa = PointAnnotation(
+            timestamp=Time(2, 0),
+            type_=1,
+            points=[Point2(0.0, 0.0), Point2(100.0, 100.0)],
+            outline_color=Color(0.0, 1.0, 0.0, 1.0),
+            thickness=3.0,
+        )
+        restored = PointAnnotation.from_cdr(pa.to_bytes())
+        assert restored.type_ == 1
+        assert len(restored.points) == 2
+        assert restored.points[1].x == 100.0
+        assert restored.thickness == 3.0
+
+
+# ── ImageAnnotation ────────────────────────────────────────────────
+
+from edgefirst.schemas.foxglove_msgs import ImageAnnotation
+
+
+class TestImageAnnotation:
+    def test_round_trip_empty(self):
+        ia = ImageAnnotation()
+        restored = ImageAnnotation.from_cdr(ia.to_bytes())
+        assert len(restored.circles) == 0
+        assert len(restored.points) == 0
+        assert len(restored.texts) == 0
+
+    def test_round_trip_with_annotations(self):
+        ca = CircleAnnotations(
+            timestamp=Time(1, 0),
+            position=Point2(50.0, 50.0),
+            diameter=20.0,
+        )
+        ta = TextAnnotation(
+            timestamp=Time(1, 0),
+            text="label",
+            font_size=12.0,
+        )
+        ia = ImageAnnotation(circles=[ca], texts=[ta])
+        restored = ImageAnnotation.from_cdr(ia.to_bytes())
+        assert len(restored.circles) == 1
+        assert restored.circles[0].diameter == 20.0
+        assert len(restored.texts) == 1
+        assert restored.texts[0].text == "label"

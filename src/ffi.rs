@@ -2229,6 +2229,109 @@ pub extern "C" fn ros_transform_stamped_get_child_frame_id(
 }
 
 // =============================================================================
+// Simple stamped geometry types (TwistStamped, AccelStamped, PointStamped,
+// InertiaStamped) — all follow the same from_cdr / free / stamp / frame_id
+// pattern with no additional string fields.
+// =============================================================================
+
+macro_rules! impl_simple_stamped {
+    ($c_name:ident, $rust_type:path, $from_cdr:ident, $free:ident, $sec:ident, $nanosec:ident, $frame_id:ident) => {
+        pub struct $c_name($rust_type);
+
+        /// Parse CDR bytes into an opaque stamped view handle.
+        #[no_mangle]
+        pub extern "C" fn $from_cdr(data: *const u8, len: usize) -> *mut $c_name {
+            check_null_ret_null!(data);
+            let slice = unsafe { slice::from_raw_parts(data, len) };
+            match <$rust_type>::from_cdr(unsafe { erase_lifetime(slice) }) {
+                Ok(v) => Box::into_raw(Box::new($c_name(v))),
+                Err(_) => {
+                    set_errno(EBADMSG);
+                    ptr::null_mut()
+                }
+            }
+        }
+
+        /// Free a stamped view handle.
+        #[no_mangle]
+        pub extern "C" fn $free(view: *mut $c_name) {
+            if !view.is_null() {
+                unsafe {
+                    drop(Box::from_raw(view));
+                }
+            }
+        }
+
+        /// Get stamp seconds.
+        #[no_mangle]
+        pub extern "C" fn $sec(view: *const $c_name) -> i32 {
+            if view.is_null() {
+                return 0;
+            }
+            unsafe { (*view).0.stamp().sec }
+        }
+
+        /// Get stamp nanoseconds.
+        #[no_mangle]
+        pub extern "C" fn $nanosec(view: *const $c_name) -> u32 {
+            if view.is_null() {
+                return 0;
+            }
+            unsafe { (*view).0.stamp().nanosec }
+        }
+
+        /// Get frame_id (borrowed pointer valid while handle lives).
+        #[no_mangle]
+        pub extern "C" fn $frame_id(view: *const $c_name) -> *const c_char {
+            if view.is_null() {
+                return ptr::null();
+            }
+            str_as_c(unsafe { (*view).0.frame_id() })
+        }
+    };
+}
+
+impl_simple_stamped!(
+    ros_twist_stamped_t,
+    geometry_msgs::TwistStamped<&'static [u8]>,
+    ros_twist_stamped_from_cdr,
+    ros_twist_stamped_free,
+    ros_twist_stamped_get_stamp_sec,
+    ros_twist_stamped_get_stamp_nanosec,
+    ros_twist_stamped_get_frame_id
+);
+
+impl_simple_stamped!(
+    ros_accel_stamped_t,
+    geometry_msgs::AccelStamped<&'static [u8]>,
+    ros_accel_stamped_from_cdr,
+    ros_accel_stamped_free,
+    ros_accel_stamped_get_stamp_sec,
+    ros_accel_stamped_get_stamp_nanosec,
+    ros_accel_stamped_get_frame_id
+);
+
+impl_simple_stamped!(
+    ros_point_stamped_t,
+    geometry_msgs::PointStamped<&'static [u8]>,
+    ros_point_stamped_from_cdr,
+    ros_point_stamped_free,
+    ros_point_stamped_get_stamp_sec,
+    ros_point_stamped_get_stamp_nanosec,
+    ros_point_stamped_get_frame_id
+);
+
+impl_simple_stamped!(
+    ros_inertia_stamped_t,
+    geometry_msgs::InertiaStamped<&'static [u8]>,
+    ros_inertia_stamped_from_cdr,
+    ros_inertia_stamped_free,
+    ros_inertia_stamped_get_stamp_sec,
+    ros_inertia_stamped_get_stamp_nanosec,
+    ros_inertia_stamped_get_frame_id
+);
+
+// =============================================================================
 // RadarCube (buffer-backed)
 // =============================================================================
 
@@ -3456,6 +3559,10 @@ impl_as_cdr!(ros_dmabuffer_as_cdr, ros_dmabuffer_t);
 impl_as_cdr!(ros_imu_as_cdr, ros_imu_t);
 impl_as_cdr!(ros_nav_sat_fix_as_cdr, ros_nav_sat_fix_t);
 impl_as_cdr!(ros_transform_stamped_as_cdr, ros_transform_stamped_t);
+impl_as_cdr!(ros_twist_stamped_as_cdr, ros_twist_stamped_t);
+impl_as_cdr!(ros_accel_stamped_as_cdr, ros_accel_stamped_t);
+impl_as_cdr!(ros_point_stamped_as_cdr, ros_point_stamped_t);
+impl_as_cdr!(ros_inertia_stamped_as_cdr, ros_inertia_stamped_t);
 impl_as_cdr!(ros_radar_cube_as_cdr, ros_radar_cube_t);
 impl_as_cdr!(ros_radar_info_as_cdr, ros_radar_info_t);
 impl_as_cdr!(ros_model_info_as_cdr, ros_model_info_t);

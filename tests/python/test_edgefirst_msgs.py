@@ -251,3 +251,194 @@ class TestTrack:
         # The id is empty when the object isn't being tracked.
         t = Track(id="", lifetime=0, created=Time(0, 0))
         assert Track.from_cdr(t.to_bytes()).id == ""
+
+
+# ── DetectBox / Detect ─────────────────────────────────────────────
+
+from edgefirst.schemas.edgefirst_msgs import Detect, DetectBox
+
+
+class TestDetect:
+    def test_round_trip_with_boxes(self, sample_header):
+        box1 = DetectBox(label="cat", score=0.95, center_x=0.5, center_y=0.5, width=0.2, height=0.3)
+        box2 = DetectBox(label="dog", score=0.80, center_x=0.1, center_y=0.9, width=0.15, height=0.25)
+        det = Detect(header=sample_header, input_timestamp=Time(0, 1000), boxes=[box1, box2])
+        restored = Detect.from_cdr(det.to_bytes())
+        assert len(restored.boxes) == 2
+        assert restored.boxes[0].label == "cat"
+        assert abs(restored.boxes[0].score - 0.95) < 0.001
+        assert restored.boxes[1].label == "dog"
+        assert restored.input_timestamp.nanosec == 1000
+
+    def test_empty_boxes(self, sample_header):
+        det = Detect(header=sample_header)
+        restored = Detect.from_cdr(det.to_bytes())
+        assert len(restored.boxes) == 0
+
+
+# ── CameraFrame / CameraPlane ─────────────────────────────────────
+
+from edgefirst.schemas.edgefirst_msgs import CameraFrame, CameraPlane
+
+
+class TestCameraFrame:
+    def test_round_trip(self, sample_header):
+        plane = CameraPlane(fd=5, offset=0, stride=1920, size=1920 * 1080)
+        cf = CameraFrame(
+            header=sample_header,
+            width=1920,
+            height=1080,
+            format="NV12",
+            planes=[plane],
+        )
+        restored = CameraFrame.from_cdr(cf.to_bytes())
+        assert restored.width == 1920
+        assert restored.height == 1080
+        assert restored.format == "NV12"
+        assert len(restored.planes) == 1
+        assert restored.planes[0].fd == 5
+        assert restored.planes[0].stride == 1920
+
+    def test_no_planes(self, sample_header):
+        cf = CameraFrame(header=sample_header, width=640, height=480)
+        restored = CameraFrame.from_cdr(cf.to_bytes())
+        assert len(restored.planes) == 0
+
+    def test_inline_data_plane(self, sample_header):
+        pixel_data = bytes([0xFF] * 64)
+        plane = CameraPlane(fd=-1, offset=0, stride=8, size=64, data=pixel_data)
+        assert plane.fd == -1
+        assert plane.data == pixel_data
+        cf = CameraFrame(
+            header=sample_header, width=8, height=8, format="GRAY8",
+            planes=[plane],
+        )
+        restored = CameraFrame.from_cdr(cf.to_bytes())
+        assert restored.planes[0].fd == -1
+        assert restored.planes[0].data == pixel_data
+
+    def test_inline_data_requires_fd_minus_one(self):
+        import pytest
+        with pytest.raises(ValueError, match="inline data.*fd == -1"):
+            CameraPlane(fd=3, data=b"\x00\x01\x02")
+
+
+# ── Model / MaskBox ───────────────────────────────────────────────
+
+from edgefirst.schemas.edgefirst_msgs import Model, MaskBox
+
+
+class TestModel:
+    def test_round_trip_with_boxes(self, sample_header):
+        from edgefirst.schemas.builtin_interfaces import Duration
+        box = DetectBox(label="person", score=0.92, center_x=0.5, center_y=0.5, width=0.3, height=0.6)
+        m = Model(header=sample_header, model_time=Duration(0, 500), boxes=[box])
+        restored = Model.from_cdr(m.to_bytes())
+        assert len(restored.boxes) == 1
+        assert restored.boxes[0].label == "person"
+        assert restored.model_time.nanosec == 500
+
+    def test_empty_model(self, sample_header):
+        m = Model(header=sample_header)
+        restored = Model.from_cdr(m.to_bytes())
+        assert len(restored.boxes) == 0
+        assert len(restored.masks) == 0
+
+    def test_round_trip_with_masks(self, sample_header):
+        mask_data = bytes(range(24))  # 2x3x4 mask
+        mask = MaskBox(height=2, width=3, length=4, encoding="", mask=mask_data)
+        m = Model(header=sample_header, masks=[mask])
+        restored = Model.from_cdr(m.to_bytes())
+        assert len(restored.masks) == 1
+        assert restored.masks[0].height == 2
+        assert restored.masks[0].width == 3
+        assert restored.masks[0].length == 4
+        assert restored.masks[0].mask == mask_data
+
+
+class TestMaskBox:
+    def test_defaults(self):
+        mb = MaskBox()
+        assert mb.height == 0
+        assert mb.width == 0
+        assert mb.length == 0
+        assert mb.encoding == ""
+        assert mb.mask == b""
+        assert mb.boxed is False
+
+    def test_explicit_values(self):
+        data = bytes([1, 2, 3, 4])
+        mb = MaskBox(height=10, width=20, length=1, encoding="zstd", mask=data, boxed=True)
+        assert mb.height == 10
+        assert mb.width == 20
+        assert mb.length == 1
+        assert mb.encoding == "zstd"
+        assert mb.mask == data
+        assert mb.boxed is True
+
+
+# ── ModelInfo ─────────────────────────────────────────────────────
+
+from edgefirst.schemas.edgefirst_msgs import ModelInfo
+
+
+class TestModelInfo:
+    def test_round_trip(self, sample_header):
+        mi = ModelInfo(
+            header=sample_header,
+            model_name="yolov8n",
+            model_type="detection",
+            model_format="tflite",
+            input_shape=[1, 320, 320, 3],
+            labels=["cat", "dog", "person"],
+        )
+        restored = ModelInfo.from_cdr(mi.to_bytes())
+        assert restored.model_name == "yolov8n"
+        assert restored.model_type == "detection"
+        assert restored.model_format == "tflite"
+        assert restored.input_shape == [1, 320, 320, 3]
+        assert restored.labels == ["cat", "dog", "person"]
+
+
+# ── RadarInfo ─────────────────────────────────────────────────────
+
+from edgefirst.schemas.edgefirst_msgs import RadarInfo
+
+
+class TestRadarInfo:
+    def test_round_trip(self, sample_header):
+        ri = RadarInfo(
+            header=sample_header,
+            center_frequency="79GHz",
+            frequency_sweep="1GHz",
+            cube=True,
+        )
+        restored = RadarInfo.from_cdr(ri.to_bytes())
+        assert restored.center_frequency == "79GHz"
+        assert restored.frequency_sweep == "1GHz"
+        assert restored.cube is True
+
+    def test_defaults(self, sample_header):
+        ri = RadarInfo(header=sample_header)
+        assert ri.center_frequency == ""
+        assert ri.cube is False
+
+
+# ── Vibration ─────────────────────────────────────────────────────
+
+from edgefirst.schemas.edgefirst_msgs import Vibration
+from edgefirst.schemas.geometry_msgs import Vector3
+
+
+class TestVibration:
+    def test_round_trip(self, sample_header):
+        v = Vibration(
+            header=sample_header,
+            vibration=Vector3(0.1, 0.2, 0.3),
+            band_lower_hz=10.0,
+            band_upper_hz=1000.0,
+        )
+        restored = Vibration.from_cdr(v.to_bytes())
+        assert abs(restored.vibration.x - 0.1) < 1e-9
+        assert abs(restored.band_lower_hz - 10.0) < 1e-9
+        assert abs(restored.band_upper_hz - 1000.0) < 1e-9

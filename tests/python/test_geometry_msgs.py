@@ -13,15 +13,20 @@ import pytest
 
 from edgefirst.schemas.geometry_msgs import (
     Accel,
+    AccelStamped,
     Inertia,
+    InertiaStamped,
     Point,
     Point32,
+    PointStamped,
     Pose,
     Pose2D,
     PoseWithCovariance,
     Quaternion,
     Transform,
+    TransformStamped,
     Twist,
+    TwistStamped,
     TwistWithCovariance,
     Vector3,
 )
@@ -196,3 +201,69 @@ class TestTwistWithCovariance:
         restored = TwistWithCovariance.from_cdr(t.to_bytes())
         assert restored.twist.angular.z == 0.5
         assert restored.covariance == [float(c) for c in cov]
+
+
+# ── Stamped types (buffer-backed) ──────────────────────────────────
+
+from edgefirst.schemas.builtin_interfaces import Time
+from edgefirst.schemas.std_msgs import Header
+
+
+class TestTwistStamped:
+    def test_round_trip(self, sample_header):
+        tw = Twist(linear=Vector3(1.0, 0.0, 0.0), angular=Vector3(0.0, 0.0, 0.5))
+        ts = TwistStamped(header=sample_header, twist=tw)
+        restored = TwistStamped.from_cdr(ts.to_bytes())
+        assert restored.stamp.sec == sample_header.stamp.sec
+        assert restored.frame_id == "sensor_frame"
+        assert restored.twist.linear.x == 1.0
+        assert restored.twist.angular.z == 0.5
+
+    def test_defaults(self, sample_header):
+        ts = TwistStamped(header=sample_header)
+        assert ts.twist.linear.x == 0.0
+
+
+class TestAccelStamped:
+    def test_round_trip(self, sample_header):
+        ac = Accel(linear=Vector3(9.81, 0.0, 0.0), angular=Vector3(0.0, 0.0, 1.0))
+        a = AccelStamped(header=sample_header, accel=ac)
+        restored = AccelStamped.from_cdr(a.to_bytes())
+        assert restored.stamp.sec == sample_header.stamp.sec
+        assert restored.frame_id == "sensor_frame"
+        assert restored.accel.linear.x == 9.81
+        assert restored.accel.angular.z == 1.0
+
+
+class TestPointStamped:
+    def test_round_trip(self, sample_header):
+        pt = Point(x=1.0, y=2.0, z=3.0)
+        ps = PointStamped(header=sample_header, point=pt)
+        restored = PointStamped.from_cdr(ps.to_bytes())
+        assert restored.stamp.sec == sample_header.stamp.sec
+        assert restored.frame_id == "sensor_frame"
+        assert (restored.point.x, restored.point.y, restored.point.z) == (1.0, 2.0, 3.0)
+
+
+class TestInertiaStamped:
+    def test_round_trip(self, sample_header):
+        inertia = Inertia(m=10.0, com=Vector3(0.1, 0.2, 0.3), ixx=1.0, iyy=2.0, izz=3.0)
+        i = InertiaStamped(header=sample_header, inertia=inertia)
+        restored = InertiaStamped.from_cdr(i.to_bytes())
+        assert restored.stamp.sec == sample_header.stamp.sec
+        assert restored.inertia.m == 10.0
+        assert restored.inertia.izz == 3.0
+
+
+class TestTransformStamped:
+    def test_round_trip(self, sample_header):
+        tf = Transform(translation=Vector3(1.0, 2.0, 3.0), rotation=Quaternion(0.0, 0.0, 0.0, 1.0))
+        ts = TransformStamped(header=sample_header, child_frame_id="child", transform=tf)
+        restored = TransformStamped.from_cdr(ts.to_bytes())
+        assert restored.stamp.sec == sample_header.stamp.sec
+        assert restored.child_frame_id == "child"
+        assert restored.transform.translation.x == 1.0
+
+    def test_empty_child_frame_id(self, sample_header):
+        ts = TransformStamped(header=sample_header)
+        assert ts.child_frame_id == ""
