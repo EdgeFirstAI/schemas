@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import List, Optional, Sequence
 
 from . import BorrowedBuf, BufferLike
-from .builtin_interfaces import Time
+from .builtin_interfaces import Duration, Time
 from .std_msgs import Header
 from .geometry_msgs import Vector3
 
@@ -303,12 +303,12 @@ class DetectBox:
 
     def __init__(
         self,
-        label: str = "",
-        score: float = 0.0,
         center_x: float = 0.0,
         center_y: float = 0.0,
         width: float = 0.0,
         height: float = 0.0,
+        label: str = "",
+        score: float = 0.0,
         distance: float = 0.0,
         speed: float = 0.0,
         track_id: str = "",
@@ -349,9 +349,9 @@ class Detect:
     def __init__(
         self,
         header: Header,
-        input_timestamp: int = 0,
-        model_time: int = 0,
-        output_time: int = 0,
+        input_timestamp: Optional[Time] = None,
+        model_time: Optional[Time] = None,
+        output_time: Optional[Time] = None,
         boxes: Optional[Sequence[DetectBox]] = None,
     ) -> None: ...
 
@@ -360,11 +360,11 @@ class Detect:
     @property
     def frame_id(self) -> str: ...
     @property
-    def input_timestamp(self) -> int: ...
+    def input_timestamp(self) -> Time: ...
     @property
-    def model_time(self) -> int: ...
+    def model_time(self) -> Time: ...
     @property
-    def output_time(self) -> int: ...
+    def output_time(self) -> Time: ...
     @property
     def boxes(self) -> List[DetectBox]: ...
     @property
@@ -406,7 +406,6 @@ class CameraPlane:
         stride: int = 0,
         size: int = 0,
         used: int = 0,
-        data: Optional[bytes] = None,
     ) -> None: ...
 
     @property
@@ -488,10 +487,10 @@ class Model:
     def __init__(
         self,
         header: Header,
-        input_time: int = 0,
-        model_time: int = 0,
-        output_time: int = 0,
-        decode_time: int = 0,
+        input_time: Optional[Duration] = None,
+        model_time: Optional[Duration] = None,
+        output_time: Optional[Duration] = None,
+        decode_time: Optional[Duration] = None,
         boxes: Optional[Sequence[DetectBox]] = None,
         masks: Optional[Sequence[MaskBox]] = None,
     ) -> None: ...
@@ -501,13 +500,13 @@ class Model:
     @property
     def frame_id(self) -> str: ...
     @property
-    def input_time(self) -> int: ...
+    def input_time(self) -> Duration: ...
     @property
-    def model_time(self) -> int: ...
+    def model_time(self) -> Duration: ...
     @property
-    def output_time(self) -> int: ...
+    def output_time(self) -> Duration: ...
     @property
-    def decode_time(self) -> int: ...
+    def decode_time(self) -> Duration: ...
     @property
     def boxes(self) -> List[DetectBox]: ...
     @property
@@ -612,7 +611,7 @@ class Vibration:
         band_upper_hz: float = 0.0,
         measurement_type: int = 0,
         unit: int = 0,
-        clipping: Optional[Vector3] = None,
+        clipping: Optional[Sequence[int]] = None,
     ) -> None: ...
 
     @property
@@ -630,7 +629,7 @@ class Vibration:
     @property
     def unit(self) -> int: ...
     @property
-    def clipping(self) -> Vector3: ...
+    def clipping(self) -> List[int]: ...
     @property
     def cdr_size(self) -> int: ...
 

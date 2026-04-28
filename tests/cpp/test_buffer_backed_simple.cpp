@@ -941,4 +941,153 @@ TEST_CASE("BoxView track_created accessor", "[buffer_backed][box][track_created]
     CHECK(tc.nanosec == 0u);
 }
 
+// ============================================================================
+// geometry_msgs - TwistStamped (view-only)
+// ============================================================================
+
+// frame_id="test_frame", linear=(1.5,-2.5,3.0), angular=(0,0,0) — 76 bytes
+static constexpr std::uint8_t kGoldenTwistStampedBytes[] = {
+    0x00,0x01,0x00,0x00,0xd2,0x02,0x96,0x49,0x15,0xcd,0x5b,0x07,0x0b,0x00,0x00,0x00,
+    0x74,0x65,0x73,0x74,0x5f,0x66,0x72,0x61,0x6d,0x65,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0xf8,0x3f,0x00,0x00,0x00,0x00,0x00,0x00,0x04,0xc0,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x08,0x40,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+};
+
+TEST_CASE("TwistStampedView error paths", "[buffer_backed][twist_stamped]") {
+    auto v = ef::TwistStampedView::from_cdr({});
+    REQUIRE_FALSE(v.has_value());
+}
+
+TEST_CASE("TwistStampedView happy path", "[buffer_backed][twist_stamped]") {
+    auto v = ef::TwistStampedView::from_cdr(
+        ef::span<const std::uint8_t>{kGoldenTwistStampedBytes,
+                                     sizeof(kGoldenTwistStampedBytes)});
+    REQUIRE(v.has_value());
+    CHECK(v->stamp().sec == 1234567890);
+    CHECK(v->stamp().nanosec == 123456789u);
+    CHECK(v->frame_id() == "test_frame");
+}
+
+TEST_CASE("TwistStampedView move semantics", "[buffer_backed][twist_stamped]") {
+    auto v1 = ef::TwistStampedView::from_cdr(
+        ef::span<const std::uint8_t>{kGoldenTwistStampedBytes,
+                                     sizeof(kGoldenTwistStampedBytes)});
+    REQUIRE(v1.has_value());
+    auto v2 = std::move(*v1);
+    CHECK(v2.frame_id() == "test_frame");
+}
+
+// ============================================================================
+// geometry_msgs - AccelStamped (view-only)
+// ============================================================================
+
+// Same CDR layout as TwistStamped (Accel has same fields as Twist) — 76 bytes
+static constexpr std::uint8_t kGoldenAccelStampedBytes[] = {
+    0x00,0x01,0x00,0x00,0xd2,0x02,0x96,0x49,0x15,0xcd,0x5b,0x07,0x0b,0x00,0x00,0x00,
+    0x74,0x65,0x73,0x74,0x5f,0x66,0x72,0x61,0x6d,0x65,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0xf8,0x3f,0x00,0x00,0x00,0x00,0x00,0x00,0x04,0xc0,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x08,0x40,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+};
+
+TEST_CASE("AccelStampedView error paths", "[buffer_backed][accel_stamped]") {
+    auto v = ef::AccelStampedView::from_cdr({});
+    REQUIRE_FALSE(v.has_value());
+}
+
+TEST_CASE("AccelStampedView happy path", "[buffer_backed][accel_stamped]") {
+    auto v = ef::AccelStampedView::from_cdr(
+        ef::span<const std::uint8_t>{kGoldenAccelStampedBytes,
+                                     sizeof(kGoldenAccelStampedBytes)});
+    REQUIRE(v.has_value());
+    CHECK(v->stamp().sec == 1234567890);
+    CHECK(v->stamp().nanosec == 123456789u);
+    CHECK(v->frame_id() == "test_frame");
+}
+
+TEST_CASE("AccelStampedView move semantics", "[buffer_backed][accel_stamped]") {
+    auto v1 = ef::AccelStampedView::from_cdr(
+        ef::span<const std::uint8_t>{kGoldenAccelStampedBytes,
+                                     sizeof(kGoldenAccelStampedBytes)});
+    REQUIRE(v1.has_value());
+    auto v2 = std::move(*v1);
+    CHECK(v2.frame_id() == "test_frame");
+}
+
+// ============================================================================
+// geometry_msgs - PointStamped (view-only)
+// ============================================================================
+
+// frame_id="test_frame", point=(1.5,-2.5,3.0) — 52 bytes
+static constexpr std::uint8_t kGoldenPointStampedBytes[] = {
+    0x00,0x01,0x00,0x00,0xd2,0x02,0x96,0x49,0x15,0xcd,0x5b,0x07,0x0b,0x00,0x00,0x00,
+    0x74,0x65,0x73,0x74,0x5f,0x66,0x72,0x61,0x6d,0x65,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0xf8,0x3f,0x00,0x00,0x00,0x00,0x00,0x00,0x04,0xc0,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x08,0x40,
+};
+
+TEST_CASE("PointStampedView error paths", "[buffer_backed][point_stamped]") {
+    auto v = ef::PointStampedView::from_cdr({});
+    REQUIRE_FALSE(v.has_value());
+}
+
+TEST_CASE("PointStampedView happy path", "[buffer_backed][point_stamped]") {
+    auto v = ef::PointStampedView::from_cdr(
+        ef::span<const std::uint8_t>{kGoldenPointStampedBytes,
+                                     sizeof(kGoldenPointStampedBytes)});
+    REQUIRE(v.has_value());
+    CHECK(v->stamp().sec == 1234567890);
+    CHECK(v->stamp().nanosec == 123456789u);
+    CHECK(v->frame_id() == "test_frame");
+}
+
+TEST_CASE("PointStampedView move semantics", "[buffer_backed][point_stamped]") {
+    auto v1 = ef::PointStampedView::from_cdr(
+        ef::span<const std::uint8_t>{kGoldenPointStampedBytes,
+                                     sizeof(kGoldenPointStampedBytes)});
+    REQUIRE(v1.has_value());
+    auto v2 = std::move(*v1);
+    CHECK(v2.frame_id() == "test_frame");
+}
+
+// ============================================================================
+// geometry_msgs - InertiaStamped (view-only)
+// ============================================================================
+
+// frame_id="test_frame", m=1.5, rest zeroed — 108 bytes
+static constexpr std::uint8_t kGoldenInertiaStampedBytes[] = {
+    0x00,0x01,0x00,0x00,0xd2,0x02,0x96,0x49,0x15,0xcd,0x5b,0x07,0x0b,0x00,0x00,0x00,
+    0x74,0x65,0x73,0x74,0x5f,0x66,0x72,0x61,0x6d,0x65,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0xf8,0x3f,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+};
+
+TEST_CASE("InertiaStampedView error paths", "[buffer_backed][inertia_stamped]") {
+    auto v = ef::InertiaStampedView::from_cdr({});
+    REQUIRE_FALSE(v.has_value());
+}
+
+TEST_CASE("InertiaStampedView happy path", "[buffer_backed][inertia_stamped]") {
+    auto v = ef::InertiaStampedView::from_cdr(
+        ef::span<const std::uint8_t>{kGoldenInertiaStampedBytes,
+                                     sizeof(kGoldenInertiaStampedBytes)});
+    REQUIRE(v.has_value());
+    CHECK(v->stamp().sec == 1234567890);
+    CHECK(v->stamp().nanosec == 123456789u);
+    CHECK(v->frame_id() == "test_frame");
+}
+
+TEST_CASE("InertiaStampedView move semantics", "[buffer_backed][inertia_stamped]") {
+    auto v1 = ef::InertiaStampedView::from_cdr(
+        ef::span<const std::uint8_t>{kGoldenInertiaStampedBytes,
+                                     sizeof(kGoldenInertiaStampedBytes)});
+    REQUIRE(v1.has_value());
+    auto v2 = std::move(*v1);
+    CHECK(v2.frame_id() == "test_frame");
+}
+
 #pragma GCC diagnostic pop

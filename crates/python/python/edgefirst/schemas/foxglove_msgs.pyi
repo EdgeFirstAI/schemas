@@ -207,8 +207,8 @@ class ImageAnnotation:
     def __init__(
         self,
         circles: Optional[Sequence[CircleAnnotations]] = None,
-        points: Optional[Sequence[PointAnnotation]] = None,
-        texts: Optional[Sequence[TextAnnotation]] = None,
+        points: Optional[List[PointAnnotation]] = None,
+        texts: Optional[List[TextAnnotation]] = None,
     ) -> None: ...
 
     @property

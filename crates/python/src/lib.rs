@@ -5148,7 +5148,7 @@ impl PyFoxglovePointAnnotation {
 
 // ── foxglove_msgs.ImageAnnotation (buffer-backed) ───────────────────
 
-/// Helper to convert FoxgloveTextAnnotationView → Python dict-like object.
+/// Helper to convert FoxgloveTextAnnotationView → PyFoxgloveTextAnnotation.
 fn text_annotation_view_to_py(
     v: &FoxgloveTextAnnotationView<'_>,
 ) -> PyResult<PyFoxgloveTextAnnotation> {
