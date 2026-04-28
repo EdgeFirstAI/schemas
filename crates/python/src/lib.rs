@@ -3,6 +3,9 @@
 
 //! Python bindings for `edgefirst-schemas`.
 //!
+// pyo3 `#[new]` constructors often exceed 7 args and `to_bytes(&self)` on
+// Copy types is the expected pyo3 pattern. Silence these crate-wide.
+#![allow(clippy::too_many_arguments, clippy::wrong_self_convention)]
 //! The compiled binary IS the `edgefirst.schemas` package — no Python
 //! wrapper layer, no `_native` indirection. Submodules
 //! (`sensor_msgs`, `std_msgs`, `geometry_msgs`, `edgefirst_msgs`,
@@ -28,17 +31,25 @@ use edgefirst_schemas::builtin_interfaces::{Duration, Time};
 use edgefirst_schemas::cdr::{decode_fixed, encode_fixed};
 #[allow(deprecated)]
 use edgefirst_schemas::edgefirst_msgs::DmaBuffer;
-use edgefirst_schemas::edgefirst_msgs::{Date, LocalTime, Mask, RadarCube, Track};
-use edgefirst_schemas::foxglove_msgs::{FoxgloveColor, FoxgloveCompressedVideo, FoxglovePoint2};
+use edgefirst_schemas::edgefirst_msgs::{
+    CameraFrame, CameraPlaneView, Date, Detect, DetectBoxView, LocalTime, Mask, MaskView, Model,
+    ModelInfo, RadarCube, RadarInfo, Track, Vibration,
+};
+use edgefirst_schemas::foxglove_msgs::{
+    FoxgloveCircleAnnotations, FoxgloveColor, FoxgloveCompressedVideo, FoxgloveImageAnnotation,
+    FoxglovePoint2, FoxglovePointAnnotation, FoxglovePointAnnotationView, FoxgloveTextAnnotation,
+    FoxgloveTextAnnotationView,
+};
 use edgefirst_schemas::geometry_msgs::{
-    Accel, Inertia, Point, Point32, Pose, Pose2D, PoseWithCovariance, Quaternion, Transform, Twist,
+    Accel, AccelStamped, Inertia, InertiaStamped, Point, Point32, PointStamped, Pose, Pose2D,
+    PoseWithCovariance, Quaternion, Transform, TransformStamped, Twist, TwistStamped,
     TwistWithCovariance, Vector3,
 };
 use edgefirst_schemas::nav_msgs::Odometry;
 use edgefirst_schemas::rosgraph_msgs::Clock;
 use edgefirst_schemas::sensor_msgs::{
-    CompressedImage, FluidPressure, Image, Imu, MagneticField, NavSatFix, NavSatStatus,
-    PointCloud2, PointFieldView, RegionOfInterest, Temperature,
+    BatteryState, CameraInfo, CompressedImage, FluidPressure, Image, Imu, MagneticField, NavSatFix,
+    NavSatStatus, PointCloud2, PointFieldView, RegionOfInterest, Temperature,
 };
 use edgefirst_schemas::std_msgs::{ColorRGBA, Header};
 
@@ -2475,6 +2486,235 @@ impl PyTwistWithCovariance {
     }
 }
 
+// ── geometry_msgs stamped types (buffer-backed) ─────────────────────
+
+macro_rules! stamped_boilerplate {
+    ($py_name:ident, $rust_ty:ident, $py_str_name:literal, $mod_name:literal, $payload_getter:ident, $py_payload:ident, $payload_ty:ident, $new_fn:expr, $default_payload:expr) => {
+        #[pyclass(name = $py_str_name, module = $mod_name, frozen)]
+        pub struct $py_name {
+            inner: $rust_ty<Vec<u8>>,
+        }
+
+        #[pymethods]
+        impl $py_name {
+            #[new]
+            #[pyo3(signature = (header, $payload_getter=None))]
+            fn new(header: &PyHeader, $payload_getter: Option<$py_payload>) -> PyResult<Self> {
+                let stamp = header.inner.stamp();
+                let frame_id = header.inner.frame_id().to_string();
+                let payload = $payload_getter.map(|v| v.0).unwrap_or($default_payload);
+                #[allow(deprecated)]
+                let inner = $new_fn(stamp, &frame_id, payload).map_err(map_cdr_err)?;
+                Ok(Self { inner })
+            }
+
+            #[classmethod]
+            fn from_cdr(
+                _cls: &Bound<'_, PyType>,
+                py: Python<'_>,
+                buf: &Bound<'_, PyAny>,
+            ) -> PyResult<Self> {
+                let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+                let ptr_addr = ptr as usize;
+                let owned: Vec<u8> = py.detach(|| {
+                    let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
+                    slice.to_vec()
+                });
+                drop(pybuf);
+                let inner = $rust_ty::from_cdr(owned).map_err(map_cdr_err)?;
+                Ok(Self { inner })
+            }
+
+            #[getter]
+            fn stamp(&self) -> PyTime {
+                PyTime(self.inner.stamp())
+            }
+            #[getter]
+            fn frame_id(&self) -> &str {
+                self.inner.frame_id()
+            }
+            #[getter]
+            fn $payload_getter(&self) -> $py_payload {
+                $py_payload(self.inner.$payload_getter())
+            }
+            #[getter]
+            fn cdr_size(&self) -> usize {
+                self.inner.as_cdr().len()
+            }
+            fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+                Ok(PyBytes::new(py, self.inner.as_cdr()))
+            }
+        }
+    };
+}
+
+stamped_boilerplate!(
+    PyTwistStamped,
+    TwistStamped,
+    "TwistStamped",
+    "edgefirst.schemas.geometry_msgs",
+    twist,
+    PyTwist,
+    Twist,
+    TwistStamped::new,
+    Twist {
+        linear: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0
+        },
+        angular: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0
+        }
+    }
+);
+stamped_boilerplate!(
+    PyAccelStamped,
+    AccelStamped,
+    "AccelStamped",
+    "edgefirst.schemas.geometry_msgs",
+    accel,
+    PyAccel,
+    Accel,
+    AccelStamped::new,
+    Accel {
+        linear: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0
+        },
+        angular: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0
+        }
+    }
+);
+stamped_boilerplate!(
+    PyInertiaStamped,
+    InertiaStamped,
+    "InertiaStamped",
+    "edgefirst.schemas.geometry_msgs",
+    inertia,
+    PyInertia,
+    Inertia,
+    InertiaStamped::new,
+    Inertia {
+        m: 0.0,
+        com: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0
+        },
+        ixx: 0.0,
+        ixy: 0.0,
+        ixz: 0.0,
+        iyy: 0.0,
+        iyz: 0.0,
+        izz: 0.0
+    }
+);
+stamped_boilerplate!(
+    PyPointStamped,
+    PointStamped,
+    "PointStamped",
+    "edgefirst.schemas.geometry_msgs",
+    point,
+    PyPoint,
+    Point,
+    PointStamped::new,
+    Point {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0
+    }
+);
+
+// ── geometry_msgs.TransformStamped (two string fields) ──────────────
+
+#[pyclass(
+    name = "TransformStamped",
+    module = "edgefirst.schemas.geometry_msgs",
+    frozen
+)]
+pub struct PyTransformStamped {
+    inner: TransformStamped<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyTransformStamped {
+    #[new]
+    #[pyo3(signature = (header, child_frame_id="", transform=None))]
+    fn new(
+        header: &PyHeader,
+        child_frame_id: &str,
+        transform: Option<PyTransform>,
+    ) -> PyResult<Self> {
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let t = transform.map(|v| v.0).unwrap_or(Transform {
+            translation: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            rotation: Quaternion {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                w: 1.0,
+            },
+        });
+        #[allow(deprecated)]
+        let inner =
+            TransformStamped::new(stamp, &frame_id, child_frame_id, t).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+        let ptr_addr = ptr as usize;
+        let owned: Vec<u8> = py.detach(|| {
+            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
+            slice.to_vec()
+        });
+        drop(pybuf);
+        let inner = TransformStamped::from_cdr(owned).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn child_frame_id(&self) -> &str {
+        self.inner.child_frame_id()
+    }
+    #[getter]
+    fn transform(&self) -> PyTransform {
+        PyTransform(self.inner.transform())
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
 // ── sensor_msgs.Imu (buffer-backed) ─────────────────────────────────
 
 /// `sensor_msgs.Imu` — orientation + angular velocity + linear
@@ -2928,6 +3168,339 @@ impl PyTemperature {
     }
 }
 
+// ── sensor_msgs.CameraInfo (buffer-backed) ──────────────────────────
+
+#[pyclass(name = "CameraInfo", module = "edgefirst.schemas.sensor_msgs", frozen)]
+pub struct PyCameraInfo {
+    inner: CameraInfo<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyCameraInfo {
+    #[new]
+    #[pyo3(signature = (
+        header,
+        height=0,
+        width=0,
+        distortion_model="",
+        d=None,
+        k=None,
+        r=None,
+        p=None,
+        binning_x=0,
+        binning_y=0,
+        roi=None,
+    ))]
+    fn new(
+        header: &PyHeader,
+        height: u32,
+        width: u32,
+        distortion_model: &str,
+        d: Option<Vec<f64>>,
+        k: Option<Vec<f64>>,
+        r: Option<Vec<f64>>,
+        p: Option<Vec<f64>>,
+        binning_x: u32,
+        binning_y: u32,
+        roi: Option<PyRegionOfInterest>,
+    ) -> PyResult<Self> {
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let d_vec = d.unwrap_or_default();
+        let k_arr = extract_f64_array::<9>(k)?;
+        let r_arr = extract_f64_array::<9>(r)?;
+        let p_arr = extract_f64_array::<12>(p)?;
+        let roi_val = roi.map(|r| r.0).unwrap_or(RegionOfInterest {
+            x_offset: 0,
+            y_offset: 0,
+            height: 0,
+            width: 0,
+            do_rectify: false,
+        });
+        let inner = CameraInfo::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .height(height)
+            .width(width)
+            .distortion_model(distortion_model)
+            .d(&d_vec)
+            .k(k_arr)
+            .r(r_arr)
+            .p(p_arr)
+            .binning_x(binning_x)
+            .binning_y(binning_y)
+            .roi(roi_val)
+            .build()
+            .map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+        let ptr_addr = ptr as usize;
+        let owned: Vec<u8> = py.detach(|| {
+            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
+            slice.to_vec()
+        });
+        drop(pybuf);
+        let inner = CameraInfo::from_cdr(owned).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn height(&self) -> u32 {
+        self.inner.height()
+    }
+    #[getter]
+    fn width(&self) -> u32 {
+        self.inner.width()
+    }
+    #[getter]
+    fn distortion_model(&self) -> &str {
+        self.inner.distortion_model()
+    }
+    #[getter]
+    fn d(&self) -> Vec<f64> {
+        (0..self.inner.d_len())
+            .map(|i| self.inner.d_get(i))
+            .collect()
+    }
+    #[getter]
+    fn k(&self) -> [f64; 9] {
+        self.inner.k()
+    }
+    #[getter]
+    fn r(&self) -> [f64; 9] {
+        self.inner.r()
+    }
+    #[getter]
+    fn p(&self) -> [f64; 12] {
+        self.inner.p()
+    }
+    #[getter]
+    fn binning_x(&self) -> u32 {
+        self.inner.binning_x()
+    }
+    #[getter]
+    fn binning_y(&self) -> u32 {
+        self.inner.binning_y()
+    }
+    #[getter]
+    fn roi(&self) -> PyRegionOfInterest {
+        PyRegionOfInterest(self.inner.roi())
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
+/// Extract a fixed-size f64 array from an optional Vec, defaulting to zeros.
+fn extract_f64_array<const N: usize>(v: Option<Vec<f64>>) -> PyResult<[f64; N]> {
+    match v {
+        None => Ok([0.0; N]),
+        Some(vec) => {
+            if vec.len() != N {
+                return Err(PyValueError::new_err(format!(
+                    "expected {} elements, got {}",
+                    N,
+                    vec.len()
+                )));
+            }
+            let mut arr = [0.0; N];
+            arr.copy_from_slice(&vec);
+            Ok(arr)
+        }
+    }
+}
+
+// ── sensor_msgs.BatteryState (buffer-backed) ────────────────────────
+
+#[pyclass(
+    name = "BatteryState",
+    module = "edgefirst.schemas.sensor_msgs",
+    frozen
+)]
+pub struct PyBatteryState {
+    inner: BatteryState<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyBatteryState {
+    #[new]
+    #[pyo3(signature = (
+        header,
+        voltage=0.0,
+        temperature=0.0,
+        current=0.0,
+        charge=0.0,
+        capacity=0.0,
+        design_capacity=0.0,
+        percentage=0.0,
+        power_supply_status=0,
+        power_supply_health=0,
+        power_supply_technology=0,
+        present=false,
+        cell_voltage=None,
+        cell_temperature=None,
+        location="",
+        serial_number="",
+    ))]
+    fn new(
+        header: &PyHeader,
+        voltage: f32,
+        temperature: f32,
+        current: f32,
+        charge: f32,
+        capacity: f32,
+        design_capacity: f32,
+        percentage: f32,
+        power_supply_status: u8,
+        power_supply_health: u8,
+        power_supply_technology: u8,
+        present: bool,
+        cell_voltage: Option<Vec<f32>>,
+        cell_temperature: Option<Vec<f32>>,
+        location: &str,
+        serial_number: &str,
+    ) -> PyResult<Self> {
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let cv = cell_voltage.unwrap_or_default();
+        let ct = cell_temperature.unwrap_or_default();
+        let inner = BatteryState::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .voltage(voltage)
+            .temperature(temperature)
+            .current(current)
+            .charge(charge)
+            .capacity(capacity)
+            .design_capacity(design_capacity)
+            .percentage(percentage)
+            .power_supply_status(power_supply_status)
+            .power_supply_health(power_supply_health)
+            .power_supply_technology(power_supply_technology)
+            .present(present)
+            .cell_voltage(&cv)
+            .cell_temperature(&ct)
+            .location(location)
+            .serial_number(serial_number)
+            .build()
+            .map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+        let ptr_addr = ptr as usize;
+        let owned: Vec<u8> = py.detach(|| {
+            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
+            slice.to_vec()
+        });
+        drop(pybuf);
+        let inner = BatteryState::from_cdr(owned).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn voltage(&self) -> f32 {
+        self.inner.voltage()
+    }
+    #[getter]
+    fn temperature(&self) -> f32 {
+        self.inner.temperature()
+    }
+    #[getter]
+    fn current(&self) -> f32 {
+        self.inner.current()
+    }
+    #[getter]
+    fn charge(&self) -> f32 {
+        self.inner.charge()
+    }
+    #[getter]
+    fn capacity(&self) -> f32 {
+        self.inner.capacity()
+    }
+    #[getter]
+    fn design_capacity(&self) -> f32 {
+        self.inner.design_capacity()
+    }
+    #[getter]
+    fn percentage(&self) -> f32 {
+        self.inner.percentage()
+    }
+    #[getter]
+    fn power_supply_status(&self) -> u8 {
+        self.inner.power_supply_status()
+    }
+    #[getter]
+    fn power_supply_health(&self) -> u8 {
+        self.inner.power_supply_health()
+    }
+    #[getter]
+    fn power_supply_technology(&self) -> u8 {
+        self.inner.power_supply_technology()
+    }
+    #[getter]
+    fn present(&self) -> bool {
+        self.inner.present()
+    }
+    #[getter]
+    fn cell_voltage(&self) -> Vec<f32> {
+        self.inner.cell_voltage()
+    }
+    #[getter]
+    fn cell_temperature(&self) -> Vec<f32> {
+        self.inner.cell_temperature()
+    }
+    #[getter]
+    fn location(&self) -> &str {
+        self.inner.location()
+    }
+    #[getter]
+    fn serial_number(&self) -> &str {
+        self.inner.serial_number()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
 // ── nav_msgs.Odometry ───────────────────────────────────────────────
 
 #[pyclass(name = "Odometry", module = "edgefirst.schemas.nav_msgs", frozen)]
@@ -3187,6 +3760,1002 @@ impl PyTrack {
     }
 }
 
+// ── edgefirst_msgs.RadarInfo (buffer-backed) ────────────────────────
+
+#[pyclass(
+    name = "RadarInfo",
+    module = "edgefirst.schemas.edgefirst_msgs",
+    frozen
+)]
+pub struct PyRadarInfo {
+    inner: RadarInfo<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyRadarInfo {
+    #[new]
+    #[pyo3(signature = (header, center_frequency="", frequency_sweep="", range_toggle="", detection_sensitivity="", cube=false))]
+    fn new(
+        header: &PyHeader,
+        center_frequency: &str,
+        frequency_sweep: &str,
+        range_toggle: &str,
+        detection_sensitivity: &str,
+        cube: bool,
+    ) -> PyResult<Self> {
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let inner = RadarInfo::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .center_frequency(center_frequency)
+            .frequency_sweep(frequency_sweep)
+            .range_toggle(range_toggle)
+            .detection_sensitivity(detection_sensitivity)
+            .cube(cube)
+            .build()
+            .map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+        let ptr_addr = ptr as usize;
+        let owned: Vec<u8> = py.detach(|| {
+            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
+            slice.to_vec()
+        });
+        drop(pybuf);
+        let inner = RadarInfo::from_cdr(owned).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn center_frequency(&self) -> &str {
+        self.inner.center_frequency()
+    }
+    #[getter]
+    fn frequency_sweep(&self) -> &str {
+        self.inner.frequency_sweep()
+    }
+    #[getter]
+    fn range_toggle(&self) -> &str {
+        self.inner.range_toggle()
+    }
+    #[getter]
+    fn detection_sensitivity(&self) -> &str {
+        self.inner.detection_sensitivity()
+    }
+    #[getter]
+    fn cube(&self) -> bool {
+        self.inner.cube()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
+// ── edgefirst_msgs.Vibration (buffer-backed) ────────────────────────
+
+#[pyclass(
+    name = "Vibration",
+    module = "edgefirst.schemas.edgefirst_msgs",
+    frozen
+)]
+pub struct PyVibration {
+    inner: Vibration<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyVibration {
+    #[new]
+    #[pyo3(signature = (
+        header,
+        vibration=None,
+        band_lower_hz=0.0,
+        band_upper_hz=0.0,
+        measurement_type=0,
+        unit=0,
+        clipping=None,
+    ))]
+    fn new(
+        header: &PyHeader,
+        vibration: Option<PyVector3>,
+        band_lower_hz: f32,
+        band_upper_hz: f32,
+        measurement_type: u8,
+        unit: u8,
+        clipping: Option<Vec<u32>>,
+    ) -> PyResult<Self> {
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let v = vibration.map(|v| v.0).unwrap_or(Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        });
+        let clip = clipping.unwrap_or_default();
+        let inner = Vibration::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .vibration(v)
+            .band_lower_hz(band_lower_hz)
+            .band_upper_hz(band_upper_hz)
+            .measurement_type(measurement_type)
+            .unit(unit)
+            .clipping(&clip)
+            .build()
+            .map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+        let ptr_addr = ptr as usize;
+        let owned: Vec<u8> = py.detach(|| {
+            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
+            slice.to_vec()
+        });
+        drop(pybuf);
+        let inner = Vibration::from_cdr(owned).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn vibration(&self) -> PyVector3 {
+        PyVector3(self.inner.vibration())
+    }
+    #[getter]
+    fn band_lower_hz(&self) -> f32 {
+        self.inner.band_lower_hz()
+    }
+    #[getter]
+    fn band_upper_hz(&self) -> f32 {
+        self.inner.band_upper_hz()
+    }
+    #[getter]
+    fn measurement_type(&self) -> u8 {
+        self.inner.measurement_type()
+    }
+    #[getter]
+    fn unit(&self) -> u8 {
+        self.inner.unit()
+    }
+    #[getter]
+    fn clipping(&self) -> Vec<u32> {
+        self.inner.clipping()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
+// ── edgefirst_msgs.ModelInfo (buffer-backed) ────────────────────────
+
+#[pyclass(
+    name = "ModelInfo",
+    module = "edgefirst.schemas.edgefirst_msgs",
+    frozen
+)]
+pub struct PyModelInfo {
+    inner: ModelInfo<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyModelInfo {
+    #[new]
+    #[pyo3(signature = (
+        header,
+        input_shape=None,
+        input_type=0,
+        output_shape=None,
+        output_type=0,
+        labels=None,
+        model_type="",
+        model_format="",
+        model_name="",
+    ))]
+    fn new(
+        header: &PyHeader,
+        input_shape: Option<Vec<u32>>,
+        input_type: u8,
+        output_shape: Option<Vec<u32>>,
+        output_type: u8,
+        labels: Option<Vec<String>>,
+        model_type: &str,
+        model_format: &str,
+        model_name: &str,
+    ) -> PyResult<Self> {
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let is = input_shape.unwrap_or_default();
+        let os = output_shape.unwrap_or_default();
+        let labels_owned = labels.unwrap_or_default();
+        let labels_refs: Vec<&str> = labels_owned.iter().map(String::as_str).collect();
+        let inner = ModelInfo::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .input_shape(&is)
+            .input_type(input_type)
+            .output_shape(&os)
+            .output_type(output_type)
+            .labels(&labels_refs)
+            .model_type(model_type)
+            .model_format(model_format)
+            .model_name(model_name)
+            .build()
+            .map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+        let ptr_addr = ptr as usize;
+        let owned: Vec<u8> = py.detach(|| {
+            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
+            slice.to_vec()
+        });
+        drop(pybuf);
+        let inner = ModelInfo::from_cdr(owned).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn input_shape(&self) -> Vec<u32> {
+        self.inner.input_shape().to_vec()
+    }
+    #[getter]
+    fn input_type(&self) -> u8 {
+        self.inner.input_type()
+    }
+    #[getter]
+    fn output_shape(&self) -> Vec<u32> {
+        self.inner.output_shape().to_vec()
+    }
+    #[getter]
+    fn output_type(&self) -> u8 {
+        self.inner.output_type()
+    }
+    #[getter]
+    fn labels(&self) -> Vec<String> {
+        self.inner.labels().into_iter().map(String::from).collect()
+    }
+    #[getter]
+    fn model_type(&self) -> &str {
+        self.inner.model_type()
+    }
+    #[getter]
+    fn model_format(&self) -> &str {
+        self.inner.model_format()
+    }
+    #[getter]
+    fn model_name(&self) -> &str {
+        self.inner.model_name()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
+// ── edgefirst_msgs view/helper types ────────────────────────────────
+
+/// Python-facing DetectBox (read from CDR or used as constructor parameter).
+#[pyclass(
+    name = "DetectBox",
+    module = "edgefirst.schemas.edgefirst_msgs",
+    frozen
+)]
+#[derive(Clone)]
+pub struct PyDetectBox {
+    pub center_x: f32,
+    pub center_y: f32,
+    pub width: f32,
+    pub height: f32,
+    pub label: String,
+    pub score: f32,
+    pub distance: f32,
+    pub speed: f32,
+    pub track_id: String,
+    pub track_lifetime: i32,
+    pub track_created: Time,
+}
+
+impl PyDetectBox {
+    fn from_view(v: &DetectBoxView<'_>) -> Self {
+        Self {
+            center_x: v.center_x,
+            center_y: v.center_y,
+            width: v.width,
+            height: v.height,
+            label: v.label.to_string(),
+            score: v.score,
+            distance: v.distance,
+            speed: v.speed,
+            track_id: v.track_id.to_string(),
+            track_lifetime: v.track_lifetime,
+            track_created: v.track_created,
+        }
+    }
+
+    fn to_view(&self) -> DetectBoxView<'_> {
+        DetectBoxView {
+            center_x: self.center_x,
+            center_y: self.center_y,
+            width: self.width,
+            height: self.height,
+            label: &self.label,
+            score: self.score,
+            distance: self.distance,
+            speed: self.speed,
+            track_id: &self.track_id,
+            track_lifetime: self.track_lifetime,
+            track_created: self.track_created,
+        }
+    }
+}
+
+#[pymethods]
+impl PyDetectBox {
+    #[new]
+    #[pyo3(signature = (
+        center_x=0.0, center_y=0.0, width=0.0, height=0.0,
+        label="", score=0.0, distance=0.0, speed=0.0,
+        track_id="", track_lifetime=0, track_created=None,
+    ))]
+    fn new(
+        center_x: f32,
+        center_y: f32,
+        width: f32,
+        height: f32,
+        label: &str,
+        score: f32,
+        distance: f32,
+        speed: f32,
+        track_id: &str,
+        track_lifetime: i32,
+        track_created: Option<PyTime>,
+    ) -> Self {
+        Self {
+            center_x,
+            center_y,
+            width,
+            height,
+            label: label.to_string(),
+            score,
+            distance,
+            speed,
+            track_id: track_id.to_string(),
+            track_lifetime,
+            track_created: track_created
+                .map(|t| t.0)
+                .unwrap_or(Time { sec: 0, nanosec: 0 }),
+        }
+    }
+
+    #[getter]
+    fn center_x(&self) -> f32 {
+        self.center_x
+    }
+    #[getter]
+    fn center_y(&self) -> f32 {
+        self.center_y
+    }
+    #[getter]
+    fn width(&self) -> f32 {
+        self.width
+    }
+    #[getter]
+    fn height(&self) -> f32 {
+        self.height
+    }
+    #[getter]
+    fn label(&self) -> &str {
+        &self.label
+    }
+    #[getter]
+    fn score(&self) -> f32 {
+        self.score
+    }
+    #[getter]
+    fn distance(&self) -> f32 {
+        self.distance
+    }
+    #[getter]
+    fn speed(&self) -> f32 {
+        self.speed
+    }
+    #[getter]
+    fn track_id(&self) -> &str {
+        &self.track_id
+    }
+    #[getter]
+    fn track_lifetime(&self) -> i32 {
+        self.track_lifetime
+    }
+    #[getter]
+    fn track_created(&self) -> PyTime {
+        PyTime(self.track_created)
+    }
+}
+
+// ── edgefirst_msgs.Detect (buffer-backed) ───────────────────────────
+
+#[pyclass(name = "Detect", module = "edgefirst.schemas.edgefirst_msgs", frozen)]
+pub struct PyDetect {
+    inner: Detect<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyDetect {
+    #[new]
+    #[pyo3(signature = (
+        header,
+        input_timestamp=None,
+        model_time=None,
+        output_time=None,
+        boxes=None,
+    ))]
+    fn new(
+        header: &PyHeader,
+        input_timestamp: Option<PyTime>,
+        model_time: Option<PyTime>,
+        output_time: Option<PyTime>,
+        boxes: Option<Vec<PyDetectBox>>,
+    ) -> PyResult<Self> {
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let it = input_timestamp
+            .map(|t| t.0)
+            .unwrap_or(Time { sec: 0, nanosec: 0 });
+        let mt = model_time
+            .map(|t| t.0)
+            .unwrap_or(Time { sec: 0, nanosec: 0 });
+        let ot = output_time
+            .map(|t| t.0)
+            .unwrap_or(Time { sec: 0, nanosec: 0 });
+        let box_views: Vec<DetectBoxView<'_>> = boxes
+            .as_ref()
+            .map(|b| b.iter().map(|bx| bx.to_view()).collect())
+            .unwrap_or_default();
+        let inner = Detect::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .input_timestamp(it)
+            .model_time(mt)
+            .output_time(ot)
+            .boxes(&box_views)
+            .build()
+            .map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+        let ptr_addr = ptr as usize;
+        let owned: Vec<u8> = py.detach(|| {
+            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
+            slice.to_vec()
+        });
+        drop(pybuf);
+        let inner = Detect::from_cdr(owned).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn input_timestamp(&self) -> PyTime {
+        PyTime(self.inner.input_timestamp())
+    }
+    #[getter]
+    fn model_time(&self) -> PyTime {
+        PyTime(self.inner.model_time())
+    }
+    #[getter]
+    fn output_time(&self) -> PyTime {
+        PyTime(self.inner.output_time())
+    }
+    #[getter]
+    fn boxes(&self) -> Vec<PyDetectBox> {
+        self.inner
+            .boxes()
+            .iter()
+            .map(PyDetectBox::from_view)
+            .collect()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
+// ── edgefirst_msgs.CameraPlane (view helper) ────────────────────────
+
+#[pyclass(
+    name = "CameraPlane",
+    module = "edgefirst.schemas.edgefirst_msgs",
+    frozen
+)]
+#[derive(Clone)]
+pub struct PyCameraPlane {
+    pub fd: i32,
+    pub offset: u32,
+    pub stride: u32,
+    pub size: u32,
+    pub used: u32,
+    pub data_bytes: Vec<u8>,
+}
+
+impl PyCameraPlane {
+    fn from_view(v: &CameraPlaneView<'_>) -> Self {
+        Self {
+            fd: v.fd,
+            offset: v.offset,
+            stride: v.stride,
+            size: v.size,
+            used: v.used,
+            data_bytes: v.data.to_vec(),
+        }
+    }
+
+    fn to_view(&self) -> CameraPlaneView<'_> {
+        CameraPlaneView {
+            fd: self.fd,
+            offset: self.offset,
+            stride: self.stride,
+            size: self.size,
+            used: self.used,
+            data: &self.data_bytes,
+        }
+    }
+}
+
+#[pymethods]
+impl PyCameraPlane {
+    #[new]
+    #[pyo3(signature = (fd=-1, offset=0, stride=0, size=0, used=0))]
+    fn new(fd: i32, offset: u32, stride: u32, size: u32, used: u32) -> Self {
+        Self {
+            fd,
+            offset,
+            stride,
+            size,
+            used,
+            data_bytes: Vec::new(),
+        }
+    }
+
+    #[getter]
+    fn fd(&self) -> i32 {
+        self.fd
+    }
+    #[getter]
+    fn offset(&self) -> u32 {
+        self.offset
+    }
+    #[getter]
+    fn stride(&self) -> u32 {
+        self.stride
+    }
+    #[getter]
+    fn size(&self) -> u32 {
+        self.size
+    }
+    #[getter]
+    fn used(&self) -> u32 {
+        self.used
+    }
+    #[getter]
+    fn data<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, &self.data_bytes)
+    }
+}
+
+// ── edgefirst_msgs.CameraFrame (buffer-backed) ─────────────────────
+
+#[pyclass(
+    name = "CameraFrame",
+    module = "edgefirst.schemas.edgefirst_msgs",
+    frozen
+)]
+pub struct PyCameraFrame {
+    inner: CameraFrame<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyCameraFrame {
+    #[new]
+    #[pyo3(signature = (
+        header,
+        seq=0,
+        pid=0,
+        width=0,
+        height=0,
+        format="",
+        color_space="",
+        color_transfer="",
+        color_encoding="",
+        color_range="",
+        fence_fd=-1,
+        planes=None,
+    ))]
+    fn new(
+        header: &PyHeader,
+        seq: u64,
+        pid: u32,
+        width: u32,
+        height: u32,
+        format: &str,
+        color_space: &str,
+        color_transfer: &str,
+        color_encoding: &str,
+        color_range: &str,
+        fence_fd: i32,
+        planes: Option<Vec<PyCameraPlane>>,
+    ) -> PyResult<Self> {
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let plane_views: Vec<CameraPlaneView<'_>> = planes
+            .as_ref()
+            .map(|p| p.iter().map(|pl| pl.to_view()).collect())
+            .unwrap_or_default();
+        let inner = CameraFrame::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .seq(seq)
+            .pid(pid)
+            .width(width)
+            .height(height)
+            .format(format)
+            .color_space(color_space)
+            .color_transfer(color_transfer)
+            .color_encoding(color_encoding)
+            .color_range(color_range)
+            .fence_fd(fence_fd)
+            .planes(&plane_views)
+            .build()
+            .map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+        let ptr_addr = ptr as usize;
+        let owned: Vec<u8> = py.detach(|| {
+            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
+            slice.to_vec()
+        });
+        drop(pybuf);
+        let inner = CameraFrame::from_cdr(owned).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn seq(&self) -> u64 {
+        self.inner.seq()
+    }
+    #[getter]
+    fn pid(&self) -> u32 {
+        self.inner.pid()
+    }
+    #[getter]
+    fn width(&self) -> u32 {
+        self.inner.width()
+    }
+    #[getter]
+    fn height(&self) -> u32 {
+        self.inner.height()
+    }
+    #[getter]
+    fn format(&self) -> &str {
+        self.inner.format()
+    }
+    #[getter]
+    fn color_space(&self) -> &str {
+        self.inner.color_space()
+    }
+    #[getter]
+    fn color_transfer(&self) -> &str {
+        self.inner.color_transfer()
+    }
+    #[getter]
+    fn color_encoding(&self) -> &str {
+        self.inner.color_encoding()
+    }
+    #[getter]
+    fn color_range(&self) -> &str {
+        self.inner.color_range()
+    }
+    #[getter]
+    fn fence_fd(&self) -> i32 {
+        self.inner.fence_fd()
+    }
+    #[getter]
+    fn num_planes(&self) -> u32 {
+        self.inner.num_planes()
+    }
+    #[getter]
+    fn planes(&self) -> Vec<PyCameraPlane> {
+        self.inner
+            .planes()
+            .iter()
+            .map(PyCameraPlane::from_view)
+            .collect()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
+// ── edgefirst_msgs.Model (buffer-backed) ────────────────────────────
+
+/// Python-facing MaskView (for Model.masks() results).
+#[pyclass(name = "MaskBox", module = "edgefirst.schemas.edgefirst_msgs", frozen)]
+#[derive(Clone)]
+pub struct PyMaskBox {
+    pub mask_height: u32,
+    pub mask_width: u32,
+    pub length: u32,
+    pub mask_encoding: String,
+    pub mask_data: Vec<u8>,
+    pub boxed: bool,
+}
+
+impl PyMaskBox {
+    fn from_view(v: &MaskView<'_>) -> Self {
+        Self {
+            mask_height: v.height,
+            mask_width: v.width,
+            length: v.length,
+            mask_encoding: v.encoding.to_string(),
+            mask_data: v.mask.to_vec(),
+            boxed: v.boxed,
+        }
+    }
+
+    fn to_view(&self) -> MaskView<'_> {
+        MaskView {
+            height: self.mask_height,
+            width: self.mask_width,
+            length: self.length,
+            encoding: &self.mask_encoding,
+            mask: &self.mask_data,
+            boxed: self.boxed,
+        }
+    }
+}
+
+#[pymethods]
+impl PyMaskBox {
+    #[getter]
+    fn height(&self) -> u32 {
+        self.mask_height
+    }
+    #[getter]
+    fn width(&self) -> u32 {
+        self.mask_width
+    }
+    #[getter]
+    fn length(&self) -> u32 {
+        self.length
+    }
+    #[getter]
+    fn encoding(&self) -> &str {
+        &self.mask_encoding
+    }
+    #[getter]
+    fn mask<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, &self.mask_data)
+    }
+    #[getter]
+    fn boxed(&self) -> bool {
+        self.boxed
+    }
+}
+
+#[pyclass(name = "Model", module = "edgefirst.schemas.edgefirst_msgs", frozen)]
+pub struct PyModel {
+    inner: Model<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyModel {
+    #[new]
+    #[pyo3(signature = (
+        header,
+        input_time=None,
+        model_time=None,
+        output_time=None,
+        decode_time=None,
+        boxes=None,
+        masks=None,
+    ))]
+    fn new(
+        header: &PyHeader,
+        input_time: Option<PyDuration>,
+        model_time: Option<PyDuration>,
+        output_time: Option<PyDuration>,
+        decode_time: Option<PyDuration>,
+        boxes: Option<Vec<PyDetectBox>>,
+        masks: Option<Vec<PyMaskBox>>,
+    ) -> PyResult<Self> {
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let zero_dur = Duration { sec: 0, nanosec: 0 };
+        let it = input_time.map(|d| d.0).unwrap_or(zero_dur);
+        let mt = model_time.map(|d| d.0).unwrap_or(zero_dur);
+        let ot = output_time.map(|d| d.0).unwrap_or(zero_dur);
+        let dt = decode_time.map(|d| d.0).unwrap_or(zero_dur);
+        let box_views: Vec<DetectBoxView<'_>> = boxes
+            .as_ref()
+            .map(|b| b.iter().map(|bx| bx.to_view()).collect())
+            .unwrap_or_default();
+        let mask_views: Vec<MaskView<'_>> = masks
+            .as_ref()
+            .map(|m| m.iter().map(|mx| mx.to_view()).collect())
+            .unwrap_or_default();
+        let inner = Model::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .input_time(it)
+            .model_time(mt)
+            .output_time(ot)
+            .decode_time(dt)
+            .boxes(&box_views)
+            .masks(&mask_views)
+            .build()
+            .map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+        let ptr_addr = ptr as usize;
+        let owned: Vec<u8> = py.detach(|| {
+            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
+            slice.to_vec()
+        });
+        drop(pybuf);
+        let inner = Model::from_cdr(owned).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn input_time(&self) -> PyDuration {
+        PyDuration(self.inner.input_time())
+    }
+    #[getter]
+    fn model_time(&self) -> PyDuration {
+        PyDuration(self.inner.model_time())
+    }
+    #[getter]
+    fn output_time(&self) -> PyDuration {
+        PyDuration(self.inner.output_time())
+    }
+    #[getter]
+    fn decode_time(&self) -> PyDuration {
+        PyDuration(self.inner.decode_time())
+    }
+    #[getter]
+    fn boxes(&self) -> Vec<PyDetectBox> {
+        self.inner
+            .boxes()
+            .iter()
+            .map(PyDetectBox::from_view)
+            .collect()
+    }
+    #[getter]
+    fn masks(&self) -> Vec<PyMaskBox> {
+        self.inner
+            .masks()
+            .iter()
+            .map(PyMaskBox::from_view)
+            .collect()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
 // ── foxglove_msgs CdrFixed value types ──────────────────────────────
 
 #[pyclass(name = "Point2", module = "edgefirst.schemas.foxglove_msgs", frozen)]
@@ -3261,6 +4830,478 @@ impl PyFoxgloveColor {
     }
 }
 
+// ── foxglove_msgs.CircleAnnotations (CdrFixed) ──────────────────────
+
+#[pyclass(
+    name = "CircleAnnotations",
+    module = "edgefirst.schemas.foxglove_msgs",
+    frozen
+)]
+#[derive(Clone, Copy)]
+pub struct PyFoxgloveCircleAnnotations(pub FoxgloveCircleAnnotations);
+
+#[pymethods]
+impl PyFoxgloveCircleAnnotations {
+    #[new]
+    #[pyo3(signature = (
+        timestamp=None, position=None, diameter=0.0, thickness=0.0,
+        fill_color=None, outline_color=None,
+    ))]
+    fn new(
+        timestamp: Option<PyTime>,
+        position: Option<PyFoxglovePoint2>,
+        diameter: f64,
+        thickness: f64,
+        fill_color: Option<PyFoxgloveColor>,
+        outline_color: Option<PyFoxgloveColor>,
+    ) -> Self {
+        Self(FoxgloveCircleAnnotations {
+            timestamp: timestamp
+                .map(|t| t.0)
+                .unwrap_or(Time { sec: 0, nanosec: 0 }),
+            position: position
+                .map(|p| p.0)
+                .unwrap_or(FoxglovePoint2 { x: 0.0, y: 0.0 }),
+            diameter,
+            thickness,
+            fill_color: fill_color.map(|c| c.0).unwrap_or(FoxgloveColor {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+                a: 0.0,
+            }),
+            outline_color: outline_color.map(|c| c.0).unwrap_or(FoxgloveColor {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+                a: 0.0,
+            }),
+        })
+    }
+
+    #[getter]
+    fn timestamp(&self) -> PyTime {
+        PyTime(self.0.timestamp)
+    }
+    #[getter]
+    fn position(&self) -> PyFoxglovePoint2 {
+        PyFoxglovePoint2(self.0.position)
+    }
+    #[getter]
+    fn diameter(&self) -> f64 {
+        self.0.diameter
+    }
+    #[getter]
+    fn thickness(&self) -> f64 {
+        self.0.thickness
+    }
+    #[getter]
+    fn fill_color(&self) -> PyFoxgloveColor {
+        PyFoxgloveColor(self.0.fill_color)
+    }
+    #[getter]
+    fn outline_color(&self) -> PyFoxgloveColor {
+        PyFoxgloveColor(self.0.outline_color)
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        cdrfixed_encode(py, &self.0)
+    }
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        Ok(Self(cdrfixed_decode::<FoxgloveCircleAnnotations>(py, buf)?))
+    }
+}
+
+// ── foxglove_msgs.TextAnnotation (buffer-backed) ────────────────────
+
+#[pyclass(
+    name = "TextAnnotation",
+    module = "edgefirst.schemas.foxglove_msgs",
+    frozen
+)]
+pub struct PyFoxgloveTextAnnotation {
+    inner: FoxgloveTextAnnotation<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyFoxgloveTextAnnotation {
+    #[new]
+    #[pyo3(signature = (
+        timestamp=None, position=None, text="", font_size=0.0,
+        text_color=None, background_color=None,
+    ))]
+    fn new(
+        timestamp: Option<PyTime>,
+        position: Option<PyFoxglovePoint2>,
+        text: &str,
+        font_size: f64,
+        text_color: Option<PyFoxgloveColor>,
+        background_color: Option<PyFoxgloveColor>,
+    ) -> PyResult<Self> {
+        let ts = timestamp
+            .map(|t| t.0)
+            .unwrap_or(Time { sec: 0, nanosec: 0 });
+        let pos = position
+            .map(|p| p.0)
+            .unwrap_or(FoxglovePoint2 { x: 0.0, y: 0.0 });
+        let tc = text_color.map(|c| c.0).unwrap_or(FoxgloveColor {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+            a: 0.0,
+        });
+        let bc = background_color.map(|c| c.0).unwrap_or(FoxgloveColor {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+            a: 0.0,
+        });
+        let inner = FoxgloveTextAnnotation::builder()
+            .timestamp(ts)
+            .position(pos)
+            .text(text)
+            .font_size(font_size)
+            .text_color(tc)
+            .background_color(bc)
+            .build()
+            .map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+        let ptr_addr = ptr as usize;
+        let owned: Vec<u8> = py.detach(|| {
+            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
+            slice.to_vec()
+        });
+        drop(pybuf);
+        let inner = FoxgloveTextAnnotation::from_cdr(owned).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn timestamp(&self) -> PyTime {
+        PyTime(self.inner.timestamp())
+    }
+    #[getter]
+    fn position(&self) -> PyFoxglovePoint2 {
+        PyFoxglovePoint2(self.inner.position())
+    }
+    #[getter]
+    fn text(&self) -> &str {
+        self.inner.text()
+    }
+    #[getter]
+    fn font_size(&self) -> f64 {
+        self.inner.font_size()
+    }
+    #[getter]
+    fn text_color(&self) -> PyFoxgloveColor {
+        PyFoxgloveColor(self.inner.text_color())
+    }
+    #[getter]
+    fn background_color(&self) -> PyFoxgloveColor {
+        PyFoxgloveColor(self.inner.background_color())
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
+// ── foxglove_msgs.PointAnnotation (buffer-backed) ───────────────────
+
+/// Python-facing PointAnnotation view (for ImageAnnotation.points()).
+#[pyclass(
+    name = "PointAnnotation",
+    module = "edgefirst.schemas.foxglove_msgs",
+    frozen
+)]
+pub struct PyFoxglovePointAnnotation {
+    inner: FoxglovePointAnnotation<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyFoxglovePointAnnotation {
+    #[new]
+    #[pyo3(signature = (
+        timestamp=None, type_=0, points=None, outline_color=None,
+        outline_colors=None, fill_color=None, thickness=0.0,
+    ))]
+    fn new(
+        timestamp: Option<PyTime>,
+        type_: u8,
+        points: Option<Vec<PyFoxglovePoint2>>,
+        outline_color: Option<PyFoxgloveColor>,
+        outline_colors: Option<Vec<PyFoxgloveColor>>,
+        fill_color: Option<PyFoxgloveColor>,
+        thickness: f64,
+    ) -> PyResult<Self> {
+        let ts = timestamp
+            .map(|t| t.0)
+            .unwrap_or(Time { sec: 0, nanosec: 0 });
+        let pts: Vec<FoxglovePoint2> = points
+            .map(|p| p.iter().map(|pt| pt.0).collect())
+            .unwrap_or_default();
+        let oc = outline_color.map(|c| c.0).unwrap_or(FoxgloveColor {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+            a: 0.0,
+        });
+        let ocs: Vec<FoxgloveColor> = outline_colors
+            .map(|c| c.iter().map(|cc| cc.0).collect())
+            .unwrap_or_default();
+        let fc = fill_color.map(|c| c.0).unwrap_or(FoxgloveColor {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+            a: 0.0,
+        });
+        let inner = FoxglovePointAnnotation::builder()
+            .timestamp(ts)
+            .type_(type_)
+            .points(&pts)
+            .outline_color(oc)
+            .outline_colors(&ocs)
+            .fill_color(fc)
+            .thickness(thickness)
+            .build()
+            .map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+        let ptr_addr = ptr as usize;
+        let owned: Vec<u8> = py.detach(|| {
+            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
+            slice.to_vec()
+        });
+        drop(pybuf);
+        let inner = FoxglovePointAnnotation::from_cdr(owned).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn timestamp(&self) -> PyTime {
+        PyTime(self.inner.timestamp())
+    }
+    #[getter]
+    fn type_(&self) -> u8 {
+        self.inner.type_()
+    }
+    #[getter]
+    fn points(&self) -> Vec<PyFoxglovePoint2> {
+        self.inner
+            .points()
+            .into_iter()
+            .map(PyFoxglovePoint2)
+            .collect()
+    }
+    #[getter]
+    fn outline_color(&self) -> PyFoxgloveColor {
+        PyFoxgloveColor(self.inner.outline_color())
+    }
+    #[getter]
+    fn outline_colors(&self) -> Vec<PyFoxgloveColor> {
+        self.inner
+            .outline_colors()
+            .into_iter()
+            .map(PyFoxgloveColor)
+            .collect()
+    }
+    #[getter]
+    fn fill_color(&self) -> PyFoxgloveColor {
+        PyFoxgloveColor(self.inner.fill_color())
+    }
+    #[getter]
+    fn thickness(&self) -> f64 {
+        self.inner.thickness()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
+// ── foxglove_msgs.ImageAnnotation (buffer-backed) ───────────────────
+
+/// Helper to convert FoxgloveTextAnnotationView → Python dict-like object.
+fn text_annotation_view_to_py(
+    v: &FoxgloveTextAnnotationView<'_>,
+) -> PyResult<PyFoxgloveTextAnnotation> {
+    let inner = FoxgloveTextAnnotation::builder()
+        .timestamp(v.timestamp)
+        .position(v.position)
+        .text(v.text)
+        .font_size(v.font_size)
+        .text_color(v.text_color)
+        .background_color(v.background_color)
+        .build()
+        .map_err(map_cdr_err)?;
+    Ok(PyFoxgloveTextAnnotation { inner })
+}
+
+/// Helper to convert FoxglovePointAnnotationView → Python object.
+fn point_annotation_view_to_py(
+    v: &FoxglovePointAnnotationView,
+) -> PyResult<PyFoxglovePointAnnotation> {
+    let inner = FoxglovePointAnnotation::builder()
+        .timestamp(v.timestamp)
+        .type_(v.type_)
+        .points(&v.points)
+        .outline_color(v.outline_color)
+        .outline_colors(&v.outline_colors)
+        .fill_color(v.fill_color)
+        .thickness(v.thickness)
+        .build()
+        .map_err(map_cdr_err)?;
+    Ok(PyFoxglovePointAnnotation { inner })
+}
+
+#[pyclass(
+    name = "ImageAnnotation",
+    module = "edgefirst.schemas.foxglove_msgs",
+    frozen
+)]
+pub struct PyFoxgloveImageAnnotation {
+    inner: FoxgloveImageAnnotation<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyFoxgloveImageAnnotation {
+    #[new]
+    #[pyo3(signature = (circles=None, points=None, texts=None))]
+    fn new(
+        py: Python<'_>,
+        circles: Option<Vec<PyFoxgloveCircleAnnotations>>,
+        points: Option<Bound<'_, pyo3::types::PyList>>,
+        texts: Option<Bound<'_, pyo3::types::PyList>>,
+    ) -> PyResult<Self> {
+        let c: Vec<FoxgloveCircleAnnotations> = circles
+            .map(|cs| cs.iter().map(|ci| ci.0).collect())
+            .unwrap_or_default();
+        // Extract point annotations from Python list
+        let point_objs: Vec<PyRef<'_, PyFoxglovePointAnnotation>> = match &points {
+            Some(list) => list
+                .iter()
+                .map(|item| item.extract::<PyRef<'_, PyFoxglovePointAnnotation>>())
+                .collect::<PyResult<Vec<_>>>()?,
+            None => Vec::new(),
+        };
+        let point_views: Vec<FoxglovePointAnnotationView> = point_objs
+            .iter()
+            .map(|p| FoxglovePointAnnotationView {
+                timestamp: p.inner.timestamp(),
+                type_: p.inner.type_(),
+                points: p.inner.points(),
+                outline_color: p.inner.outline_color(),
+                outline_colors: p.inner.outline_colors(),
+                fill_color: p.inner.fill_color(),
+                thickness: p.inner.thickness(),
+            })
+            .collect();
+        // Extract text annotations from Python list
+        let text_objs: Vec<PyRef<'_, PyFoxgloveTextAnnotation>> = match &texts {
+            Some(list) => list
+                .iter()
+                .map(|item| item.extract::<PyRef<'_, PyFoxgloveTextAnnotation>>())
+                .collect::<PyResult<Vec<_>>>()?,
+            None => Vec::new(),
+        };
+        let text_views: Vec<FoxgloveTextAnnotationView<'_>> = text_objs
+            .iter()
+            .map(|t| FoxgloveTextAnnotationView {
+                timestamp: t.inner.timestamp(),
+                position: t.inner.position(),
+                text: t.inner.text(),
+                font_size: t.inner.font_size(),
+                text_color: t.inner.text_color(),
+                background_color: t.inner.background_color(),
+            })
+            .collect();
+        let _ = py;
+        let inner = FoxgloveImageAnnotation::builder()
+            .circles(&c)
+            .points(&point_views)
+            .texts(&text_views)
+            .build()
+            .map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+        let ptr_addr = ptr as usize;
+        let owned: Vec<u8> = py.detach(|| {
+            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
+            slice.to_vec()
+        });
+        drop(pybuf);
+        let inner = FoxgloveImageAnnotation::from_cdr(owned).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn circles(&self) -> Vec<PyFoxgloveCircleAnnotations> {
+        self.inner
+            .circles()
+            .into_iter()
+            .map(PyFoxgloveCircleAnnotations)
+            .collect()
+    }
+    #[getter]
+    fn points(&self) -> PyResult<Vec<PyFoxglovePointAnnotation>> {
+        self.inner
+            .points()
+            .iter()
+            .map(point_annotation_view_to_py)
+            .collect()
+    }
+    #[getter]
+    fn texts(&self) -> PyResult<Vec<PyFoxgloveTextAnnotation>> {
+        self.inner
+            .texts()
+            .iter()
+            .map(text_annotation_view_to_py)
+            .collect()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
 // ── Module setup ────────────────────────────────────────────────────
 
 #[pymodule]
@@ -3296,6 +5337,8 @@ fn schemas(m: &Bound<'_, PyModule>) -> PyResult<()> {
     sensor.add_class::<PyMagneticField>()?;
     sensor.add_class::<PyFluidPressure>()?;
     sensor.add_class::<PyTemperature>()?;
+    sensor.add_class::<PyCameraInfo>()?;
+    sensor.add_class::<PyBatteryState>()?;
     m.add_submodule(&sensor)?;
     register_submodule(py, m, "sensor_msgs", &sensor)?;
 
@@ -3313,6 +5356,11 @@ fn schemas(m: &Bound<'_, PyModule>) -> PyResult<()> {
     geom.add_class::<PyInertia>()?;
     geom.add_class::<PyPoseWithCovariance>()?;
     geom.add_class::<PyTwistWithCovariance>()?;
+    geom.add_class::<PyTwistStamped>()?;
+    geom.add_class::<PyAccelStamped>()?;
+    geom.add_class::<PyInertiaStamped>()?;
+    geom.add_class::<PyPointStamped>()?;
+    geom.add_class::<PyTransformStamped>()?;
     m.add_submodule(&geom)?;
     register_submodule(py, m, "geometry_msgs", &geom)?;
 
@@ -3330,6 +5378,15 @@ fn schemas(m: &Bound<'_, PyModule>) -> PyResult<()> {
     edgef.add_class::<PyDate>()?;
     edgef.add_class::<PyLocalTime>()?;
     edgef.add_class::<PyTrack>()?;
+    edgef.add_class::<PyRadarInfo>()?;
+    edgef.add_class::<PyVibration>()?;
+    edgef.add_class::<PyModelInfo>()?;
+    edgef.add_class::<PyDetectBox>()?;
+    edgef.add_class::<PyDetect>()?;
+    edgef.add_class::<PyCameraPlane>()?;
+    edgef.add_class::<PyCameraFrame>()?;
+    edgef.add_class::<PyMaskBox>()?;
+    edgef.add_class::<PyModel>()?;
     m.add_submodule(&edgef)?;
     register_submodule(py, m, "edgefirst_msgs", &edgef)?;
 
@@ -3344,6 +5401,10 @@ fn schemas(m: &Bound<'_, PyModule>) -> PyResult<()> {
     foxg.add_class::<PyFoxgloveCompressedVideo>()?;
     foxg.add_class::<PyFoxglovePoint2>()?;
     foxg.add_class::<PyFoxgloveColor>()?;
+    foxg.add_class::<PyFoxgloveCircleAnnotations>()?;
+    foxg.add_class::<PyFoxgloveTextAnnotation>()?;
+    foxg.add_class::<PyFoxglovePointAnnotation>()?;
+    foxg.add_class::<PyFoxgloveImageAnnotation>()?;
     m.add_submodule(&foxg)?;
     register_submodule(py, m, "foxglove_msgs", &foxg)?;
 

@@ -136,6 +136,14 @@ typedef struct ros_camera_info_t ros_camera_info_t;
 /* geometry_msgs */
 /** @brief Opaque buffer-backed view handle for geometry_msgs::TransformStamped. */
 typedef struct ros_transform_stamped_t ros_transform_stamped_t;
+/** @brief Opaque buffer-backed view handle for geometry_msgs::TwistStamped. */
+typedef struct ros_twist_stamped_t ros_twist_stamped_t;
+/** @brief Opaque buffer-backed view handle for geometry_msgs::AccelStamped. */
+typedef struct ros_accel_stamped_t ros_accel_stamped_t;
+/** @brief Opaque buffer-backed view handle for geometry_msgs::PointStamped. */
+typedef struct ros_point_stamped_t ros_point_stamped_t;
+/** @brief Opaque buffer-backed view handle for geometry_msgs::InertiaStamped. */
+typedef struct ros_inertia_stamped_t ros_inertia_stamped_t;
 
 /* foxglove_msgs */
 /** @brief Opaque buffer-backed view handle for foxglove_msgs::CompressedVideo. */
@@ -1516,6 +1524,74 @@ const char* ros_transform_stamped_get_child_frame_id(const ros_transform_stamped
 
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_transform_stamped_as_cdr(const ros_transform_stamped_t* view, size_t* out_len);
+
+/* ============================================================================
+ * geometry_msgs - TwistStamped (buffer-backed)
+ * ========================================================================= */
+
+/** @brief Create a TwistStamped view from CDR bytes. */
+ros_twist_stamped_t* ros_twist_stamped_from_cdr(const uint8_t* data, size_t len);
+/** @brief Free a TwistStamped view handle. */
+void ros_twist_stamped_free(ros_twist_stamped_t* view);
+/** @brief Get stamp seconds. */
+int32_t ros_twist_stamped_get_stamp_sec(const ros_twist_stamped_t* view);
+/** @brief Get stamp nanoseconds. */
+uint32_t ros_twist_stamped_get_stamp_nanosec(const ros_twist_stamped_t* view);
+/** @brief Get frame_id (borrowed). */
+const char* ros_twist_stamped_get_frame_id(const ros_twist_stamped_t* view);
+/** @brief Borrow raw CDR bytes from the handle. */
+const uint8_t* ros_twist_stamped_as_cdr(const ros_twist_stamped_t* view, size_t* out_len);
+
+/* ============================================================================
+ * geometry_msgs - AccelStamped (buffer-backed)
+ * ========================================================================= */
+
+/** @brief Create an AccelStamped view from CDR bytes. */
+ros_accel_stamped_t* ros_accel_stamped_from_cdr(const uint8_t* data, size_t len);
+/** @brief Free an AccelStamped view handle. */
+void ros_accel_stamped_free(ros_accel_stamped_t* view);
+/** @brief Get stamp seconds. */
+int32_t ros_accel_stamped_get_stamp_sec(const ros_accel_stamped_t* view);
+/** @brief Get stamp nanoseconds. */
+uint32_t ros_accel_stamped_get_stamp_nanosec(const ros_accel_stamped_t* view);
+/** @brief Get frame_id (borrowed). */
+const char* ros_accel_stamped_get_frame_id(const ros_accel_stamped_t* view);
+/** @brief Borrow raw CDR bytes from the handle. */
+const uint8_t* ros_accel_stamped_as_cdr(const ros_accel_stamped_t* view, size_t* out_len);
+
+/* ============================================================================
+ * geometry_msgs - PointStamped (buffer-backed)
+ * ========================================================================= */
+
+/** @brief Create a PointStamped view from CDR bytes. */
+ros_point_stamped_t* ros_point_stamped_from_cdr(const uint8_t* data, size_t len);
+/** @brief Free a PointStamped view handle. */
+void ros_point_stamped_free(ros_point_stamped_t* view);
+/** @brief Get stamp seconds. */
+int32_t ros_point_stamped_get_stamp_sec(const ros_point_stamped_t* view);
+/** @brief Get stamp nanoseconds. */
+uint32_t ros_point_stamped_get_stamp_nanosec(const ros_point_stamped_t* view);
+/** @brief Get frame_id (borrowed). */
+const char* ros_point_stamped_get_frame_id(const ros_point_stamped_t* view);
+/** @brief Borrow raw CDR bytes from the handle. */
+const uint8_t* ros_point_stamped_as_cdr(const ros_point_stamped_t* view, size_t* out_len);
+
+/* ============================================================================
+ * geometry_msgs - InertiaStamped (buffer-backed)
+ * ========================================================================= */
+
+/** @brief Create an InertiaStamped view from CDR bytes. */
+ros_inertia_stamped_t* ros_inertia_stamped_from_cdr(const uint8_t* data, size_t len);
+/** @brief Free an InertiaStamped view handle. */
+void ros_inertia_stamped_free(ros_inertia_stamped_t* view);
+/** @brief Get stamp seconds. */
+int32_t ros_inertia_stamped_get_stamp_sec(const ros_inertia_stamped_t* view);
+/** @brief Get stamp nanoseconds. */
+uint32_t ros_inertia_stamped_get_stamp_nanosec(const ros_inertia_stamped_t* view);
+/** @brief Get frame_id (borrowed). */
+const char* ros_inertia_stamped_get_frame_id(const ros_inertia_stamped_t* view);
+/** @brief Borrow raw CDR bytes from the handle. */
+const uint8_t* ros_inertia_stamped_as_cdr(const ros_inertia_stamped_t* view, size_t* out_len);
 
 /* ============================================================================
  * edgefirst_msgs - RadarCube (buffer-backed)

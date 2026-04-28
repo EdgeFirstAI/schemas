@@ -370,3 +370,65 @@ class TestTemperature:
         # Temperature is f64 — sweep typical sensor ranges.
         t = Temperature(header=sample_header, temperature=value, variance=0.0)
         assert Temperature.from_cdr(t.to_bytes()).temperature == value
+
+
+# ── CameraInfo ─────────────────────────────────────────────────────
+
+from edgefirst.schemas.sensor_msgs import CameraInfo
+
+
+class TestCameraInfo:
+    def test_round_trip(self, sample_header):
+        ci = CameraInfo(
+            header=sample_header,
+            height=480,
+            width=640,
+            distortion_model="plumb_bob",
+            d=[0.1, 0.2, 0.3, 0.4, 0.5],
+            k=[1.0] * 9,
+            r=[0.0] * 9,
+            p=[0.0] * 12,
+            binning_x=1,
+            binning_y=1,
+        )
+        restored = CameraInfo.from_cdr(ci.to_bytes())
+        assert restored.height == 480
+        assert restored.width == 640
+        assert restored.distortion_model == "plumb_bob"
+        assert len(restored.d) == 5
+        assert len(restored.k) == 9
+        assert len(restored.p) == 12
+        assert restored.binning_x == 1
+
+    def test_defaults(self, sample_header):
+        ci = CameraInfo(header=sample_header)
+        assert ci.height == 0
+        assert ci.width == 0
+        assert ci.distortion_model == ""
+
+
+# ── BatteryState ───────────────────────────────────────────────────
+
+from edgefirst.schemas.sensor_msgs import BatteryState
+
+
+class TestBatteryState:
+    def test_round_trip(self, sample_header):
+        bs = BatteryState(
+            header=sample_header,
+            voltage=12.5,
+            current=1.5,
+            percentage=0.75,
+            present=True,
+            location="main",
+            serial_number="SN001",
+            cell_voltage=[3.7, 3.7, 3.7],
+        )
+        restored = BatteryState.from_cdr(bs.to_bytes())
+        assert abs(restored.voltage - 12.5) < 0.01
+        assert abs(restored.current - 1.5) < 0.01
+        assert abs(restored.percentage - 0.75) < 0.01
+        assert restored.present is True
+        assert restored.location == "main"
+        assert restored.serial_number == "SN001"
+        assert len(restored.cell_voltage) == 3

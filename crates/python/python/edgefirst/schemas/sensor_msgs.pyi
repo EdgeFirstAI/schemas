@@ -12,6 +12,8 @@ from .geometry_msgs import Quaternion, Vector3
 from .std_msgs import Header
 
 __all__ = [
+    "BatteryState",
+    "CameraInfo",
     "CompressedImage",
     "FluidPressure",
     "Image",
@@ -450,3 +452,125 @@ class Temperature:
     def to_bytes(self) -> bytes: ...
     @classmethod
     def from_cdr(cls, buf: BufferLike) -> Temperature: ...
+
+
+class CameraInfo:
+    """``sensor_msgs.CameraInfo`` — camera calibration and metadata.
+
+    Intrinsic matrix ``k`` (3×3, 9 elements), rectification ``r`` (3×3),
+    projection ``p`` (3×4, 12 elements), distortion ``d`` (variable length).
+    """
+
+    def __init__(
+        self,
+        header: Header,
+        height: int = 0,
+        width: int = 0,
+        distortion_model: str = "",
+        d: Optional[Sequence[float]] = None,
+        k: Optional[Sequence[float]] = None,
+        r: Optional[Sequence[float]] = None,
+        p: Optional[Sequence[float]] = None,
+        binning_x: int = 0,
+        binning_y: int = 0,
+        roi: Optional[RegionOfInterest] = None,
+    ) -> None: ...
+
+    @property
+    def stamp(self) -> Time: ...
+    @property
+    def frame_id(self) -> str: ...
+    @property
+    def height(self) -> int: ...
+    @property
+    def width(self) -> int: ...
+    @property
+    def distortion_model(self) -> str: ...
+    @property
+    def d(self) -> List[float]: ...
+    @property
+    def k(self) -> List[float]: ...
+    @property
+    def r(self) -> List[float]: ...
+    @property
+    def p(self) -> List[float]: ...
+    @property
+    def binning_x(self) -> int: ...
+    @property
+    def binning_y(self) -> int: ...
+    @property
+    def roi(self) -> RegionOfInterest: ...
+    @property
+    def cdr_size(self) -> int: ...
+
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> CameraInfo: ...
+
+
+class BatteryState:
+    """``sensor_msgs.BatteryState`` — battery charge status and health.
+
+    Voltage, current, charge, capacity in SI units (V, A, Ah).
+    """
+
+    def __init__(
+        self,
+        header: Header,
+        voltage: float = 0.0,
+        temperature: float = 0.0,
+        current: float = 0.0,
+        charge: float = 0.0,
+        capacity: float = 0.0,
+        design_capacity: float = 0.0,
+        percentage: float = 0.0,
+        power_supply_status: int = 0,
+        power_supply_health: int = 0,
+        power_supply_technology: int = 0,
+        present: bool = False,
+        cell_voltage: Optional[Sequence[float]] = None,
+        cell_temperature: Optional[Sequence[float]] = None,
+        location: str = "",
+        serial_number: str = "",
+    ) -> None: ...
+
+    @property
+    def stamp(self) -> Time: ...
+    @property
+    def frame_id(self) -> str: ...
+    @property
+    def voltage(self) -> float: ...
+    @property
+    def temperature(self) -> float: ...
+    @property
+    def current(self) -> float: ...
+    @property
+    def charge(self) -> float: ...
+    @property
+    def capacity(self) -> float: ...
+    @property
+    def design_capacity(self) -> float: ...
+    @property
+    def percentage(self) -> float: ...
+    @property
+    def power_supply_status(self) -> int: ...
+    @property
+    def power_supply_health(self) -> int: ...
+    @property
+    def power_supply_technology(self) -> int: ...
+    @property
+    def present(self) -> bool: ...
+    @property
+    def cell_voltage(self) -> List[float]: ...
+    @property
+    def cell_temperature(self) -> List[float]: ...
+    @property
+    def location(self) -> str: ...
+    @property
+    def serial_number(self) -> str: ...
+    @property
+    def cdr_size(self) -> int: ...
+
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> BatteryState: ...

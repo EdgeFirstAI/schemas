@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-04-28
+
 ### Changed (BREAKING)
 
 - **Python module rewritten as a pyo3 binding (EDGEAI-1295).** The pure-Python
@@ -46,7 +48,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **pyo3 bindings for 39 message types** with a comprehensive `.pyi` stub
+- **Complete cross-language binding coverage.** All 57 Rust message types are
+  now exposed to Python, C, and C++. This release adds 19 previously missing
+  Python bindings and 4 stamped geometry types to the C/C++ API:
+  - **Python**: `TwistStamped`, `AccelStamped`, `InertiaStamped`,
+    `PointStamped`, `TransformStamped`, `CameraInfo`, `BatteryState`,
+    `Detect`, `DetectBox`, `CameraFrame`, `CameraPlane`, `Model`, `MaskBox`,
+    `ModelInfo`, `RadarInfo`, `Vibration`, `CircleAnnotations`,
+    `PointAnnotation`, `TextAnnotation`, `ImageAnnotation`.
+  - **C/C++**: `TwistStamped`, `AccelStamped`, `PointStamped`,
+    `InertiaStamped` (view + `as_cdr` + stamp/frame_id getters).
+
+- **pyo3 bindings for 57 message types** with a comprehensive `.pyi` stub
   package (mypy/pyright-friendly). New types beyond the legacy pycdr2
   surface: `BorrowedBuf` (zero-copy view primitive), full `Imu`/`NavSatFix`/
   `MagneticField`/`FluidPressure`/`Temperature` (with covariance arrays),
@@ -65,10 +78,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   profraw across pytest invocations. SonarCloud merges Rust unit + C tests +
   Python-driven LCOV reports. Replaces the obsolete `pytest --cov=edgefirst`
   flow that couldn't see into a binary module.
-
-## [3.2.0] - 2026-04-24
-
-### Added
 
 - **Publisher buffer reuse via Builder pattern (EDGEAI-1289)** — every
   buffer-backed message type now exposes a `Foo::builder()` entry
