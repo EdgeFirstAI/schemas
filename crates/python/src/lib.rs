@@ -45,6 +45,10 @@ use edgefirst_schemas::geometry_msgs::{
     PoseWithCovariance, Quaternion, Transform, TransformStamped, Twist, TwistStamped,
     TwistWithCovariance, Vector3,
 };
+use edgefirst_schemas::mavros_msgs::{
+    Altitude as MavAltitude, EstimatorStatus, ExtendedState, GpsRaw, State as MavState, StatusText,
+    SysStatus, TimesyncStatus, VfrHud,
+};
 use edgefirst_schemas::nav_msgs::Odometry;
 use edgefirst_schemas::rosgraph_msgs::Clock;
 use edgefirst_schemas::sensor_msgs::{
@@ -5335,6 +5339,984 @@ impl PyFoxgloveImageAnnotation {
     }
 }
 
+// ── mavros_msgs bindings ─────────────────────────────────────────────
+
+#[pyclass(name = "Altitude", module = "edgefirst.schemas.mavros_msgs", frozen)]
+pub struct PyMavrosAltitude {
+    inner: MavAltitude<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyMavrosAltitude {
+    #[new]
+    #[pyo3(signature = (header, monotonic=0.0, amsl=0.0, local=0.0, relative=0.0, terrain=0.0, bottom_clearance=0.0))]
+    fn new(
+        header: &PyHeader,
+        monotonic: f32,
+        amsl: f32,
+        local: f32,
+        relative: f32,
+        terrain: f32,
+        bottom_clearance: f32,
+    ) -> PyResult<Self> {
+        let inner = MavAltitude::new(
+            header.inner.stamp(),
+            header.inner.frame_id(),
+            monotonic,
+            amsl,
+            local,
+            relative,
+            terrain,
+            bottom_clearance,
+        )
+        .map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+        let ptr_addr = ptr as usize;
+        let owned: Vec<u8> = py.detach(|| {
+            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
+            slice.to_vec()
+        });
+        drop(pybuf);
+        let inner = MavAltitude::from_cdr(owned).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn monotonic(&self) -> f32 {
+        self.inner.monotonic()
+    }
+    #[getter]
+    fn amsl(&self) -> f32 {
+        self.inner.amsl()
+    }
+    #[getter]
+    fn local(&self) -> f32 {
+        self.inner.local()
+    }
+    #[getter]
+    fn relative(&self) -> f32 {
+        self.inner.relative()
+    }
+    #[getter]
+    fn terrain(&self) -> f32 {
+        self.inner.terrain()
+    }
+    #[getter]
+    fn bottom_clearance(&self) -> f32 {
+        self.inner.bottom_clearance()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
+#[pyclass(name = "VfrHud", module = "edgefirst.schemas.mavros_msgs", frozen)]
+pub struct PyMavrosVfrHud {
+    inner: VfrHud<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyMavrosVfrHud {
+    #[new]
+    #[pyo3(signature = (header, airspeed=0.0, groundspeed=0.0, heading=0, throttle=0.0, altitude=0.0, climb=0.0))]
+    fn new(
+        header: &PyHeader,
+        airspeed: f32,
+        groundspeed: f32,
+        heading: i16,
+        throttle: f32,
+        altitude: f32,
+        climb: f32,
+    ) -> PyResult<Self> {
+        let inner = VfrHud::new(
+            header.inner.stamp(),
+            header.inner.frame_id(),
+            airspeed,
+            groundspeed,
+            heading,
+            throttle,
+            altitude,
+            climb,
+        )
+        .map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+        let ptr_addr = ptr as usize;
+        let owned: Vec<u8> = py.detach(|| {
+            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
+            slice.to_vec()
+        });
+        drop(pybuf);
+        let inner = VfrHud::from_cdr(owned).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn airspeed(&self) -> f32 {
+        self.inner.airspeed()
+    }
+    #[getter]
+    fn groundspeed(&self) -> f32 {
+        self.inner.groundspeed()
+    }
+    #[getter]
+    fn heading(&self) -> i16 {
+        self.inner.heading()
+    }
+    #[getter]
+    fn throttle(&self) -> f32 {
+        self.inner.throttle()
+    }
+    #[getter]
+    fn altitude(&self) -> f32 {
+        self.inner.altitude()
+    }
+    #[getter]
+    fn climb(&self) -> f32 {
+        self.inner.climb()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
+#[pyclass(
+    name = "EstimatorStatus",
+    module = "edgefirst.schemas.mavros_msgs",
+    frozen
+)]
+pub struct PyMavrosEstimatorStatus {
+    inner: EstimatorStatus<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyMavrosEstimatorStatus {
+    #[new]
+    #[pyo3(signature = (header, attitude_status_flag=false, velocity_horiz_status_flag=false, velocity_vert_status_flag=false, pos_horiz_rel_status_flag=false, pos_horiz_abs_status_flag=false, pos_vert_abs_status_flag=false, pos_vert_agl_status_flag=false, const_pos_mode_status_flag=false, pred_pos_horiz_rel_status_flag=false, pred_pos_horiz_abs_status_flag=false, gps_glitch_status_flag=false, accel_error_status_flag=false))]
+    fn new(
+        header: &PyHeader,
+        attitude_status_flag: bool,
+        velocity_horiz_status_flag: bool,
+        velocity_vert_status_flag: bool,
+        pos_horiz_rel_status_flag: bool,
+        pos_horiz_abs_status_flag: bool,
+        pos_vert_abs_status_flag: bool,
+        pos_vert_agl_status_flag: bool,
+        const_pos_mode_status_flag: bool,
+        pred_pos_horiz_rel_status_flag: bool,
+        pred_pos_horiz_abs_status_flag: bool,
+        gps_glitch_status_flag: bool,
+        accel_error_status_flag: bool,
+    ) -> PyResult<Self> {
+        let inner = EstimatorStatus::new(
+            header.inner.stamp(),
+            header.inner.frame_id(),
+            attitude_status_flag,
+            velocity_horiz_status_flag,
+            velocity_vert_status_flag,
+            pos_horiz_rel_status_flag,
+            pos_horiz_abs_status_flag,
+            pos_vert_abs_status_flag,
+            pos_vert_agl_status_flag,
+            const_pos_mode_status_flag,
+            pred_pos_horiz_rel_status_flag,
+            pred_pos_horiz_abs_status_flag,
+            gps_glitch_status_flag,
+            accel_error_status_flag,
+        )
+        .map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+        let ptr_addr = ptr as usize;
+        let owned: Vec<u8> = py.detach(|| {
+            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
+            slice.to_vec()
+        });
+        drop(pybuf);
+        let inner = EstimatorStatus::from_cdr(owned).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn attitude_status_flag(&self) -> bool {
+        self.inner.attitude_status_flag()
+    }
+    #[getter]
+    fn velocity_horiz_status_flag(&self) -> bool {
+        self.inner.velocity_horiz_status_flag()
+    }
+    #[getter]
+    fn velocity_vert_status_flag(&self) -> bool {
+        self.inner.velocity_vert_status_flag()
+    }
+    #[getter]
+    fn pos_horiz_rel_status_flag(&self) -> bool {
+        self.inner.pos_horiz_rel_status_flag()
+    }
+    #[getter]
+    fn pos_horiz_abs_status_flag(&self) -> bool {
+        self.inner.pos_horiz_abs_status_flag()
+    }
+    #[getter]
+    fn pos_vert_abs_status_flag(&self) -> bool {
+        self.inner.pos_vert_abs_status_flag()
+    }
+    #[getter]
+    fn pos_vert_agl_status_flag(&self) -> bool {
+        self.inner.pos_vert_agl_status_flag()
+    }
+    #[getter]
+    fn const_pos_mode_status_flag(&self) -> bool {
+        self.inner.const_pos_mode_status_flag()
+    }
+    #[getter]
+    fn pred_pos_horiz_rel_status_flag(&self) -> bool {
+        self.inner.pred_pos_horiz_rel_status_flag()
+    }
+    #[getter]
+    fn pred_pos_horiz_abs_status_flag(&self) -> bool {
+        self.inner.pred_pos_horiz_abs_status_flag()
+    }
+    #[getter]
+    fn gps_glitch_status_flag(&self) -> bool {
+        self.inner.gps_glitch_status_flag()
+    }
+    #[getter]
+    fn accel_error_status_flag(&self) -> bool {
+        self.inner.accel_error_status_flag()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
+#[pyclass(
+    name = "ExtendedState",
+    module = "edgefirst.schemas.mavros_msgs",
+    frozen
+)]
+pub struct PyMavrosExtendedState {
+    inner: ExtendedState<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyMavrosExtendedState {
+    // VTOL state constants
+    #[classattr]
+    const VTOL_STATE_UNDEFINED: u8 = 0;
+    #[classattr]
+    const VTOL_STATE_TRANSITION_TO_FW: u8 = 1;
+    #[classattr]
+    const VTOL_STATE_TRANSITION_TO_MC: u8 = 2;
+    #[classattr]
+    const VTOL_STATE_MC: u8 = 3;
+    #[classattr]
+    const VTOL_STATE_FW: u8 = 4;
+    // Landed state constants
+    #[classattr]
+    const LANDED_STATE_UNDEFINED: u8 = 0;
+    #[classattr]
+    const LANDED_STATE_ON_GROUND: u8 = 1;
+    #[classattr]
+    const LANDED_STATE_IN_AIR: u8 = 2;
+    #[classattr]
+    const LANDED_STATE_TAKEOFF: u8 = 3;
+    #[classattr]
+    const LANDED_STATE_LANDING: u8 = 4;
+
+    #[new]
+    #[pyo3(signature = (header, vtol_state=0, landed_state=0))]
+    fn new(header: &PyHeader, vtol_state: u8, landed_state: u8) -> PyResult<Self> {
+        let inner = ExtendedState::new(
+            header.inner.stamp(),
+            header.inner.frame_id(),
+            vtol_state,
+            landed_state,
+        )
+        .map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+        let ptr_addr = ptr as usize;
+        let owned: Vec<u8> = py.detach(|| {
+            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
+            slice.to_vec()
+        });
+        drop(pybuf);
+        let inner = ExtendedState::from_cdr(owned).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn vtol_state(&self) -> u8 {
+        self.inner.vtol_state()
+    }
+    #[getter]
+    fn landed_state(&self) -> u8 {
+        self.inner.landed_state()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
+#[pyclass(name = "SysStatus", module = "edgefirst.schemas.mavros_msgs", frozen)]
+pub struct PyMavrosSysStatus {
+    inner: SysStatus<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyMavrosSysStatus {
+    #[new]
+    #[pyo3(signature = (header, sensors_present=0, sensors_enabled=0, sensors_health=0, load=0, voltage_battery=0, current_battery=0, battery_remaining=0, drop_rate_comm=0, errors_comm=0, errors_count1=0, errors_count2=0, errors_count3=0, errors_count4=0))]
+    fn new(
+        header: &PyHeader,
+        sensors_present: u32,
+        sensors_enabled: u32,
+        sensors_health: u32,
+        load: u16,
+        voltage_battery: u16,
+        current_battery: i16,
+        battery_remaining: i8,
+        drop_rate_comm: u16,
+        errors_comm: u16,
+        errors_count1: u16,
+        errors_count2: u16,
+        errors_count3: u16,
+        errors_count4: u16,
+    ) -> PyResult<Self> {
+        let inner = SysStatus::new(
+            header.inner.stamp(),
+            header.inner.frame_id(),
+            sensors_present,
+            sensors_enabled,
+            sensors_health,
+            load,
+            voltage_battery,
+            current_battery,
+            battery_remaining,
+            drop_rate_comm,
+            errors_comm,
+            errors_count1,
+            errors_count2,
+            errors_count3,
+            errors_count4,
+        )
+        .map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+        let ptr_addr = ptr as usize;
+        let owned: Vec<u8> = py.detach(|| {
+            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
+            slice.to_vec()
+        });
+        drop(pybuf);
+        let inner = SysStatus::from_cdr(owned).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn sensors_present(&self) -> u32 {
+        self.inner.sensors_present()
+    }
+    #[getter]
+    fn sensors_enabled(&self) -> u32 {
+        self.inner.sensors_enabled()
+    }
+    #[getter]
+    fn sensors_health(&self) -> u32 {
+        self.inner.sensors_health()
+    }
+    #[getter]
+    fn load(&self) -> u16 {
+        self.inner.load()
+    }
+    #[getter]
+    fn voltage_battery(&self) -> u16 {
+        self.inner.voltage_battery()
+    }
+    #[getter]
+    fn current_battery(&self) -> i16 {
+        self.inner.current_battery()
+    }
+    #[getter]
+    fn battery_remaining(&self) -> i8 {
+        self.inner.battery_remaining()
+    }
+    #[getter]
+    fn drop_rate_comm(&self) -> u16 {
+        self.inner.drop_rate_comm()
+    }
+    #[getter]
+    fn errors_comm(&self) -> u16 {
+        self.inner.errors_comm()
+    }
+    #[getter]
+    fn errors_count1(&self) -> u16 {
+        self.inner.errors_count1()
+    }
+    #[getter]
+    fn errors_count2(&self) -> u16 {
+        self.inner.errors_count2()
+    }
+    #[getter]
+    fn errors_count3(&self) -> u16 {
+        self.inner.errors_count3()
+    }
+    #[getter]
+    fn errors_count4(&self) -> u16 {
+        self.inner.errors_count4()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
+#[pyclass(name = "State", module = "edgefirst.schemas.mavros_msgs", frozen)]
+pub struct PyMavrosState {
+    inner: MavState<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyMavrosState {
+    #[classattr]
+    const MAV_STATE_UNINIT: u8 = 0;
+    #[classattr]
+    const MAV_STATE_BOOT: u8 = 1;
+    #[classattr]
+    const MAV_STATE_CALIBRATING: u8 = 2;
+    #[classattr]
+    const MAV_STATE_STANDBY: u8 = 3;
+    #[classattr]
+    const MAV_STATE_ACTIVE: u8 = 4;
+    #[classattr]
+    const MAV_STATE_CRITICAL: u8 = 5;
+    #[classattr]
+    const MAV_STATE_EMERGENCY: u8 = 6;
+    #[classattr]
+    const MAV_STATE_POWEROFF: u8 = 7;
+    #[classattr]
+    const MAV_STATE_FLIGHT_TERMINATION: u8 = 8;
+
+    #[new]
+    #[pyo3(signature = (header, connected=false, armed=false, guided=false, manual_input=false, mode="", system_status=0))]
+    fn new(
+        header: &PyHeader,
+        connected: bool,
+        armed: bool,
+        guided: bool,
+        manual_input: bool,
+        mode: &str,
+        system_status: u8,
+    ) -> PyResult<Self> {
+        let inner = MavState::new(
+            header.inner.stamp(),
+            header.inner.frame_id(),
+            connected,
+            armed,
+            guided,
+            manual_input,
+            mode,
+            system_status,
+        )
+        .map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+        let ptr_addr = ptr as usize;
+        let owned: Vec<u8> = py.detach(|| {
+            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
+            slice.to_vec()
+        });
+        drop(pybuf);
+        let inner = MavState::from_cdr(owned).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn connected(&self) -> bool {
+        self.inner.connected()
+    }
+    #[getter]
+    fn armed(&self) -> bool {
+        self.inner.armed()
+    }
+    #[getter]
+    fn guided(&self) -> bool {
+        self.inner.guided()
+    }
+    #[getter]
+    fn manual_input(&self) -> bool {
+        self.inner.manual_input()
+    }
+    #[getter]
+    fn mode(&self) -> &str {
+        self.inner.mode()
+    }
+    #[getter]
+    fn system_status(&self) -> u8 {
+        self.inner.system_status()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
+#[pyclass(name = "StatusText", module = "edgefirst.schemas.mavros_msgs", frozen)]
+pub struct PyMavrosStatusText {
+    inner: StatusText<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyMavrosStatusText {
+    #[classattr]
+    const EMERGENCY: u8 = 0;
+    #[classattr]
+    const ALERT: u8 = 1;
+    #[classattr]
+    const CRITICAL: u8 = 2;
+    #[classattr]
+    const ERROR: u8 = 3;
+    #[classattr]
+    const WARNING: u8 = 4;
+    #[classattr]
+    const NOTICE: u8 = 5;
+    #[classattr]
+    const INFO: u8 = 6;
+    #[classattr]
+    const DEBUG: u8 = 7;
+
+    #[new]
+    #[pyo3(signature = (header, severity=0, text=""))]
+    fn new(header: &PyHeader, severity: u8, text: &str) -> PyResult<Self> {
+        let inner = StatusText::new(
+            header.inner.stamp(),
+            header.inner.frame_id(),
+            severity,
+            text,
+        )
+        .map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+        let ptr_addr = ptr as usize;
+        let owned: Vec<u8> = py.detach(|| {
+            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
+            slice.to_vec()
+        });
+        drop(pybuf);
+        let inner = StatusText::from_cdr(owned).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn severity(&self) -> u8 {
+        self.inner.severity()
+    }
+    #[getter]
+    fn text(&self) -> &str {
+        self.inner.text()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
+#[pyclass(name = "GpsRaw", module = "edgefirst.schemas.mavros_msgs", frozen)]
+pub struct PyMavrosGpsRaw {
+    inner: GpsRaw<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyMavrosGpsRaw {
+    #[classattr]
+    const GPS_FIX_TYPE_NO_GPS: u8 = 0;
+    #[classattr]
+    const GPS_FIX_TYPE_NO_FIX: u8 = 1;
+    #[classattr]
+    const GPS_FIX_TYPE_2D_FIX: u8 = 2;
+    #[classattr]
+    const GPS_FIX_TYPE_3D_FIX: u8 = 3;
+    #[classattr]
+    const GPS_FIX_TYPE_DGPS: u8 = 4;
+    #[classattr]
+    const GPS_FIX_TYPE_RTK_FLOAT: u8 = 5;
+    #[classattr]
+    const GPS_FIX_TYPE_RTK_FIXED: u8 = 6;
+    #[classattr]
+    const GPS_FIX_TYPE_STATIC: u8 = 7;
+    #[classattr]
+    const GPS_FIX_TYPE_PPP: u8 = 8;
+
+    #[new]
+    #[pyo3(signature = (header, fix_type=0, lat=0, lon=0, alt=0, eph=0, epv=0, vel=0, cog=0, satellites_visible=0, alt_ellipsoid=0, h_acc=0, v_acc=0, vel_acc=0, hdg_acc=0, yaw=0, dgps_numch=0, dgps_age=0))]
+    fn new(
+        header: &PyHeader,
+        fix_type: u8,
+        lat: i32,
+        lon: i32,
+        alt: i32,
+        eph: u16,
+        epv: u16,
+        vel: u16,
+        cog: u16,
+        satellites_visible: u8,
+        alt_ellipsoid: i32,
+        h_acc: u32,
+        v_acc: u32,
+        vel_acc: u32,
+        hdg_acc: i32,
+        yaw: u16,
+        dgps_numch: u8,
+        dgps_age: u32,
+    ) -> PyResult<Self> {
+        let inner = GpsRaw::new(
+            header.inner.stamp(),
+            header.inner.frame_id(),
+            fix_type,
+            lat,
+            lon,
+            alt,
+            eph,
+            epv,
+            vel,
+            cog,
+            satellites_visible,
+            alt_ellipsoid,
+            h_acc,
+            v_acc,
+            vel_acc,
+            hdg_acc,
+            yaw,
+            dgps_numch,
+            dgps_age,
+        )
+        .map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+        let ptr_addr = ptr as usize;
+        let owned: Vec<u8> = py.detach(|| {
+            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
+            slice.to_vec()
+        });
+        drop(pybuf);
+        let inner = GpsRaw::from_cdr(owned).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn fix_type(&self) -> u8 {
+        self.inner.fix_type()
+    }
+    #[getter]
+    fn lat(&self) -> i32 {
+        self.inner.lat()
+    }
+    #[getter]
+    fn lon(&self) -> i32 {
+        self.inner.lon()
+    }
+    #[getter]
+    fn alt(&self) -> i32 {
+        self.inner.alt()
+    }
+    #[getter]
+    fn eph(&self) -> u16 {
+        self.inner.eph()
+    }
+    #[getter]
+    fn epv(&self) -> u16 {
+        self.inner.epv()
+    }
+    #[getter]
+    fn vel(&self) -> u16 {
+        self.inner.vel()
+    }
+    #[getter]
+    fn cog(&self) -> u16 {
+        self.inner.cog()
+    }
+    #[getter]
+    fn satellites_visible(&self) -> u8 {
+        self.inner.satellites_visible()
+    }
+    #[getter]
+    fn alt_ellipsoid(&self) -> i32 {
+        self.inner.alt_ellipsoid()
+    }
+    #[getter]
+    fn h_acc(&self) -> u32 {
+        self.inner.h_acc()
+    }
+    #[getter]
+    fn v_acc(&self) -> u32 {
+        self.inner.v_acc()
+    }
+    #[getter]
+    fn vel_acc(&self) -> u32 {
+        self.inner.vel_acc()
+    }
+    #[getter]
+    fn hdg_acc(&self) -> i32 {
+        self.inner.hdg_acc()
+    }
+    #[getter]
+    fn yaw(&self) -> u16 {
+        self.inner.yaw()
+    }
+    #[getter]
+    fn dgps_numch(&self) -> u8 {
+        self.inner.dgps_numch()
+    }
+    #[getter]
+    fn dgps_age(&self) -> u32 {
+        self.inner.dgps_age()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
+#[pyclass(
+    name = "TimesyncStatus",
+    module = "edgefirst.schemas.mavros_msgs",
+    frozen
+)]
+pub struct PyMavrosTimesyncStatus {
+    inner: TimesyncStatus<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyMavrosTimesyncStatus {
+    #[new]
+    #[pyo3(signature = (header, remote_timestamp_ns=0, observed_offset_ns=0, estimated_offset_ns=0, round_trip_time_ms=0.0))]
+    fn new(
+        header: &PyHeader,
+        remote_timestamp_ns: u64,
+        observed_offset_ns: i64,
+        estimated_offset_ns: i64,
+        round_trip_time_ms: f32,
+    ) -> PyResult<Self> {
+        let inner = TimesyncStatus::new(
+            header.inner.stamp(),
+            header.inner.frame_id(),
+            remote_timestamp_ns,
+            observed_offset_ns,
+            estimated_offset_ns,
+            round_trip_time_ms,
+        )
+        .map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+        let ptr_addr = ptr as usize;
+        let owned: Vec<u8> = py.detach(|| {
+            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
+            slice.to_vec()
+        });
+        drop(pybuf);
+        let inner = TimesyncStatus::from_cdr(owned).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn remote_timestamp_ns(&self) -> u64 {
+        self.inner.remote_timestamp_ns()
+    }
+    #[getter]
+    fn observed_offset_ns(&self) -> i64 {
+        self.inner.observed_offset_ns()
+    }
+    #[getter]
+    fn estimated_offset_ns(&self) -> i64 {
+        self.inner.estimated_offset_ns()
+    }
+    #[getter]
+    fn round_trip_time_ms(&self) -> f32 {
+        self.inner.round_trip_time_ms()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
 // ── Module setup ────────────────────────────────────────────────────
 
 #[pymodule]
@@ -5440,6 +6422,20 @@ fn schemas(m: &Bound<'_, PyModule>) -> PyResult<()> {
     foxg.add_class::<PyFoxgloveImageAnnotation>()?;
     m.add_submodule(&foxg)?;
     register_submodule(py, m, "foxglove_msgs", &foxg)?;
+
+    // mavros_msgs submodule
+    let mav = PyModule::new(py, "mavros_msgs")?;
+    mav.add_class::<PyMavrosAltitude>()?;
+    mav.add_class::<PyMavrosVfrHud>()?;
+    mav.add_class::<PyMavrosEstimatorStatus>()?;
+    mav.add_class::<PyMavrosExtendedState>()?;
+    mav.add_class::<PyMavrosSysStatus>()?;
+    mav.add_class::<PyMavrosState>()?;
+    mav.add_class::<PyMavrosStatusText>()?;
+    mav.add_class::<PyMavrosGpsRaw>()?;
+    mav.add_class::<PyMavrosTimesyncStatus>()?;
+    m.add_submodule(&mav)?;
+    register_submodule(py, m, "mavros_msgs", &mav)?;
 
     Ok(())
 }

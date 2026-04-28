@@ -5161,6 +5161,242 @@ int32_t ros_foxglove_point_annotation_set_fill_color(uint8_t* buf, size_t len, d
  */
 int32_t ros_foxglove_point_annotation_set_thickness(uint8_t* buf, size_t len, double v);
 
+int32_t ros_foxglove_point_annotation_set_thickness(uint8_t* buf, size_t len, double v);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * mavros_msgs — MAVLink/MAVROS Message Types
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * @defgroup mavros_msgs mavros_msgs
+ * @brief MAVLink/MAVROS message types for UAV telemetry and status.
+ * @{
+ */
+
+/* ── Altitude ─────────────────────────────────────────────────────────── */
+
+/** @brief Opaque handle to a mavros_msgs/Altitude view. */
+typedef struct ros_mavros_altitude_t ros_mavros_altitude_t;
+
+ros_mavros_altitude_t* ros_mavros_altitude_from_cdr(const uint8_t* data, size_t len);
+void ros_mavros_altitude_free(ros_mavros_altitude_t* view);
+const uint8_t* ros_mavros_altitude_as_cdr(const ros_mavros_altitude_t* view, size_t* out_len);
+int32_t ros_mavros_altitude_get_stamp_sec(const ros_mavros_altitude_t* view);
+uint32_t ros_mavros_altitude_get_stamp_nanosec(const ros_mavros_altitude_t* view);
+const char* ros_mavros_altitude_get_frame_id(const ros_mavros_altitude_t* view);
+float ros_mavros_altitude_get_monotonic(const ros_mavros_altitude_t* view);
+float ros_mavros_altitude_get_amsl(const ros_mavros_altitude_t* view);
+float ros_mavros_altitude_get_local(const ros_mavros_altitude_t* view);
+float ros_mavros_altitude_get_relative(const ros_mavros_altitude_t* view);
+float ros_mavros_altitude_get_terrain(const ros_mavros_altitude_t* view);
+float ros_mavros_altitude_get_bottom_clearance(const ros_mavros_altitude_t* view);
+
+/* ── VfrHud ───────────────────────────────────────────────────────────── */
+
+/** @brief Opaque handle to a mavros_msgs/VfrHud view. */
+typedef struct ros_mavros_vfrhud_t ros_mavros_vfrhud_t;
+
+ros_mavros_vfrhud_t* ros_mavros_vfrhud_from_cdr(const uint8_t* data, size_t len);
+void ros_mavros_vfrhud_free(ros_mavros_vfrhud_t* view);
+const uint8_t* ros_mavros_vfrhud_as_cdr(const ros_mavros_vfrhud_t* view, size_t* out_len);
+int32_t ros_mavros_vfrhud_get_stamp_sec(const ros_mavros_vfrhud_t* view);
+uint32_t ros_mavros_vfrhud_get_stamp_nanosec(const ros_mavros_vfrhud_t* view);
+const char* ros_mavros_vfrhud_get_frame_id(const ros_mavros_vfrhud_t* view);
+float ros_mavros_vfrhud_get_airspeed(const ros_mavros_vfrhud_t* view);
+float ros_mavros_vfrhud_get_groundspeed(const ros_mavros_vfrhud_t* view);
+int16_t ros_mavros_vfrhud_get_heading(const ros_mavros_vfrhud_t* view);
+float ros_mavros_vfrhud_get_throttle(const ros_mavros_vfrhud_t* view);
+float ros_mavros_vfrhud_get_altitude(const ros_mavros_vfrhud_t* view);
+float ros_mavros_vfrhud_get_climb(const ros_mavros_vfrhud_t* view);
+
+/* ── EstimatorStatus ──────────────────────────────────────────────────── */
+
+/** @brief Opaque handle to a mavros_msgs/EstimatorStatus view. */
+typedef struct ros_mavros_estimator_status_t ros_mavros_estimator_status_t;
+
+ros_mavros_estimator_status_t* ros_mavros_estimator_status_from_cdr(const uint8_t* data, size_t len);
+void ros_mavros_estimator_status_free(ros_mavros_estimator_status_t* view);
+const uint8_t* ros_mavros_estimator_status_as_cdr(const ros_mavros_estimator_status_t* view, size_t* out_len);
+int32_t ros_mavros_estimator_status_get_stamp_sec(const ros_mavros_estimator_status_t* view);
+uint32_t ros_mavros_estimator_status_get_stamp_nanosec(const ros_mavros_estimator_status_t* view);
+const char* ros_mavros_estimator_status_get_frame_id(const ros_mavros_estimator_status_t* view);
+bool ros_mavros_estimator_status_get_attitude_status_flag(const ros_mavros_estimator_status_t* view);
+bool ros_mavros_estimator_status_get_velocity_horiz_status_flag(const ros_mavros_estimator_status_t* view);
+bool ros_mavros_estimator_status_get_velocity_vert_status_flag(const ros_mavros_estimator_status_t* view);
+bool ros_mavros_estimator_status_get_pos_horiz_rel_status_flag(const ros_mavros_estimator_status_t* view);
+bool ros_mavros_estimator_status_get_pos_horiz_abs_status_flag(const ros_mavros_estimator_status_t* view);
+bool ros_mavros_estimator_status_get_pos_vert_abs_status_flag(const ros_mavros_estimator_status_t* view);
+bool ros_mavros_estimator_status_get_pos_vert_agl_status_flag(const ros_mavros_estimator_status_t* view);
+bool ros_mavros_estimator_status_get_const_pos_mode_status_flag(const ros_mavros_estimator_status_t* view);
+bool ros_mavros_estimator_status_get_pred_pos_horiz_rel_status_flag(const ros_mavros_estimator_status_t* view);
+bool ros_mavros_estimator_status_get_pred_pos_horiz_abs_status_flag(const ros_mavros_estimator_status_t* view);
+bool ros_mavros_estimator_status_get_gps_glitch_status_flag(const ros_mavros_estimator_status_t* view);
+bool ros_mavros_estimator_status_get_accel_error_status_flag(const ros_mavros_estimator_status_t* view);
+
+/* ── ExtendedState ────────────────────────────────────────────────────── */
+
+/** @brief Opaque handle to a mavros_msgs/ExtendedState view. */
+typedef struct ros_mavros_extended_state_t ros_mavros_extended_state_t;
+
+/** VTOL state constants. */
+#define ROS_MAVROS_VTOL_STATE_UNDEFINED        0
+#define ROS_MAVROS_VTOL_STATE_TRANSITION_TO_FW 1
+#define ROS_MAVROS_VTOL_STATE_TRANSITION_TO_MC 2
+#define ROS_MAVROS_VTOL_STATE_MC               3
+#define ROS_MAVROS_VTOL_STATE_FW               4
+
+/** Landed state constants. */
+#define ROS_MAVROS_LANDED_STATE_UNDEFINED  0
+#define ROS_MAVROS_LANDED_STATE_ON_GROUND  1
+#define ROS_MAVROS_LANDED_STATE_IN_AIR     2
+#define ROS_MAVROS_LANDED_STATE_TAKEOFF    3
+#define ROS_MAVROS_LANDED_STATE_LANDING    4
+
+ros_mavros_extended_state_t* ros_mavros_extended_state_from_cdr(const uint8_t* data, size_t len);
+void ros_mavros_extended_state_free(ros_mavros_extended_state_t* view);
+const uint8_t* ros_mavros_extended_state_as_cdr(const ros_mavros_extended_state_t* view, size_t* out_len);
+int32_t ros_mavros_extended_state_get_stamp_sec(const ros_mavros_extended_state_t* view);
+uint32_t ros_mavros_extended_state_get_stamp_nanosec(const ros_mavros_extended_state_t* view);
+const char* ros_mavros_extended_state_get_frame_id(const ros_mavros_extended_state_t* view);
+uint8_t ros_mavros_extended_state_get_vtol_state(const ros_mavros_extended_state_t* view);
+uint8_t ros_mavros_extended_state_get_landed_state(const ros_mavros_extended_state_t* view);
+
+/* ── SysStatus ────────────────────────────────────────────────────────── */
+
+/** @brief Opaque handle to a mavros_msgs/SysStatus view. */
+typedef struct ros_mavros_sys_status_t ros_mavros_sys_status_t;
+
+ros_mavros_sys_status_t* ros_mavros_sys_status_from_cdr(const uint8_t* data, size_t len);
+void ros_mavros_sys_status_free(ros_mavros_sys_status_t* view);
+const uint8_t* ros_mavros_sys_status_as_cdr(const ros_mavros_sys_status_t* view, size_t* out_len);
+int32_t ros_mavros_sys_status_get_stamp_sec(const ros_mavros_sys_status_t* view);
+uint32_t ros_mavros_sys_status_get_stamp_nanosec(const ros_mavros_sys_status_t* view);
+const char* ros_mavros_sys_status_get_frame_id(const ros_mavros_sys_status_t* view);
+uint32_t ros_mavros_sys_status_get_sensors_present(const ros_mavros_sys_status_t* view);
+uint32_t ros_mavros_sys_status_get_sensors_enabled(const ros_mavros_sys_status_t* view);
+uint32_t ros_mavros_sys_status_get_sensors_health(const ros_mavros_sys_status_t* view);
+uint16_t ros_mavros_sys_status_get_load(const ros_mavros_sys_status_t* view);
+uint16_t ros_mavros_sys_status_get_voltage_battery(const ros_mavros_sys_status_t* view);
+int16_t ros_mavros_sys_status_get_current_battery(const ros_mavros_sys_status_t* view);
+int8_t ros_mavros_sys_status_get_battery_remaining(const ros_mavros_sys_status_t* view);
+uint16_t ros_mavros_sys_status_get_drop_rate_comm(const ros_mavros_sys_status_t* view);
+uint16_t ros_mavros_sys_status_get_errors_comm(const ros_mavros_sys_status_t* view);
+uint16_t ros_mavros_sys_status_get_errors_count1(const ros_mavros_sys_status_t* view);
+uint16_t ros_mavros_sys_status_get_errors_count2(const ros_mavros_sys_status_t* view);
+uint16_t ros_mavros_sys_status_get_errors_count3(const ros_mavros_sys_status_t* view);
+uint16_t ros_mavros_sys_status_get_errors_count4(const ros_mavros_sys_status_t* view);
+
+/* ── State ────────────────────────────────────────────────────────────── */
+
+/** @brief Opaque handle to a mavros_msgs/State view. */
+typedef struct ros_mavros_state_t ros_mavros_state_t;
+
+/** MAV_STATE constants for system_status field. */
+#define ROS_MAVROS_MAV_STATE_UNINIT             0
+#define ROS_MAVROS_MAV_STATE_BOOT               1
+#define ROS_MAVROS_MAV_STATE_CALIBRATING        2
+#define ROS_MAVROS_MAV_STATE_STANDBY            3
+#define ROS_MAVROS_MAV_STATE_ACTIVE             4
+#define ROS_MAVROS_MAV_STATE_CRITICAL           5
+#define ROS_MAVROS_MAV_STATE_EMERGENCY          6
+#define ROS_MAVROS_MAV_STATE_POWEROFF           7
+#define ROS_MAVROS_MAV_STATE_FLIGHT_TERMINATION 8
+
+ros_mavros_state_t* ros_mavros_state_from_cdr(const uint8_t* data, size_t len);
+void ros_mavros_state_free(ros_mavros_state_t* view);
+const uint8_t* ros_mavros_state_as_cdr(const ros_mavros_state_t* view, size_t* out_len);
+int32_t ros_mavros_state_get_stamp_sec(const ros_mavros_state_t* view);
+uint32_t ros_mavros_state_get_stamp_nanosec(const ros_mavros_state_t* view);
+const char* ros_mavros_state_get_frame_id(const ros_mavros_state_t* view);
+bool ros_mavros_state_get_connected(const ros_mavros_state_t* view);
+bool ros_mavros_state_get_armed(const ros_mavros_state_t* view);
+bool ros_mavros_state_get_guided(const ros_mavros_state_t* view);
+bool ros_mavros_state_get_manual_input(const ros_mavros_state_t* view);
+const char* ros_mavros_state_get_mode(const ros_mavros_state_t* view);
+uint8_t ros_mavros_state_get_system_status(const ros_mavros_state_t* view);
+
+/* ── StatusText ───────────────────────────────────────────────────────── */
+
+/** @brief Opaque handle to a mavros_msgs/StatusText view. */
+typedef struct ros_mavros_status_text_t ros_mavros_status_text_t;
+
+/** Severity constants matching MAVLink MAV_SEVERITY. */
+#define ROS_MAVROS_SEVERITY_EMERGENCY 0
+#define ROS_MAVROS_SEVERITY_ALERT     1
+#define ROS_MAVROS_SEVERITY_CRITICAL  2
+#define ROS_MAVROS_SEVERITY_ERROR     3
+#define ROS_MAVROS_SEVERITY_WARNING   4
+#define ROS_MAVROS_SEVERITY_NOTICE    5
+#define ROS_MAVROS_SEVERITY_INFO      6
+#define ROS_MAVROS_SEVERITY_DEBUG     7
+
+ros_mavros_status_text_t* ros_mavros_status_text_from_cdr(const uint8_t* data, size_t len);
+void ros_mavros_status_text_free(ros_mavros_status_text_t* view);
+const uint8_t* ros_mavros_status_text_as_cdr(const ros_mavros_status_text_t* view, size_t* out_len);
+int32_t ros_mavros_status_text_get_stamp_sec(const ros_mavros_status_text_t* view);
+uint32_t ros_mavros_status_text_get_stamp_nanosec(const ros_mavros_status_text_t* view);
+const char* ros_mavros_status_text_get_frame_id(const ros_mavros_status_text_t* view);
+uint8_t ros_mavros_status_text_get_severity(const ros_mavros_status_text_t* view);
+const char* ros_mavros_status_text_get_text(const ros_mavros_status_text_t* view);
+
+/* ── GpsRaw ───────────────────────────────────────────────────────────── */
+
+/** @brief Opaque handle to a mavros_msgs/GPSRAW view. */
+typedef struct ros_mavros_gps_raw_t ros_mavros_gps_raw_t;
+
+/** GPS fix type constants. */
+#define ROS_MAVROS_GPS_FIX_TYPE_NO_GPS    0
+#define ROS_MAVROS_GPS_FIX_TYPE_NO_FIX    1
+#define ROS_MAVROS_GPS_FIX_TYPE_FIX_2D    2
+#define ROS_MAVROS_GPS_FIX_TYPE_FIX_3D    3
+#define ROS_MAVROS_GPS_FIX_TYPE_DGPS      4
+#define ROS_MAVROS_GPS_FIX_TYPE_RTK_FLOAT 5
+#define ROS_MAVROS_GPS_FIX_TYPE_RTK_FIXED 6
+#define ROS_MAVROS_GPS_FIX_TYPE_STATIC    7
+#define ROS_MAVROS_GPS_FIX_TYPE_PPP       8
+
+ros_mavros_gps_raw_t* ros_mavros_gps_raw_from_cdr(const uint8_t* data, size_t len);
+void ros_mavros_gps_raw_free(ros_mavros_gps_raw_t* view);
+const uint8_t* ros_mavros_gps_raw_as_cdr(const ros_mavros_gps_raw_t* view, size_t* out_len);
+int32_t ros_mavros_gps_raw_get_stamp_sec(const ros_mavros_gps_raw_t* view);
+uint32_t ros_mavros_gps_raw_get_stamp_nanosec(const ros_mavros_gps_raw_t* view);
+const char* ros_mavros_gps_raw_get_frame_id(const ros_mavros_gps_raw_t* view);
+uint8_t ros_mavros_gps_raw_get_fix_type(const ros_mavros_gps_raw_t* view);
+int32_t ros_mavros_gps_raw_get_lat(const ros_mavros_gps_raw_t* view);
+int32_t ros_mavros_gps_raw_get_lon(const ros_mavros_gps_raw_t* view);
+int32_t ros_mavros_gps_raw_get_alt(const ros_mavros_gps_raw_t* view);
+uint16_t ros_mavros_gps_raw_get_eph(const ros_mavros_gps_raw_t* view);
+uint16_t ros_mavros_gps_raw_get_epv(const ros_mavros_gps_raw_t* view);
+uint16_t ros_mavros_gps_raw_get_vel(const ros_mavros_gps_raw_t* view);
+uint16_t ros_mavros_gps_raw_get_cog(const ros_mavros_gps_raw_t* view);
+uint8_t ros_mavros_gps_raw_get_satellites_visible(const ros_mavros_gps_raw_t* view);
+int32_t ros_mavros_gps_raw_get_alt_ellipsoid(const ros_mavros_gps_raw_t* view);
+uint32_t ros_mavros_gps_raw_get_h_acc(const ros_mavros_gps_raw_t* view);
+uint32_t ros_mavros_gps_raw_get_v_acc(const ros_mavros_gps_raw_t* view);
+uint32_t ros_mavros_gps_raw_get_vel_acc(const ros_mavros_gps_raw_t* view);
+int32_t ros_mavros_gps_raw_get_hdg_acc(const ros_mavros_gps_raw_t* view);
+uint16_t ros_mavros_gps_raw_get_yaw(const ros_mavros_gps_raw_t* view);
+uint8_t ros_mavros_gps_raw_get_dgps_numch(const ros_mavros_gps_raw_t* view);
+uint32_t ros_mavros_gps_raw_get_dgps_age(const ros_mavros_gps_raw_t* view);
+
+/* ── TimesyncStatus ───────────────────────────────────────────────────── */
+
+/** @brief Opaque handle to a mavros_msgs/TimesyncStatus view. */
+typedef struct ros_mavros_timesync_status_t ros_mavros_timesync_status_t;
+
+ros_mavros_timesync_status_t* ros_mavros_timesync_status_from_cdr(const uint8_t* data, size_t len);
+void ros_mavros_timesync_status_free(ros_mavros_timesync_status_t* view);
+const uint8_t* ros_mavros_timesync_status_as_cdr(const ros_mavros_timesync_status_t* view, size_t* out_len);
+int32_t ros_mavros_timesync_status_get_stamp_sec(const ros_mavros_timesync_status_t* view);
+uint32_t ros_mavros_timesync_status_get_stamp_nanosec(const ros_mavros_timesync_status_t* view);
+const char* ros_mavros_timesync_status_get_frame_id(const ros_mavros_timesync_status_t* view);
+uint64_t ros_mavros_timesync_status_get_remote_timestamp_ns(const ros_mavros_timesync_status_t* view);
+int64_t ros_mavros_timesync_status_get_observed_offset_ns(const ros_mavros_timesync_status_t* view);
+int64_t ros_mavros_timesync_status_get_estimated_offset_ns(const ros_mavros_timesync_status_t* view);
+float ros_mavros_timesync_status_get_round_trip_time_ms(const ros_mavros_timesync_status_t* view);
+
+/** @} */ /* end defgroup mavros_msgs */
+
 #ifdef __cplusplus
 }
 #endif

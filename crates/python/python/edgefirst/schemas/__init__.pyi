@@ -31,6 +31,7 @@ from . import (
     edgefirst_msgs as edgefirst_msgs,
     foxglove_msgs as foxglove_msgs,
     geometry_msgs as geometry_msgs,
+    mavros_msgs as mavros_msgs,
     nav_msgs as nav_msgs,
     rosgraph_msgs as rosgraph_msgs,
     sensor_msgs as sensor_msgs,
