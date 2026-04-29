@@ -519,6 +519,11 @@ impl ExtendedState<Vec<u8>> {
 //   u16 errors_count4        +30
 //   payload = 32 bytes
 
+/// MAVLink SYS_STATUS system health and power telemetry.
+///
+/// Field units follow the raw MAVLink SYS_STATUS message definition
+/// (<https://mavlink.io/en/messages/common.html#SYS_STATUS>).
+/// No unit conversions are applied — values are lossless from the wire.
 pub struct SysStatus<B> {
     buf: B,
     offsets: [usize; 1],
@@ -559,54 +564,67 @@ impl<B: AsRef<[u8]>> SysStatus<B> {
     pub fn frame_id(&self) -> &str {
         rd_string(self.buf.as_ref(), CDR_HEADER_SIZE + 8).0
     }
+    /// Bitmask of onboard sensors present.
     #[inline]
     pub fn sensors_present(&self) -> u32 {
         rd_u32(self.buf.as_ref(), self.offsets[0])
     }
+    /// Bitmask of onboard sensors enabled.
     #[inline]
     pub fn sensors_enabled(&self) -> u32 {
         rd_u32(self.buf.as_ref(), self.offsets[0] + 4)
     }
+    /// Bitmask of onboard sensors reporting healthy.
     #[inline]
     pub fn sensors_health(&self) -> u32 {
         rd_u32(self.buf.as_ref(), self.offsets[0] + 8)
     }
+    /// Maximum CPU/MCU usage in per-mille (‰). 0–1000.
     #[inline]
     pub fn load(&self) -> u16 {
         rd_u16(self.buf.as_ref(), self.offsets[0] + 12)
     }
+    /// Battery voltage in millivolts (mV). UINT16_MAX if unknown.
     #[inline]
     pub fn voltage_battery(&self) -> u16 {
         rd_u16(self.buf.as_ref(), self.offsets[0] + 14)
     }
+    /// Battery current in centi-amperes (cA, 10 mA steps). −1 if unknown.
     #[inline]
     pub fn current_battery(&self) -> i16 {
         rd_i16(self.buf.as_ref(), self.offsets[0] + 16)
     }
+    /// Battery remaining, 0–100 (%). −1 if not estimated.
     #[inline]
     pub fn battery_remaining(&self) -> i8 {
         rd_i8(self.buf.as_ref(), self.offsets[0] + 18)
     }
+    /// Communication drop rate in per-mille (‰).
     #[inline]
     pub fn drop_rate_comm(&self) -> u16 {
         rd_u16(self.buf.as_ref(), self.offsets[0] + 20)
     }
+    /// Communication error count.
     #[inline]
     pub fn errors_comm(&self) -> u16 {
         rd_u16(self.buf.as_ref(), self.offsets[0] + 22)
     }
+    /// Autopilot-specific error count 1.
     #[inline]
     pub fn errors_count1(&self) -> u16 {
         rd_u16(self.buf.as_ref(), self.offsets[0] + 24)
     }
+    /// Autopilot-specific error count 2.
     #[inline]
     pub fn errors_count2(&self) -> u16 {
         rd_u16(self.buf.as_ref(), self.offsets[0] + 26)
     }
+    /// Autopilot-specific error count 3.
     #[inline]
     pub fn errors_count3(&self) -> u16 {
         rd_u16(self.buf.as_ref(), self.offsets[0] + 28)
     }
+    /// Autopilot-specific error count 4.
     #[inline]
     pub fn errors_count4(&self) -> u16 {
         rd_u16(self.buf.as_ref(), self.offsets[0] + 30)
@@ -965,6 +983,11 @@ pub mod gps_fix_type {
     pub const PPP: u8 = 8;
 }
 
+/// MAVLink GPS_RAW_INT raw GNSS fix data.
+///
+/// Field units follow the raw MAVLink GPS_RAW_INT message definition
+/// (<https://mavlink.io/en/messages/common.html#GPS_RAW_INT>).
+/// No unit conversions are applied — values are lossless from the wire.
 pub struct GpsRaw<B> {
     buf: B,
     offsets: [usize; 1],
@@ -1012,70 +1035,87 @@ impl<B: AsRef<[u8]>> GpsRaw<B> {
     pub fn frame_id(&self) -> &str {
         rd_string(self.buf.as_ref(), CDR_HEADER_SIZE + 8).0
     }
+    /// GPS fix type (see [`gps_fix_type`] constants).
     #[inline]
     pub fn fix_type(&self) -> u8 {
         rd_u8(self.buf.as_ref(), self.offsets[0])
     }
+    /// Latitude in degrees × 10⁷ (degE7).
     #[inline]
     pub fn lat(&self) -> i32 {
         rd_i32(self.buf.as_ref(), self.offsets[0] + 4)
     }
+    /// Longitude in degrees × 10⁷ (degE7).
     #[inline]
     pub fn lon(&self) -> i32 {
         rd_i32(self.buf.as_ref(), self.offsets[0] + 8)
     }
+    /// Altitude above MSL in millimetres (mm).
     #[inline]
     pub fn alt(&self) -> i32 {
         rd_i32(self.buf.as_ref(), self.offsets[0] + 12)
     }
+    /// GPS HDOP (horizontal dilution) in cm. UINT16_MAX if unknown.
     #[inline]
     pub fn eph(&self) -> u16 {
         rd_u16(self.buf.as_ref(), self.offsets[0] + 16)
     }
+    /// GPS VDOP (vertical dilution) in cm. UINT16_MAX if unknown.
     #[inline]
     pub fn epv(&self) -> u16 {
         rd_u16(self.buf.as_ref(), self.offsets[0] + 18)
     }
+    /// GPS ground speed in cm/s. UINT16_MAX if unknown.
     #[inline]
     pub fn vel(&self) -> u16 {
         rd_u16(self.buf.as_ref(), self.offsets[0] + 20)
     }
+    /// Course over ground in centidegrees (cdeg, 0–35999). UINT16_MAX if unknown.
     #[inline]
     pub fn cog(&self) -> u16 {
         rd_u16(self.buf.as_ref(), self.offsets[0] + 22)
     }
+    /// Number of satellites visible. UINT8_MAX if unknown.
     #[inline]
     pub fn satellites_visible(&self) -> u8 {
         rd_u8(self.buf.as_ref(), self.offsets[0] + 24)
     }
+    /// Altitude above WGS84 ellipsoid in millimetres (mm).
     #[inline]
     pub fn alt_ellipsoid(&self) -> i32 {
         rd_i32(self.buf.as_ref(), self.offsets[0] + 28)
     }
+    /// Position uncertainty (horizontal) in millimetres (mm).
     #[inline]
     pub fn h_acc(&self) -> u32 {
         rd_u32(self.buf.as_ref(), self.offsets[0] + 32)
     }
+    /// Position uncertainty (vertical) in millimetres (mm).
     #[inline]
     pub fn v_acc(&self) -> u32 {
         rd_u32(self.buf.as_ref(), self.offsets[0] + 36)
     }
+    /// Speed uncertainty in millimetres per second (mm/s).
     #[inline]
     pub fn vel_acc(&self) -> u32 {
         rd_u32(self.buf.as_ref(), self.offsets[0] + 40)
     }
+    /// Heading uncertainty in centidegrees (cdeg × 10⁻⁵).
     #[inline]
     pub fn hdg_acc(&self) -> i32 {
         rd_i32(self.buf.as_ref(), self.offsets[0] + 44)
     }
+    /// Yaw in centidegrees (cdeg). 0 if unknown.
     #[inline]
     pub fn yaw(&self) -> u16 {
         rd_u16(self.buf.as_ref(), self.offsets[0] + 48)
     }
+    /// Number of DGPS satellites.
     #[inline]
     pub fn dgps_numch(&self) -> u8 {
         rd_u8(self.buf.as_ref(), self.offsets[0] + 50)
     }
+    /// Age of DGPS correction in milliseconds (ms).
     #[inline]
     pub fn dgps_age(&self) -> u32 {
         rd_u32(self.buf.as_ref(), self.offsets[0] + 52)

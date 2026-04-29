@@ -5261,7 +5261,13 @@ uint8_t ros_mavros_extended_state_get_landed_state(const ros_mavros_extended_sta
 
 /* ── SysStatus ────────────────────────────────────────────────────────── */
 
-/** @brief Opaque handle to a mavros_msgs/SysStatus view. */
+/**
+ * @brief Opaque handle to a mavros_msgs/SysStatus view.
+ *
+ * Field units follow the raw MAVLink SYS_STATUS message definition —
+ * no conversions are applied.
+ * @see https://mavlink.io/en/messages/common.html#SYS_STATUS
+ */
 typedef struct ros_mavros_sys_status_t ros_mavros_sys_status_t;
 
 ros_mavros_sys_status_t* ros_mavros_sys_status_from_cdr(const uint8_t* data, size_t len);
@@ -5270,18 +5276,31 @@ const uint8_t* ros_mavros_sys_status_as_cdr(const ros_mavros_sys_status_t* view,
 int32_t ros_mavros_sys_status_get_stamp_sec(const ros_mavros_sys_status_t* view);
 uint32_t ros_mavros_sys_status_get_stamp_nanosec(const ros_mavros_sys_status_t* view);
 const char* ros_mavros_sys_status_get_frame_id(const ros_mavros_sys_status_t* view);
+/** @brief Bitmask of onboard sensors present. */
 uint32_t ros_mavros_sys_status_get_sensors_present(const ros_mavros_sys_status_t* view);
+/** @brief Bitmask of onboard sensors enabled. */
 uint32_t ros_mavros_sys_status_get_sensors_enabled(const ros_mavros_sys_status_t* view);
+/** @brief Bitmask of onboard sensors reporting healthy. */
 uint32_t ros_mavros_sys_status_get_sensors_health(const ros_mavros_sys_status_t* view);
+/** @brief Maximum CPU/MCU usage in per-mille (0–1000). */
 uint16_t ros_mavros_sys_status_get_load(const ros_mavros_sys_status_t* view);
+/** @brief Battery voltage in millivolts (mV). UINT16_MAX if unknown. */
 uint16_t ros_mavros_sys_status_get_voltage_battery(const ros_mavros_sys_status_t* view);
+/** @brief Battery current in centi-amperes (cA, 10 mA steps). -1 if unknown. */
 int16_t ros_mavros_sys_status_get_current_battery(const ros_mavros_sys_status_t* view);
+/** @brief Battery remaining, 0–100 (%). -1 if not estimated. */
 int8_t ros_mavros_sys_status_get_battery_remaining(const ros_mavros_sys_status_t* view);
+/** @brief Communication drop rate in per-mille. */
 uint16_t ros_mavros_sys_status_get_drop_rate_comm(const ros_mavros_sys_status_t* view);
+/** @brief Communication error count. */
 uint16_t ros_mavros_sys_status_get_errors_comm(const ros_mavros_sys_status_t* view);
+/** @brief Autopilot-specific error count 1. */
 uint16_t ros_mavros_sys_status_get_errors_count1(const ros_mavros_sys_status_t* view);
+/** @brief Autopilot-specific error count 2. */
 uint16_t ros_mavros_sys_status_get_errors_count2(const ros_mavros_sys_status_t* view);
+/** @brief Autopilot-specific error count 3. */
 uint16_t ros_mavros_sys_status_get_errors_count3(const ros_mavros_sys_status_t* view);
+/** @brief Autopilot-specific error count 4. */
 uint16_t ros_mavros_sys_status_get_errors_count4(const ros_mavros_sys_status_t* view);
 
 /* ── State ────────────────────────────────────────────────────────────── */
@@ -5339,7 +5358,13 @@ const char* ros_mavros_status_text_get_text(const ros_mavros_status_text_t* view
 
 /* ── GpsRaw ───────────────────────────────────────────────────────────── */
 
-/** @brief Opaque handle to a mavros_msgs/GPSRAW view. */
+/**
+ * @brief Opaque handle to a mavros_msgs/GPSRAW view.
+ *
+ * Field units follow the raw MAVLink GPS_RAW_INT message definition —
+ * no conversions are applied.
+ * @see https://mavlink.io/en/messages/common.html#GPS_RAW_INT
+ */
 typedef struct ros_mavros_gps_raw_t ros_mavros_gps_raw_t;
 
 /** GPS fix type constants. */
@@ -5359,22 +5384,39 @@ const uint8_t* ros_mavros_gps_raw_as_cdr(const ros_mavros_gps_raw_t* view, size_
 int32_t ros_mavros_gps_raw_get_stamp_sec(const ros_mavros_gps_raw_t* view);
 uint32_t ros_mavros_gps_raw_get_stamp_nanosec(const ros_mavros_gps_raw_t* view);
 const char* ros_mavros_gps_raw_get_frame_id(const ros_mavros_gps_raw_t* view);
+/** @brief GPS fix type (see ROS_MAVROS_GPS_FIX_TYPE_* constants). */
 uint8_t ros_mavros_gps_raw_get_fix_type(const ros_mavros_gps_raw_t* view);
+/** @brief Latitude in degrees * 1e7 (degE7). */
 int32_t ros_mavros_gps_raw_get_lat(const ros_mavros_gps_raw_t* view);
+/** @brief Longitude in degrees * 1e7 (degE7). */
 int32_t ros_mavros_gps_raw_get_lon(const ros_mavros_gps_raw_t* view);
+/** @brief Altitude above MSL in millimetres (mm). */
 int32_t ros_mavros_gps_raw_get_alt(const ros_mavros_gps_raw_t* view);
+/** @brief GPS HDOP in cm. UINT16_MAX if unknown. */
 uint16_t ros_mavros_gps_raw_get_eph(const ros_mavros_gps_raw_t* view);
+/** @brief GPS VDOP in cm. UINT16_MAX if unknown. */
 uint16_t ros_mavros_gps_raw_get_epv(const ros_mavros_gps_raw_t* view);
+/** @brief GPS ground speed in cm/s. UINT16_MAX if unknown. */
 uint16_t ros_mavros_gps_raw_get_vel(const ros_mavros_gps_raw_t* view);
+/** @brief Course over ground in centidegrees (0-35999). UINT16_MAX if unknown. */
 uint16_t ros_mavros_gps_raw_get_cog(const ros_mavros_gps_raw_t* view);
+/** @brief Number of satellites visible. UINT8_MAX if unknown. */
 uint8_t ros_mavros_gps_raw_get_satellites_visible(const ros_mavros_gps_raw_t* view);
+/** @brief Altitude above WGS84 ellipsoid in millimetres (mm). */
 int32_t ros_mavros_gps_raw_get_alt_ellipsoid(const ros_mavros_gps_raw_t* view);
+/** @brief Horizontal position uncertainty in millimetres (mm). */
 uint32_t ros_mavros_gps_raw_get_h_acc(const ros_mavros_gps_raw_t* view);
+/** @brief Vertical position uncertainty in millimetres (mm). */
 uint32_t ros_mavros_gps_raw_get_v_acc(const ros_mavros_gps_raw_t* view);
+/** @brief Speed uncertainty in mm/s. */
 uint32_t ros_mavros_gps_raw_get_vel_acc(const ros_mavros_gps_raw_t* view);
+/** @brief Heading uncertainty in centidegrees. */
 int32_t ros_mavros_gps_raw_get_hdg_acc(const ros_mavros_gps_raw_t* view);
+/** @brief Yaw in centidegrees. 0 if unknown. */
 uint16_t ros_mavros_gps_raw_get_yaw(const ros_mavros_gps_raw_t* view);
+/** @brief Number of DGPS satellites. */
 uint8_t ros_mavros_gps_raw_get_dgps_numch(const ros_mavros_gps_raw_t* view);
+/** @brief Age of DGPS correction in milliseconds (ms). */
 uint32_t ros_mavros_gps_raw_get_dgps_age(const ros_mavros_gps_raw_t* view);
 
 /* ── TimesyncStatus ───────────────────────────────────────────────────── */

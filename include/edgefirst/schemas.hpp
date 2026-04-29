@@ -5963,6 +5963,10 @@ public:
 };
 
 /// @brief Zero-copy view of a mavros_msgs/SysStatus CDR buffer.
+///
+/// Field units follow the raw MAVLink SYS_STATUS message definition —
+/// no conversions are applied.
+/// @see https://mavlink.io/en/messages/common.html#SYS_STATUS
 class MavrosSysStatusView : public detail::ViewBase<MavrosSysStatusView, detail::MavrosSysStatusTraits> {
     using Base = detail::ViewBase<MavrosSysStatusView, detail::MavrosSysStatusTraits>;
     friend Base;
@@ -5978,42 +5982,55 @@ public:
     [[nodiscard]] std::string_view frame_id() const noexcept {
         return ros_mavros_sys_status_get_frame_id(handle());
     }
+    /// Bitmask of onboard sensors present.
     [[nodiscard]] std::uint32_t sensors_present() const noexcept {
         return ros_mavros_sys_status_get_sensors_present(handle());
     }
+    /// Bitmask of onboard sensors enabled.
     [[nodiscard]] std::uint32_t sensors_enabled() const noexcept {
         return ros_mavros_sys_status_get_sensors_enabled(handle());
     }
+    /// Bitmask of onboard sensors reporting healthy.
     [[nodiscard]] std::uint32_t sensors_health() const noexcept {
         return ros_mavros_sys_status_get_sensors_health(handle());
     }
+    /// Maximum CPU/MCU usage in per-mille (0–1000).
     [[nodiscard]] std::uint16_t load() const noexcept {
         return ros_mavros_sys_status_get_load(handle());
     }
+    /// Battery voltage in millivolts (mV). UINT16_MAX if unknown.
     [[nodiscard]] std::uint16_t voltage_battery() const noexcept {
         return ros_mavros_sys_status_get_voltage_battery(handle());
     }
+    /// Battery current in centi-amperes (cA, 10 mA steps). -1 if unknown.
     [[nodiscard]] std::int16_t current_battery() const noexcept {
         return ros_mavros_sys_status_get_current_battery(handle());
     }
+    /// Battery remaining, 0–100 (%). -1 if not estimated.
     [[nodiscard]] std::int8_t battery_remaining() const noexcept {
         return ros_mavros_sys_status_get_battery_remaining(handle());
     }
+    /// Communication drop rate in per-mille.
     [[nodiscard]] std::uint16_t drop_rate_comm() const noexcept {
         return ros_mavros_sys_status_get_drop_rate_comm(handle());
     }
+    /// Communication error count.
     [[nodiscard]] std::uint16_t errors_comm() const noexcept {
         return ros_mavros_sys_status_get_errors_comm(handle());
     }
+    /// Autopilot-specific error count 1.
     [[nodiscard]] std::uint16_t errors_count1() const noexcept {
         return ros_mavros_sys_status_get_errors_count1(handle());
     }
+    /// Autopilot-specific error count 2.
     [[nodiscard]] std::uint16_t errors_count2() const noexcept {
         return ros_mavros_sys_status_get_errors_count2(handle());
     }
+    /// Autopilot-specific error count 3.
     [[nodiscard]] std::uint16_t errors_count3() const noexcept {
         return ros_mavros_sys_status_get_errors_count3(handle());
     }
+    /// Autopilot-specific error count 4.
     [[nodiscard]] std::uint16_t errors_count4() const noexcept {
         return ros_mavros_sys_status_get_errors_count4(handle());
     }
@@ -6099,6 +6116,10 @@ public:
 };
 
 /// @brief Zero-copy view of a mavros_msgs/GPSRAW CDR buffer.
+///
+/// Field units follow the raw MAVLink GPS_RAW_INT message definition —
+/// no conversions are applied.
+/// @see https://mavlink.io/en/messages/common.html#GPS_RAW_INT
 class MavrosGpsRawView : public detail::ViewBase<MavrosGpsRawView, detail::MavrosGpsRawTraits> {
     using Base = detail::ViewBase<MavrosGpsRawView, detail::MavrosGpsRawTraits>;
     friend Base;
@@ -6124,54 +6145,71 @@ public:
     [[nodiscard]] std::string_view frame_id() const noexcept {
         return ros_mavros_gps_raw_get_frame_id(handle());
     }
+    /// GPS fix type (see GPS_FIX_TYPE_* constants).
     [[nodiscard]] std::uint8_t fix_type() const noexcept {
         return ros_mavros_gps_raw_get_fix_type(handle());
     }
+    /// Latitude in degrees * 1e7 (degE7).
     [[nodiscard]] std::int32_t lat() const noexcept {
         return ros_mavros_gps_raw_get_lat(handle());
     }
+    /// Longitude in degrees * 1e7 (degE7).
     [[nodiscard]] std::int32_t lon() const noexcept {
         return ros_mavros_gps_raw_get_lon(handle());
     }
+    /// Altitude above MSL in millimetres (mm).
     [[nodiscard]] std::int32_t alt() const noexcept {
         return ros_mavros_gps_raw_get_alt(handle());
     }
+    /// GPS HDOP in cm. UINT16_MAX if unknown.
     [[nodiscard]] std::uint16_t eph() const noexcept {
         return ros_mavros_gps_raw_get_eph(handle());
     }
+    /// GPS VDOP in cm. UINT16_MAX if unknown.
     [[nodiscard]] std::uint16_t epv() const noexcept {
         return ros_mavros_gps_raw_get_epv(handle());
     }
+    /// GPS ground speed in cm/s. UINT16_MAX if unknown.
     [[nodiscard]] std::uint16_t vel() const noexcept {
         return ros_mavros_gps_raw_get_vel(handle());
     }
+    /// Course over ground in centidegrees (0-35999). UINT16_MAX if unknown.
     [[nodiscard]] std::uint16_t cog() const noexcept {
         return ros_mavros_gps_raw_get_cog(handle());
     }
+    /// Number of satellites visible. UINT8_MAX if unknown.
     [[nodiscard]] std::uint8_t satellites_visible() const noexcept {
         return ros_mavros_gps_raw_get_satellites_visible(handle());
     }
+    /// Altitude above WGS84 ellipsoid in millimetres (mm).
     [[nodiscard]] std::int32_t alt_ellipsoid() const noexcept {
         return ros_mavros_gps_raw_get_alt_ellipsoid(handle());
     }
+    /// Horizontal position uncertainty in millimetres (mm).
     [[nodiscard]] std::uint32_t h_acc() const noexcept {
         return ros_mavros_gps_raw_get_h_acc(handle());
     }
+    /// Vertical position uncertainty in millimetres (mm).
     [[nodiscard]] std::uint32_t v_acc() const noexcept {
         return ros_mavros_gps_raw_get_v_acc(handle());
     }
+    /// Speed uncertainty in mm/s.
     [[nodiscard]] std::uint32_t vel_acc() const noexcept {
         return ros_mavros_gps_raw_get_vel_acc(handle());
     }
+    /// Heading uncertainty in centidegrees.
     [[nodiscard]] std::int32_t hdg_acc() const noexcept {
         return ros_mavros_gps_raw_get_hdg_acc(handle());
     }
+    /// Yaw in centidegrees. 0 if unknown.
     [[nodiscard]] std::uint16_t yaw() const noexcept {
         return ros_mavros_gps_raw_get_yaw(handle());
     }
+    /// Number of DGPS satellites.
     [[nodiscard]] std::uint8_t dgps_numch() const noexcept {
         return ros_mavros_gps_raw_get_dgps_numch(handle());
     }
+    /// Age of DGPS correction in milliseconds (ms).
     [[nodiscard]] std::uint32_t dgps_age() const noexcept {
         return ros_mavros_gps_raw_get_dgps_age(handle());
     }
