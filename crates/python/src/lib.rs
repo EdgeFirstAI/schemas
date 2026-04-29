@@ -182,6 +182,21 @@ fn buffer_as_bytes(obj: &Bound<'_, PyAny>) -> PyResult<(BufferGuard, *const u8, 
     Ok((BufferGuard { _owned: owned }, ptr, len))
 }
 
+/// Copy bytes from a Python buffer-protocol object while holding the GIL.
+///
+/// This ensures safety with mutable sources (bytearray, memoryview):
+/// the GIL prevents other Python threads from mutating the buffer while
+/// we copy. For immutable `bytes` inputs this is still a memcpy — a
+/// future `PyBuf` zero-copy path can avoid this for readonly sources.
+fn copy_buffer(buf: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
+    let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
+    // Safety: buffer is locked via buffer protocol and GIL is held,
+    // so no other Python thread can mutate or deallocate the memory.
+    let owned = unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec();
+    drop(pybuf);
+    Ok(owned)
+}
+
 // ── BorrowedBuf — buffer-protocol view with parent lifetime ─────────
 
 /// A read-only byte view that exposes a slice of a parent message's CDR
@@ -367,20 +382,17 @@ struct BufferViewState {
 /// Common helper used by every CdrFixed pyclass for the round-trip
 /// encode/decode pair so we don't repeat the boilerplate per type.
 ///
-/// `T: Send` is required because the closure passed to `py.detach()` runs
-/// without the GIL and the result has to cross that boundary; every
-/// `CdrFixed` we wrap is `Copy + 'static`, so this bound is satisfied
-/// trivially.
-fn cdrfixed_decode<T: edgefirst_schemas::cdr::CdrFixed + Send>(
-    py: Python<'_>,
+/// Decode a small fixed-size CdrFixed type from a Python buffer.
+/// These are tiny (8–56 bytes), so we decode under the GIL without
+/// releasing it — the buffer protocol lock prevents races.
+fn cdrfixed_decode<T: edgefirst_schemas::cdr::CdrFixed>(
+    _py: Python<'_>,
     buf: &Bound<'_, PyAny>,
 ) -> PyResult<T> {
     let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-    let ptr_addr = ptr as usize;
-    let val = py.detach(|| {
-        let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-        decode_fixed::<T>(slice)
-    });
+    // Safety: buffer locked via protocol, GIL held — no races possible.
+    let slice = unsafe { std::slice::from_raw_parts(ptr, len) };
+    let val = decode_fixed::<T>(slice);
     drop(pybuf);
     val.map_err(map_cdr_err)
 }
@@ -935,16 +947,10 @@ impl PyHeader {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = Header::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -1013,17 +1019,12 @@ impl PyImage {
         step: u32,
         data: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(data)?;
-        let ptr_addr = ptr as usize;
+        let data_owned = copy_buffer(data)?;
         let stamp = header.inner.stamp();
         let frame_id = header.inner.frame_id().to_string();
         let encoding_owned = encoding.to_string();
 
-        // Build with GIL released: the only Python-managed memory we touch
-        // is the source buffer (kept alive by `pybuf`) and the source frame_id
-        // string (already cloned). The destination Vec<u8> is Rust-owned.
         let inner = py.detach(move || {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
             Image::builder()
                 .stamp(stamp)
                 .frame_id(frame_id.as_str())
@@ -1032,10 +1033,9 @@ impl PyImage {
                 .encoding(encoding_owned.as_str())
                 .is_bigendian(is_bigendian)
                 .step(step)
-                .data(slice)
+                .data(&data_owned)
                 .build()
         });
-        drop(pybuf);
         let inner = inner.map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -1045,16 +1045,10 @@ impl PyImage {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = Image::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -1378,22 +1372,19 @@ impl PyCompressedImage {
         format: &str,
         data: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(data)?;
-        let ptr_addr = ptr as usize;
+        let data_owned = copy_buffer(data)?;
         let stamp = header.inner.stamp();
         let frame_id = header.inner.frame_id().to_string();
         let format_owned = format.to_string();
 
         let inner = py.detach(move || {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
             CompressedImage::builder()
                 .stamp(stamp)
                 .frame_id(frame_id.as_str())
                 .format(format_owned.as_str())
-                .data(slice)
+                .data(&data_owned)
                 .build()
         });
-        drop(pybuf);
         let inner = inner.map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -1401,16 +1392,10 @@ impl PyCompressedImage {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = CompressedImage::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -1483,22 +1468,19 @@ impl PyMask {
         mask: &Bound<'_, PyAny>,
         boxed: bool,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(mask)?;
-        let ptr_addr = ptr as usize;
+        let mask_owned = copy_buffer(mask)?;
         let encoding_owned = encoding.to_string();
 
         let inner = py.detach(move || {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
             Mask::builder()
                 .height(height)
                 .width(width)
                 .length(length)
                 .encoding(encoding_owned.as_str())
-                .mask(slice)
+                .mask(&mask_owned)
                 .boxed(boxed)
                 .build()
         });
-        drop(pybuf);
         let inner = inner.map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -1506,16 +1488,10 @@ impl PyMask {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = Mask::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -1619,16 +1595,10 @@ impl PyDmaBuffer {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = DmaBuffer::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -1720,7 +1690,7 @@ impl PyRadarCube {
         cube: &Bound<'_, PyAny>,
         is_complex: bool,
     ) -> PyResult<Self> {
-        let (lbuf, lptr, llen) = buffer_as_bytes(layout)?;
+        let layout_owned = copy_buffer(layout)?;
         let (sbuf, sptr, slen_bytes) = buffer_as_bytes(shape)?;
         let (scbuf, scptr, sclen_bytes) = buffer_as_bytes(scales)?;
         let (cbuf, cptr, clen_bytes) = buffer_as_bytes(cube)?;
@@ -1741,39 +1711,32 @@ impl PyRadarCube {
             ));
         }
 
-        let lptr_addr = lptr as usize;
-        let sptr_addr = sptr as usize;
-        let scptr_addr = scptr as usize;
-        let cptr_addr = cptr as usize;
+        // Copy typed buffers under GIL for safety
+        let shape_owned: Vec<u16> =
+            unsafe { std::slice::from_raw_parts(sptr as *const u16, slen_bytes / 2) }.to_vec();
+        let scales_owned: Vec<f32> =
+            unsafe { std::slice::from_raw_parts(scptr as *const f32, sclen_bytes / 4) }.to_vec();
+        let cube_owned: Vec<i16> =
+            unsafe { std::slice::from_raw_parts(cptr as *const i16, clen_bytes / 2) }.to_vec();
+        drop(sbuf);
+        drop(scbuf);
+        drop(cbuf);
+
         let stamp = header.inner.stamp();
         let frame_id = header.inner.frame_id().to_string();
-        let shape_count = slen_bytes / 2;
-        let scales_count = sclen_bytes / 4;
-        let cube_count = clen_bytes / 2;
 
         let inner = py.detach(move || {
-            let layout_slice = unsafe { std::slice::from_raw_parts(lptr_addr as *const u8, llen) };
-            let shape_slice =
-                unsafe { std::slice::from_raw_parts(sptr_addr as *const u16, shape_count) };
-            let scales_slice =
-                unsafe { std::slice::from_raw_parts(scptr_addr as *const f32, scales_count) };
-            let cube_slice =
-                unsafe { std::slice::from_raw_parts(cptr_addr as *const i16, cube_count) };
             RadarCube::builder()
                 .stamp(stamp)
                 .frame_id(frame_id.as_str())
                 .timestamp(timestamp)
-                .layout(layout_slice)
-                .shape(shape_slice)
-                .scales(scales_slice)
-                .cube(cube_slice)
+                .layout(&layout_owned)
+                .shape(&shape_owned)
+                .scales(&scales_owned)
+                .cube(&cube_owned)
                 .is_complex(is_complex)
                 .build()
         });
-        drop(lbuf);
-        drop(sbuf);
-        drop(scbuf);
-        drop(cbuf);
         let inner = inner.map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -1781,16 +1744,10 @@ impl PyRadarCube {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = RadarCube::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -1971,8 +1928,7 @@ impl PyPointCloud2 {
         data: &Bound<'_, PyAny>,
         is_dense: bool,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(data)?;
-        let ptr_addr = ptr as usize;
+        let data_owned = copy_buffer(data)?;
         let stamp = header.inner.stamp();
         let frame_id = header.inner.frame_id().to_string();
 
@@ -1991,7 +1947,6 @@ impl PyPointCloud2 {
         let field_views_len = field_views.len();
 
         let inner = py.detach(move || {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
             let fields_slice = unsafe {
                 std::slice::from_raw_parts(
                     field_views_ptr as *const PointFieldView<'_>,
@@ -2007,11 +1962,10 @@ impl PyPointCloud2 {
                 .is_bigendian(is_bigendian)
                 .point_step(point_step)
                 .row_step(row_step)
-                .data(slice)
+                .data(&data_owned)
                 .is_dense(is_dense)
                 .build()
         });
-        drop(pybuf);
         // Keep `fields` alive past the closure boundary: Vec dropped here.
         drop(field_views);
         drop(fields);
@@ -2022,16 +1976,10 @@ impl PyPointCloud2 {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = PointCloud2::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -2142,22 +2090,19 @@ impl PyFoxgloveCompressedVideo {
         data: &Bound<'_, PyAny>,
         format: &str,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(data)?;
-        let ptr_addr = ptr as usize;
+        let data_owned = copy_buffer(data)?;
         let stamp = timestamp.0;
         let frame_id_owned = frame_id.to_string();
         let format_owned = format.to_string();
 
         let inner = py.detach(move || {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
             FoxgloveCompressedVideo::builder()
                 .stamp(stamp)
                 .frame_id(frame_id_owned.as_str())
-                .data(slice)
+                .data(&data_owned)
                 .format(format_owned.as_str())
                 .build()
         });
-        drop(pybuf);
         let inner = inner.map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -2165,16 +2110,10 @@ impl PyFoxgloveCompressedVideo {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = FoxgloveCompressedVideo::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -2515,16 +2454,10 @@ macro_rules! stamped_boilerplate {
             #[classmethod]
             fn from_cdr(
                 _cls: &Bound<'_, PyType>,
-                py: Python<'_>,
+                _py: Python<'_>,
                 buf: &Bound<'_, PyAny>,
             ) -> PyResult<Self> {
-                let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-                let ptr_addr = ptr as usize;
-                let owned: Vec<u8> = py.detach(|| {
-                    let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-                    slice.to_vec()
-                });
-                drop(pybuf);
+                let owned = copy_buffer(buf)?;
                 let inner = $rust_ty::from_cdr(owned).map_err(map_cdr_err)?;
                 Ok(Self { inner })
             }
@@ -2680,16 +2613,10 @@ impl PyTransformStamped {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = TransformStamped::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -2792,16 +2719,10 @@ impl PyImu {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = Imu::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -2900,16 +2821,10 @@ impl PyNavSatFix {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = NavSatFix::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -2997,16 +2912,10 @@ impl PyMagneticField {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = MagneticField::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -3067,16 +2976,10 @@ impl PyFluidPressure {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = FluidPressure::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -3133,16 +3036,10 @@ impl PyTemperature {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = Temperature::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -3242,16 +3139,10 @@ impl PyCameraInfo {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = CameraInfo::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -3414,16 +3305,10 @@ impl PyBatteryState {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = BatteryState::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -3566,16 +3451,10 @@ impl PyOdometry {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = Odometry::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -3661,16 +3540,10 @@ impl PyLocalTime {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = LocalTime::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -3729,16 +3602,10 @@ impl PyTrack {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = Track::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -3805,16 +3672,10 @@ impl PyRadarInfo {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = RadarInfo::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -3913,16 +3774,10 @@ impl PyVibration {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = Vibration::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -4029,16 +3884,10 @@ impl PyModelInfo {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = ModelInfo::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -4287,16 +4136,10 @@ impl PyDetect {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = Detect::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -4503,16 +4346,10 @@ impl PyCameraFrame {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = CameraFrame::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -4730,16 +4567,10 @@ impl PyModel {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = Model::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -5012,16 +4843,10 @@ impl PyFoxgloveTextAnnotation {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = FoxgloveTextAnnotation::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -5124,16 +4949,10 @@ impl PyFoxglovePointAnnotation {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = FoxglovePointAnnotation::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -5292,16 +5111,10 @@ impl PyFoxgloveImageAnnotation {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = FoxgloveImageAnnotation::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -5379,11 +5192,7 @@ impl PyMavrosAltitude {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        // Safety: buffer is locked via PyBuffer protocol; copy while
-        // holding the GIL prevents races with mutable buffers.
-        let owned = unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec();
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = MavAltitude::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -5467,11 +5276,7 @@ impl PyMavrosVfrHud {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        // Safety: buffer is locked via PyBuffer protocol; copy while
-        // holding the GIL prevents races with mutable buffers.
-        let owned = unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec();
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = VfrHud::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -5571,11 +5376,7 @@ impl PyMavrosEstimatorStatus {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        // Safety: buffer is locked via PyBuffer protocol; copy while
-        // holding the GIL prevents races with mutable buffers.
-        let owned = unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec();
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = EstimatorStatus::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -5698,11 +5499,7 @@ impl PyMavrosExtendedState {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        // Safety: buffer is locked via PyBuffer protocol; copy while
-        // holding the GIL prevents races with mutable buffers.
-        let owned = unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec();
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = ExtendedState::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -5784,11 +5581,7 @@ impl PyMavrosSysStatus {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        // Safety: buffer is locked via PyBuffer protocol; copy while
-        // holding the GIL prevents races with mutable buffers.
-        let owned = unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec();
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = SysStatus::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -5919,11 +5712,7 @@ impl PyMavrosState {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        // Safety: buffer is locked via PyBuffer protocol; copy while
-        // holding the GIL prevents races with mutable buffers.
-        let owned = unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec();
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = MavState::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -6012,11 +5801,7 @@ impl PyMavrosStatusText {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        // Safety: buffer is locked via PyBuffer protocol; copy while
-        // holding the GIL prevents races with mutable buffers.
-        let owned = unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec();
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = StatusText::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -6125,11 +5910,7 @@ impl PyMavrosGpsRaw {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        // Safety: buffer is locked via PyBuffer protocol; copy while
-        // holding the GIL prevents races with mutable buffers.
-        let owned = unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec();
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = GpsRaw::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
@@ -6257,11 +6038,7 @@ impl PyMavrosTimesyncStatus {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        // Safety: buffer is locked via PyBuffer protocol; copy while
-        // holding the GIL prevents races with mutable buffers.
-        let owned = unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec();
-        drop(pybuf);
+        let owned = copy_buffer(buf)?;
         let inner = TimesyncStatus::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
