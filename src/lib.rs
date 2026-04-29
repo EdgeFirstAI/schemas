@@ -39,6 +39,9 @@ pub mod sensor_msgs;
 /// ROS 2 standard message types (Header, ColorRGBA).
 pub mod std_msgs;
 
+/// MAVLink/MAVROS message types.
+pub mod mavros_msgs;
+
 /// ROS 2 builtin interfaces (Time, Duration).
 pub mod builtin_interfaces;
 /// ROS 2 rosgraph messages (Clock).

@@ -23,8 +23,8 @@
 //! ```
 
 use crate::{
-    builtin_interfaces, edgefirst_msgs, foxglove_msgs, geometry_msgs, nav_msgs, sensor_msgs,
-    std_msgs,
+    builtin_interfaces, edgefirst_msgs, foxglove_msgs, geometry_msgs, mavros_msgs, nav_msgs,
+    sensor_msgs, std_msgs,
 };
 
 /// Trait for types that have a schema name.
@@ -91,6 +91,7 @@ pub fn is_supported(schema: &str) -> bool {
         "sensor_msgs" => sensor_msgs::is_type_supported(type_name),
         "foxglove_msgs" => foxglove_msgs::is_type_supported(type_name),
         "edgefirst_msgs" => edgefirst_msgs::is_type_supported(type_name),
+        "mavros_msgs" => mavros_msgs::is_type_supported(type_name),
         _ => false,
     }
 }
@@ -108,6 +109,7 @@ pub fn list_schemas() -> Vec<&'static str> {
     schemas.extend(sensor_msgs::list_types().iter().copied());
     schemas.extend(foxglove_msgs::list_types().iter().copied());
     schemas.extend(edgefirst_msgs::list_types().iter().copied());
+    schemas.extend(mavros_msgs::list_types().iter().copied());
 
     schemas
 }

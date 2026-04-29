@@ -753,6 +753,21 @@ pub(crate) fn rd_bool(b: &[u8], pos: usize) -> bool {
 }
 
 #[inline(always)]
+pub(crate) fn rd_i8(b: &[u8], pos: usize) -> i8 {
+    b[pos] as i8
+}
+
+#[inline(always)]
+pub(crate) fn rd_u16(b: &[u8], pos: usize) -> u16 {
+    u16::from_le_bytes([b[pos], b[pos + 1]])
+}
+
+#[inline(always)]
+pub(crate) fn rd_i16(b: &[u8], pos: usize) -> i16 {
+    rd_u16(b, pos) as i16
+}
+
+#[inline(always)]
 pub(crate) fn rd_u32(b: &[u8], pos: usize) -> u32 {
     u32::from_le_bytes(
         b[pos..pos + 4]
@@ -773,6 +788,11 @@ pub(crate) fn rd_u64(b: &[u8], pos: usize) -> u64 {
             .try_into()
             .expect("slice is exactly 8 bytes"),
     )
+}
+
+#[inline(always)]
+pub(crate) fn rd_i64(b: &[u8], pos: usize) -> i64 {
+    rd_u64(b, pos) as i64
 }
 
 #[inline(always)]
@@ -841,6 +861,12 @@ pub(crate) fn wr_u64(b: &mut [u8], pos: usize, v: u64) -> Result<(), CdrError> {
     }
     b[pos..pos + 8].copy_from_slice(&v.to_le_bytes());
     Ok(())
+}
+
+#[inline(always)]
+#[allow(dead_code)]
+pub(crate) fn wr_i64(b: &mut [u8], pos: usize, v: i64) -> Result<(), CdrError> {
+    wr_u64(b, pos, v as u64)
 }
 
 #[inline(always)]

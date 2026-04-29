@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **mavros_msgs namespace** — 9 MAVLink/MAVROS message types with full
+  cross-language support (Rust, C, C++, Python):
+  - `Altitude` — barometric/AMSL/terrain altitude measurements
+  - `VfrHud` — VFR head-up display telemetry (airspeed, heading, climb)
+  - `EstimatorStatus` — EKF estimator health flags (12 boolean indicators)
+  - `ExtendedState` — VTOL and landed state with standard constants
+  - `SysStatus` — system health, sensor status, and power telemetry
+  - `State` — autopilot connection/armed/mode state
+  - `StatusText` — severity-tagged status messages
+  - `GpsRaw` — raw GPS fix data (position, accuracy, satellite count)
+  - `TimesyncStatus` — time synchronization offset and round-trip metrics
+- Schema registry support for all mavros_msgs types (MCAP topic discovery)
+- Python type stubs (`mavros_msgs.pyi`) for IDE auto-completion
+
 ## [3.2.0] - 2026-04-28
 
 ### Changed (BREAKING)

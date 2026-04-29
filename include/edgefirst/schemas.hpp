@@ -1586,6 +1586,78 @@ struct VibrationTraits {
     static constexpr std::string_view name = "ros_vibration";
 };
 
+struct MavrosAltitudeTraits {
+    using handle_type = ros_mavros_altitude_t;
+    static constexpr auto from_cdr = ros_mavros_altitude_from_cdr;
+    static constexpr auto free     = ros_mavros_altitude_free;
+    static constexpr auto as_cdr   = ros_mavros_altitude_as_cdr;
+    static constexpr std::string_view name = "ros_mavros_altitude";
+};
+
+struct MavrosVfrHudTraits {
+    using handle_type = ros_mavros_vfrhud_t;
+    static constexpr auto from_cdr = ros_mavros_vfrhud_from_cdr;
+    static constexpr auto free     = ros_mavros_vfrhud_free;
+    static constexpr auto as_cdr   = ros_mavros_vfrhud_as_cdr;
+    static constexpr std::string_view name = "ros_mavros_vfrhud";
+};
+
+struct MavrosEstimatorStatusTraits {
+    using handle_type = ros_mavros_estimator_status_t;
+    static constexpr auto from_cdr = ros_mavros_estimator_status_from_cdr;
+    static constexpr auto free     = ros_mavros_estimator_status_free;
+    static constexpr auto as_cdr   = ros_mavros_estimator_status_as_cdr;
+    static constexpr std::string_view name = "ros_mavros_estimator_status";
+};
+
+struct MavrosExtendedStateTraits {
+    using handle_type = ros_mavros_extended_state_t;
+    static constexpr auto from_cdr = ros_mavros_extended_state_from_cdr;
+    static constexpr auto free     = ros_mavros_extended_state_free;
+    static constexpr auto as_cdr   = ros_mavros_extended_state_as_cdr;
+    static constexpr std::string_view name = "ros_mavros_extended_state";
+};
+
+struct MavrosSysStatusTraits {
+    using handle_type = ros_mavros_sys_status_t;
+    static constexpr auto from_cdr = ros_mavros_sys_status_from_cdr;
+    static constexpr auto free     = ros_mavros_sys_status_free;
+    static constexpr auto as_cdr   = ros_mavros_sys_status_as_cdr;
+    static constexpr std::string_view name = "ros_mavros_sys_status";
+};
+
+struct MavrosStateTraits {
+    using handle_type = ros_mavros_state_t;
+    static constexpr auto from_cdr = ros_mavros_state_from_cdr;
+    static constexpr auto free     = ros_mavros_state_free;
+    static constexpr auto as_cdr   = ros_mavros_state_as_cdr;
+    static constexpr std::string_view name = "ros_mavros_state";
+};
+
+struct MavrosStatusTextTraits {
+    using handle_type = ros_mavros_status_text_t;
+    static constexpr auto from_cdr = ros_mavros_status_text_from_cdr;
+    static constexpr auto free     = ros_mavros_status_text_free;
+    static constexpr auto as_cdr   = ros_mavros_status_text_as_cdr;
+    static constexpr std::string_view name = "ros_mavros_status_text";
+};
+
+struct MavrosGpsRawTraits {
+    using handle_type = ros_mavros_gps_raw_t;
+    static constexpr auto from_cdr = ros_mavros_gps_raw_from_cdr;
+    static constexpr auto free     = ros_mavros_gps_raw_free;
+    static constexpr auto as_cdr   = ros_mavros_gps_raw_as_cdr;
+    static constexpr std::string_view name = "ros_mavros_gps_raw";
+};
+
+struct MavrosTimesyncStatusTraits {
+    using handle_type = ros_mavros_timesync_status_t;
+    static constexpr auto from_cdr = ros_mavros_timesync_status_from_cdr;
+    static constexpr auto free     = ros_mavros_timesync_status_free;
+    static constexpr auto as_cdr   = ros_mavros_timesync_status_as_cdr;
+    static constexpr std::string_view name = "ros_mavros_timesync_status";
+};
+
 // ---------------------------------------------------------------------------
 // Builder traits structs — one per C builder type
 // ---------------------------------------------------------------------------
@@ -5721,6 +5793,455 @@ public:
         if (ros_foxglove_image_annotation_builder_set_texts(ptr(), t.data(), t.size()) != 0)
             return unexpected<Error>(Error::from_errno("ros_foxglove_image_annotation_builder_set_texts"));
         return {};
+    }
+};
+
+// =============================================================================
+// mavros_msgs View classes
+// =============================================================================
+
+/// @brief Zero-copy view of a mavros_msgs/Altitude CDR buffer.
+class MavrosAltitudeView : public detail::ViewBase<MavrosAltitudeView, detail::MavrosAltitudeTraits> {
+    using Base = detail::ViewBase<MavrosAltitudeView, detail::MavrosAltitudeTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_mavros_altitude_get_stamp_sec(handle()),
+                ros_mavros_altitude_get_stamp_nanosec(handle())};
+    }
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_mavros_altitude_get_frame_id(handle());
+    }
+    [[nodiscard]] float monotonic() const noexcept {
+        return ros_mavros_altitude_get_monotonic(handle());
+    }
+    [[nodiscard]] float amsl() const noexcept {
+        return ros_mavros_altitude_get_amsl(handle());
+    }
+    [[nodiscard]] float local() const noexcept {
+        return ros_mavros_altitude_get_local(handle());
+    }
+    [[nodiscard]] float relative() const noexcept {
+        return ros_mavros_altitude_get_relative(handle());
+    }
+    [[nodiscard]] float terrain() const noexcept {
+        return ros_mavros_altitude_get_terrain(handle());
+    }
+    [[nodiscard]] float bottom_clearance() const noexcept {
+        return ros_mavros_altitude_get_bottom_clearance(handle());
+    }
+};
+
+/// @brief Zero-copy view of a mavros_msgs/VfrHud CDR buffer.
+class MavrosVfrHudView : public detail::ViewBase<MavrosVfrHudView, detail::MavrosVfrHudTraits> {
+    using Base = detail::ViewBase<MavrosVfrHudView, detail::MavrosVfrHudTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_mavros_vfrhud_get_stamp_sec(handle()),
+                ros_mavros_vfrhud_get_stamp_nanosec(handle())};
+    }
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_mavros_vfrhud_get_frame_id(handle());
+    }
+    [[nodiscard]] float airspeed() const noexcept {
+        return ros_mavros_vfrhud_get_airspeed(handle());
+    }
+    [[nodiscard]] float groundspeed() const noexcept {
+        return ros_mavros_vfrhud_get_groundspeed(handle());
+    }
+    [[nodiscard]] std::int16_t heading() const noexcept {
+        return ros_mavros_vfrhud_get_heading(handle());
+    }
+    [[nodiscard]] float throttle() const noexcept {
+        return ros_mavros_vfrhud_get_throttle(handle());
+    }
+    [[nodiscard]] float altitude() const noexcept {
+        return ros_mavros_vfrhud_get_altitude(handle());
+    }
+    [[nodiscard]] float climb() const noexcept {
+        return ros_mavros_vfrhud_get_climb(handle());
+    }
+};
+
+/// @brief Zero-copy view of a mavros_msgs/EstimatorStatus CDR buffer.
+class MavrosEstimatorStatusView : public detail::ViewBase<MavrosEstimatorStatusView, detail::MavrosEstimatorStatusTraits> {
+    using Base = detail::ViewBase<MavrosEstimatorStatusView, detail::MavrosEstimatorStatusTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_mavros_estimator_status_get_stamp_sec(handle()),
+                ros_mavros_estimator_status_get_stamp_nanosec(handle())};
+    }
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_mavros_estimator_status_get_frame_id(handle());
+    }
+    [[nodiscard]] bool attitude_status_flag() const noexcept {
+        return ros_mavros_estimator_status_get_attitude_status_flag(handle());
+    }
+    [[nodiscard]] bool velocity_horiz_status_flag() const noexcept {
+        return ros_mavros_estimator_status_get_velocity_horiz_status_flag(handle());
+    }
+    [[nodiscard]] bool velocity_vert_status_flag() const noexcept {
+        return ros_mavros_estimator_status_get_velocity_vert_status_flag(handle());
+    }
+    [[nodiscard]] bool pos_horiz_rel_status_flag() const noexcept {
+        return ros_mavros_estimator_status_get_pos_horiz_rel_status_flag(handle());
+    }
+    [[nodiscard]] bool pos_horiz_abs_status_flag() const noexcept {
+        return ros_mavros_estimator_status_get_pos_horiz_abs_status_flag(handle());
+    }
+    [[nodiscard]] bool pos_vert_abs_status_flag() const noexcept {
+        return ros_mavros_estimator_status_get_pos_vert_abs_status_flag(handle());
+    }
+    [[nodiscard]] bool pos_vert_agl_status_flag() const noexcept {
+        return ros_mavros_estimator_status_get_pos_vert_agl_status_flag(handle());
+    }
+    [[nodiscard]] bool const_pos_mode_status_flag() const noexcept {
+        return ros_mavros_estimator_status_get_const_pos_mode_status_flag(handle());
+    }
+    [[nodiscard]] bool pred_pos_horiz_rel_status_flag() const noexcept {
+        return ros_mavros_estimator_status_get_pred_pos_horiz_rel_status_flag(handle());
+    }
+    [[nodiscard]] bool pred_pos_horiz_abs_status_flag() const noexcept {
+        return ros_mavros_estimator_status_get_pred_pos_horiz_abs_status_flag(handle());
+    }
+    [[nodiscard]] bool gps_glitch_status_flag() const noexcept {
+        return ros_mavros_estimator_status_get_gps_glitch_status_flag(handle());
+    }
+    [[nodiscard]] bool accel_error_status_flag() const noexcept {
+        return ros_mavros_estimator_status_get_accel_error_status_flag(handle());
+    }
+};
+
+/// @brief Zero-copy view of a mavros_msgs/ExtendedState CDR buffer.
+class MavrosExtendedStateView : public detail::ViewBase<MavrosExtendedStateView, detail::MavrosExtendedStateTraits> {
+    using Base = detail::ViewBase<MavrosExtendedStateView, detail::MavrosExtendedStateTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    static constexpr std::uint8_t VTOL_STATE_UNDEFINED        = 0;
+    static constexpr std::uint8_t VTOL_STATE_TRANSITION_TO_FW = 1;
+    static constexpr std::uint8_t VTOL_STATE_TRANSITION_TO_MC = 2;
+    static constexpr std::uint8_t VTOL_STATE_MC               = 3;
+    static constexpr std::uint8_t VTOL_STATE_FW               = 4;
+
+    static constexpr std::uint8_t LANDED_STATE_UNDEFINED  = 0;
+    static constexpr std::uint8_t LANDED_STATE_ON_GROUND  = 1;
+    static constexpr std::uint8_t LANDED_STATE_IN_AIR     = 2;
+    static constexpr std::uint8_t LANDED_STATE_TAKEOFF    = 3;
+    static constexpr std::uint8_t LANDED_STATE_LANDING    = 4;
+
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_mavros_extended_state_get_stamp_sec(handle()),
+                ros_mavros_extended_state_get_stamp_nanosec(handle())};
+    }
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_mavros_extended_state_get_frame_id(handle());
+    }
+    [[nodiscard]] std::uint8_t vtol_state() const noexcept {
+        return ros_mavros_extended_state_get_vtol_state(handle());
+    }
+    [[nodiscard]] std::uint8_t landed_state() const noexcept {
+        return ros_mavros_extended_state_get_landed_state(handle());
+    }
+};
+
+/// @brief Zero-copy view of a mavros_msgs/SysStatus CDR buffer.
+///
+/// Field units follow the raw MAVLink SYS_STATUS message definition —
+/// no conversions are applied.
+/// @see https://mavlink.io/en/messages/common.html#SYS_STATUS
+class MavrosSysStatusView : public detail::ViewBase<MavrosSysStatusView, detail::MavrosSysStatusTraits> {
+    using Base = detail::ViewBase<MavrosSysStatusView, detail::MavrosSysStatusTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_mavros_sys_status_get_stamp_sec(handle()),
+                ros_mavros_sys_status_get_stamp_nanosec(handle())};
+    }
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_mavros_sys_status_get_frame_id(handle());
+    }
+    /// Bitmask of onboard sensors present.
+    [[nodiscard]] std::uint32_t sensors_present() const noexcept {
+        return ros_mavros_sys_status_get_sensors_present(handle());
+    }
+    /// Bitmask of onboard sensors enabled.
+    [[nodiscard]] std::uint32_t sensors_enabled() const noexcept {
+        return ros_mavros_sys_status_get_sensors_enabled(handle());
+    }
+    /// Bitmask of onboard sensors reporting healthy.
+    [[nodiscard]] std::uint32_t sensors_health() const noexcept {
+        return ros_mavros_sys_status_get_sensors_health(handle());
+    }
+    /// Maximum CPU/MCU usage in per-mille (0–1000).
+    [[nodiscard]] std::uint16_t load() const noexcept {
+        return ros_mavros_sys_status_get_load(handle());
+    }
+    /// Battery voltage in millivolts (mV). UINT16_MAX if unknown.
+    [[nodiscard]] std::uint16_t voltage_battery() const noexcept {
+        return ros_mavros_sys_status_get_voltage_battery(handle());
+    }
+    /// Battery current in centi-amperes (cA, 10 mA steps). -1 if unknown.
+    [[nodiscard]] std::int16_t current_battery() const noexcept {
+        return ros_mavros_sys_status_get_current_battery(handle());
+    }
+    /// Battery remaining, 0–100 (%). -1 if not estimated.
+    [[nodiscard]] std::int8_t battery_remaining() const noexcept {
+        return ros_mavros_sys_status_get_battery_remaining(handle());
+    }
+    /// Communication drop rate in per-mille.
+    [[nodiscard]] std::uint16_t drop_rate_comm() const noexcept {
+        return ros_mavros_sys_status_get_drop_rate_comm(handle());
+    }
+    /// Communication error count.
+    [[nodiscard]] std::uint16_t errors_comm() const noexcept {
+        return ros_mavros_sys_status_get_errors_comm(handle());
+    }
+    /// Autopilot-specific error count 1.
+    [[nodiscard]] std::uint16_t errors_count1() const noexcept {
+        return ros_mavros_sys_status_get_errors_count1(handle());
+    }
+    /// Autopilot-specific error count 2.
+    [[nodiscard]] std::uint16_t errors_count2() const noexcept {
+        return ros_mavros_sys_status_get_errors_count2(handle());
+    }
+    /// Autopilot-specific error count 3.
+    [[nodiscard]] std::uint16_t errors_count3() const noexcept {
+        return ros_mavros_sys_status_get_errors_count3(handle());
+    }
+    /// Autopilot-specific error count 4.
+    [[nodiscard]] std::uint16_t errors_count4() const noexcept {
+        return ros_mavros_sys_status_get_errors_count4(handle());
+    }
+};
+
+/// @brief Zero-copy view of a mavros_msgs/State CDR buffer.
+class MavrosStateView : public detail::ViewBase<MavrosStateView, detail::MavrosStateTraits> {
+    using Base = detail::ViewBase<MavrosStateView, detail::MavrosStateTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    static constexpr std::uint8_t MAV_STATE_UNINIT             = 0;
+    static constexpr std::uint8_t MAV_STATE_BOOT               = 1;
+    static constexpr std::uint8_t MAV_STATE_CALIBRATING        = 2;
+    static constexpr std::uint8_t MAV_STATE_STANDBY            = 3;
+    static constexpr std::uint8_t MAV_STATE_ACTIVE             = 4;
+    static constexpr std::uint8_t MAV_STATE_CRITICAL           = 5;
+    static constexpr std::uint8_t MAV_STATE_EMERGENCY          = 6;
+    static constexpr std::uint8_t MAV_STATE_POWEROFF           = 7;
+    static constexpr std::uint8_t MAV_STATE_FLIGHT_TERMINATION = 8;
+
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_mavros_state_get_stamp_sec(handle()),
+                ros_mavros_state_get_stamp_nanosec(handle())};
+    }
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_mavros_state_get_frame_id(handle());
+    }
+    [[nodiscard]] bool connected() const noexcept {
+        return ros_mavros_state_get_connected(handle());
+    }
+    [[nodiscard]] bool armed() const noexcept {
+        return ros_mavros_state_get_armed(handle());
+    }
+    [[nodiscard]] bool guided() const noexcept {
+        return ros_mavros_state_get_guided(handle());
+    }
+    [[nodiscard]] bool manual_input() const noexcept {
+        return ros_mavros_state_get_manual_input(handle());
+    }
+    [[nodiscard]] std::string_view mode() const noexcept {
+        return ros_mavros_state_get_mode(handle());
+    }
+    [[nodiscard]] std::uint8_t system_status() const noexcept {
+        return ros_mavros_state_get_system_status(handle());
+    }
+};
+
+/// @brief Zero-copy view of a mavros_msgs/StatusText CDR buffer.
+class MavrosStatusTextView : public detail::ViewBase<MavrosStatusTextView, detail::MavrosStatusTextTraits> {
+    using Base = detail::ViewBase<MavrosStatusTextView, detail::MavrosStatusTextTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    static constexpr std::uint8_t SEVERITY_EMERGENCY = 0;
+    static constexpr std::uint8_t SEVERITY_ALERT     = 1;
+    static constexpr std::uint8_t SEVERITY_CRITICAL  = 2;
+    static constexpr std::uint8_t SEVERITY_ERROR     = 3;
+    static constexpr std::uint8_t SEVERITY_WARNING   = 4;
+    static constexpr std::uint8_t SEVERITY_NOTICE    = 5;
+    static constexpr std::uint8_t SEVERITY_INFO      = 6;
+    static constexpr std::uint8_t SEVERITY_DEBUG     = 7;
+
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_mavros_status_text_get_stamp_sec(handle()),
+                ros_mavros_status_text_get_stamp_nanosec(handle())};
+    }
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_mavros_status_text_get_frame_id(handle());
+    }
+    [[nodiscard]] std::uint8_t severity() const noexcept {
+        return ros_mavros_status_text_get_severity(handle());
+    }
+    [[nodiscard]] std::string_view text() const noexcept {
+        return ros_mavros_status_text_get_text(handle());
+    }
+};
+
+/// @brief Zero-copy view of a mavros_msgs/GPSRAW CDR buffer.
+///
+/// Field units follow the raw MAVLink GPS_RAW_INT message definition —
+/// no conversions are applied.
+/// @see https://mavlink.io/en/messages/common.html#GPS_RAW_INT
+class MavrosGpsRawView : public detail::ViewBase<MavrosGpsRawView, detail::MavrosGpsRawTraits> {
+    using Base = detail::ViewBase<MavrosGpsRawView, detail::MavrosGpsRawTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    static constexpr std::uint8_t GPS_FIX_TYPE_NO_GPS    = 0;
+    static constexpr std::uint8_t GPS_FIX_TYPE_NO_FIX    = 1;
+    static constexpr std::uint8_t GPS_FIX_TYPE_2D_FIX    = 2;
+    static constexpr std::uint8_t GPS_FIX_TYPE_3D_FIX    = 3;
+    static constexpr std::uint8_t GPS_FIX_TYPE_DGPS      = 4;
+    static constexpr std::uint8_t GPS_FIX_TYPE_RTK_FLOAT = 5;
+    static constexpr std::uint8_t GPS_FIX_TYPE_RTK_FIXED = 6;
+    static constexpr std::uint8_t GPS_FIX_TYPE_STATIC    = 7;
+    static constexpr std::uint8_t GPS_FIX_TYPE_PPP       = 8;
+
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_mavros_gps_raw_get_stamp_sec(handle()),
+                ros_mavros_gps_raw_get_stamp_nanosec(handle())};
+    }
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_mavros_gps_raw_get_frame_id(handle());
+    }
+    /// GPS fix type (see GPS_FIX_TYPE_* constants).
+    [[nodiscard]] std::uint8_t fix_type() const noexcept {
+        return ros_mavros_gps_raw_get_fix_type(handle());
+    }
+    /// Latitude in degrees * 1e7 (degE7).
+    [[nodiscard]] std::int32_t lat() const noexcept {
+        return ros_mavros_gps_raw_get_lat(handle());
+    }
+    /// Longitude in degrees * 1e7 (degE7).
+    [[nodiscard]] std::int32_t lon() const noexcept {
+        return ros_mavros_gps_raw_get_lon(handle());
+    }
+    /// Altitude above MSL in millimetres (mm).
+    [[nodiscard]] std::int32_t alt() const noexcept {
+        return ros_mavros_gps_raw_get_alt(handle());
+    }
+    /// GPS HDOP in cm. UINT16_MAX if unknown.
+    [[nodiscard]] std::uint16_t eph() const noexcept {
+        return ros_mavros_gps_raw_get_eph(handle());
+    }
+    /// GPS VDOP in cm. UINT16_MAX if unknown.
+    [[nodiscard]] std::uint16_t epv() const noexcept {
+        return ros_mavros_gps_raw_get_epv(handle());
+    }
+    /// GPS ground speed in cm/s. UINT16_MAX if unknown.
+    [[nodiscard]] std::uint16_t vel() const noexcept {
+        return ros_mavros_gps_raw_get_vel(handle());
+    }
+    /// Course over ground in centidegrees (0-35999). UINT16_MAX if unknown.
+    [[nodiscard]] std::uint16_t cog() const noexcept {
+        return ros_mavros_gps_raw_get_cog(handle());
+    }
+    /// Number of satellites visible. UINT8_MAX if unknown.
+    [[nodiscard]] std::uint8_t satellites_visible() const noexcept {
+        return ros_mavros_gps_raw_get_satellites_visible(handle());
+    }
+    /// Altitude above WGS84 ellipsoid in millimetres (mm).
+    [[nodiscard]] std::int32_t alt_ellipsoid() const noexcept {
+        return ros_mavros_gps_raw_get_alt_ellipsoid(handle());
+    }
+    /// Horizontal position uncertainty in millimetres (mm).
+    [[nodiscard]] std::uint32_t h_acc() const noexcept {
+        return ros_mavros_gps_raw_get_h_acc(handle());
+    }
+    /// Vertical position uncertainty in millimetres (mm).
+    [[nodiscard]] std::uint32_t v_acc() const noexcept {
+        return ros_mavros_gps_raw_get_v_acc(handle());
+    }
+    /// Speed uncertainty in mm/s.
+    [[nodiscard]] std::uint32_t vel_acc() const noexcept {
+        return ros_mavros_gps_raw_get_vel_acc(handle());
+    }
+    /// Heading uncertainty in centidegrees.
+    [[nodiscard]] std::int32_t hdg_acc() const noexcept {
+        return ros_mavros_gps_raw_get_hdg_acc(handle());
+    }
+    /// Yaw in centidegrees. 0 if unknown.
+    [[nodiscard]] std::uint16_t yaw() const noexcept {
+        return ros_mavros_gps_raw_get_yaw(handle());
+    }
+    /// Number of DGPS satellites.
+    [[nodiscard]] std::uint8_t dgps_numch() const noexcept {
+        return ros_mavros_gps_raw_get_dgps_numch(handle());
+    }
+    /// Age of DGPS correction in milliseconds (ms).
+    [[nodiscard]] std::uint32_t dgps_age() const noexcept {
+        return ros_mavros_gps_raw_get_dgps_age(handle());
+    }
+};
+
+/// @brief Zero-copy view of a mavros_msgs/TimesyncStatus CDR buffer.
+class MavrosTimesyncStatusView : public detail::ViewBase<MavrosTimesyncStatusView, detail::MavrosTimesyncStatusTraits> {
+    using Base = detail::ViewBase<MavrosTimesyncStatusView, detail::MavrosTimesyncStatusTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_mavros_timesync_status_get_stamp_sec(handle()),
+                ros_mavros_timesync_status_get_stamp_nanosec(handle())};
+    }
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_mavros_timesync_status_get_frame_id(handle());
+    }
+    [[nodiscard]] std::uint64_t remote_timestamp_ns() const noexcept {
+        return ros_mavros_timesync_status_get_remote_timestamp_ns(handle());
+    }
+    [[nodiscard]] std::int64_t observed_offset_ns() const noexcept {
+        return ros_mavros_timesync_status_get_observed_offset_ns(handle());
+    }
+    [[nodiscard]] std::int64_t estimated_offset_ns() const noexcept {
+        return ros_mavros_timesync_status_get_estimated_offset_ns(handle());
+    }
+    [[nodiscard]] float round_trip_time_ms() const noexcept {
+        return ros_mavros_timesync_status_get_round_trip_time_ms(handle());
     }
 };
 

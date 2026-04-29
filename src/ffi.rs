@@ -35,6 +35,7 @@ use crate::cdr::{self, CdrFixed};
 use crate::edgefirst_msgs;
 use crate::foxglove_msgs;
 use crate::geometry_msgs::{self, *};
+use crate::mavros_msgs;
 use crate::nav_msgs;
 use crate::sensor_msgs::{self, NavSatStatus, PointFieldView, RegionOfInterest};
 use crate::std_msgs;
@@ -2332,6 +2333,1128 @@ impl_simple_stamped!(
 );
 
 // =============================================================================
+// mavros_msgs — Altitude
+// =============================================================================
+
+pub struct ros_mavros_altitude_t(mavros_msgs::Altitude<&'static [u8]>);
+
+/// @brief Create a Altitude view from CDR bytes.
+#[no_mangle]
+pub extern "C" fn ros_mavros_altitude_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut ros_mavros_altitude_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match mavros_msgs::Altitude::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_mavros_altitude_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_altitude_free(view: *mut ros_mavros_altitude_t) {
+    if !view.is_null() {
+        unsafe { drop(Box::from_raw(view)) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_altitude_get_stamp_sec(view: *const ros_mavros_altitude_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_altitude_get_stamp_nanosec(view: *const ros_mavros_altitude_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_altitude_get_frame_id(
+    view: *const ros_mavros_altitude_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_altitude_get_monotonic(view: *const ros_mavros_altitude_t) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.monotonic() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_altitude_get_amsl(view: *const ros_mavros_altitude_t) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.amsl() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_altitude_get_local(view: *const ros_mavros_altitude_t) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.local() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_altitude_get_relative(view: *const ros_mavros_altitude_t) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.relative() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_altitude_get_terrain(view: *const ros_mavros_altitude_t) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.terrain() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_altitude_get_bottom_clearance(
+    view: *const ros_mavros_altitude_t,
+) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.bottom_clearance() }
+}
+
+// =============================================================================
+// mavros_msgs — VfrHud
+// =============================================================================
+
+pub struct ros_mavros_vfrhud_t(mavros_msgs::VfrHud<&'static [u8]>);
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_vfrhud_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut ros_mavros_vfrhud_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match mavros_msgs::VfrHud::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_mavros_vfrhud_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_vfrhud_free(view: *mut ros_mavros_vfrhud_t) {
+    if !view.is_null() {
+        unsafe { drop(Box::from_raw(view)) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_vfrhud_get_stamp_sec(view: *const ros_mavros_vfrhud_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_vfrhud_get_stamp_nanosec(view: *const ros_mavros_vfrhud_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_vfrhud_get_frame_id(
+    view: *const ros_mavros_vfrhud_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_vfrhud_get_airspeed(view: *const ros_mavros_vfrhud_t) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.airspeed() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_vfrhud_get_groundspeed(view: *const ros_mavros_vfrhud_t) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.groundspeed() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_vfrhud_get_heading(view: *const ros_mavros_vfrhud_t) -> i16 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.heading() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_vfrhud_get_throttle(view: *const ros_mavros_vfrhud_t) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.throttle() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_vfrhud_get_altitude(view: *const ros_mavros_vfrhud_t) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.altitude() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_vfrhud_get_climb(view: *const ros_mavros_vfrhud_t) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.climb() }
+}
+
+// =============================================================================
+// mavros_msgs — EstimatorStatus
+// =============================================================================
+
+pub struct ros_mavros_estimator_status_t(mavros_msgs::EstimatorStatus<&'static [u8]>);
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_estimator_status_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut ros_mavros_estimator_status_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match mavros_msgs::EstimatorStatus::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_mavros_estimator_status_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_estimator_status_free(view: *mut ros_mavros_estimator_status_t) {
+    if !view.is_null() {
+        unsafe { drop(Box::from_raw(view)) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_estimator_status_get_stamp_sec(
+    view: *const ros_mavros_estimator_status_t,
+) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_estimator_status_get_stamp_nanosec(
+    view: *const ros_mavros_estimator_status_t,
+) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_estimator_status_get_frame_id(
+    view: *const ros_mavros_estimator_status_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_estimator_status_get_attitude_status_flag(
+    view: *const ros_mavros_estimator_status_t,
+) -> bool {
+    if view.is_null() {
+        return false;
+    }
+    unsafe { (*view).0.attitude_status_flag() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_estimator_status_get_velocity_horiz_status_flag(
+    view: *const ros_mavros_estimator_status_t,
+) -> bool {
+    if view.is_null() {
+        return false;
+    }
+    unsafe { (*view).0.velocity_horiz_status_flag() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_estimator_status_get_velocity_vert_status_flag(
+    view: *const ros_mavros_estimator_status_t,
+) -> bool {
+    if view.is_null() {
+        return false;
+    }
+    unsafe { (*view).0.velocity_vert_status_flag() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_estimator_status_get_pos_horiz_rel_status_flag(
+    view: *const ros_mavros_estimator_status_t,
+) -> bool {
+    if view.is_null() {
+        return false;
+    }
+    unsafe { (*view).0.pos_horiz_rel_status_flag() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_estimator_status_get_pos_horiz_abs_status_flag(
+    view: *const ros_mavros_estimator_status_t,
+) -> bool {
+    if view.is_null() {
+        return false;
+    }
+    unsafe { (*view).0.pos_horiz_abs_status_flag() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_estimator_status_get_pos_vert_abs_status_flag(
+    view: *const ros_mavros_estimator_status_t,
+) -> bool {
+    if view.is_null() {
+        return false;
+    }
+    unsafe { (*view).0.pos_vert_abs_status_flag() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_estimator_status_get_pos_vert_agl_status_flag(
+    view: *const ros_mavros_estimator_status_t,
+) -> bool {
+    if view.is_null() {
+        return false;
+    }
+    unsafe { (*view).0.pos_vert_agl_status_flag() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_estimator_status_get_const_pos_mode_status_flag(
+    view: *const ros_mavros_estimator_status_t,
+) -> bool {
+    if view.is_null() {
+        return false;
+    }
+    unsafe { (*view).0.const_pos_mode_status_flag() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_estimator_status_get_pred_pos_horiz_rel_status_flag(
+    view: *const ros_mavros_estimator_status_t,
+) -> bool {
+    if view.is_null() {
+        return false;
+    }
+    unsafe { (*view).0.pred_pos_horiz_rel_status_flag() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_estimator_status_get_pred_pos_horiz_abs_status_flag(
+    view: *const ros_mavros_estimator_status_t,
+) -> bool {
+    if view.is_null() {
+        return false;
+    }
+    unsafe { (*view).0.pred_pos_horiz_abs_status_flag() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_estimator_status_get_gps_glitch_status_flag(
+    view: *const ros_mavros_estimator_status_t,
+) -> bool {
+    if view.is_null() {
+        return false;
+    }
+    unsafe { (*view).0.gps_glitch_status_flag() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_estimator_status_get_accel_error_status_flag(
+    view: *const ros_mavros_estimator_status_t,
+) -> bool {
+    if view.is_null() {
+        return false;
+    }
+    unsafe { (*view).0.accel_error_status_flag() }
+}
+
+// =============================================================================
+// mavros_msgs — ExtendedState
+// =============================================================================
+
+pub struct ros_mavros_extended_state_t(mavros_msgs::ExtendedState<&'static [u8]>);
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_extended_state_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut ros_mavros_extended_state_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match mavros_msgs::ExtendedState::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_mavros_extended_state_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_extended_state_free(view: *mut ros_mavros_extended_state_t) {
+    if !view.is_null() {
+        unsafe { drop(Box::from_raw(view)) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_extended_state_get_stamp_sec(
+    view: *const ros_mavros_extended_state_t,
+) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_extended_state_get_stamp_nanosec(
+    view: *const ros_mavros_extended_state_t,
+) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_extended_state_get_frame_id(
+    view: *const ros_mavros_extended_state_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_extended_state_get_vtol_state(
+    view: *const ros_mavros_extended_state_t,
+) -> u8 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.vtol_state() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_extended_state_get_landed_state(
+    view: *const ros_mavros_extended_state_t,
+) -> u8 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.landed_state() }
+}
+
+// =============================================================================
+// mavros_msgs — SysStatus
+// =============================================================================
+
+pub struct ros_mavros_sys_status_t(mavros_msgs::SysStatus<&'static [u8]>);
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_sys_status_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut ros_mavros_sys_status_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match mavros_msgs::SysStatus::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_mavros_sys_status_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_sys_status_free(view: *mut ros_mavros_sys_status_t) {
+    if !view.is_null() {
+        unsafe { drop(Box::from_raw(view)) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_sys_status_get_stamp_sec(view: *const ros_mavros_sys_status_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_sys_status_get_stamp_nanosec(
+    view: *const ros_mavros_sys_status_t,
+) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_sys_status_get_frame_id(
+    view: *const ros_mavros_sys_status_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_sys_status_get_sensors_present(
+    view: *const ros_mavros_sys_status_t,
+) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.sensors_present() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_sys_status_get_sensors_enabled(
+    view: *const ros_mavros_sys_status_t,
+) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.sensors_enabled() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_sys_status_get_sensors_health(
+    view: *const ros_mavros_sys_status_t,
+) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.sensors_health() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_sys_status_get_load(view: *const ros_mavros_sys_status_t) -> u16 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.load() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_sys_status_get_voltage_battery(
+    view: *const ros_mavros_sys_status_t,
+) -> u16 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.voltage_battery() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_sys_status_get_current_battery(
+    view: *const ros_mavros_sys_status_t,
+) -> i16 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.current_battery() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_sys_status_get_battery_remaining(
+    view: *const ros_mavros_sys_status_t,
+) -> i8 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.battery_remaining() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_sys_status_get_drop_rate_comm(
+    view: *const ros_mavros_sys_status_t,
+) -> u16 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.drop_rate_comm() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_sys_status_get_errors_comm(
+    view: *const ros_mavros_sys_status_t,
+) -> u16 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.errors_comm() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_sys_status_get_errors_count1(
+    view: *const ros_mavros_sys_status_t,
+) -> u16 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.errors_count1() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_sys_status_get_errors_count2(
+    view: *const ros_mavros_sys_status_t,
+) -> u16 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.errors_count2() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_sys_status_get_errors_count3(
+    view: *const ros_mavros_sys_status_t,
+) -> u16 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.errors_count3() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_sys_status_get_errors_count4(
+    view: *const ros_mavros_sys_status_t,
+) -> u16 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.errors_count4() }
+}
+
+// =============================================================================
+// mavros_msgs — State
+// =============================================================================
+
+pub struct ros_mavros_state_t(mavros_msgs::State<&'static [u8]>);
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_state_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut ros_mavros_state_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match mavros_msgs::State::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_mavros_state_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_state_free(view: *mut ros_mavros_state_t) {
+    if !view.is_null() {
+        unsafe { drop(Box::from_raw(view)) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_state_get_stamp_sec(view: *const ros_mavros_state_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_state_get_stamp_nanosec(view: *const ros_mavros_state_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_state_get_frame_id(view: *const ros_mavros_state_t) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_state_get_connected(view: *const ros_mavros_state_t) -> bool {
+    if view.is_null() {
+        return false;
+    }
+    unsafe { (*view).0.connected() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_state_get_armed(view: *const ros_mavros_state_t) -> bool {
+    if view.is_null() {
+        return false;
+    }
+    unsafe { (*view).0.armed() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_state_get_guided(view: *const ros_mavros_state_t) -> bool {
+    if view.is_null() {
+        return false;
+    }
+    unsafe { (*view).0.guided() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_state_get_manual_input(view: *const ros_mavros_state_t) -> bool {
+    if view.is_null() {
+        return false;
+    }
+    unsafe { (*view).0.manual_input() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_state_get_mode(view: *const ros_mavros_state_t) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.mode() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_state_get_system_status(view: *const ros_mavros_state_t) -> u8 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.system_status() }
+}
+
+// =============================================================================
+// mavros_msgs — StatusText
+// =============================================================================
+
+pub struct ros_mavros_status_text_t(mavros_msgs::StatusText<&'static [u8]>);
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_status_text_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut ros_mavros_status_text_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match mavros_msgs::StatusText::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_mavros_status_text_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_status_text_free(view: *mut ros_mavros_status_text_t) {
+    if !view.is_null() {
+        unsafe { drop(Box::from_raw(view)) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_status_text_get_stamp_sec(
+    view: *const ros_mavros_status_text_t,
+) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_status_text_get_stamp_nanosec(
+    view: *const ros_mavros_status_text_t,
+) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_status_text_get_frame_id(
+    view: *const ros_mavros_status_text_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_status_text_get_severity(view: *const ros_mavros_status_text_t) -> u8 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.severity() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_status_text_get_text(
+    view: *const ros_mavros_status_text_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.text() })
+}
+
+// =============================================================================
+// mavros_msgs — GpsRaw
+// =============================================================================
+
+pub struct ros_mavros_gps_raw_t(mavros_msgs::GpsRaw<&'static [u8]>);
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_gps_raw_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut ros_mavros_gps_raw_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match mavros_msgs::GpsRaw::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_mavros_gps_raw_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_gps_raw_free(view: *mut ros_mavros_gps_raw_t) {
+    if !view.is_null() {
+        unsafe { drop(Box::from_raw(view)) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_gps_raw_get_stamp_sec(view: *const ros_mavros_gps_raw_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_gps_raw_get_stamp_nanosec(view: *const ros_mavros_gps_raw_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_gps_raw_get_frame_id(
+    view: *const ros_mavros_gps_raw_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_gps_raw_get_fix_type(view: *const ros_mavros_gps_raw_t) -> u8 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.fix_type() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_gps_raw_get_lat(view: *const ros_mavros_gps_raw_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.lat() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_gps_raw_get_lon(view: *const ros_mavros_gps_raw_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.lon() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_gps_raw_get_alt(view: *const ros_mavros_gps_raw_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.alt() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_gps_raw_get_eph(view: *const ros_mavros_gps_raw_t) -> u16 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.eph() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_gps_raw_get_epv(view: *const ros_mavros_gps_raw_t) -> u16 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.epv() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_gps_raw_get_vel(view: *const ros_mavros_gps_raw_t) -> u16 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.vel() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_gps_raw_get_cog(view: *const ros_mavros_gps_raw_t) -> u16 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.cog() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_gps_raw_get_satellites_visible(
+    view: *const ros_mavros_gps_raw_t,
+) -> u8 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.satellites_visible() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_gps_raw_get_alt_ellipsoid(view: *const ros_mavros_gps_raw_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.alt_ellipsoid() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_gps_raw_get_h_acc(view: *const ros_mavros_gps_raw_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.h_acc() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_gps_raw_get_v_acc(view: *const ros_mavros_gps_raw_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.v_acc() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_gps_raw_get_vel_acc(view: *const ros_mavros_gps_raw_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.vel_acc() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_gps_raw_get_hdg_acc(view: *const ros_mavros_gps_raw_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.hdg_acc() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_gps_raw_get_yaw(view: *const ros_mavros_gps_raw_t) -> u16 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.yaw() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_gps_raw_get_dgps_numch(view: *const ros_mavros_gps_raw_t) -> u8 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.dgps_numch() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_gps_raw_get_dgps_age(view: *const ros_mavros_gps_raw_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.dgps_age() }
+}
+
+// =============================================================================
+// mavros_msgs — TimesyncStatus
+// =============================================================================
+
+pub struct ros_mavros_timesync_status_t(mavros_msgs::TimesyncStatus<&'static [u8]>);
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_timesync_status_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut ros_mavros_timesync_status_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match mavros_msgs::TimesyncStatus::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_mavros_timesync_status_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_timesync_status_free(view: *mut ros_mavros_timesync_status_t) {
+    if !view.is_null() {
+        unsafe { drop(Box::from_raw(view)) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_timesync_status_get_stamp_sec(
+    view: *const ros_mavros_timesync_status_t,
+) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_timesync_status_get_stamp_nanosec(
+    view: *const ros_mavros_timesync_status_t,
+) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_timesync_status_get_frame_id(
+    view: *const ros_mavros_timesync_status_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_timesync_status_get_remote_timestamp_ns(
+    view: *const ros_mavros_timesync_status_t,
+) -> u64 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.remote_timestamp_ns() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_timesync_status_get_observed_offset_ns(
+    view: *const ros_mavros_timesync_status_t,
+) -> i64 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.observed_offset_ns() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_timesync_status_get_estimated_offset_ns(
+    view: *const ros_mavros_timesync_status_t,
+) -> i64 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.estimated_offset_ns() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_mavros_timesync_status_get_round_trip_time_ms(
+    view: *const ros_mavros_timesync_status_t,
+) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.round_trip_time_ms() }
+}
+
+// =============================================================================
 // RadarCube (buffer-backed)
 // =============================================================================
 
@@ -3576,6 +4699,24 @@ impl_as_cdr!(ros_temperature_as_cdr, ros_temperature_t);
 impl_as_cdr!(ros_battery_state_as_cdr, ros_battery_state_t);
 impl_as_cdr!(ros_odometry_as_cdr, ros_odometry_t);
 impl_as_cdr!(ros_vibration_as_cdr, ros_vibration_t);
+impl_as_cdr!(ros_mavros_altitude_as_cdr, ros_mavros_altitude_t);
+impl_as_cdr!(ros_mavros_vfrhud_as_cdr, ros_mavros_vfrhud_t);
+impl_as_cdr!(
+    ros_mavros_estimator_status_as_cdr,
+    ros_mavros_estimator_status_t
+);
+impl_as_cdr!(
+    ros_mavros_extended_state_as_cdr,
+    ros_mavros_extended_state_t
+);
+impl_as_cdr!(ros_mavros_sys_status_as_cdr, ros_mavros_sys_status_t);
+impl_as_cdr!(ros_mavros_state_as_cdr, ros_mavros_state_t);
+impl_as_cdr!(ros_mavros_status_text_as_cdr, ros_mavros_status_text_t);
+impl_as_cdr!(ros_mavros_gps_raw_as_cdr, ros_mavros_gps_raw_t);
+impl_as_cdr!(
+    ros_mavros_timesync_status_as_cdr,
+    ros_mavros_timesync_status_t
+);
 
 // ros_detect_t and ros_model_t use named fields, so they need manual as_cdr impls.
 
