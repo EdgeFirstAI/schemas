@@ -5161,8 +5161,6 @@ int32_t ros_foxglove_point_annotation_set_fill_color(uint8_t* buf, size_t len, d
  */
 int32_t ros_foxglove_point_annotation_set_thickness(uint8_t* buf, size_t len, double v);
 
-int32_t ros_foxglove_point_annotation_set_thickness(uint8_t* buf, size_t len, double v);
-
 /* ═══════════════════════════════════════════════════════════════════════════
  * mavros_msgs — MAVLink/MAVROS Message Types
  * ═══════════════════════════════════════════════════════════════════════════ */

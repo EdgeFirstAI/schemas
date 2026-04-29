@@ -1,5 +1,5 @@
 /**
- * @file test_mavros_msgs.cpp
+ * @file test_mavros_views.cpp
  * @brief Catch2 tests for mavros_msgs C++ View classes
  *
  * SPDX-License-Identifier: Apache-2.0
