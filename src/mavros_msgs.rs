@@ -30,6 +30,17 @@ pub struct Altitude<B> {
     offsets: [usize; 1],
 }
 
+impl<B> Altitude<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> Altitude<C> {
+        Altitude {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
+}
+
 impl<B: AsRef<[u8]>> Altitude<B> {
     pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
         let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
@@ -153,6 +164,17 @@ pub struct VfrHud<B> {
     offsets: [usize; 1],
 }
 
+impl<B> VfrHud<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> VfrHud<C> {
+        VfrHud {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
+}
+
 impl<B: AsRef<[u8]>> VfrHud<B> {
     pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
         let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
@@ -267,6 +289,17 @@ impl VfrHud<Vec<u8>> {
 pub struct EstimatorStatus<B> {
     buf: B,
     offsets: [usize; 1],
+}
+
+impl<B> EstimatorStatus<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> EstimatorStatus<C> {
+        EstimatorStatus {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 impl<B: AsRef<[u8]>> EstimatorStatus<B> {
@@ -430,6 +463,17 @@ pub struct ExtendedState<B> {
     offsets: [usize; 1],
 }
 
+impl<B> ExtendedState<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> ExtendedState<C> {
+        ExtendedState {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
+}
+
 impl<B: AsRef<[u8]>> ExtendedState<B> {
     pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
         let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
@@ -527,6 +571,17 @@ impl ExtendedState<Vec<u8>> {
 pub struct SysStatus<B> {
     buf: B,
     offsets: [usize; 1],
+}
+
+impl<B> SysStatus<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> SysStatus<C> {
+        SysStatus {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 impl<B: AsRef<[u8]>> SysStatus<B> {
@@ -736,6 +791,17 @@ pub struct State<B> {
     offsets: [usize; 3],
 }
 
+impl<B> State<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> State<C> {
+        State {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
+}
+
 impl<B: AsRef<[u8]>> State<B> {
     pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
         let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
@@ -874,6 +940,17 @@ pub struct StatusText<B> {
     offsets: [usize; 2],
 }
 
+impl<B> StatusText<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> StatusText<C> {
+        StatusText {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
+}
+
 impl<B: AsRef<[u8]>> StatusText<B> {
     pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
         let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
@@ -996,6 +1073,17 @@ pub mod gps_fix_type {
 pub struct GpsRaw<B> {
     buf: B,
     offsets: [usize; 1],
+}
+
+impl<B> GpsRaw<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> GpsRaw<C> {
+        GpsRaw {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 impl<B: AsRef<[u8]>> GpsRaw<B> {
@@ -1230,6 +1318,17 @@ impl GpsRaw<Vec<u8>> {
 pub struct TimesyncStatus<B> {
     buf: B,
     offsets: [usize; 1],
+}
+
+impl<B> TimesyncStatus<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> TimesyncStatus<C> {
+        TimesyncStatus {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 impl<B: AsRef<[u8]>> TimesyncStatus<B> {

@@ -57,6 +57,17 @@ pub struct Header<B> {
     offsets: [usize; 1],
 }
 
+impl<B> Header<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> Header<C> {
+        Header {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
+}
+
 impl<B: AsRef<[u8]>> Header<B> {
     pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
         let mut c = CdrCursor::new(buf.as_ref())?;

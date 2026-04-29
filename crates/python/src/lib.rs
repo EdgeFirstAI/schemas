@@ -14,11 +14,16 @@
 //! (`from edgefirst.schemas.sensor_msgs import Image`) resolve directly
 //! to the in-binary objects.
 //!
-//! Heavy types accept any object implementing the buffer protocol
-//! (`bytes`, `bytearray`, `memoryview`, `numpy.ndarray`, `array.array`)
-//! for their bulk payload via [`PyBuffer<u8>`]. Phase 1 copies the payload
-//! into the CDR buffer once with the GIL released; phase 2 will add a
-//! `borrow=True` opt-in for true zero-copy via composite buffers.
+//! ## Buffer semantics
+//!
+//! **`from_cdr(buf)`** — zero-copy for `bytes`, safe copy otherwise:
+//! - `bytes` → borrowed zero-copy (the message holds a refcount on the
+//!   input; no memcpy).
+//! - `bytearray` / `memoryview` / other mutable buffer → copied under
+//!   the GIL (prevents data races from concurrent Python threads).
+//!
+//! **`Type(…, data=buf)`** (builders) — always copies the bulk payload
+//! into the CDR buffer with the GIL released for the heavy build step.
 
 #[cfg(any(not(Py_LIMITED_API), Py_3_11))]
 use std::ffi::{c_int, c_void, CString};
@@ -195,6 +200,66 @@ fn copy_buffer(buf: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
     let owned = unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec();
     drop(pybuf);
     Ok(owned)
+}
+
+// ── PyBuf — zero-copy or owned CDR buffer ───────────────────────────
+
+/// A CDR buffer that is either owned (`Vec<u8>`) or borrowed zero-copy
+/// from a Python `bytes` object.
+///
+/// # Safety invariants
+///
+/// For `Borrowed`:
+/// - `obj` is a `Py<PyBytes>` whose refcount keeps the underlying
+///   CPython bytes object alive (preventing GC).
+/// - `ptr` and `len` are derived from the immutable bytes buffer and
+///   remain valid for the lifetime of `obj`. CPython `bytes` objects
+///   never move or reallocate their internal buffer.
+/// - Concurrent reads are safe because the bytes content is immutable.
+pub enum PyBuf {
+    Owned(Vec<u8>),
+    Borrowed {
+        obj: Py<PyBytes>,
+        ptr: *const u8,
+        len: usize,
+    },
+}
+
+// Safety: Py<PyBytes> is Send+Sync. The raw pointer is derived from an
+// immutable bytes object whose lifetime is held by `obj`. Concurrent
+// reads of immutable data are safe (same reasoning as &[u8]: Sync).
+unsafe impl Send for PyBuf {}
+unsafe impl Sync for PyBuf {}
+
+impl AsRef<[u8]> for PyBuf {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        match self {
+            PyBuf::Owned(v) => v.as_ref(),
+            // Safety: ptr/len are derived from a Py<PyBytes> that is kept
+            // alive by the `obj` field. Bytes content is immutable.
+            PyBuf::Borrowed { ptr, len, .. } => unsafe { std::slice::from_raw_parts(*ptr, *len) },
+        }
+    }
+}
+
+/// Acquire a CDR buffer from a Python object, choosing zero-copy or copy
+/// based on mutability.
+///
+/// - `bytes` input → zero-copy `PyBuf::Borrowed` (no memcpy)
+/// - `bytearray` / `memoryview` / other → copied `PyBuf::Owned` (GIL-safe)
+fn smart_buffer(buf: &Bound<'_, PyAny>) -> PyResult<PyBuf> {
+    // Fast path: if it's a `bytes` object, borrow zero-copy.
+    if let Ok(pybytes) = buf.downcast::<PyBytes>() {
+        let slice = pybytes.as_bytes();
+        let ptr = slice.as_ptr();
+        let len = slice.len();
+        let obj: Py<PyBytes> = pybytes.clone().unbind();
+        return Ok(PyBuf::Borrowed { obj, ptr, len });
+    }
+    // Slow path: copy under GIL for mutable buffer safety.
+    let owned = copy_buffer(buf)?;
+    Ok(PyBuf::Owned(owned))
 }
 
 // ── BorrowedBuf — buffer-protocol view with parent lifetime ─────────
@@ -925,7 +990,7 @@ impl PyTwist {
 /// buffer; metadata fields read directly from the buffer at known offsets.
 #[pyclass(name = "Header", module = "edgefirst.schemas.std_msgs", frozen)]
 pub struct PyHeader {
-    inner: Header<Vec<u8>>,
+    inner: Header<PyBuf>,
 }
 
 #[pymethods]
@@ -939,7 +1004,9 @@ impl PyHeader {
             .frame_id(frame_id)
             .build()
             .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     /// Decode an existing CDR buffer. Currently copies the buffer into a
@@ -950,8 +1017,8 @@ impl PyHeader {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = Header::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = Header::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -994,7 +1061,7 @@ impl PyHeader {
 /// `memoryview`, etc.
 #[pyclass(name = "Image", module = "edgefirst.schemas.sensor_msgs", frozen)]
 pub struct PyImage {
-    inner: Image<Vec<u8>>,
+    inner: Image<PyBuf>,
 }
 
 #[pymethods]
@@ -1037,7 +1104,9 @@ impl PyImage {
                 .build()
         });
         let inner = inner.map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     /// Decode an existing CDR buffer. Phase 1 copies; phase 2 will offer a
@@ -1048,8 +1117,8 @@ impl PyImage {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = Image::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = Image::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -1359,7 +1428,7 @@ impl PyDate {
     frozen
 )]
 pub struct PyCompressedImage {
-    inner: CompressedImage<Vec<u8>>,
+    inner: CompressedImage<PyBuf>,
 }
 
 #[pymethods]
@@ -1386,7 +1455,9 @@ impl PyCompressedImage {
                 .build()
         });
         let inner = inner.map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -1395,8 +1466,8 @@ impl PyCompressedImage {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = CompressedImage::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = CompressedImage::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -1452,7 +1523,7 @@ impl PyCompressedImage {
 /// (e.g. "" or "zstd") and a `boxed` flag.
 #[pyclass(name = "Mask", module = "edgefirst.schemas.edgefirst_msgs", frozen)]
 pub struct PyMask {
-    inner: Mask<Vec<u8>>,
+    inner: Mask<PyBuf>,
 }
 
 #[pymethods]
@@ -1482,7 +1553,9 @@ impl PyMask {
                 .build()
         });
         let inner = inner.map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -1491,8 +1564,8 @@ impl PyMask {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = Mask::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = Mask::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -1565,7 +1638,7 @@ impl PyMask {
 )]
 #[allow(deprecated)]
 pub struct PyDmaBuffer {
-    inner: DmaBuffer<Vec<u8>>,
+    inner: DmaBuffer<PyBuf>,
 }
 
 #[pymethods]
@@ -1589,7 +1662,9 @@ impl PyDmaBuffer {
             stamp, frame_id, pid, fd, width, height, stride, fourcc, length,
         )
         .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -1598,8 +1673,8 @@ impl PyDmaBuffer {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = DmaBuffer::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = DmaBuffer::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -1665,7 +1740,7 @@ impl PyDmaBuffer {
     frozen
 )]
 pub struct PyRadarCube {
-    inner: RadarCube<Vec<u8>>,
+    inner: RadarCube<PyBuf>,
 }
 
 #[pymethods]
@@ -1747,7 +1822,7 @@ impl PyRadarCube {
                 .is_complex(is_complex)
                 .build()
         });
-        let inner = inner.map_err(map_cdr_err)?;
+        let inner = inner.map_err(map_cdr_err)?.map_buffer(PyBuf::Owned);
         Ok(Self { inner })
     }
 
@@ -1757,8 +1832,8 @@ impl PyRadarCube {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = RadarCube::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = RadarCube::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -1909,7 +1984,7 @@ impl PyPointField {
 
 #[pyclass(name = "PointCloud2", module = "edgefirst.schemas.sensor_msgs", frozen)]
 pub struct PyPointCloud2 {
-    inner: PointCloud2<Vec<u8>>,
+    inner: PointCloud2<PyBuf>,
 }
 
 #[pymethods]
@@ -1979,7 +2054,7 @@ impl PyPointCloud2 {
         // Keep `fields` alive past the closure boundary: Vec dropped here.
         drop(field_views);
         drop(fields);
-        let inner = inner.map_err(map_cdr_err)?;
+        let inner = inner.map_err(map_cdr_err)?.map_buffer(PyBuf::Owned);
         Ok(Self { inner })
     }
 
@@ -1989,8 +2064,8 @@ impl PyPointCloud2 {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = PointCloud2::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = PointCloud2::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -2086,7 +2161,7 @@ impl PyPointCloud2 {
     frozen
 )]
 pub struct PyFoxgloveCompressedVideo {
-    inner: FoxgloveCompressedVideo<Vec<u8>>,
+    inner: FoxgloveCompressedVideo<PyBuf>,
 }
 
 #[pymethods]
@@ -2114,7 +2189,9 @@ impl PyFoxgloveCompressedVideo {
                 .build()
         });
         let inner = inner.map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -2123,8 +2200,8 @@ impl PyFoxgloveCompressedVideo {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = FoxgloveCompressedVideo::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = FoxgloveCompressedVideo::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -2445,7 +2522,7 @@ macro_rules! stamped_boilerplate {
     ($py_name:ident, $rust_ty:ident, $py_str_name:literal, $mod_name:literal, $payload_getter:ident, $py_payload:ident, $payload_ty:ident, $new_fn:expr, $default_payload:expr) => {
         #[pyclass(name = $py_str_name, module = $mod_name, frozen)]
         pub struct $py_name {
-            inner: $rust_ty<Vec<u8>>,
+            inner: $rust_ty<PyBuf>,
         }
 
         #[pymethods]
@@ -2457,7 +2534,9 @@ macro_rules! stamped_boilerplate {
                 let frame_id = header.inner.frame_id().to_string();
                 let payload = $payload_getter.map(|v| v.0).unwrap_or($default_payload);
                 #[allow(deprecated)]
-                let inner = $new_fn(stamp, &frame_id, payload).map_err(map_cdr_err)?;
+                let inner = $new_fn(stamp, &frame_id, payload)
+                    .map_err(map_cdr_err)?
+                    .map_buffer(PyBuf::Owned);
                 Ok(Self { inner })
             }
 
@@ -2467,8 +2546,8 @@ macro_rules! stamped_boilerplate {
                 _py: Python<'_>,
                 buf: &Bound<'_, PyAny>,
             ) -> PyResult<Self> {
-                let owned = copy_buffer(buf)?;
-                let inner = $rust_ty::from_cdr(owned).map_err(map_cdr_err)?;
+                let pybuf = smart_buffer(buf)?;
+                let inner = $rust_ty::from_cdr(pybuf).map_err(map_cdr_err)?;
                 Ok(Self { inner })
             }
 
@@ -2587,7 +2666,7 @@ stamped_boilerplate!(
     frozen
 )]
 pub struct PyTransformStamped {
-    inner: TransformStamped<Vec<u8>>,
+    inner: TransformStamped<PyBuf>,
 }
 
 #[pymethods]
@@ -2617,7 +2696,9 @@ impl PyTransformStamped {
         #[allow(deprecated)]
         let inner =
             TransformStamped::new(stamp, &frame_id, child_frame_id, t).map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -2626,8 +2707,8 @@ impl PyTransformStamped {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = TransformStamped::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = TransformStamped::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -2662,7 +2743,7 @@ impl PyTransformStamped {
 /// acceleration, each with a 3×3 covariance.
 #[pyclass(name = "Imu", module = "edgefirst.schemas.sensor_msgs", frozen)]
 pub struct PyImu {
-    inner: Imu<Vec<u8>>,
+    inner: Imu<PyBuf>,
 }
 
 #[pymethods]
@@ -2723,7 +2804,9 @@ impl PyImu {
             .linear_acceleration_covariance(lac)
             .build()
             .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -2732,8 +2815,8 @@ impl PyImu {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = Imu::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = Imu::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -2783,7 +2866,7 @@ impl PyImu {
 
 #[pyclass(name = "NavSatFix", module = "edgefirst.schemas.sensor_msgs", frozen)]
 pub struct PyNavSatFix {
-    inner: NavSatFix<Vec<u8>>,
+    inner: NavSatFix<PyBuf>,
 }
 
 #[pymethods]
@@ -2825,7 +2908,9 @@ impl PyNavSatFix {
             .position_covariance_type(position_covariance_type)
             .build()
             .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -2834,8 +2919,8 @@ impl PyNavSatFix {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = NavSatFix::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = NavSatFix::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -2889,7 +2974,7 @@ impl PyNavSatFix {
     frozen
 )]
 pub struct PyMagneticField {
-    inner: MagneticField<Vec<u8>>,
+    inner: MagneticField<PyBuf>,
 }
 
 #[pymethods]
@@ -2916,7 +3001,9 @@ impl PyMagneticField {
             .magnetic_field_covariance(cov)
             .build()
             .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -2925,8 +3012,8 @@ impl PyMagneticField {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = MagneticField::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = MagneticField::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -2963,7 +3050,7 @@ impl PyMagneticField {
     frozen
 )]
 pub struct PyFluidPressure {
-    inner: FluidPressure<Vec<u8>>,
+    inner: FluidPressure<PyBuf>,
 }
 
 #[pymethods]
@@ -2980,7 +3067,9 @@ impl PyFluidPressure {
             .variance(variance)
             .build()
             .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -2989,8 +3078,8 @@ impl PyFluidPressure {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = FluidPressure::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = FluidPressure::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -3023,7 +3112,7 @@ impl PyFluidPressure {
 
 #[pyclass(name = "Temperature", module = "edgefirst.schemas.sensor_msgs", frozen)]
 pub struct PyTemperature {
-    inner: Temperature<Vec<u8>>,
+    inner: Temperature<PyBuf>,
 }
 
 #[pymethods]
@@ -3040,7 +3129,9 @@ impl PyTemperature {
             .variance(variance)
             .build()
             .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -3049,8 +3140,8 @@ impl PyTemperature {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = Temperature::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = Temperature::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -3083,7 +3174,7 @@ impl PyTemperature {
 
 #[pyclass(name = "CameraInfo", module = "edgefirst.schemas.sensor_msgs", frozen)]
 pub struct PyCameraInfo {
-    inner: CameraInfo<Vec<u8>>,
+    inner: CameraInfo<PyBuf>,
 }
 
 #[pymethods]
@@ -3143,7 +3234,9 @@ impl PyCameraInfo {
             .roi(roi_val)
             .build()
             .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -3152,8 +3245,8 @@ impl PyCameraInfo {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = CameraInfo::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = CameraInfo::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -3243,7 +3336,7 @@ fn extract_f64_array<const N: usize>(v: Option<Vec<f64>>) -> PyResult<[f64; N]> 
     frozen
 )]
 pub struct PyBatteryState {
-    inner: BatteryState<Vec<u8>>,
+    inner: BatteryState<PyBuf>,
 }
 
 #[pymethods]
@@ -3309,7 +3402,9 @@ impl PyBatteryState {
             .serial_number(serial_number)
             .build()
             .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -3318,8 +3413,8 @@ impl PyBatteryState {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = BatteryState::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = BatteryState::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -3404,7 +3499,7 @@ impl PyBatteryState {
 
 #[pyclass(name = "Odometry", module = "edgefirst.schemas.nav_msgs", frozen)]
 pub struct PyOdometry {
-    inner: Odometry<Vec<u8>>,
+    inner: Odometry<PyBuf>,
 }
 
 #[pymethods]
@@ -3455,7 +3550,9 @@ impl PyOdometry {
         // public constructor for this type).
         #[allow(deprecated)]
         let inner = Odometry::new(stamp, &frame_id, child_frame_id, p, t).map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -3464,8 +3561,8 @@ impl PyOdometry {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = Odometry::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = Odometry::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -3515,7 +3612,7 @@ impl PyOdometry {
     frozen
 )]
 pub struct PyLocalTime {
-    inner: LocalTime<Vec<u8>>,
+    inner: LocalTime<PyBuf>,
 }
 
 #[pymethods]
@@ -3544,7 +3641,9 @@ impl PyLocalTime {
             .timezone(timezone)
             .build()
             .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -3553,8 +3652,8 @@ impl PyLocalTime {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = LocalTime::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = LocalTime::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -3591,7 +3690,7 @@ impl PyLocalTime {
 
 #[pyclass(name = "Track", module = "edgefirst.schemas.edgefirst_msgs", frozen)]
 pub struct PyTrack {
-    inner: Track<Vec<u8>>,
+    inner: Track<PyBuf>,
 }
 
 #[pymethods]
@@ -3606,7 +3705,9 @@ impl PyTrack {
             .created(c)
             .build()
             .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -3615,8 +3716,8 @@ impl PyTrack {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = Track::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = Track::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -3649,7 +3750,7 @@ impl PyTrack {
     frozen
 )]
 pub struct PyRadarInfo {
-    inner: RadarInfo<Vec<u8>>,
+    inner: RadarInfo<PyBuf>,
 }
 
 #[pymethods]
@@ -3676,7 +3777,9 @@ impl PyRadarInfo {
             .cube(cube)
             .build()
             .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -3685,8 +3788,8 @@ impl PyRadarInfo {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = RadarInfo::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = RadarInfo::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -3735,7 +3838,7 @@ impl PyRadarInfo {
     frozen
 )]
 pub struct PyVibration {
-    inner: Vibration<Vec<u8>>,
+    inner: Vibration<PyBuf>,
 }
 
 #[pymethods]
@@ -3778,7 +3881,9 @@ impl PyVibration {
             .clipping(&clip)
             .build()
             .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -3787,8 +3892,8 @@ impl PyVibration {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = Vibration::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = Vibration::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -3841,7 +3946,7 @@ impl PyVibration {
     frozen
 )]
 pub struct PyModelInfo {
-    inner: ModelInfo<Vec<u8>>,
+    inner: ModelInfo<PyBuf>,
 }
 
 #[pymethods]
@@ -3888,7 +3993,9 @@ impl PyModelInfo {
             .model_name(model_name)
             .build()
             .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -3897,8 +4004,8 @@ impl PyModelInfo {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = ModelInfo::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = ModelInfo::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -4096,7 +4203,7 @@ impl PyDetectBox {
 
 #[pyclass(name = "Detect", module = "edgefirst.schemas.edgefirst_msgs", frozen)]
 pub struct PyDetect {
-    inner: Detect<Vec<u8>>,
+    inner: Detect<PyBuf>,
 }
 
 #[pymethods]
@@ -4140,7 +4247,9 @@ impl PyDetect {
             .boxes(&box_views)
             .build()
             .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -4149,8 +4258,8 @@ impl PyDetect {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = Detect::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = Detect::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -4294,7 +4403,7 @@ impl PyCameraPlane {
     frozen
 )]
 pub struct PyCameraFrame {
-    inner: CameraFrame<Vec<u8>>,
+    inner: CameraFrame<PyBuf>,
 }
 
 #[pymethods]
@@ -4350,7 +4459,9 @@ impl PyCameraFrame {
             .planes(&plane_views)
             .build()
             .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -4359,8 +4470,8 @@ impl PyCameraFrame {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = CameraFrame::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = CameraFrame::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -4521,7 +4632,7 @@ impl PyMaskBox {
 
 #[pyclass(name = "Model", module = "edgefirst.schemas.edgefirst_msgs", frozen)]
 pub struct PyModel {
-    inner: Model<Vec<u8>>,
+    inner: Model<PyBuf>,
 }
 
 #[pymethods]
@@ -4571,7 +4682,9 @@ impl PyModel {
             .masks(&mask_views)
             .build()
             .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -4580,8 +4693,8 @@ impl PyModel {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = Model::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = Model::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -4802,7 +4915,7 @@ impl PyFoxgloveCircleAnnotations {
     frozen
 )]
 pub struct PyFoxgloveTextAnnotation {
-    inner: FoxgloveTextAnnotation<Vec<u8>>,
+    inner: FoxgloveTextAnnotation<PyBuf>,
 }
 
 #[pymethods]
@@ -4847,7 +4960,9 @@ impl PyFoxgloveTextAnnotation {
             .background_color(bc)
             .build()
             .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -4856,8 +4971,8 @@ impl PyFoxgloveTextAnnotation {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = FoxgloveTextAnnotation::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = FoxgloveTextAnnotation::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -4903,7 +5018,7 @@ impl PyFoxgloveTextAnnotation {
     frozen
 )]
 pub struct PyFoxglovePointAnnotation {
-    inner: FoxglovePointAnnotation<Vec<u8>>,
+    inner: FoxglovePointAnnotation<PyBuf>,
 }
 
 #[pymethods]
@@ -4953,7 +5068,9 @@ impl PyFoxglovePointAnnotation {
             .thickness(thickness)
             .build()
             .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -4962,8 +5079,8 @@ impl PyFoxglovePointAnnotation {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = FoxglovePointAnnotation::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = FoxglovePointAnnotation::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -5026,7 +5143,8 @@ fn text_annotation_view_to_py(
         .text_color(v.text_color)
         .background_color(v.background_color)
         .build()
-        .map_err(map_cdr_err)?;
+        .map_err(map_cdr_err)?
+        .map_buffer(PyBuf::Owned);
     Ok(PyFoxgloveTextAnnotation { inner })
 }
 
@@ -5043,7 +5161,8 @@ fn point_annotation_view_to_py(
         .fill_color(v.fill_color)
         .thickness(v.thickness)
         .build()
-        .map_err(map_cdr_err)?;
+        .map_err(map_cdr_err)?
+        .map_buffer(PyBuf::Owned);
     Ok(PyFoxglovePointAnnotation { inner })
 }
 
@@ -5053,7 +5172,7 @@ fn point_annotation_view_to_py(
     frozen
 )]
 pub struct PyFoxgloveImageAnnotation {
-    inner: FoxgloveImageAnnotation<Vec<u8>>,
+    inner: FoxgloveImageAnnotation<PyBuf>,
 }
 
 #[pymethods]
@@ -5114,7 +5233,8 @@ impl PyFoxgloveImageAnnotation {
             .points(&point_views)
             .texts(&text_views)
             .build()
-            .map_err(map_cdr_err)?;
+            .map_err(map_cdr_err)?
+            .map_buffer(PyBuf::Owned);
         Ok(Self { inner })
     }
 
@@ -5124,8 +5244,8 @@ impl PyFoxgloveImageAnnotation {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = FoxgloveImageAnnotation::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = FoxgloveImageAnnotation::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -5166,7 +5286,7 @@ impl PyFoxgloveImageAnnotation {
 
 #[pyclass(name = "Altitude", module = "edgefirst.schemas.mavros_msgs", frozen)]
 pub struct PyMavrosAltitude {
-    inner: MavAltitude<Vec<u8>>,
+    inner: MavAltitude<PyBuf>,
 }
 
 #[pymethods]
@@ -5193,7 +5313,9 @@ impl PyMavrosAltitude {
             bottom_clearance,
         )
         .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -5202,8 +5324,8 @@ impl PyMavrosAltitude {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = MavAltitude::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = MavAltitude::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -5250,7 +5372,7 @@ impl PyMavrosAltitude {
 
 #[pyclass(name = "VfrHud", module = "edgefirst.schemas.mavros_msgs", frozen)]
 pub struct PyMavrosVfrHud {
-    inner: VfrHud<Vec<u8>>,
+    inner: VfrHud<PyBuf>,
 }
 
 #[pymethods]
@@ -5277,7 +5399,9 @@ impl PyMavrosVfrHud {
             climb,
         )
         .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -5286,8 +5410,8 @@ impl PyMavrosVfrHud {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = VfrHud::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = VfrHud::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -5338,7 +5462,7 @@ impl PyMavrosVfrHud {
     frozen
 )]
 pub struct PyMavrosEstimatorStatus {
-    inner: EstimatorStatus<Vec<u8>>,
+    inner: EstimatorStatus<PyBuf>,
 }
 
 #[pymethods]
@@ -5377,7 +5501,9 @@ impl PyMavrosEstimatorStatus {
             accel_error_status_flag,
         )
         .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -5386,8 +5512,8 @@ impl PyMavrosEstimatorStatus {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = EstimatorStatus::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = EstimatorStatus::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -5462,7 +5588,7 @@ impl PyMavrosEstimatorStatus {
     frozen
 )]
 pub struct PyMavrosExtendedState {
-    inner: ExtendedState<Vec<u8>>,
+    inner: ExtendedState<PyBuf>,
 }
 
 #[pymethods]
@@ -5500,7 +5626,9 @@ impl PyMavrosExtendedState {
             landed_state,
         )
         .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -5509,8 +5637,8 @@ impl PyMavrosExtendedState {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = ExtendedState::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = ExtendedState::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -5541,7 +5669,7 @@ impl PyMavrosExtendedState {
 
 #[pyclass(name = "SysStatus", module = "edgefirst.schemas.mavros_msgs", frozen)]
 pub struct PyMavrosSysStatus {
-    inner: SysStatus<Vec<u8>>,
+    inner: SysStatus<PyBuf>,
 }
 
 #[pymethods]
@@ -5582,7 +5710,9 @@ impl PyMavrosSysStatus {
             errors_count4,
         )
         .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -5591,8 +5721,8 @@ impl PyMavrosSysStatus {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = SysStatus::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = SysStatus::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -5667,7 +5797,7 @@ impl PyMavrosSysStatus {
 
 #[pyclass(name = "State", module = "edgefirst.schemas.mavros_msgs", frozen)]
 pub struct PyMavrosState {
-    inner: MavState<Vec<u8>>,
+    inner: MavState<PyBuf>,
 }
 
 #[pymethods]
@@ -5713,7 +5843,9 @@ impl PyMavrosState {
             system_status,
         )
         .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -5722,8 +5854,8 @@ impl PyMavrosState {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = MavState::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = MavState::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -5770,7 +5902,7 @@ impl PyMavrosState {
 
 #[pyclass(name = "StatusText", module = "edgefirst.schemas.mavros_msgs", frozen)]
 pub struct PyMavrosStatusText {
-    inner: StatusText<Vec<u8>>,
+    inner: StatusText<PyBuf>,
 }
 
 #[pymethods]
@@ -5802,7 +5934,9 @@ impl PyMavrosStatusText {
             text,
         )
         .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -5811,8 +5945,8 @@ impl PyMavrosStatusText {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = StatusText::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = StatusText::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -5843,7 +5977,7 @@ impl PyMavrosStatusText {
 
 #[pyclass(name = "GpsRaw", module = "edgefirst.schemas.mavros_msgs", frozen)]
 pub struct PyMavrosGpsRaw {
-    inner: GpsRaw<Vec<u8>>,
+    inner: GpsRaw<PyBuf>,
 }
 
 #[pymethods]
@@ -5911,7 +6045,9 @@ impl PyMavrosGpsRaw {
             dgps_age,
         )
         .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -5920,8 +6056,8 @@ impl PyMavrosGpsRaw {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = GpsRaw::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = GpsRaw::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 
@@ -6016,7 +6152,7 @@ impl PyMavrosGpsRaw {
     frozen
 )]
 pub struct PyMavrosTimesyncStatus {
-    inner: TimesyncStatus<Vec<u8>>,
+    inner: TimesyncStatus<PyBuf>,
 }
 
 #[pymethods]
@@ -6039,7 +6175,9 @@ impl PyMavrosTimesyncStatus {
             round_trip_time_ms,
         )
         .map_err(map_cdr_err)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
     }
 
     #[classmethod]
@@ -6048,8 +6186,8 @@ impl PyMavrosTimesyncStatus {
         _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let owned = copy_buffer(buf)?;
-        let inner = TimesyncStatus::from_cdr(owned).map_err(map_cdr_err)?;
+        let pybuf = smart_buffer(buf)?;
+        let inner = TimesyncStatus::from_cdr(pybuf).map_err(map_cdr_err)?;
         Ok(Self { inner })
     }
 

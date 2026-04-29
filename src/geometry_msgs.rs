@@ -377,6 +377,17 @@ pub struct AccelStamped<B> {
     offsets: [usize; 1],
 }
 
+impl<B> AccelStamped<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> AccelStamped<C> {
+        AccelStamped {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
+}
+
 impl<B: AsRef<[u8]>> AccelStamped<B> {
     pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
         let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
@@ -442,6 +453,17 @@ impl AccelStamped<Vec<u8>> {
 pub struct TwistStamped<B> {
     buf: B,
     offsets: [usize; 1],
+}
+
+impl<B> TwistStamped<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> TwistStamped<C> {
+        TwistStamped {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 impl<B: AsRef<[u8]>> TwistStamped<B> {
@@ -511,6 +533,17 @@ pub struct InertiaStamped<B> {
     offsets: [usize; 1],
 }
 
+impl<B> InertiaStamped<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> InertiaStamped<C> {
+        InertiaStamped {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
+}
+
 impl<B: AsRef<[u8]>> InertiaStamped<B> {
     pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
         let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
@@ -576,6 +609,17 @@ impl InertiaStamped<Vec<u8>> {
 pub struct PointStamped<B> {
     buf: B,
     offsets: [usize; 1],
+}
+
+impl<B> PointStamped<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> PointStamped<C> {
+        PointStamped {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 impl<B: AsRef<[u8]>> PointStamped<B> {
@@ -646,6 +690,17 @@ impl PointStamped<Vec<u8>> {
 pub struct TransformStamped<B> {
     buf: B,
     offsets: [usize; 2],
+}
+
+impl<B> TransformStamped<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> TransformStamped<C> {
+        TransformStamped {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 impl<B: AsRef<[u8]>> TransformStamped<B> {

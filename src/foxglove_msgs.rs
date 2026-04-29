@@ -136,6 +136,17 @@ pub struct FoxgloveCompressedVideo<B> {
     offsets: [usize; 3],
 }
 
+impl<B> FoxgloveCompressedVideo<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> FoxgloveCompressedVideo<C> {
+        FoxgloveCompressedVideo {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
+}
+
 impl<B: AsRef<[u8]>> FoxgloveCompressedVideo<B> {
     pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
         let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
@@ -354,6 +365,17 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> FoxgloveCompressedVideo<B> {
 pub struct FoxgloveTextAnnotation<B> {
     buf: B,
     offsets: [usize; 1],
+}
+
+impl<B> FoxgloveTextAnnotation<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> FoxgloveTextAnnotation<C> {
+        FoxgloveTextAnnotation {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 /// View of a FoxgloveTextAnnotations element within a CDR sequence.
@@ -662,6 +684,17 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> FoxgloveTextAnnotation<B> {
 pub struct FoxglovePointAnnotation<B> {
     buf: B,
     offsets: [usize; 2],
+}
+
+impl<B> FoxglovePointAnnotation<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> FoxglovePointAnnotation<C> {
+        FoxglovePointAnnotation {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 /// View of a FoxglovePointAnnotations element within a CDR sequence.
@@ -1063,6 +1096,17 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> FoxglovePointAnnotation<B> {
 pub struct FoxgloveImageAnnotation<B> {
     buf: B,
     offsets: [usize; 2],
+}
+
+impl<B> FoxgloveImageAnnotation<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> FoxgloveImageAnnotation<C> {
+        FoxgloveImageAnnotation {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 impl<B: AsRef<[u8]>> FoxgloveImageAnnotation<B> {
