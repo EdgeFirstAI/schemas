@@ -6130,8 +6130,8 @@ public:
 
     static constexpr std::uint8_t GPS_FIX_TYPE_NO_GPS    = 0;
     static constexpr std::uint8_t GPS_FIX_TYPE_NO_FIX    = 1;
-    static constexpr std::uint8_t GPS_FIX_TYPE_FIX_2D    = 2;
-    static constexpr std::uint8_t GPS_FIX_TYPE_FIX_3D    = 3;
+    static constexpr std::uint8_t GPS_FIX_TYPE_2D_FIX    = 2;
+    static constexpr std::uint8_t GPS_FIX_TYPE_3D_FIX    = 3;
     static constexpr std::uint8_t GPS_FIX_TYPE_DGPS      = 4;
     static constexpr std::uint8_t GPS_FIX_TYPE_RTK_FLOAT = 5;
     static constexpr std::uint8_t GPS_FIX_TYPE_RTK_FIXED = 6;

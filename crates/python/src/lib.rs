@@ -5376,15 +5376,13 @@ impl PyMavrosAltitude {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
+        // Safety: buffer is locked via PyBuffer protocol; copy while
+        // holding the GIL prevents races with mutable buffers.
+        let owned = unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec();
         drop(pybuf);
         let inner = MavAltitude::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
@@ -5466,15 +5464,13 @@ impl PyMavrosVfrHud {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
+        // Safety: buffer is locked via PyBuffer protocol; copy while
+        // holding the GIL prevents races with mutable buffers.
+        let owned = unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec();
         drop(pybuf);
         let inner = VfrHud::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
@@ -5572,15 +5568,13 @@ impl PyMavrosEstimatorStatus {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
+        // Safety: buffer is locked via PyBuffer protocol; copy while
+        // holding the GIL prevents races with mutable buffers.
+        let owned = unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec();
         drop(pybuf);
         let inner = EstimatorStatus::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
@@ -5701,15 +5695,13 @@ impl PyMavrosExtendedState {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
+        // Safety: buffer is locked via PyBuffer protocol; copy while
+        // holding the GIL prevents races with mutable buffers.
+        let owned = unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec();
         drop(pybuf);
         let inner = ExtendedState::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
@@ -5789,15 +5781,13 @@ impl PyMavrosSysStatus {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
+        // Safety: buffer is locked via PyBuffer protocol; copy while
+        // holding the GIL prevents races with mutable buffers.
+        let owned = unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec();
         drop(pybuf);
         let inner = SysStatus::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
@@ -5926,15 +5916,13 @@ impl PyMavrosState {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
+        // Safety: buffer is locked via PyBuffer protocol; copy while
+        // holding the GIL prevents races with mutable buffers.
+        let owned = unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec();
         drop(pybuf);
         let inner = MavState::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
@@ -6021,15 +6009,13 @@ impl PyMavrosStatusText {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
+        // Safety: buffer is locked via PyBuffer protocol; copy while
+        // holding the GIL prevents races with mutable buffers.
+        let owned = unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec();
         drop(pybuf);
         let inner = StatusText::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
@@ -6136,15 +6122,13 @@ impl PyMavrosGpsRaw {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
+        // Safety: buffer is locked via PyBuffer protocol; copy while
+        // holding the GIL prevents races with mutable buffers.
+        let owned = unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec();
         drop(pybuf);
         let inner = GpsRaw::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })
@@ -6270,15 +6254,13 @@ impl PyMavrosTimesyncStatus {
     #[classmethod]
     fn from_cdr(
         _cls: &Bound<'_, PyType>,
-        py: Python<'_>,
+        _py: Python<'_>,
         buf: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
         let (pybuf, ptr, len) = buffer_as_bytes(buf)?;
-        let ptr_addr = ptr as usize;
-        let owned: Vec<u8> = py.detach(|| {
-            let slice = unsafe { std::slice::from_raw_parts(ptr_addr as *const u8, len) };
-            slice.to_vec()
-        });
+        // Safety: buffer is locked via PyBuffer protocol; copy while
+        // holding the GIL prevents races with mutable buffers.
+        let owned = unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec();
         drop(pybuf);
         let inner = TimesyncStatus::from_cdr(owned).map_err(map_cdr_err)?;
         Ok(Self { inner })

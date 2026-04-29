@@ -713,8 +713,9 @@ impl SysStatus<Vec<u8>> {
 //   bool armed               +1
 //   bool guided              +2
 //   bool manual_input        +3
-//   string mode              (variable-length, starts with align(4) + u32 len)
-//   offsets[1] = start of system_status (after mode string)
+//   offsets[1] = start of mode string (aligned to 4)
+//   string mode              (u32 len + chars + NUL)
+//   offsets[2] = start of system_status (after mode string)
 //   u8 system_status
 
 /// MAV_STATE constants for system_status field.
@@ -732,7 +733,7 @@ pub mod mav_state {
 
 pub struct State<B> {
     buf: B,
-    offsets: [usize; 2],
+    offsets: [usize; 3],
 }
 
 impl<B: AsRef<[u8]>> State<B> {
@@ -744,11 +745,13 @@ impl<B: AsRef<[u8]>> State<B> {
         c.read_bool()?; // armed
         c.read_bool()?; // guided
         c.read_bool()?; // manual_input
-        let _ = c.read_string()?; // mode
+        c.align(4);
         let o1 = c.offset();
+        let _ = c.read_string()?; // mode
+        let o2 = c.offset();
         c.read_u8()?; // system_status
         Ok(State {
-            offsets: [o0, o1],
+            offsets: [o0, o1, o2],
             buf,
         })
     }
@@ -783,11 +786,11 @@ impl<B: AsRef<[u8]>> State<B> {
     }
     #[inline]
     pub fn mode(&self) -> &str {
-        rd_string(self.buf.as_ref(), self.offsets[0] + 4).0
+        rd_string(self.buf.as_ref(), self.offsets[1]).0
     }
     #[inline]
     pub fn system_status(&self) -> u8 {
-        rd_u8(self.buf.as_ref(), self.offsets[1])
+        rd_u8(self.buf.as_ref(), self.offsets[2])
     }
     #[inline]
     pub fn as_cdr(&self) -> &[u8] {
@@ -817,8 +820,10 @@ impl State<Vec<u8>> {
         sizer.size_bool(); // armed
         sizer.size_bool(); // guided
         sizer.size_bool(); // manual_input
-        sizer.size_string(mode);
+        sizer.align(4);
         let o1 = sizer.offset();
+        sizer.size_string(mode);
+        let o2 = sizer.offset();
         sizer.size_u8(); // system_status
 
         let mut buf = vec![0u8; sizer.size()];
@@ -834,7 +839,7 @@ impl State<Vec<u8>> {
         w.finish()?;
 
         Ok(State {
-            offsets: [o0, o1],
+            offsets: [o0, o1, o2],
             buf,
         })
     }

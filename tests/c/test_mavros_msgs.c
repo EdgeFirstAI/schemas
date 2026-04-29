@@ -218,7 +218,7 @@ Test(mavros_msgs, gps_raw_free_null) {
 
 Test(mavros_msgs, gps_raw_fix_type_constants) {
     cr_assert_eq(ROS_MAVROS_GPS_FIX_TYPE_NO_GPS, 0);
-    cr_assert_eq(ROS_MAVROS_GPS_FIX_TYPE_FIX_3D, 3);
+    cr_assert_eq(ROS_MAVROS_GPS_FIX_TYPE_3D_FIX, 3);
     cr_assert_eq(ROS_MAVROS_GPS_FIX_TYPE_PPP, 8);
 }
 

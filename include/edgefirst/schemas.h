@@ -5370,8 +5370,8 @@ typedef struct ros_mavros_gps_raw_t ros_mavros_gps_raw_t;
 /** GPS fix type constants. */
 #define ROS_MAVROS_GPS_FIX_TYPE_NO_GPS    0
 #define ROS_MAVROS_GPS_FIX_TYPE_NO_FIX    1
-#define ROS_MAVROS_GPS_FIX_TYPE_FIX_2D    2
-#define ROS_MAVROS_GPS_FIX_TYPE_FIX_3D    3
+#define ROS_MAVROS_GPS_FIX_TYPE_2D_FIX    2
+#define ROS_MAVROS_GPS_FIX_TYPE_3D_FIX    3
 #define ROS_MAVROS_GPS_FIX_TYPE_DGPS      4
 #define ROS_MAVROS_GPS_FIX_TYPE_RTK_FLOAT 5
 #define ROS_MAVROS_GPS_FIX_TYPE_RTK_FIXED 6

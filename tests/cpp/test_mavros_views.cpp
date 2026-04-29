@@ -127,7 +127,7 @@ TEST_CASE("MavrosGpsRawView from_cdr empty returns error", "[mavros][gpsraw]") {
 
 TEST_CASE("MavrosGpsRawView fix type constants", "[mavros][gpsraw]") {
     CHECK(ef::MavrosGpsRawView::GPS_FIX_TYPE_NO_GPS == 0);
-    CHECK(ef::MavrosGpsRawView::GPS_FIX_TYPE_FIX_3D == 3);
+    CHECK(ef::MavrosGpsRawView::GPS_FIX_TYPE_3D_FIX == 3);
     CHECK(ef::MavrosGpsRawView::GPS_FIX_TYPE_PPP == 8);
 }
 
