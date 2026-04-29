@@ -1711,13 +1711,23 @@ impl PyRadarCube {
             ));
         }
 
-        // Copy typed buffers under GIL for safety
-        let shape_owned: Vec<u16> =
-            unsafe { std::slice::from_raw_parts(sptr as *const u16, slen_bytes / 2) }.to_vec();
-        let scales_owned: Vec<f32> =
-            unsafe { std::slice::from_raw_parts(scptr as *const f32, sclen_bytes / 4) }.to_vec();
-        let cube_owned: Vec<i16> =
-            unsafe { std::slice::from_raw_parts(cptr as *const i16, clen_bytes / 2) }.to_vec();
+        // Copy typed buffers under GIL without assuming alignment
+        // (Python buffer pointers are only guaranteed byte-aligned)
+        let shape_bytes = unsafe { std::slice::from_raw_parts(sptr, slen_bytes) };
+        let shape_owned: Vec<u16> = shape_bytes
+            .chunks_exact(2)
+            .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
+            .collect();
+        let scales_bytes = unsafe { std::slice::from_raw_parts(scptr, sclen_bytes) };
+        let scales_owned: Vec<f32> = scales_bytes
+            .chunks_exact(4)
+            .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+            .collect();
+        let cube_bytes = unsafe { std::slice::from_raw_parts(cptr, clen_bytes) };
+        let cube_owned: Vec<i16> = cube_bytes
+            .chunks_exact(2)
+            .map(|chunk| i16::from_le_bytes([chunk[0], chunk[1]]))
+            .collect();
         drop(sbuf);
         drop(scbuf);
         drop(cbuf);
