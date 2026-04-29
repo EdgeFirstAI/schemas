@@ -15,10 +15,8 @@ These tests validate:
 4. Lifetime safety: messages remain valid after the source is unreferenced.
 """
 
+import ctypes
 import gc
-import sys
-
-import pytest
 
 from edgefirst.schemas.builtin_interfaces import Time
 from edgefirst.schemas.sensor_msgs import Image, CompressedImage, Imu
@@ -75,17 +73,44 @@ class TestFromCdrBytes:
         assert tw.frame_id == "base"
 
     def test_zero_copy_shares_buffer(self):
-        """Prove that from_cdr(bytes) does NOT copy the input.
+        """Prove that from_cdr(bytes) aliases the input buffer.
 
-        We verify by checking that the CDR output (to_bytes) matches the
-        input exactly, and that the message remains valid even if we delete
-        our local reference to the input bytes (the message holds its own
-        strong reference to the bytes object).
+        We mutate the underlying bytes memory via ctypes and observe the
+        change through the message's accessor — proving the message reads
+        directly from the input bytes without any intermediate copy.
+
+        NOTE: mutating a `bytes` object is undefined behavior in Python,
+        but it's the only way to prove true aliasing in a test. This test
+        is purely diagnostic — production code must never mutate bytes.
         """
         cdr = _make_image_cdr()
         img = Image.from_cdr(cdr)
-        # The message's CDR representation should be byte-identical to input
-        assert img.to_bytes() == cdr
+
+        # Read the original height (should be 2)
+        assert img.height == 2
+
+        # Get writable access to the bytes buffer via CPython internals.
+        # PyBytes_AsString returns a char* to the internal buffer.
+        PyBytes_AsString = ctypes.pythonapi.PyBytes_AsString
+        PyBytes_AsString.restype = ctypes.POINTER(ctypes.c_ubyte)
+        PyBytes_AsString.argtypes = [ctypes.py_object]
+        buf = PyBytes_AsString(cdr)
+
+        # Find the height field (u32 LE value 2) in the CDR buffer.
+        # Scan for the pattern to be robust against header size changes.
+        height_le = (2).to_bytes(4, "little")
+        raw = bytes(cdr)
+        offset = raw.find(height_le)
+        assert offset >= 0, "Could not locate height field in CDR"
+
+        # Overwrite height to 99 (u32 LE: 0x63 0x00 0x00 0x00)
+        buf[offset] = 99
+        buf[offset + 1] = 0
+        buf[offset + 2] = 0
+        buf[offset + 3] = 0
+
+        # The message should now see height=99 — proving zero-copy aliasing
+        assert img.height == 99
 
     def test_message_valid_after_source_unreferenced(self):
         """Message stays valid after the original bytes is GC'd."""
