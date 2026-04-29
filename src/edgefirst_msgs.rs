@@ -86,6 +86,17 @@ pub struct Mask<B> {
     offsets: [usize; 2],
 }
 
+impl<B> Mask<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> Mask<C> {
+        Mask {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
+}
+
 impl<B: AsRef<[u8]>> Mask<B> {
     pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
         let mut c = CdrCursor::new(buf.as_ref())?;
@@ -402,6 +413,18 @@ pub struct DmaBuffer<B> {
     offsets: [usize; 1],
 }
 
+#[allow(deprecated)]
+impl<B> DmaBuffer<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> DmaBuffer<C> {
+        DmaBuffer {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
+}
+
 // The DmaBuffer impls remain until 4.0.0; allow(deprecated) here so the
 // crate's own use of the deprecated struct (fields, methods) compiles
 // cleanly. User code still gets the deprecation warning.
@@ -534,6 +557,17 @@ impl DmaBuffer<Vec<u8>> {
 pub struct LocalTime<B> {
     buf: B,
     offsets: [usize; 1],
+}
+
+impl<B> LocalTime<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> LocalTime<C> {
+        LocalTime {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 impl<B: AsRef<[u8]>> LocalTime<B> {
@@ -775,6 +809,17 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> LocalTime<B> {
 pub struct RadarCube<B> {
     buf: B,
     offsets: [usize; 5],
+}
+
+impl<B> RadarCube<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> RadarCube<C> {
+        RadarCube {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 impl<B: AsRef<[u8]>> RadarCube<B> {
@@ -1096,6 +1141,17 @@ pub struct RadarInfo<B> {
     offsets: [usize; 5],
 }
 
+impl<B> RadarInfo<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> RadarInfo<C> {
+        RadarInfo {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
+}
+
 impl<B: AsRef<[u8]>> RadarInfo<B> {
     pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
         let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
@@ -1345,6 +1401,17 @@ pub struct Track<B> {
     offsets: [usize; 1],
 }
 
+impl<B> Track<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> Track<C> {
+        Track {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
+}
+
 impl<B: AsRef<[u8]>> Track<B> {
     pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
         let mut c = CdrCursor::new(buf.as_ref())?;
@@ -1516,6 +1583,17 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Track<B> {
 pub struct DetectBox<B> {
     buf: B,
     offsets: [usize; 2],
+}
+
+impl<B> DetectBox<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> DetectBox<C> {
+        DetectBox {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 /// Zero-copy view of a Box element within a CDR sequence.
@@ -1934,6 +2012,17 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> DetectBox<B> {
 pub struct Detect<B> {
     buf: B,
     offsets: [usize; 2],
+}
+
+impl<B> Detect<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> Detect<C> {
+        Detect {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 impl<B: AsRef<[u8]>> Detect<B> {
@@ -2366,6 +2455,17 @@ pub struct CameraFrame<B> {
     // variable-length colorimetry strings on every `planes()`/`num_planes()`
     // call — important for high-frame-rate consumers.
     offsets: [usize; 2],
+}
+
+impl<B> CameraFrame<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> CameraFrame<C> {
+        CameraFrame {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 impl<B: AsRef<[u8]>> CameraFrame<B> {
@@ -2884,6 +2984,17 @@ pub struct Model<B> {
     offsets: [usize; 3],
 }
 
+impl<B> Model<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> Model<C> {
+        Model {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
+}
+
 impl<B: AsRef<[u8]>> Model<B> {
     pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
         let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
@@ -3277,6 +3388,17 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Model<B> {
 pub struct ModelInfo<B> {
     buf: B,
     offsets: [usize; 6],
+}
+
+impl<B> ModelInfo<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> ModelInfo<C> {
+        ModelInfo {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 impl<B: AsRef<[u8]>> ModelInfo<B> {
@@ -3677,6 +3799,17 @@ pub struct Vibration<B> {
     // offsets[0] is 8-aligned (hence 4-aligned relative to CDR payload
     // start). No position-dependent padding anywhere.
     offsets: [usize; 1],
+}
+
+impl<B> Vibration<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> Vibration<C> {
+        Vibration {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 impl<B: AsRef<[u8]>> Vibration<B> {

@@ -228,6 +228,17 @@ pub struct CompressedImage<B> {
     offsets: [usize; 3],
 }
 
+impl<B> CompressedImage<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> CompressedImage<C> {
+        CompressedImage {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
+}
+
 impl<B: AsRef<[u8]>> CompressedImage<B> {
     pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
         let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
@@ -423,6 +434,17 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> CompressedImage<B> {
 pub struct Image<B> {
     buf: B,
     offsets: [usize; 3],
+}
+
+impl<B> Image<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> Image<C> {
+        Image {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 impl<B: AsRef<[u8]>> Image<B> {
@@ -720,6 +742,17 @@ impl<'a> ImageBuilder<'a> {
 pub struct Imu<B> {
     buf: B,
     offsets: [usize; 1],
+}
+
+impl<B> Imu<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> Imu<C> {
+        Imu {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 impl<B: AsRef<[u8]>> Imu<B> {
@@ -1052,6 +1085,17 @@ pub struct NavSatFix<B> {
     offsets: [usize; 2],
 }
 
+impl<B> NavSatFix<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> NavSatFix<C> {
+        NavSatFix {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
+}
+
 impl<B: AsRef<[u8]>> NavSatFix<B> {
     pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
         let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
@@ -1358,6 +1402,17 @@ pub struct PointField<B> {
     offsets: [usize; 1],
 }
 
+impl<B> PointField<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> PointField<C> {
+        PointField {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
+}
+
 impl<B: AsRef<[u8]>> PointField<B> {
     pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
         let mut c = CdrCursor::new(buf.as_ref())?;
@@ -1561,6 +1616,17 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> PointField<B> {
 pub struct PointCloud2<B> {
     buf: B,
     offsets: [usize; 3],
+}
+
+impl<B> PointCloud2<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> PointCloud2<C> {
+        PointCloud2 {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 impl<B: AsRef<[u8]>> PointCloud2<B> {
@@ -1939,6 +2005,17 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> PointCloud2<B> {
 pub struct CameraInfo<B> {
     buf: B,
     offsets: [usize; 3],
+}
+
+impl<B> CameraInfo<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> CameraInfo<C> {
+        CameraInfo {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 impl<B: AsRef<[u8]>> CameraInfo<B> {
@@ -2377,6 +2454,17 @@ pub struct MagneticField<B> {
     offsets: [usize; 1],
 }
 
+impl<B> MagneticField<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> MagneticField<C> {
+        MagneticField {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
+}
+
 impl<B: AsRef<[u8]>> MagneticField<B> {
     pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
         let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
@@ -2580,6 +2668,17 @@ pub struct FluidPressure<B> {
     offsets: [usize; 1],
 }
 
+impl<B> FluidPressure<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> FluidPressure<C> {
+        FluidPressure {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
+}
+
 impl<B: AsRef<[u8]>> FluidPressure<B> {
     pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
         let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
@@ -2765,6 +2864,17 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> FluidPressure<B> {
 pub struct Temperature<B> {
     buf: B,
     offsets: [usize; 1],
+}
+
+impl<B> Temperature<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> Temperature<C> {
+        Temperature {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 impl<B: AsRef<[u8]>> Temperature<B> {
@@ -2999,6 +3109,17 @@ pub struct BatteryState<B> {
     // [3]: start of location string.
     // [4]: start of serial_number string.
     offsets: [usize; 5],
+}
+
+impl<B> BatteryState<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> BatteryState<C> {
+        BatteryState {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
 }
 
 impl<B: AsRef<[u8]>> BatteryState<B> {
