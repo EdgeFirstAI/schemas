@@ -484,6 +484,16 @@ public:
     }
 };
 
+/// @brief ROS 2 `geometry_msgs::Point32` — single-precision 3D point used by
+///        `Polygon` messages.
+struct Point32 {
+    float x{0};
+    float y{0};
+    float z{0};
+    constexpr Point32() noexcept = default;
+    constexpr Point32(float x_, float y_, float z_) noexcept : x(x_), y(y_), z(z_) {}
+};
+
 /// @brief ROS 2 `geometry_msgs::Quaternion` — unit quaternion representing
 ///        a 3D rotation in `(x, y, z, w)` order.
 class Quaternion {
@@ -3202,6 +3212,15 @@ public:
     [[nodiscard]] std::size_t size() const noexcept {
         return ros_polygon_get_len(handle());
     }
+
+    /// @brief Get a point by index.
+    /// @return The point on success, or an Error if index is out of range.
+    [[nodiscard]] expected<Point32, Error> point(std::size_t index) const noexcept {
+        Point32 p;
+        if (ros_polygon_get_point(handle(), index, &p.x, &p.y, &p.z) != 0)
+            return unexpected<Error>(Error::from_errno("ros_polygon_get_point"));
+        return p;
+    }
 };
 
 // ---------------------------------------------------------------------------
@@ -3236,6 +3255,15 @@ public:
     [[nodiscard]] std::size_t size() const noexcept {
         return ros_polygon_stamped_get_len(handle());
     }
+
+    /// @brief Get a point by index.
+    /// @return The point on success, or an Error if index is out of range.
+    [[nodiscard]] expected<Point32, Error> point(std::size_t index) const noexcept {
+        Point32 p;
+        if (ros_polygon_stamped_get_point(handle(), index, &p.x, &p.y, &p.z) != 0)
+            return unexpected<Error>(Error::from_errno("ros_polygon_stamped_get_point"));
+        return p;
+    }
 };
 
 // ---------------------------------------------------------------------------
@@ -3269,6 +3297,17 @@ public:
     /// @brief Number of poses in the array.
     [[nodiscard]] std::size_t size() const noexcept {
         return ros_pose_array_get_len(handle());
+    }
+
+    /// @brief Get a pose by index.
+    /// @return The pose on success, or an Error if index is out of range.
+    [[nodiscard]] expected<Pose, Error> pose(std::size_t index) const noexcept {
+        Pose p;
+        if (ros_pose_array_get_pose(handle(), index,
+                                    &p.px, &p.py, &p.pz,
+                                    &p.ox, &p.oy, &p.oz, &p.ow) != 0)
+            return unexpected<Error>(Error::from_errno("ros_pose_array_get_pose"));
+        return p;
     }
 };
 

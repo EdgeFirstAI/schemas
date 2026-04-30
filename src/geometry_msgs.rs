@@ -1419,7 +1419,8 @@ impl<B> Polygon<B> {
 impl<B: AsRef<[u8]>> Polygon<B> {
     pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
         let mut c = CdrCursor::new(buf.as_ref())?;
-        let count = c.read_seq_len()? as usize;
+        let raw = c.read_seq_len()?;
+        let count = c.check_seq_count(raw, Point32::CDR_SIZE)?;
         let o0 = c.offset();
         // Validate all points are readable
         for _ in 0..count {
@@ -1508,7 +1509,7 @@ impl Polygon<Vec<u8>> {
 
 pub struct PolygonStamped<B> {
     buf: B,
-    offsets: [usize; 2], // [0] = start of seq_len, [1] = start of points data
+    offsets: [usize; 2], // [0] = post-header cursor (seq_len position), [1] = start of points data
     count: usize,
 }
 
@@ -1529,7 +1530,8 @@ impl<B: AsRef<[u8]>> PolygonStamped<B> {
         let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
         let o0 = header.end_offset();
         let mut c = CdrCursor::resume(buf.as_ref(), o0);
-        let count = c.read_seq_len()? as usize;
+        let raw = c.read_seq_len()?;
+        let count = c.check_seq_count(raw, Point32::CDR_SIZE)?;
         let o1 = c.offset();
         for _ in 0..count {
             Point32::read_cdr(&mut c)?;
@@ -1635,7 +1637,7 @@ impl PolygonStamped<Vec<u8>> {
 
 pub struct PoseArray<B> {
     buf: B,
-    offsets: [usize; 2], // [0] = start of seq_len, [1] = start of poses data
+    offsets: [usize; 2], // [0] = post-header cursor (seq_len position), [1] = start of poses data
     count: usize,
 }
 
@@ -1656,7 +1658,8 @@ impl<B: AsRef<[u8]>> PoseArray<B> {
         let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
         let o0 = header.end_offset();
         let mut c = CdrCursor::resume(buf.as_ref(), o0);
-        let count = c.read_seq_len()? as usize;
+        let raw = c.read_seq_len()?;
+        let count = c.check_seq_count(raw, Pose::CDR_SIZE)?;
         let o1 = c.offset();
         for _ in 0..count {
             Pose::read_cdr(&mut c)?;
