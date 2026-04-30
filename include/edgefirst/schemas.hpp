@@ -905,6 +905,111 @@ public:
     }
 };
 
+/// @brief ROS 2 `geometry_msgs::Wrench` — force and torque vectors applied
+///        to a rigid body, each as a 3D vector (N and N·m).
+class Wrench {
+public:
+    /// Force X component in Newtons.
+    double fx{0};
+    /// Force Y component in Newtons.
+    double fy{0};
+    /// Force Z component in Newtons.
+    double fz{0};
+    /// Torque X component in N·m.
+    double tx{0};
+    /// Torque Y component in N·m.
+    double ty{0};
+    /// Torque Z component in N·m.
+    double tz{0};
+
+    /// @brief Default-construct a zero Wrench.
+    constexpr Wrench() noexcept = default;
+    /// @brief Construct a Wrench from explicit force and torque components.
+    constexpr Wrench(double fx_, double fy_, double fz_,
+                     double tx_, double ty_, double tz_) noexcept
+        : fx(fx_), fy(fy_), fz(fz_), tx(tx_), ty(ty_), tz(tz_) {}
+
+    /// @brief Decode a CDR-encoded Wrench from a byte buffer.
+    /// @param data CDR1-LE bytes; at least 48 bytes required.
+    /// @return The decoded Wrench on success, or an Error on failure.
+    [[nodiscard]] static expected<Wrench, Error>
+    decode(span<const std::uint8_t> data) noexcept {
+        Wrench w;
+        if (ros_wrench_decode(data.data(), data.size(),
+                              &w.fx, &w.fy, &w.fz,
+                              &w.tx, &w.ty, &w.tz) != 0)
+            return unexpected<Error>(Error::from_errno("ros_wrench_decode"));
+        return w;
+    }
+
+    /// @brief Encode this Wrench to CDR into the caller's buffer.
+    /// @param out Destination buffer; must have capacity ≥ encoded_size().
+    /// @return Number of bytes written on success, or an Error.
+    [[nodiscard]] expected<std::size_t, Error>
+    encode(span<std::uint8_t> out) const noexcept {
+        std::size_t written = 0;
+        if (ros_wrench_encode(out.data(), out.size(), &written,
+                              fx, fy, fz, tx, ty, tz) != 0)
+            return unexpected<Error>(Error::from_errno("ros_wrench_encode"));
+        return written;
+    }
+
+    /// @brief Query the number of bytes required to encode this Wrench.
+    /// @return The encoded CDR size on success, or an Error.
+    [[nodiscard]] expected<std::size_t, Error>
+    encoded_size() const noexcept {
+        std::size_t written = 0;
+        if (ros_wrench_encode(nullptr, 0, &written, fx, fy, fz, tx, ty, tz) != 0)
+            return unexpected<Error>(Error::from_errno("ros_wrench_encode"));
+        return written;
+    }
+};
+
+/// @brief ROS 2 `geometry_msgs::AccelWithCovariance` — acceleration with a
+///        6×6 row-major covariance matrix (linear + angular).
+class AccelWithCovariance {
+public:
+    Accel accel{};
+    std::array<double, 36> covariance{};
+
+    constexpr AccelWithCovariance() noexcept = default;
+    AccelWithCovariance(Accel a, std::array<double, 36> cov) noexcept
+        : accel(a), covariance(cov) {}
+
+    [[nodiscard]] static expected<AccelWithCovariance, Error>
+    decode(span<const std::uint8_t> data) noexcept {
+        AccelWithCovariance a;
+        if (ros_accel_with_covariance_decode(data.data(), data.size(),
+                                             &a.accel.lx, &a.accel.ly, &a.accel.lz,
+                                             &a.accel.ax, &a.accel.ay, &a.accel.az,
+                                             a.covariance.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_accel_with_covariance_decode"));
+        return a;
+    }
+
+    [[nodiscard]] expected<std::size_t, Error>
+    encode(span<std::uint8_t> out) const noexcept {
+        std::size_t written = 0;
+        if (ros_accel_with_covariance_encode(out.data(), out.size(), &written,
+                                             accel.lx, accel.ly, accel.lz,
+                                             accel.ax, accel.ay, accel.az,
+                                             covariance.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_accel_with_covariance_encode"));
+        return written;
+    }
+
+    [[nodiscard]] expected<std::size_t, Error>
+    encoded_size() const noexcept {
+        std::size_t written = 0;
+        if (ros_accel_with_covariance_encode(nullptr, 0, &written,
+                                             accel.lx, accel.ly, accel.lz,
+                                             accel.ax, accel.ay, accel.az,
+                                             covariance.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_accel_with_covariance_encode"));
+        return written;
+    }
+};
+
 /// @brief ROS 2 `sensor_msgs::NavSatStatus` — GNSS fix status and service
 ///        bitmask as defined by `sensor_msgs/NavSatStatus.msg`.
 class NavSatStatus {

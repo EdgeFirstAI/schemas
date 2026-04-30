@@ -742,6 +742,87 @@ pub extern "C" fn ros_wrench_decode(
     }
 }
 
+// AccelWithCovariance
+#[no_mangle]
+pub extern "C" fn ros_accel_with_covariance_encode(
+    buf: *mut u8,
+    cap: usize,
+    written: *mut usize,
+    lx: f64,
+    ly: f64,
+    lz: f64,
+    ax: f64,
+    ay: f64,
+    az: f64,
+    covariance: *const f64,
+) -> i32 {
+    if covariance.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let mut cov = [0.0_f64; 36];
+    unsafe {
+        ptr::copy_nonoverlapping(covariance, cov.as_mut_ptr(), 36);
+    }
+    let val = AccelWithCovariance {
+        accel: Accel {
+            linear: Vector3 {
+                x: lx,
+                y: ly,
+                z: lz,
+            },
+            angular: Vector3 {
+                x: ax,
+                y: ay,
+                z: az,
+            },
+        },
+        covariance: cov,
+    };
+    encode_fixed_to_buf(&val, buf, cap, written)
+}
+
+#[no_mangle]
+pub extern "C" fn ros_accel_with_covariance_decode(
+    data: *const u8,
+    len: usize,
+    lx: *mut f64,
+    ly: *mut f64,
+    lz: *mut f64,
+    ax: *mut f64,
+    ay: *mut f64,
+    az: *mut f64,
+    covariance_out: *mut f64,
+) -> i32 {
+    match decode_fixed_from_buf::<AccelWithCovariance>(data, len) {
+        Ok(v) => unsafe {
+            if !lx.is_null() {
+                *lx = v.accel.linear.x;
+            }
+            if !ly.is_null() {
+                *ly = v.accel.linear.y;
+            }
+            if !lz.is_null() {
+                *lz = v.accel.linear.z;
+            }
+            if !ax.is_null() {
+                *ax = v.accel.angular.x;
+            }
+            if !ay.is_null() {
+                *ay = v.accel.angular.y;
+            }
+            if !az.is_null() {
+                *az = v.accel.angular.z;
+            }
+            if !covariance_out.is_null() {
+                ptr::copy_nonoverlapping(v.covariance.as_ptr(), covariance_out, 36);
+            }
+            0
+        },
+        Err(()) => -1,
+    }
+}
+
 // NavSatStatus
 #[no_mangle]
 pub extern "C" fn ros_nav_sat_status_encode(
@@ -2570,9 +2651,7 @@ pub extern "C" fn ros_polygon_stamped_free(view: *mut ros_polygon_stamped_t) {
 
 /// Get stamp seconds.
 #[no_mangle]
-pub extern "C" fn ros_polygon_stamped_get_stamp_sec(
-    view: *const ros_polygon_stamped_t,
-) -> i32 {
+pub extern "C" fn ros_polygon_stamped_get_stamp_sec(view: *const ros_polygon_stamped_t) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -2581,9 +2660,7 @@ pub extern "C" fn ros_polygon_stamped_get_stamp_sec(
 
 /// Get stamp nanoseconds.
 #[no_mangle]
-pub extern "C" fn ros_polygon_stamped_get_stamp_nanosec(
-    view: *const ros_polygon_stamped_t,
-) -> u32 {
+pub extern "C" fn ros_polygon_stamped_get_stamp_nanosec(view: *const ros_polygon_stamped_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -2603,9 +2680,7 @@ pub extern "C" fn ros_polygon_stamped_get_frame_id(
 
 /// Get the number of points in the polygon.
 #[no_mangle]
-pub extern "C" fn ros_polygon_stamped_get_len(
-    view: *const ros_polygon_stamped_t,
-) -> usize {
+pub extern "C" fn ros_polygon_stamped_get_len(view: *const ros_polygon_stamped_t) -> usize {
     if view.is_null() {
         return 0;
     }
@@ -2651,10 +2726,7 @@ pub struct ros_pose_array_t(geometry_msgs::PoseArray<&'static [u8]>);
 
 /// Parse CDR bytes into a PoseArray view handle.
 #[no_mangle]
-pub extern "C" fn ros_pose_array_from_cdr(
-    data: *const u8,
-    len: usize,
-) -> *mut ros_pose_array_t {
+pub extern "C" fn ros_pose_array_from_cdr(data: *const u8, len: usize) -> *mut ros_pose_array_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match geometry_msgs::PoseArray::from_cdr(unsafe { erase_lifetime(slice) }) {
@@ -2696,9 +2768,7 @@ pub extern "C" fn ros_pose_array_get_stamp_nanosec(view: *const ros_pose_array_t
 
 /// Get frame_id (borrowed pointer valid while handle lives).
 #[no_mangle]
-pub extern "C" fn ros_pose_array_get_frame_id(
-    view: *const ros_pose_array_t,
-) -> *const c_char {
+pub extern "C" fn ros_pose_array_get_frame_id(view: *const ros_pose_array_t) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }

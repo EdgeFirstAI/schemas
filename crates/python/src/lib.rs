@@ -2845,8 +2845,17 @@ stamped_boilerplate!(
     PoseWithCovarianceStamped::new,
     PoseWithCovariance {
         pose: Pose {
-            position: Point { x: 0.0, y: 0.0, z: 0.0 },
-            orientation: Quaternion { x: 0.0, y: 0.0, z: 0.0, w: 1.0 }
+            position: Point {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0
+            },
+            orientation: Quaternion {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                w: 1.0
+            }
         },
         covariance: [0.0; 36]
     }
@@ -2863,8 +2872,16 @@ stamped_boilerplate!(
     TwistWithCovarianceStamped::new,
     TwistWithCovariance {
         twist: Twist {
-            linear: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
-            angular: Vector3 { x: 0.0, y: 0.0, z: 0.0 }
+            linear: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0
+            },
+            angular: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0
+            }
         },
         covariance: [0.0; 36]
     }
@@ -2881,8 +2898,16 @@ stamped_boilerplate!(
     AccelWithCovarianceStamped::new,
     AccelWithCovariance {
         accel: Accel {
-            linear: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
-            angular: Vector3 { x: 0.0, y: 0.0, z: 0.0 }
+            linear: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0
+            },
+            angular: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0
+            }
         },
         covariance: [0.0; 36]
     }
@@ -2969,11 +2994,7 @@ impl PyTransformStamped {
 
 // ── geometry_msgs.Polygon (buffer-backed, sequence of Point32) ──────
 
-#[pyclass(
-    name = "Polygon",
-    module = "edgefirst.schemas.geometry_msgs",
-    frozen
-)]
+#[pyclass(name = "Polygon", module = "edgefirst.schemas.geometry_msgs", frozen)]
 pub struct PyPolygon {
     inner: Polygon<PyBuf>,
 }
@@ -3021,9 +3042,10 @@ impl PyPolygon {
         } else {
             idx as usize
         };
-        self.inner.point(idx).map(PyPoint32).ok_or_else(|| {
-            pyo3::exceptions::PyIndexError::new_err("index out of range")
-        })
+        self.inner
+            .point(idx)
+            .map(PyPoint32)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("index out of range"))
     }
 
     #[getter]
@@ -3100,9 +3122,10 @@ impl PyPolygonStamped {
         } else {
             idx as usize
         };
-        self.inner.point(idx).map(PyPoint32).ok_or_else(|| {
-            pyo3::exceptions::PyIndexError::new_err("index out of range")
-        })
+        self.inner
+            .point(idx)
+            .map(PyPoint32)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("index out of range"))
     }
 
     #[getter]
@@ -3117,11 +3140,7 @@ impl PyPolygonStamped {
 
 // ── geometry_msgs.PoseArray (Header + sequence<Pose>) ───────────────
 
-#[pyclass(
-    name = "PoseArray",
-    module = "edgefirst.schemas.geometry_msgs",
-    frozen
-)]
+#[pyclass(name = "PoseArray", module = "edgefirst.schemas.geometry_msgs", frozen)]
 pub struct PyPoseArray {
     inner: PoseArray<PyBuf>,
 }
@@ -3133,11 +3152,7 @@ impl PyPoseArray {
     fn new(header: &PyHeader, poses: Option<Vec<PyPose>>) -> PyResult<Self> {
         let stamp = header.inner.stamp();
         let frame_id = header.inner.frame_id().to_string();
-        let ps: Vec<Pose> = poses
-            .unwrap_or_default()
-            .into_iter()
-            .map(|p| p.0)
-            .collect();
+        let ps: Vec<Pose> = poses.unwrap_or_default().into_iter().map(|p| p.0).collect();
         let inner = PoseArray::new(stamp, &frame_id, &ps)
             .map_err(map_cdr_err)?
             .map_buffer(PyBuf::Owned);
@@ -3179,9 +3194,10 @@ impl PyPoseArray {
         } else {
             idx as usize
         };
-        self.inner.pose(idx).map(PyPose).ok_or_else(|| {
-            pyo3::exceptions::PyIndexError::new_err("index out of range")
-        })
+        self.inner
+            .pose(idx)
+            .map(PyPose)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("index out of range"))
     }
 
     #[getter]

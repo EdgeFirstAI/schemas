@@ -594,6 +594,47 @@ int ros_wrench_decode(const uint8_t* data, size_t len,
                       double* tx, double* ty, double* tz);
 
 /* ============================================================================
+ * geometry_msgs - AccelWithCovariance (CdrFixed)
+ * ========================================================================= */
+
+/**
+ * @brief Encode an AccelWithCovariance message to CDR.
+ * @param buf Destination buffer, or NULL to query required size
+ * @param cap Capacity of buf in bytes
+ * @param written Receives the number of bytes written (or required)
+ * @param lx Linear acceleration X
+ * @param ly Linear acceleration Y
+ * @param lz Linear acceleration Z
+ * @param ax Angular acceleration X
+ * @param ay Angular acceleration Y
+ * @param az Angular acceleration Z
+ * @param covariance Pointer to 36 doubles (row-major 6x6 covariance)
+ * @return 0 on success, -1 on error (sets errno to EINVAL if covariance is NULL)
+ */
+int ros_accel_with_covariance_encode(uint8_t* buf, size_t cap, size_t* written,
+                                     double lx, double ly, double lz,
+                                     double ax, double ay, double az,
+                                     const double* covariance);
+
+/**
+ * @brief Decode an AccelWithCovariance message from CDR.
+ * @param data CDR encoded bytes
+ * @param len Length of data
+ * @param lx Receives linear X (may be NULL)
+ * @param ly Receives linear Y (may be NULL)
+ * @param lz Receives linear Z (may be NULL)
+ * @param ax Receives angular X (may be NULL)
+ * @param ay Receives angular Y (may be NULL)
+ * @param az Receives angular Z (may be NULL)
+ * @param covariance_out Receives 36 doubles of covariance (may be NULL)
+ * @return 0 on success, -1 on error
+ */
+int ros_accel_with_covariance_decode(const uint8_t* data, size_t len,
+                                     double* lx, double* ly, double* lz,
+                                     double* ax, double* ay, double* az,
+                                     double* covariance_out);
+
+/* ============================================================================
  * sensor_msgs - NavSatStatus (CdrFixed)
  * ========================================================================= */
 
