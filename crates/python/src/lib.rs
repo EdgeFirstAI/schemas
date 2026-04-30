@@ -46,9 +46,11 @@ use edgefirst_schemas::foxglove_msgs::{
     FoxgloveTextAnnotationView,
 };
 use edgefirst_schemas::geometry_msgs::{
-    Accel, AccelStamped, Inertia, InertiaStamped, Point, Point32, PointStamped, Pose, Pose2D,
-    PoseWithCovariance, Quaternion, Transform, TransformStamped, Twist, TwistStamped,
-    TwistWithCovariance, Vector3,
+    Accel, AccelStamped, AccelWithCovariance, AccelWithCovarianceStamped, Inertia, InertiaStamped,
+    Point, Point32, PointStamped, Polygon, PolygonStamped, Pose, Pose2D, PoseArray, PoseStamped,
+    PoseWithCovariance, PoseWithCovarianceStamped, Quaternion, QuaternionStamped, Transform,
+    TransformStamped, Twist, TwistStamped, TwistWithCovariance, TwistWithCovarianceStamped,
+    Vector3, Vector3Stamped, Wrench, WrenchStamped,
 };
 use edgefirst_schemas::mavros_msgs::{
     Altitude as MavAltitude, EstimatorStatus, ExtendedState, GpsRaw, State as MavState, StatusText,
@@ -2516,6 +2518,100 @@ impl PyTwistWithCovariance {
     }
 }
 
+#[pyclass(name = "Wrench", module = "edgefirst.schemas.geometry_msgs", frozen)]
+#[derive(Clone, Copy)]
+pub struct PyWrench(pub Wrench);
+
+#[pymethods]
+impl PyWrench {
+    #[new]
+    #[pyo3(signature = (force=None, torque=None))]
+    fn new(force: Option<PyVector3>, torque: Option<PyVector3>) -> Self {
+        Self(Wrench {
+            force: force.map(|v| v.0).unwrap_or(Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            }),
+            torque: torque.map(|v| v.0).unwrap_or(Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            }),
+        })
+    }
+    #[getter]
+    fn force(&self) -> PyVector3 {
+        PyVector3(self.0.force)
+    }
+    #[getter]
+    fn torque(&self) -> PyVector3 {
+        PyVector3(self.0.torque)
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        cdrfixed_encode(py, &self.0)
+    }
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        Ok(Self(cdrfixed_decode::<Wrench>(py, buf)?))
+    }
+}
+
+#[pyclass(
+    name = "AccelWithCovariance",
+    module = "edgefirst.schemas.geometry_msgs",
+    frozen
+)]
+#[derive(Clone, Copy)]
+pub struct PyAccelWithCovariance(pub AccelWithCovariance);
+
+#[pymethods]
+impl PyAccelWithCovariance {
+    #[new]
+    #[pyo3(signature = (accel=None, covariance=None))]
+    fn new(accel: Option<PyAccel>, covariance: Option<Vec<f64>>) -> PyResult<Self> {
+        let accel = accel.map(|a| a.0).unwrap_or(Accel {
+            linear: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            angular: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+        });
+        Ok(Self(AccelWithCovariance {
+            accel,
+            covariance: extract_array36(covariance)?,
+        }))
+    }
+    #[getter]
+    fn accel(&self) -> PyAccel {
+        PyAccel(self.0.accel)
+    }
+    #[getter]
+    fn covariance(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        array36_to_list(py, self.0.covariance)
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        cdrfixed_encode(py, &self.0)
+    }
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        Ok(Self(cdrfixed_decode::<AccelWithCovariance>(py, buf)?))
+    }
+}
+
 // ── geometry_msgs stamped types (buffer-backed) ─────────────────────
 
 macro_rules! stamped_boilerplate {
@@ -2658,6 +2754,165 @@ stamped_boilerplate!(
     }
 );
 
+stamped_boilerplate!(
+    PyVector3Stamped,
+    Vector3Stamped,
+    "Vector3Stamped",
+    "edgefirst.schemas.geometry_msgs",
+    vector,
+    PyVector3,
+    Vector3,
+    Vector3Stamped::new,
+    Vector3 {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0
+    }
+);
+
+stamped_boilerplate!(
+    PyPoseStamped,
+    PoseStamped,
+    "PoseStamped",
+    "edgefirst.schemas.geometry_msgs",
+    pose,
+    PyPose,
+    Pose,
+    PoseStamped::new,
+    Pose {
+        position: Point {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0
+        },
+        orientation: Quaternion {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            w: 1.0
+        }
+    }
+);
+
+stamped_boilerplate!(
+    PyQuaternionStamped,
+    QuaternionStamped,
+    "QuaternionStamped",
+    "edgefirst.schemas.geometry_msgs",
+    quaternion,
+    PyQuaternion,
+    Quaternion,
+    QuaternionStamped::new,
+    Quaternion {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+        w: 1.0
+    }
+);
+
+stamped_boilerplate!(
+    PyWrenchStamped,
+    WrenchStamped,
+    "WrenchStamped",
+    "edgefirst.schemas.geometry_msgs",
+    wrench,
+    PyWrench,
+    Wrench,
+    WrenchStamped::new,
+    Wrench {
+        force: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0
+        },
+        torque: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0
+        }
+    }
+);
+
+stamped_boilerplate!(
+    PyPoseWithCovarianceStamped,
+    PoseWithCovarianceStamped,
+    "PoseWithCovarianceStamped",
+    "edgefirst.schemas.geometry_msgs",
+    pose_with_covariance,
+    PyPoseWithCovariance,
+    PoseWithCovariance,
+    PoseWithCovarianceStamped::new,
+    PoseWithCovariance {
+        pose: Pose {
+            position: Point {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0
+            },
+            orientation: Quaternion {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                w: 1.0
+            }
+        },
+        covariance: [0.0; 36]
+    }
+);
+
+stamped_boilerplate!(
+    PyTwistWithCovarianceStamped,
+    TwistWithCovarianceStamped,
+    "TwistWithCovarianceStamped",
+    "edgefirst.schemas.geometry_msgs",
+    twist_with_covariance,
+    PyTwistWithCovariance,
+    TwistWithCovariance,
+    TwistWithCovarianceStamped::new,
+    TwistWithCovariance {
+        twist: Twist {
+            linear: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0
+            },
+            angular: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0
+            }
+        },
+        covariance: [0.0; 36]
+    }
+);
+
+stamped_boilerplate!(
+    PyAccelWithCovarianceStamped,
+    AccelWithCovarianceStamped,
+    "AccelWithCovarianceStamped",
+    "edgefirst.schemas.geometry_msgs",
+    accel_with_covariance,
+    PyAccelWithCovariance,
+    AccelWithCovariance,
+    AccelWithCovarianceStamped::new,
+    AccelWithCovariance {
+        accel: Accel {
+            linear: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0
+            },
+            angular: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0
+            }
+        },
+        covariance: [0.0; 36]
+    }
+);
+
 // ── geometry_msgs.TransformStamped (two string fields) ──────────────
 
 #[pyclass(
@@ -2737,7 +2992,223 @@ impl PyTransformStamped {
     }
 }
 
-// ── sensor_msgs.Imu (buffer-backed) ─────────────────────────────────
+// ── geometry_msgs.Polygon (buffer-backed, sequence of Point32) ──────
+
+#[pyclass(name = "Polygon", module = "edgefirst.schemas.geometry_msgs", frozen)]
+pub struct PyPolygon {
+    inner: Polygon<PyBuf>,
+}
+
+#[pymethods]
+impl PyPolygon {
+    #[new]
+    #[pyo3(signature = (points=None))]
+    fn new(points: Option<Vec<PyPoint32>>) -> PyResult<Self> {
+        let pts: Vec<Point32> = points
+            .unwrap_or_default()
+            .into_iter()
+            .map(|p| p.0)
+            .collect();
+        let inner = Polygon::new(&pts)
+            .map_err(map_cdr_err)?
+            .map_buffer(PyBuf::Owned);
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        _py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let pybuf = smart_buffer(buf)?;
+        let inner = Polygon::from_cdr(pybuf).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+
+    fn __len__(&self) -> usize {
+        self.inner.len()
+    }
+
+    fn __getitem__(&self, idx: isize) -> PyResult<PyPoint32> {
+        let len = self.inner.len();
+        let idx = if idx < 0 {
+            (len as isize + idx) as usize
+        } else {
+            idx as usize
+        };
+        self.inner
+            .point(idx)
+            .map(PyPoint32)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("index out of range"))
+    }
+
+    #[getter]
+    fn points(&self) -> Vec<PyPoint32> {
+        self.inner.points().into_iter().map(PyPoint32).collect()
+    }
+
+    fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        Ok(PyBytes::new(py, self.inner.as_cdr()))
+    }
+}
+
+// ── geometry_msgs.PolygonStamped (Header + Polygon) ─────────────────
+
+#[pyclass(
+    name = "PolygonStamped",
+    module = "edgefirst.schemas.geometry_msgs",
+    frozen
+)]
+pub struct PyPolygonStamped {
+    inner: PolygonStamped<PyBuf>,
+}
+
+#[pymethods]
+impl PyPolygonStamped {
+    #[new]
+    #[pyo3(signature = (header, points=None))]
+    fn new(header: &PyHeader, points: Option<Vec<PyPoint32>>) -> PyResult<Self> {
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let pts: Vec<Point32> = points
+            .unwrap_or_default()
+            .into_iter()
+            .map(|p| p.0)
+            .collect();
+        let inner = PolygonStamped::new(stamp, &frame_id, &pts)
+            .map_err(map_cdr_err)?
+            .map_buffer(PyBuf::Owned);
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        _py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let pybuf = smart_buffer(buf)?;
+        let inner = PolygonStamped::from_cdr(pybuf).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+
+    fn __len__(&self) -> usize {
+        self.inner.len()
+    }
+
+    fn __getitem__(&self, idx: isize) -> PyResult<PyPoint32> {
+        let len = self.inner.len();
+        let idx = if idx < 0 {
+            (len as isize + idx) as usize
+        } else {
+            idx as usize
+        };
+        self.inner
+            .point(idx)
+            .map(PyPoint32)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("index out of range"))
+    }
+
+    #[getter]
+    fn points(&self) -> Vec<PyPoint32> {
+        self.inner.points().into_iter().map(PyPoint32).collect()
+    }
+
+    fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        Ok(PyBytes::new(py, self.inner.as_cdr()))
+    }
+}
+
+// ── geometry_msgs.PoseArray (Header + sequence<Pose>) ───────────────
+
+#[pyclass(name = "PoseArray", module = "edgefirst.schemas.geometry_msgs", frozen)]
+pub struct PyPoseArray {
+    inner: PoseArray<PyBuf>,
+}
+
+#[pymethods]
+impl PyPoseArray {
+    #[new]
+    #[pyo3(signature = (header, poses=None))]
+    fn new(header: &PyHeader, poses: Option<Vec<PyPose>>) -> PyResult<Self> {
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let ps: Vec<Pose> = poses.unwrap_or_default().into_iter().map(|p| p.0).collect();
+        let inner = PoseArray::new(stamp, &frame_id, &ps)
+            .map_err(map_cdr_err)?
+            .map_buffer(PyBuf::Owned);
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        _py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let pybuf = smart_buffer(buf)?;
+        let inner = PoseArray::from_cdr(pybuf).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+
+    fn __len__(&self) -> usize {
+        self.inner.len()
+    }
+
+    fn __getitem__(&self, idx: isize) -> PyResult<PyPose> {
+        let len = self.inner.len();
+        let idx = if idx < 0 {
+            (len as isize + idx) as usize
+        } else {
+            idx as usize
+        };
+        self.inner
+            .pose(idx)
+            .map(PyPose)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("index out of range"))
+    }
+
+    #[getter]
+    fn poses(&self) -> Vec<PyPose> {
+        self.inner.poses().into_iter().map(PyPose).collect()
+    }
+
+    fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        Ok(PyBytes::new(py, self.inner.as_cdr()))
+    }
+}
 
 /// `sensor_msgs.Imu` — orientation + angular velocity + linear
 /// acceleration, each with a 3×3 covariance.
@@ -6283,6 +6754,18 @@ fn schemas(m: &Bound<'_, PyModule>) -> PyResult<()> {
     geom.add_class::<PyInertiaStamped>()?;
     geom.add_class::<PyPointStamped>()?;
     geom.add_class::<PyTransformStamped>()?;
+    geom.add_class::<PyWrench>()?;
+    geom.add_class::<PyAccelWithCovariance>()?;
+    geom.add_class::<PyVector3Stamped>()?;
+    geom.add_class::<PyPoseStamped>()?;
+    geom.add_class::<PyQuaternionStamped>()?;
+    geom.add_class::<PyWrenchStamped>()?;
+    geom.add_class::<PyPoseWithCovarianceStamped>()?;
+    geom.add_class::<PyTwistWithCovarianceStamped>()?;
+    geom.add_class::<PyAccelWithCovarianceStamped>()?;
+    geom.add_class::<PyPolygon>()?;
+    geom.add_class::<PyPolygonStamped>()?;
+    geom.add_class::<PyPoseArray>()?;
     m.add_submodule(&geom)?;
     register_submodule(py, m, "geometry_msgs", &geom)?;
 

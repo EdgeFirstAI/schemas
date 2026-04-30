@@ -905,6 +905,111 @@ public:
     }
 };
 
+/// @brief ROS 2 `geometry_msgs::Wrench` — force and torque vectors applied
+///        to a rigid body, each as a 3D vector (N and N·m).
+class Wrench {
+public:
+    /// Force X component in Newtons.
+    double fx{0};
+    /// Force Y component in Newtons.
+    double fy{0};
+    /// Force Z component in Newtons.
+    double fz{0};
+    /// Torque X component in N·m.
+    double tx{0};
+    /// Torque Y component in N·m.
+    double ty{0};
+    /// Torque Z component in N·m.
+    double tz{0};
+
+    /// @brief Default-construct a zero Wrench.
+    constexpr Wrench() noexcept = default;
+    /// @brief Construct a Wrench from explicit force and torque components.
+    constexpr Wrench(double fx_, double fy_, double fz_,
+                     double tx_, double ty_, double tz_) noexcept
+        : fx(fx_), fy(fy_), fz(fz_), tx(tx_), ty(ty_), tz(tz_) {}
+
+    /// @brief Decode a CDR-encoded Wrench from a byte buffer.
+    /// @param data CDR1-LE bytes; at least 48 bytes required.
+    /// @return The decoded Wrench on success, or an Error on failure.
+    [[nodiscard]] static expected<Wrench, Error>
+    decode(span<const std::uint8_t> data) noexcept {
+        Wrench w;
+        if (ros_wrench_decode(data.data(), data.size(),
+                              &w.fx, &w.fy, &w.fz,
+                              &w.tx, &w.ty, &w.tz) != 0)
+            return unexpected<Error>(Error::from_errno("ros_wrench_decode"));
+        return w;
+    }
+
+    /// @brief Encode this Wrench to CDR into the caller's buffer.
+    /// @param out Destination buffer; must have capacity ≥ encoded_size().
+    /// @return Number of bytes written on success, or an Error.
+    [[nodiscard]] expected<std::size_t, Error>
+    encode(span<std::uint8_t> out) const noexcept {
+        std::size_t written = 0;
+        if (ros_wrench_encode(out.data(), out.size(), &written,
+                              fx, fy, fz, tx, ty, tz) != 0)
+            return unexpected<Error>(Error::from_errno("ros_wrench_encode"));
+        return written;
+    }
+
+    /// @brief Query the number of bytes required to encode this Wrench.
+    /// @return The encoded CDR size on success, or an Error.
+    [[nodiscard]] expected<std::size_t, Error>
+    encoded_size() const noexcept {
+        std::size_t written = 0;
+        if (ros_wrench_encode(nullptr, 0, &written, fx, fy, fz, tx, ty, tz) != 0)
+            return unexpected<Error>(Error::from_errno("ros_wrench_encode"));
+        return written;
+    }
+};
+
+/// @brief ROS 2 `geometry_msgs::AccelWithCovariance` — acceleration with a
+///        6×6 row-major covariance matrix (linear + angular).
+class AccelWithCovariance {
+public:
+    Accel accel{};
+    std::array<double, 36> covariance{};
+
+    constexpr AccelWithCovariance() noexcept = default;
+    AccelWithCovariance(Accel a, std::array<double, 36> cov) noexcept
+        : accel(a), covariance(cov) {}
+
+    [[nodiscard]] static expected<AccelWithCovariance, Error>
+    decode(span<const std::uint8_t> data) noexcept {
+        AccelWithCovariance a;
+        if (ros_accel_with_covariance_decode(data.data(), data.size(),
+                                             &a.accel.lx, &a.accel.ly, &a.accel.lz,
+                                             &a.accel.ax, &a.accel.ay, &a.accel.az,
+                                             a.covariance.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_accel_with_covariance_decode"));
+        return a;
+    }
+
+    [[nodiscard]] expected<std::size_t, Error>
+    encode(span<std::uint8_t> out) const noexcept {
+        std::size_t written = 0;
+        if (ros_accel_with_covariance_encode(out.data(), out.size(), &written,
+                                             accel.lx, accel.ly, accel.lz,
+                                             accel.ax, accel.ay, accel.az,
+                                             covariance.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_accel_with_covariance_encode"));
+        return written;
+    }
+
+    [[nodiscard]] expected<std::size_t, Error>
+    encoded_size() const noexcept {
+        std::size_t written = 0;
+        if (ros_accel_with_covariance_encode(nullptr, 0, &written,
+                                             accel.lx, accel.ly, accel.lz,
+                                             accel.ax, accel.ay, accel.az,
+                                             covariance.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_accel_with_covariance_encode"));
+        return written;
+    }
+};
+
 /// @brief ROS 2 `sensor_msgs::NavSatStatus` — GNSS fix status and service
 ///        bitmask as defined by `sensor_msgs/NavSatStatus.msg`.
 class NavSatStatus {
@@ -1410,6 +1515,86 @@ struct InertiaStampedTraits {
     static constexpr auto free     = ros_inertia_stamped_free;
     static constexpr auto as_cdr   = ros_inertia_stamped_as_cdr;
     static constexpr std::string_view name = "ros_inertia_stamped";
+};
+
+struct Vector3StampedTraits {
+    using handle_type = ros_vector3_stamped_t;
+    static constexpr auto from_cdr = ros_vector3_stamped_from_cdr;
+    static constexpr auto free     = ros_vector3_stamped_free;
+    static constexpr auto as_cdr   = ros_vector3_stamped_as_cdr;
+    static constexpr std::string_view name = "ros_vector3_stamped";
+};
+
+struct PoseStampedTraits {
+    using handle_type = ros_pose_stamped_t;
+    static constexpr auto from_cdr = ros_pose_stamped_from_cdr;
+    static constexpr auto free     = ros_pose_stamped_free;
+    static constexpr auto as_cdr   = ros_pose_stamped_as_cdr;
+    static constexpr std::string_view name = "ros_pose_stamped";
+};
+
+struct QuaternionStampedTraits {
+    using handle_type = ros_quaternion_stamped_t;
+    static constexpr auto from_cdr = ros_quaternion_stamped_from_cdr;
+    static constexpr auto free     = ros_quaternion_stamped_free;
+    static constexpr auto as_cdr   = ros_quaternion_stamped_as_cdr;
+    static constexpr std::string_view name = "ros_quaternion_stamped";
+};
+
+struct WrenchStampedTraits {
+    using handle_type = ros_wrench_stamped_t;
+    static constexpr auto from_cdr = ros_wrench_stamped_from_cdr;
+    static constexpr auto free     = ros_wrench_stamped_free;
+    static constexpr auto as_cdr   = ros_wrench_stamped_as_cdr;
+    static constexpr std::string_view name = "ros_wrench_stamped";
+};
+
+struct PoseWithCovarianceStampedTraits {
+    using handle_type = ros_pose_with_covariance_stamped_t;
+    static constexpr auto from_cdr = ros_pose_with_covariance_stamped_from_cdr;
+    static constexpr auto free     = ros_pose_with_covariance_stamped_free;
+    static constexpr auto as_cdr   = ros_pose_with_covariance_stamped_as_cdr;
+    static constexpr std::string_view name = "ros_pose_with_covariance_stamped";
+};
+
+struct TwistWithCovarianceStampedTraits {
+    using handle_type = ros_twist_with_covariance_stamped_t;
+    static constexpr auto from_cdr = ros_twist_with_covariance_stamped_from_cdr;
+    static constexpr auto free     = ros_twist_with_covariance_stamped_free;
+    static constexpr auto as_cdr   = ros_twist_with_covariance_stamped_as_cdr;
+    static constexpr std::string_view name = "ros_twist_with_covariance_stamped";
+};
+
+struct AccelWithCovarianceStampedTraits {
+    using handle_type = ros_accel_with_covariance_stamped_t;
+    static constexpr auto from_cdr = ros_accel_with_covariance_stamped_from_cdr;
+    static constexpr auto free     = ros_accel_with_covariance_stamped_free;
+    static constexpr auto as_cdr   = ros_accel_with_covariance_stamped_as_cdr;
+    static constexpr std::string_view name = "ros_accel_with_covariance_stamped";
+};
+
+struct PolygonTraits {
+    using handle_type = ros_polygon_t;
+    static constexpr auto from_cdr = ros_polygon_from_cdr;
+    static constexpr auto free     = ros_polygon_free;
+    static constexpr auto as_cdr   = ros_polygon_as_cdr;
+    static constexpr std::string_view name = "ros_polygon";
+};
+
+struct PolygonStampedTraits {
+    using handle_type = ros_polygon_stamped_t;
+    static constexpr auto from_cdr = ros_polygon_stamped_from_cdr;
+    static constexpr auto free     = ros_polygon_stamped_free;
+    static constexpr auto as_cdr   = ros_polygon_stamped_as_cdr;
+    static constexpr std::string_view name = "ros_polygon_stamped";
+};
+
+struct PoseArrayTraits {
+    using handle_type = ros_pose_array_t;
+    static constexpr auto from_cdr = ros_pose_array_from_cdr;
+    static constexpr auto free     = ros_pose_array_free;
+    static constexpr auto as_cdr   = ros_pose_array_as_cdr;
+    static constexpr std::string_view name = "ros_pose_array";
 };
 
 struct CompressedVideoTraits {
@@ -2781,6 +2966,309 @@ public:
     /// @brief Coordinate frame identifier.
     [[nodiscard]] std::string_view frame_id() const noexcept {
         return ros_inertia_stamped_get_frame_id(handle());
+    }
+};
+
+// ---------------------------------------------------------------------------
+// geometry_msgs - Vector3Stamped (view-only)
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Non-owning, move-only view over a `geometry_msgs::Vector3Stamped`.
+ *
+ * @warning Backing CDR buffer must outlive this view.
+ * @note Move-only.
+ */
+class Vector3StampedView
+    : public detail::ViewBase<Vector3StampedView, detail::Vector3StampedTraits> {
+    using Base = detail::ViewBase<Vector3StampedView, detail::Vector3StampedTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    /// @brief Message timestamp.
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_vector3_stamped_get_stamp_sec(handle()),
+                ros_vector3_stamped_get_stamp_nanosec(handle())};
+    }
+    /// @brief Coordinate frame identifier.
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_vector3_stamped_get_frame_id(handle());
+    }
+};
+
+// ---------------------------------------------------------------------------
+// geometry_msgs - PoseStamped (view-only)
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Non-owning, move-only view over a `geometry_msgs::PoseStamped`.
+ *
+ * @warning Backing CDR buffer must outlive this view.
+ * @note Move-only.
+ */
+class PoseStampedView
+    : public detail::ViewBase<PoseStampedView, detail::PoseStampedTraits> {
+    using Base = detail::ViewBase<PoseStampedView, detail::PoseStampedTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    /// @brief Message timestamp.
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_pose_stamped_get_stamp_sec(handle()),
+                ros_pose_stamped_get_stamp_nanosec(handle())};
+    }
+    /// @brief Coordinate frame identifier.
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_pose_stamped_get_frame_id(handle());
+    }
+};
+
+// ---------------------------------------------------------------------------
+// geometry_msgs - QuaternionStamped (view-only)
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Non-owning, move-only view over a `geometry_msgs::QuaternionStamped`.
+ *
+ * @warning Backing CDR buffer must outlive this view.
+ * @note Move-only.
+ */
+class QuaternionStampedView
+    : public detail::ViewBase<QuaternionStampedView, detail::QuaternionStampedTraits> {
+    using Base = detail::ViewBase<QuaternionStampedView, detail::QuaternionStampedTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    /// @brief Message timestamp.
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_quaternion_stamped_get_stamp_sec(handle()),
+                ros_quaternion_stamped_get_stamp_nanosec(handle())};
+    }
+    /// @brief Coordinate frame identifier.
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_quaternion_stamped_get_frame_id(handle());
+    }
+};
+
+// ---------------------------------------------------------------------------
+// geometry_msgs - WrenchStamped (view-only)
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Non-owning, move-only view over a `geometry_msgs::WrenchStamped`.
+ *
+ * @warning Backing CDR buffer must outlive this view.
+ * @note Move-only.
+ */
+class WrenchStampedView
+    : public detail::ViewBase<WrenchStampedView, detail::WrenchStampedTraits> {
+    using Base = detail::ViewBase<WrenchStampedView, detail::WrenchStampedTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    /// @brief Message timestamp.
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_wrench_stamped_get_stamp_sec(handle()),
+                ros_wrench_stamped_get_stamp_nanosec(handle())};
+    }
+    /// @brief Coordinate frame identifier.
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_wrench_stamped_get_frame_id(handle());
+    }
+};
+
+// ---------------------------------------------------------------------------
+// geometry_msgs - PoseWithCovarianceStamped (view-only)
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Non-owning, move-only view over a `geometry_msgs::PoseWithCovarianceStamped`.
+ *
+ * @warning Backing CDR buffer must outlive this view.
+ * @note Move-only.
+ */
+class PoseWithCovarianceStampedView
+    : public detail::ViewBase<PoseWithCovarianceStampedView, detail::PoseWithCovarianceStampedTraits> {
+    using Base = detail::ViewBase<PoseWithCovarianceStampedView, detail::PoseWithCovarianceStampedTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    /// @brief Message timestamp.
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_pose_with_covariance_stamped_get_stamp_sec(handle()),
+                ros_pose_with_covariance_stamped_get_stamp_nanosec(handle())};
+    }
+    /// @brief Coordinate frame identifier.
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_pose_with_covariance_stamped_get_frame_id(handle());
+    }
+};
+
+// ---------------------------------------------------------------------------
+// geometry_msgs - TwistWithCovarianceStamped (view-only)
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Non-owning, move-only view over a `geometry_msgs::TwistWithCovarianceStamped`.
+ *
+ * @warning Backing CDR buffer must outlive this view.
+ * @note Move-only.
+ */
+class TwistWithCovarianceStampedView
+    : public detail::ViewBase<TwistWithCovarianceStampedView, detail::TwistWithCovarianceStampedTraits> {
+    using Base = detail::ViewBase<TwistWithCovarianceStampedView, detail::TwistWithCovarianceStampedTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    /// @brief Message timestamp.
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_twist_with_covariance_stamped_get_stamp_sec(handle()),
+                ros_twist_with_covariance_stamped_get_stamp_nanosec(handle())};
+    }
+    /// @brief Coordinate frame identifier.
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_twist_with_covariance_stamped_get_frame_id(handle());
+    }
+};
+
+// ---------------------------------------------------------------------------
+// geometry_msgs - AccelWithCovarianceStamped (view-only)
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Non-owning, move-only view over a `geometry_msgs::AccelWithCovarianceStamped`.
+ *
+ * @warning Backing CDR buffer must outlive this view.
+ * @note Move-only.
+ */
+class AccelWithCovarianceStampedView
+    : public detail::ViewBase<AccelWithCovarianceStampedView, detail::AccelWithCovarianceStampedTraits> {
+    using Base = detail::ViewBase<AccelWithCovarianceStampedView, detail::AccelWithCovarianceStampedTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    /// @brief Message timestamp.
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_accel_with_covariance_stamped_get_stamp_sec(handle()),
+                ros_accel_with_covariance_stamped_get_stamp_nanosec(handle())};
+    }
+    /// @brief Coordinate frame identifier.
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_accel_with_covariance_stamped_get_frame_id(handle());
+    }
+};
+
+// ---------------------------------------------------------------------------
+// geometry_msgs - Polygon (view-only, sequence type)
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Non-owning, move-only view over a `geometry_msgs::Polygon`.
+ *
+ * @warning Backing CDR buffer must outlive this view.
+ * @note Move-only.
+ */
+class PolygonView
+    : public detail::ViewBase<PolygonView, detail::PolygonTraits> {
+    using Base = detail::ViewBase<PolygonView, detail::PolygonTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    /// @brief Number of points in the polygon.
+    [[nodiscard]] std::size_t size() const noexcept {
+        return ros_polygon_get_len(handle());
+    }
+};
+
+// ---------------------------------------------------------------------------
+// geometry_msgs - PolygonStamped (view-only)
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Non-owning, move-only view over a `geometry_msgs::PolygonStamped`.
+ *
+ * @warning Backing CDR buffer must outlive this view.
+ * @note Move-only.
+ */
+class PolygonStampedView
+    : public detail::ViewBase<PolygonStampedView, detail::PolygonStampedTraits> {
+    using Base = detail::ViewBase<PolygonStampedView, detail::PolygonStampedTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    /// @brief Message timestamp.
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_polygon_stamped_get_stamp_sec(handle()),
+                ros_polygon_stamped_get_stamp_nanosec(handle())};
+    }
+    /// @brief Coordinate frame identifier.
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_polygon_stamped_get_frame_id(handle());
+    }
+    /// @brief Number of points in the polygon.
+    [[nodiscard]] std::size_t size() const noexcept {
+        return ros_polygon_stamped_get_len(handle());
+    }
+};
+
+// ---------------------------------------------------------------------------
+// geometry_msgs - PoseArray (view-only)
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Non-owning, move-only view over a `geometry_msgs::PoseArray`.
+ *
+ * @warning Backing CDR buffer must outlive this view.
+ * @note Move-only.
+ */
+class PoseArrayView
+    : public detail::ViewBase<PoseArrayView, detail::PoseArrayTraits> {
+    using Base = detail::ViewBase<PoseArrayView, detail::PoseArrayTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    /// @brief Message timestamp.
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_pose_array_get_stamp_sec(handle()),
+                ros_pose_array_get_stamp_nanosec(handle())};
+    }
+    /// @brief Coordinate frame identifier.
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_pose_array_get_frame_id(handle());
+    }
+    /// @brief Number of poses in the array.
+    [[nodiscard]] std::size_t size() const noexcept {
+        return ros_pose_array_get_len(handle());
     }
 };
 
