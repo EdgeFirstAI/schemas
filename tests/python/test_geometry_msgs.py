@@ -14,21 +14,33 @@ import pytest
 from edgefirst.schemas.geometry_msgs import (
     Accel,
     AccelStamped,
+    AccelWithCovariance,
+    AccelWithCovarianceStamped,
     Inertia,
     InertiaStamped,
     Point,
     Point32,
     PointStamped,
+    Polygon,
+    PolygonStamped,
     Pose,
     Pose2D,
+    PoseArray,
+    PoseStamped,
     PoseWithCovariance,
+    PoseWithCovarianceStamped,
     Quaternion,
+    QuaternionStamped,
     Transform,
     TransformStamped,
     Twist,
     TwistStamped,
     TwistWithCovariance,
+    TwistWithCovarianceStamped,
     Vector3,
+    Vector3Stamped,
+    Wrench,
+    WrenchStamped,
 )
 
 
@@ -267,3 +279,199 @@ class TestTransformStamped:
     def test_empty_child_frame_id(self, sample_header):
         ts = TransformStamped(header=sample_header)
         assert ts.child_frame_id == ""
+
+
+class TestWrench:
+    def test_defaults(self):
+        w = Wrench()
+        assert w.force.x == 0.0 and w.torque.x == 0.0
+
+    def test_round_trip(self):
+        w = Wrench(force=Vector3(1.5, -2.5, 3.0), torque=Vector3(0.1, 0.2, 0.3))
+        restored = Wrench.from_cdr(w.to_bytes())
+        assert (restored.force.x, restored.force.y, restored.force.z) == (1.5, -2.5, 3.0)
+        assert (restored.torque.x, restored.torque.y, restored.torque.z) == (0.1, 0.2, 0.3)
+
+
+class TestAccelWithCovariance:
+    def test_defaults(self):
+        a = AccelWithCovariance()
+        assert a.accel.linear.x == 0.0
+        assert len(a.covariance) == 36
+        assert all(c == 0.0 for c in a.covariance)
+
+    def test_round_trip(self):
+        cov = [float(i) for i in range(36)]
+        ac = Accel(linear=Vector3(1.0, 2.0, 3.0), angular=Vector3(4.0, 5.0, 6.0))
+        a = AccelWithCovariance(accel=ac, covariance=cov)
+        restored = AccelWithCovariance.from_cdr(a.to_bytes())
+        assert restored.accel.linear.x == 1.0
+        assert restored.covariance == cov
+
+
+class TestVector3Stamped:
+    def test_round_trip(self, sample_header):
+        v = Vector3(1.5, -2.5, 3.0)
+        vs = Vector3Stamped(header=sample_header, vector=v)
+        restored = Vector3Stamped.from_cdr(vs.to_bytes())
+        assert restored.stamp.sec == sample_header.stamp.sec
+        assert restored.frame_id == "sensor_frame"
+        assert (restored.vector.x, restored.vector.y, restored.vector.z) == (1.5, -2.5, 3.0)
+
+    def test_defaults(self, sample_header):
+        vs = Vector3Stamped(header=sample_header)
+        assert vs.vector.x == 0.0
+
+
+class TestPoseStamped:
+    def test_round_trip(self, sample_header):
+        p = Pose(position=Point(1.0, 2.0, 3.0), orientation=Quaternion(0.0, 0.0, 0.0, 1.0))
+        ps = PoseStamped(header=sample_header, pose=p)
+        restored = PoseStamped.from_cdr(ps.to_bytes())
+        assert restored.stamp.sec == sample_header.stamp.sec
+        assert restored.frame_id == "sensor_frame"
+        assert restored.pose.position.x == 1.0
+        assert restored.pose.orientation.w == 1.0
+
+
+class TestQuaternionStamped:
+    def test_round_trip(self, sample_header):
+        q = Quaternion(0.0, 0.0, 0.707, 0.707)
+        qs = QuaternionStamped(header=sample_header, quaternion=q)
+        restored = QuaternionStamped.from_cdr(qs.to_bytes())
+        assert restored.stamp.sec == sample_header.stamp.sec
+        assert restored.frame_id == "sensor_frame"
+        assert abs(restored.quaternion.z - 0.707) < 1e-10
+        assert abs(restored.quaternion.w - 0.707) < 1e-10
+
+
+class TestWrenchStamped:
+    def test_round_trip(self, sample_header):
+        w = Wrench(force=Vector3(1.0, 2.0, 3.0), torque=Vector3(0.1, 0.2, 0.3))
+        ws = WrenchStamped(header=sample_header, wrench=w)
+        restored = WrenchStamped.from_cdr(ws.to_bytes())
+        assert restored.stamp.sec == sample_header.stamp.sec
+        assert restored.frame_id == "sensor_frame"
+        assert restored.wrench.force.x == 1.0
+        assert restored.wrench.torque.z == 0.3
+
+
+class TestPoseWithCovarianceStamped:
+    def test_round_trip(self, sample_header):
+        cov = [0.0] * 36
+        cov[0] = 1.0
+        pwc = PoseWithCovariance(
+            pose=Pose(position=Point(1.0, 2.0, 3.0), orientation=Quaternion(0.0, 0.0, 0.0, 1.0)),
+            covariance=cov,
+        )
+        msg = PoseWithCovarianceStamped(header=sample_header, pose_with_covariance=pwc)
+        restored = PoseWithCovarianceStamped.from_cdr(msg.to_bytes())
+        assert restored.stamp.sec == sample_header.stamp.sec
+        assert restored.frame_id == "sensor_frame"
+        assert restored.pose_with_covariance.pose.position.x == 1.0
+        assert restored.pose_with_covariance.covariance[0] == 1.0
+
+
+class TestTwistWithCovarianceStamped:
+    def test_round_trip(self, sample_header):
+        cov = [0.0] * 36
+        cov[0] = 2.0
+        twc = TwistWithCovariance(
+            twist=Twist(linear=Vector3(1.0, 0.0, 0.0), angular=Vector3(0.0, 0.0, 0.5)),
+            covariance=cov,
+        )
+        msg = TwistWithCovarianceStamped(header=sample_header, twist_with_covariance=twc)
+        restored = TwistWithCovarianceStamped.from_cdr(msg.to_bytes())
+        assert restored.stamp.sec == sample_header.stamp.sec
+        assert restored.twist_with_covariance.twist.linear.x == 1.0
+        assert restored.twist_with_covariance.covariance[0] == 2.0
+
+
+class TestAccelWithCovarianceStamped:
+    def test_round_trip(self, sample_header):
+        cov = [0.0] * 36
+        cov[0] = 3.0
+        awc = AccelWithCovariance(
+            accel=Accel(linear=Vector3(9.81, 0.0, 0.0), angular=Vector3(0.0, 0.0, 1.0)),
+            covariance=cov,
+        )
+        msg = AccelWithCovarianceStamped(header=sample_header, accel_with_covariance=awc)
+        restored = AccelWithCovarianceStamped.from_cdr(msg.to_bytes())
+        assert restored.stamp.sec == sample_header.stamp.sec
+        assert restored.accel_with_covariance.accel.linear.x == 9.81
+        assert restored.accel_with_covariance.covariance[0] == 3.0
+
+
+class TestPolygon:
+    def test_round_trip(self):
+        pts = [Point32(1.0, 2.0, 0.0), Point32(3.0, 4.0, 0.0), Point32(5.0, 6.0, 0.0)]
+        poly = Polygon(points=pts)
+        restored = Polygon.from_cdr(poly.to_bytes())
+        assert len(restored) == 3
+        assert restored[0].x == 1.0
+        assert restored[2].y == 6.0
+
+    def test_empty(self):
+        poly = Polygon()
+        assert len(poly) == 0
+
+    def test_negative_index(self):
+        pts = [Point32(1.0, 2.0, 0.0), Point32(3.0, 4.0, 0.0)]
+        poly = Polygon(points=pts)
+        assert poly[-1].x == 3.0
+
+    def test_index_out_of_range(self):
+        poly = Polygon(points=[Point32(1.0, 2.0, 0.0)])
+        with pytest.raises(IndexError):
+            _ = poly[5]
+
+    def test_points_property(self):
+        pts = [Point32(1.0, 2.0, 0.0), Point32(3.0, 4.0, 0.0)]
+        poly = Polygon(points=pts)
+        all_pts = poly.points
+        assert len(all_pts) == 2
+        assert all_pts[0].x == 1.0
+
+
+class TestPolygonStamped:
+    def test_round_trip(self, sample_header):
+        pts = [Point32(1.0, 2.0, 0.0), Point32(3.0, 4.0, 0.0)]
+        ps = PolygonStamped(header=sample_header, points=pts)
+        restored = PolygonStamped.from_cdr(ps.to_bytes())
+        assert restored.stamp.sec == sample_header.stamp.sec
+        assert restored.frame_id == "sensor_frame"
+        assert len(restored) == 2
+        assert restored[0].x == 1.0
+
+    def test_empty_polygon(self, sample_header):
+        ps = PolygonStamped(header=sample_header)
+        assert len(ps) == 0
+
+
+class TestPoseArray:
+    def test_round_trip(self, sample_header):
+        poses = [
+            Pose(position=Point(1.0, 2.0, 3.0), orientation=Quaternion(0.0, 0.0, 0.0, 1.0)),
+            Pose(position=Point(4.0, 5.0, 6.0), orientation=Quaternion(0.0, 0.0, 1.0, 0.0)),
+        ]
+        pa = PoseArray(header=sample_header, poses=poses)
+        restored = PoseArray.from_cdr(pa.to_bytes())
+        assert restored.stamp.sec == sample_header.stamp.sec
+        assert restored.frame_id == "sensor_frame"
+        assert len(restored) == 2
+        assert restored[0].position.x == 1.0
+        assert restored[1].position.x == 4.0
+        assert restored[1].orientation.z == 1.0
+
+    def test_empty(self, sample_header):
+        pa = PoseArray(header=sample_header)
+        assert len(pa) == 0
+
+    def test_poses_property(self, sample_header):
+        poses = [
+            Pose(position=Point(1.0, 2.0, 3.0), orientation=Quaternion(0.0, 0.0, 0.0, 1.0)),
+        ]
+        pa = PoseArray(header=sample_header, poses=poses)
+        all_poses = pa.poses
+        assert len(all_poses) == 1
+        assert all_poses[0].position.x == 1.0

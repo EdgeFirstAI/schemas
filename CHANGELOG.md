@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-04-30
+
+### Added
+
+- **12 new geometry_msgs types** — completes ROS 2 geometry_msgs coverage
+  with full cross-language support (Rust, C, C++, Python):
+  - `Wrench` — force + torque vector pair (CdrFixed, 48 bytes)
+  - `AccelWithCovariance` — acceleration with 6×6 covariance (CdrFixed, 336 bytes)
+  - `Vector3Stamped` — timestamped 3D vector
+  - `PoseStamped` — timestamped pose (position + orientation)
+  - `QuaternionStamped` — timestamped quaternion
+  - `WrenchStamped` — timestamped wrench
+  - `PoseWithCovarianceStamped` — timestamped pose with covariance
+  - `TwistWithCovarianceStamped` — timestamped twist with covariance
+  - `AccelWithCovarianceStamped` — timestamped acceleration with covariance
+  - `Polygon` — variable-length sequence of Point32 vertices
+  - `PolygonStamped` — timestamped polygon
+  - `PoseArray` — timestamped array of poses
+- Schema registry support for all new geometry_msgs types (MCAP topic discovery)
+- Python type stubs for all 12 new types (`geometry_msgs.pyi`)
+- Python `__len__` and `__getitem__` support for Polygon, PolygonStamped, and PoseArray
+
 ## [3.3.0] - 2026-04-29
 
 ### Added
