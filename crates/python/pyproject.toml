@@ -3,7 +3,7 @@
 
 [project]
 name = "edgefirst-schemas"
-version = "3.3.0"
+version = "3.4.0"
 description = "Zero-copy CDR message types for EdgeFirst Perception (ROS 2 + Foxglove + custom)"
 readme = "README.md"
 # Default wheel floors at Python 3.11 (abi3-py311). Python 3.10 reaches

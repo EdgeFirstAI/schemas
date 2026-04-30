@@ -19,21 +19,33 @@ from .std_msgs import Header
 __all__ = [
     "Accel",
     "AccelStamped",
+    "AccelWithCovariance",
+    "AccelWithCovarianceStamped",
     "Inertia",
     "InertiaStamped",
     "Point",
     "Point32",
     "PointStamped",
+    "Polygon",
+    "PolygonStamped",
     "Pose",
     "Pose2D",
+    "PoseArray",
+    "PoseStamped",
     "PoseWithCovariance",
+    "PoseWithCovarianceStamped",
     "Quaternion",
+    "QuaternionStamped",
     "Transform",
     "TransformStamped",
     "Twist",
     "TwistStamped",
     "TwistWithCovariance",
+    "TwistWithCovarianceStamped",
     "Vector3",
+    "Vector3Stamped",
+    "Wrench",
+    "WrenchStamped",
 ]
 
 
@@ -418,3 +430,308 @@ class TransformStamped:
     def to_bytes(self) -> bytes: ...
     @classmethod
     def from_cdr(cls, buf: BufferLike) -> TransformStamped: ...
+
+
+class Wrench:
+    """``geometry_msgs.Wrench`` — force + torque as :class:`Vector3` pair.
+
+    CdrFixed (48 bytes). Use ``to_bytes()`` / ``from_cdr()``.
+    """
+
+    def __init__(
+        self,
+        force: Optional[Vector3] = None,
+        torque: Optional[Vector3] = None,
+    ) -> None: ...
+
+    @property
+    def force(self) -> Vector3: ...
+    @property
+    def torque(self) -> Vector3: ...
+
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> Wrench: ...
+
+
+class AccelWithCovariance:
+    """``geometry_msgs.AccelWithCovariance`` — :class:`Accel` + 6×6 covariance.
+
+    CdrFixed (336 bytes). Use ``to_bytes()`` / ``from_cdr()``.
+    """
+
+    def __init__(
+        self,
+        accel: Optional[Accel] = None,
+        covariance: Optional[Sequence[float]] = None,
+    ) -> None: ...
+
+    @property
+    def accel(self) -> Accel: ...
+    @property
+    def covariance(self) -> List[float]: ...
+
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> AccelWithCovariance: ...
+
+
+class Vector3Stamped:
+    """``geometry_msgs.Vector3Stamped`` — header + :class:`Vector3`.
+
+    Buffer-backed; ``from_cdr`` deserializes via offset table.
+    """
+
+    def __init__(
+        self,
+        header: Header,
+        vector: Optional[Vector3] = None,
+    ) -> None: ...
+
+    @property
+    def stamp(self) -> Time: ...
+    @property
+    def frame_id(self) -> str: ...
+    @property
+    def vector(self) -> Vector3: ...
+    @property
+    def cdr_size(self) -> int: ...
+
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> Vector3Stamped: ...
+
+
+class PoseStamped:
+    """``geometry_msgs.PoseStamped`` — header + :class:`Pose`.
+
+    Buffer-backed; ``from_cdr`` deserializes via offset table.
+    """
+
+    def __init__(
+        self,
+        header: Header,
+        pose: Optional[Pose] = None,
+    ) -> None: ...
+
+    @property
+    def stamp(self) -> Time: ...
+    @property
+    def frame_id(self) -> str: ...
+    @property
+    def pose(self) -> Pose: ...
+    @property
+    def cdr_size(self) -> int: ...
+
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> PoseStamped: ...
+
+
+class QuaternionStamped:
+    """``geometry_msgs.QuaternionStamped`` — header + :class:`Quaternion`.
+
+    Buffer-backed; ``from_cdr`` deserializes via offset table.
+    """
+
+    def __init__(
+        self,
+        header: Header,
+        quaternion: Optional[Quaternion] = None,
+    ) -> None: ...
+
+    @property
+    def stamp(self) -> Time: ...
+    @property
+    def frame_id(self) -> str: ...
+    @property
+    def quaternion(self) -> Quaternion: ...
+    @property
+    def cdr_size(self) -> int: ...
+
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> QuaternionStamped: ...
+
+
+class WrenchStamped:
+    """``geometry_msgs.WrenchStamped`` — header + :class:`Wrench`.
+
+    Buffer-backed; ``from_cdr`` deserializes via offset table.
+    """
+
+    def __init__(
+        self,
+        header: Header,
+        wrench: Optional[Wrench] = None,
+    ) -> None: ...
+
+    @property
+    def stamp(self) -> Time: ...
+    @property
+    def frame_id(self) -> str: ...
+    @property
+    def wrench(self) -> Wrench: ...
+    @property
+    def cdr_size(self) -> int: ...
+
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> WrenchStamped: ...
+
+
+class PoseWithCovarianceStamped:
+    """``geometry_msgs.PoseWithCovarianceStamped`` — header + :class:`PoseWithCovariance`.
+
+    Buffer-backed; ``from_cdr`` deserializes via offset table.
+    """
+
+    def __init__(
+        self,
+        header: Header,
+        pose_with_covariance: Optional[PoseWithCovariance] = None,
+    ) -> None: ...
+
+    @property
+    def stamp(self) -> Time: ...
+    @property
+    def frame_id(self) -> str: ...
+    @property
+    def pose_with_covariance(self) -> PoseWithCovariance: ...
+    @property
+    def cdr_size(self) -> int: ...
+
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> PoseWithCovarianceStamped: ...
+
+
+class TwistWithCovarianceStamped:
+    """``geometry_msgs.TwistWithCovarianceStamped`` — header + :class:`TwistWithCovariance`.
+
+    Buffer-backed; ``from_cdr`` deserializes via offset table.
+    """
+
+    def __init__(
+        self,
+        header: Header,
+        twist_with_covariance: Optional[TwistWithCovariance] = None,
+    ) -> None: ...
+
+    @property
+    def stamp(self) -> Time: ...
+    @property
+    def frame_id(self) -> str: ...
+    @property
+    def twist_with_covariance(self) -> TwistWithCovariance: ...
+    @property
+    def cdr_size(self) -> int: ...
+
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> TwistWithCovarianceStamped: ...
+
+
+class AccelWithCovarianceStamped:
+    """``geometry_msgs.AccelWithCovarianceStamped`` — header + :class:`AccelWithCovariance`.
+
+    Buffer-backed; ``from_cdr`` deserializes via offset table.
+    """
+
+    def __init__(
+        self,
+        header: Header,
+        accel_with_covariance: Optional[AccelWithCovariance] = None,
+    ) -> None: ...
+
+    @property
+    def stamp(self) -> Time: ...
+    @property
+    def frame_id(self) -> str: ...
+    @property
+    def accel_with_covariance(self) -> AccelWithCovariance: ...
+    @property
+    def cdr_size(self) -> int: ...
+
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> AccelWithCovarianceStamped: ...
+
+
+class Polygon:
+    """``geometry_msgs.Polygon`` — variable-length sequence of :class:`Point32`.
+
+    Buffer-backed; supports ``len()`` and indexing.
+    """
+
+    def __init__(
+        self,
+        points: Optional[Sequence[Point32]] = None,
+    ) -> None: ...
+
+    @property
+    def cdr_size(self) -> int: ...
+    @property
+    def points(self) -> List[Point32]: ...
+
+    def __len__(self) -> int: ...
+    def __getitem__(self, idx: int) -> Point32: ...
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> Polygon: ...
+
+
+class PolygonStamped:
+    """``geometry_msgs.PolygonStamped`` — header + :class:`Polygon`.
+
+    Buffer-backed; supports ``len()`` and indexing for points.
+    """
+
+    def __init__(
+        self,
+        header: Header,
+        points: Optional[Sequence[Point32]] = None,
+    ) -> None: ...
+
+    @property
+    def stamp(self) -> Time: ...
+    @property
+    def frame_id(self) -> str: ...
+    @property
+    def cdr_size(self) -> int: ...
+    @property
+    def points(self) -> List[Point32]: ...
+
+    def __len__(self) -> int: ...
+    def __getitem__(self, idx: int) -> Point32: ...
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> PolygonStamped: ...
+
+
+class PoseArray:
+    """``geometry_msgs.PoseArray`` — header + variable-length sequence of :class:`Pose`.
+
+    Buffer-backed; supports ``len()`` and indexing.
+    """
+
+    def __init__(
+        self,
+        header: Header,
+        poses: Optional[Sequence[Pose]] = None,
+    ) -> None: ...
+
+    @property
+    def stamp(self) -> Time: ...
+    @property
+    def frame_id(self) -> str: ...
+    @property
+    def cdr_size(self) -> int: ...
+    @property
+    def poses(self) -> List[Pose]: ...
+
+    def __len__(self) -> int: ...
+    def __getitem__(self, idx: int) -> Pose: ...
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> PoseArray: ...

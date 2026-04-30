@@ -1090,4 +1090,291 @@ TEST_CASE("InertiaStampedView move semantics", "[buffer_backed][inertia_stamped]
     CHECK(v2.frame_id() == "test_frame");
 }
 
+// ============================================================================
+// geometry_msgs - Vector3Stamped (view-only)
+// ============================================================================
+
+// frame_id="test_frame", vector=(1.5,-2.5,3.0) — 52 bytes
+static constexpr std::uint8_t kGoldenVector3StampedBytes[] = {
+    0x00,0x01,0x00,0x00,0xd2,0x02,0x96,0x49,0x15,0xcd,0x5b,0x07,0x0b,0x00,0x00,0x00,
+    0x74,0x65,0x73,0x74,0x5f,0x66,0x72,0x61,0x6d,0x65,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0xf8,0x3f,0x00,0x00,0x00,0x00,0x00,0x00,0x04,0xc0,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x08,0x40,
+};
+
+TEST_CASE("Vector3StampedView error paths", "[buffer_backed][vector3_stamped]") {
+    auto v = ef::Vector3StampedView::from_cdr({});
+    REQUIRE_FALSE(v.has_value());
+}
+
+TEST_CASE("Vector3StampedView happy path", "[buffer_backed][vector3_stamped]") {
+    auto v = ef::Vector3StampedView::from_cdr(
+        ef::span<const std::uint8_t>{kGoldenVector3StampedBytes,
+                                     sizeof(kGoldenVector3StampedBytes)});
+    REQUIRE(v.has_value());
+    CHECK(v->stamp().sec == 1234567890);
+    CHECK(v->stamp().nanosec == 123456789u);
+    CHECK(v->frame_id() == "test_frame");
+}
+
+TEST_CASE("Vector3StampedView move semantics", "[buffer_backed][vector3_stamped]") {
+    auto v1 = ef::Vector3StampedView::from_cdr(
+        ef::span<const std::uint8_t>{kGoldenVector3StampedBytes,
+                                     sizeof(kGoldenVector3StampedBytes)});
+    REQUIRE(v1.has_value());
+    auto v2 = std::move(*v1);
+    CHECK(v2.frame_id() == "test_frame");
+}
+
+// ============================================================================
+// geometry_msgs - QuaternionStamped (view-only)
+// ============================================================================
+
+// frame_id="test_frame", quaternion=(0,0,0,1) — 60 bytes
+static constexpr std::uint8_t kGoldenQuaternionStampedBytes[] = {
+    0x00,0x01,0x00,0x00,0xd2,0x02,0x96,0x49,0x15,0xcd,0x5b,0x07,0x0b,0x00,0x00,0x00,
+    0x74,0x65,0x73,0x74,0x5f,0x66,0x72,0x61,0x6d,0x65,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xf0,0x3f,
+};
+
+TEST_CASE("QuaternionStampedView error paths", "[buffer_backed][quaternion_stamped]") {
+    auto v = ef::QuaternionStampedView::from_cdr({});
+    REQUIRE_FALSE(v.has_value());
+}
+
+TEST_CASE("QuaternionStampedView happy path", "[buffer_backed][quaternion_stamped]") {
+    auto v = ef::QuaternionStampedView::from_cdr(
+        ef::span<const std::uint8_t>{kGoldenQuaternionStampedBytes,
+                                     sizeof(kGoldenQuaternionStampedBytes)});
+    REQUIRE(v.has_value());
+    CHECK(v->stamp().sec == 1234567890);
+    CHECK(v->stamp().nanosec == 123456789u);
+    CHECK(v->frame_id() == "test_frame");
+}
+
+TEST_CASE("QuaternionStampedView move semantics", "[buffer_backed][quaternion_stamped]") {
+    auto v1 = ef::QuaternionStampedView::from_cdr(
+        ef::span<const std::uint8_t>{kGoldenQuaternionStampedBytes,
+                                     sizeof(kGoldenQuaternionStampedBytes)});
+    REQUIRE(v1.has_value());
+    auto v2 = std::move(*v1);
+    CHECK(v2.frame_id() == "test_frame");
+}
+
+// ============================================================================
+// geometry_msgs - PoseStamped (view-only)
+// ============================================================================
+
+// frame_id="test_frame", pose=(1,2,3, 0,0,0,1) — 84 bytes
+static constexpr std::uint8_t kGoldenPoseStampedBytes[] = {
+    0x00,0x01,0x00,0x00,0xd2,0x02,0x96,0x49,0x15,0xcd,0x5b,0x07,0x0b,0x00,0x00,0x00,
+    0x74,0x65,0x73,0x74,0x5f,0x66,0x72,0x61,0x6d,0x65,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0xf0,0x3f,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x40,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x08,0x40,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0xf0,0x3f,
+};
+
+TEST_CASE("PoseStampedView error paths", "[buffer_backed][pose_stamped]") {
+    auto v = ef::PoseStampedView::from_cdr({});
+    REQUIRE_FALSE(v.has_value());
+}
+
+TEST_CASE("PoseStampedView happy path", "[buffer_backed][pose_stamped]") {
+    auto v = ef::PoseStampedView::from_cdr(
+        ef::span<const std::uint8_t>{kGoldenPoseStampedBytes,
+                                     sizeof(kGoldenPoseStampedBytes)});
+    REQUIRE(v.has_value());
+    CHECK(v->stamp().sec == 1234567890);
+    CHECK(v->stamp().nanosec == 123456789u);
+    CHECK(v->frame_id() == "test_frame");
+}
+
+TEST_CASE("PoseStampedView move semantics", "[buffer_backed][pose_stamped]") {
+    auto v1 = ef::PoseStampedView::from_cdr(
+        ef::span<const std::uint8_t>{kGoldenPoseStampedBytes,
+                                     sizeof(kGoldenPoseStampedBytes)});
+    REQUIRE(v1.has_value());
+    auto v2 = std::move(*v1);
+    CHECK(v2.frame_id() == "test_frame");
+}
+
+// ============================================================================
+// geometry_msgs - WrenchStamped (view-only)
+// ============================================================================
+
+// frame_id="test_frame", force=(1.5,-2.5,3.0), torque=(0,0,0) — 76 bytes
+static constexpr std::uint8_t kGoldenWrenchStampedBytes[] = {
+    0x00,0x01,0x00,0x00,0xd2,0x02,0x96,0x49,0x15,0xcd,0x5b,0x07,0x0b,0x00,0x00,0x00,
+    0x74,0x65,0x73,0x74,0x5f,0x66,0x72,0x61,0x6d,0x65,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0xf8,0x3f,0x00,0x00,0x00,0x00,0x00,0x00,0x04,0xc0,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x08,0x40,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+};
+
+TEST_CASE("WrenchStampedView error paths", "[buffer_backed][wrench_stamped]") {
+    auto v = ef::WrenchStampedView::from_cdr({});
+    REQUIRE_FALSE(v.has_value());
+}
+
+TEST_CASE("WrenchStampedView happy path", "[buffer_backed][wrench_stamped]") {
+    auto v = ef::WrenchStampedView::from_cdr(
+        ef::span<const std::uint8_t>{kGoldenWrenchStampedBytes,
+                                     sizeof(kGoldenWrenchStampedBytes)});
+    REQUIRE(v.has_value());
+    CHECK(v->stamp().sec == 1234567890);
+    CHECK(v->stamp().nanosec == 123456789u);
+    CHECK(v->frame_id() == "test_frame");
+}
+
+TEST_CASE("WrenchStampedView move semantics", "[buffer_backed][wrench_stamped]") {
+    auto v1 = ef::WrenchStampedView::from_cdr(
+        ef::span<const std::uint8_t>{kGoldenWrenchStampedBytes,
+                                     sizeof(kGoldenWrenchStampedBytes)});
+    REQUIRE(v1.has_value());
+    auto v2 = std::move(*v1);
+    CHECK(v2.frame_id() == "test_frame");
+}
+
+// ============================================================================
+// geometry_msgs - PoseWithCovarianceStamped (view-only)
+// ============================================================================
+
+TEST_CASE("PoseWithCovarianceStampedView error paths", "[buffer_backed][pose_with_covariance_stamped]") {
+    auto v = ef::PoseWithCovarianceStampedView::from_cdr({});
+    REQUIRE_FALSE(v.has_value());
+}
+
+// ============================================================================
+// geometry_msgs - TwistWithCovarianceStamped (view-only)
+// ============================================================================
+
+TEST_CASE("TwistWithCovarianceStampedView error paths", "[buffer_backed][twist_with_covariance_stamped]") {
+    auto v = ef::TwistWithCovarianceStampedView::from_cdr({});
+    REQUIRE_FALSE(v.has_value());
+}
+
+// ============================================================================
+// geometry_msgs - AccelWithCovarianceStamped (view-only)
+// ============================================================================
+
+TEST_CASE("AccelWithCovarianceStampedView error paths", "[buffer_backed][accel_with_covariance_stamped]") {
+    auto v = ef::AccelWithCovarianceStampedView::from_cdr({});
+    REQUIRE_FALSE(v.has_value());
+}
+
+// ============================================================================
+// geometry_msgs - Polygon (view-only)
+// ============================================================================
+
+// 3 points: (1,2,0),(3,4,0),(5,6,0) — 44 bytes
+static constexpr std::uint8_t kGoldenPolygonBytes[] = {
+    0x00,0x01,0x00,0x00,0x03,0x00,0x00,0x00,0x00,0x00,0x80,0x3f,0x00,0x00,0x00,0x40,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x40,0x40,0x00,0x00,0x80,0x40,0x00,0x00,0x00,0x00,
+    0x00,0x00,0xa0,0x40,0x00,0x00,0xc0,0x40,0x00,0x00,0x00,0x00,
+};
+
+TEST_CASE("PolygonView error paths", "[buffer_backed][polygon]") {
+    auto v = ef::PolygonView::from_cdr({});
+    REQUIRE_FALSE(v.has_value());
+}
+
+TEST_CASE("PolygonView happy path", "[buffer_backed][polygon]") {
+    auto v = ef::PolygonView::from_cdr(
+        ef::span<const std::uint8_t>{kGoldenPolygonBytes,
+                                     sizeof(kGoldenPolygonBytes)});
+    REQUIRE(v.has_value());
+    CHECK(v->size() == 3);
+}
+
+TEST_CASE("PolygonView move semantics", "[buffer_backed][polygon]") {
+    auto v1 = ef::PolygonView::from_cdr(
+        ef::span<const std::uint8_t>{kGoldenPolygonBytes,
+                                     sizeof(kGoldenPolygonBytes)});
+    REQUIRE(v1.has_value());
+    auto v2 = std::move(*v1);
+    CHECK(v2.size() == 3);
+}
+
+// ============================================================================
+// geometry_msgs - PolygonStamped (view-only)
+// ============================================================================
+
+// frame_id="test_frame", 2 points — 56 bytes
+static constexpr std::uint8_t kGoldenPolygonStampedBytes[] = {
+    0x00,0x01,0x00,0x00,0xd2,0x02,0x96,0x49,0x15,0xcd,0x5b,0x07,0x0b,0x00,0x00,0x00,
+    0x74,0x65,0x73,0x74,0x5f,0x66,0x72,0x61,0x6d,0x65,0x00,0x00,0x02,0x00,0x00,0x00,
+    0x00,0x00,0x80,0x3f,0x00,0x00,0x00,0x40,0x00,0x00,0x00,0x00,0x00,0x00,0x40,0x40,
+    0x00,0x00,0x80,0x40,0x00,0x00,0x00,0x00,
+};
+
+TEST_CASE("PolygonStampedView error paths", "[buffer_backed][polygon_stamped]") {
+    auto v = ef::PolygonStampedView::from_cdr({});
+    REQUIRE_FALSE(v.has_value());
+}
+
+TEST_CASE("PolygonStampedView happy path", "[buffer_backed][polygon_stamped]") {
+    auto v = ef::PolygonStampedView::from_cdr(
+        ef::span<const std::uint8_t>{kGoldenPolygonStampedBytes,
+                                     sizeof(kGoldenPolygonStampedBytes)});
+    REQUIRE(v.has_value());
+    CHECK(v->stamp().sec == 1234567890);
+    CHECK(v->stamp().nanosec == 123456789u);
+    CHECK(v->frame_id() == "test_frame");
+    CHECK(v->size() == 2);
+}
+
+TEST_CASE("PolygonStampedView move semantics", "[buffer_backed][polygon_stamped]") {
+    auto v1 = ef::PolygonStampedView::from_cdr(
+        ef::span<const std::uint8_t>{kGoldenPolygonStampedBytes,
+                                     sizeof(kGoldenPolygonStampedBytes)});
+    REQUIRE(v1.has_value());
+    auto v2 = std::move(*v1);
+    CHECK(v2.frame_id() == "test_frame");
+}
+
+// ============================================================================
+// geometry_msgs - PoseArray (view-only)
+// ============================================================================
+
+// frame_id="test_frame", 2 poses — 148 bytes
+static constexpr std::uint8_t kGoldenPoseArrayBytes[] = {
+    0x00,0x01,0x00,0x00,0xd2,0x02,0x96,0x49,0x15,0xcd,0x5b,0x07,0x0b,0x00,0x00,0x00,
+    0x74,0x65,0x73,0x74,0x5f,0x66,0x72,0x61,0x6d,0x65,0x00,0x00,0x02,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xf0,0x3f,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x40,0x00,0x00,0x00,0x00,0x00,0x00,0x08,0x40,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xf0,0x3f,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x10,0x40,0x00,0x00,0x00,0x00,0x00,0x00,0x14,0x40,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x18,0x40,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xf0,0x3f,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,
+};
+
+TEST_CASE("PoseArrayView error paths", "[buffer_backed][pose_array]") {
+    auto v = ef::PoseArrayView::from_cdr({});
+    REQUIRE_FALSE(v.has_value());
+}
+
+TEST_CASE("PoseArrayView happy path", "[buffer_backed][pose_array]") {
+    auto v = ef::PoseArrayView::from_cdr(
+        ef::span<const std::uint8_t>{kGoldenPoseArrayBytes,
+                                     sizeof(kGoldenPoseArrayBytes)});
+    REQUIRE(v.has_value());
+    CHECK(v->stamp().sec == 1234567890);
+    CHECK(v->stamp().nanosec == 123456789u);
+    CHECK(v->frame_id() == "test_frame");
+    CHECK(v->size() == 2);
+}
+
+TEST_CASE("PoseArrayView move semantics", "[buffer_backed][pose_array]") {
+    auto v1 = ef::PoseArrayView::from_cdr(
+        ef::span<const std::uint8_t>{kGoldenPoseArrayBytes,
+                                     sizeof(kGoldenPoseArrayBytes)});
+    REQUIRE(v1.has_value());
+    auto v2 = std::move(*v1);
+    CHECK(v2.frame_id() == "test_frame");
+}
+
 #pragma GCC diagnostic pop

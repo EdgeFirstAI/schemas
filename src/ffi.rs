@@ -677,6 +677,71 @@ pub extern "C" fn ros_accel_decode(
     }
 }
 
+// Wrench
+#[no_mangle]
+pub extern "C" fn ros_wrench_encode(
+    buf: *mut u8,
+    cap: usize,
+    written: *mut usize,
+    fx: f64,
+    fy: f64,
+    fz: f64,
+    tx: f64,
+    ty: f64,
+    tz: f64,
+) -> i32 {
+    let val = Wrench {
+        force: Vector3 {
+            x: fx,
+            y: fy,
+            z: fz,
+        },
+        torque: Vector3 {
+            x: tx,
+            y: ty,
+            z: tz,
+        },
+    };
+    encode_fixed_to_buf(&val, buf, cap, written)
+}
+
+#[no_mangle]
+pub extern "C" fn ros_wrench_decode(
+    data: *const u8,
+    len: usize,
+    fx: *mut f64,
+    fy: *mut f64,
+    fz: *mut f64,
+    tx: *mut f64,
+    ty: *mut f64,
+    tz: *mut f64,
+) -> i32 {
+    match decode_fixed_from_buf::<Wrench>(data, len) {
+        Ok(v) => unsafe {
+            if !fx.is_null() {
+                *fx = v.force.x;
+            }
+            if !fy.is_null() {
+                *fy = v.force.y;
+            }
+            if !fz.is_null() {
+                *fz = v.force.z;
+            }
+            if !tx.is_null() {
+                *tx = v.torque.x;
+            }
+            if !ty.is_null() {
+                *ty = v.torque.y;
+            }
+            if !tz.is_null() {
+                *tz = v.torque.z;
+            }
+            0
+        },
+        Err(()) => -1,
+    }
+}
+
 // NavSatStatus
 #[no_mangle]
 pub extern "C" fn ros_nav_sat_status_encode(
@@ -2331,6 +2396,372 @@ impl_simple_stamped!(
     ros_inertia_stamped_get_stamp_nanosec,
     ros_inertia_stamped_get_frame_id
 );
+
+impl_simple_stamped!(
+    ros_vector3_stamped_t,
+    geometry_msgs::Vector3Stamped<&'static [u8]>,
+    ros_vector3_stamped_from_cdr,
+    ros_vector3_stamped_free,
+    ros_vector3_stamped_get_stamp_sec,
+    ros_vector3_stamped_get_stamp_nanosec,
+    ros_vector3_stamped_get_frame_id
+);
+
+impl_simple_stamped!(
+    ros_pose_stamped_t,
+    geometry_msgs::PoseStamped<&'static [u8]>,
+    ros_pose_stamped_from_cdr,
+    ros_pose_stamped_free,
+    ros_pose_stamped_get_stamp_sec,
+    ros_pose_stamped_get_stamp_nanosec,
+    ros_pose_stamped_get_frame_id
+);
+
+impl_simple_stamped!(
+    ros_quaternion_stamped_t,
+    geometry_msgs::QuaternionStamped<&'static [u8]>,
+    ros_quaternion_stamped_from_cdr,
+    ros_quaternion_stamped_free,
+    ros_quaternion_stamped_get_stamp_sec,
+    ros_quaternion_stamped_get_stamp_nanosec,
+    ros_quaternion_stamped_get_frame_id
+);
+
+impl_simple_stamped!(
+    ros_wrench_stamped_t,
+    geometry_msgs::WrenchStamped<&'static [u8]>,
+    ros_wrench_stamped_from_cdr,
+    ros_wrench_stamped_free,
+    ros_wrench_stamped_get_stamp_sec,
+    ros_wrench_stamped_get_stamp_nanosec,
+    ros_wrench_stamped_get_frame_id
+);
+
+impl_simple_stamped!(
+    ros_pose_with_covariance_stamped_t,
+    geometry_msgs::PoseWithCovarianceStamped<&'static [u8]>,
+    ros_pose_with_covariance_stamped_from_cdr,
+    ros_pose_with_covariance_stamped_free,
+    ros_pose_with_covariance_stamped_get_stamp_sec,
+    ros_pose_with_covariance_stamped_get_stamp_nanosec,
+    ros_pose_with_covariance_stamped_get_frame_id
+);
+
+impl_simple_stamped!(
+    ros_twist_with_covariance_stamped_t,
+    geometry_msgs::TwistWithCovarianceStamped<&'static [u8]>,
+    ros_twist_with_covariance_stamped_from_cdr,
+    ros_twist_with_covariance_stamped_free,
+    ros_twist_with_covariance_stamped_get_stamp_sec,
+    ros_twist_with_covariance_stamped_get_stamp_nanosec,
+    ros_twist_with_covariance_stamped_get_frame_id
+);
+
+impl_simple_stamped!(
+    ros_accel_with_covariance_stamped_t,
+    geometry_msgs::AccelWithCovarianceStamped<&'static [u8]>,
+    ros_accel_with_covariance_stamped_from_cdr,
+    ros_accel_with_covariance_stamped_free,
+    ros_accel_with_covariance_stamped_get_stamp_sec,
+    ros_accel_with_covariance_stamped_get_stamp_nanosec,
+    ros_accel_with_covariance_stamped_get_frame_id
+);
+
+// ── Polygon (buffer-backed, sequence type) ──────────────────────────
+
+pub struct ros_polygon_t(geometry_msgs::Polygon<&'static [u8]>);
+
+/// Parse CDR bytes into a Polygon view handle.
+#[no_mangle]
+pub extern "C" fn ros_polygon_from_cdr(data: *const u8, len: usize) -> *mut ros_polygon_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match geometry_msgs::Polygon::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_polygon_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Free a Polygon view handle.
+#[no_mangle]
+pub extern "C" fn ros_polygon_free(view: *mut ros_polygon_t) {
+    if !view.is_null() {
+        unsafe {
+            drop(Box::from_raw(view));
+        }
+    }
+}
+
+/// Get the number of points in the polygon.
+#[no_mangle]
+pub extern "C" fn ros_polygon_get_len(view: *const ros_polygon_t) -> usize {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.len() }
+}
+
+/// Get a point by index. Returns 0 on success, -1 if index out of range.
+#[no_mangle]
+pub extern "C" fn ros_polygon_get_point(
+    view: *const ros_polygon_t,
+    index: usize,
+    x: *mut f32,
+    y: *mut f32,
+    z: *mut f32,
+) -> i32 {
+    if view.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    match unsafe { (*view).0.point(index) } {
+        Some(p) => unsafe {
+            if !x.is_null() {
+                *x = p.x;
+            }
+            if !y.is_null() {
+                *y = p.y;
+            }
+            if !z.is_null() {
+                *z = p.z;
+            }
+            0
+        },
+        None => {
+            set_errno(EINVAL);
+            -1
+        }
+    }
+}
+
+// ── PolygonStamped (buffer-backed) ──────────────────────────────────
+
+pub struct ros_polygon_stamped_t(geometry_msgs::PolygonStamped<&'static [u8]>);
+
+/// Parse CDR bytes into a PolygonStamped view handle.
+#[no_mangle]
+pub extern "C" fn ros_polygon_stamped_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut ros_polygon_stamped_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match geometry_msgs::PolygonStamped::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_polygon_stamped_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Free a PolygonStamped view handle.
+#[no_mangle]
+pub extern "C" fn ros_polygon_stamped_free(view: *mut ros_polygon_stamped_t) {
+    if !view.is_null() {
+        unsafe {
+            drop(Box::from_raw(view));
+        }
+    }
+}
+
+/// Get stamp seconds.
+#[no_mangle]
+pub extern "C" fn ros_polygon_stamped_get_stamp_sec(
+    view: *const ros_polygon_stamped_t,
+) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+/// Get stamp nanoseconds.
+#[no_mangle]
+pub extern "C" fn ros_polygon_stamped_get_stamp_nanosec(
+    view: *const ros_polygon_stamped_t,
+) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+/// Get frame_id (borrowed pointer valid while handle lives).
+#[no_mangle]
+pub extern "C" fn ros_polygon_stamped_get_frame_id(
+    view: *const ros_polygon_stamped_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+/// Get the number of points in the polygon.
+#[no_mangle]
+pub extern "C" fn ros_polygon_stamped_get_len(
+    view: *const ros_polygon_stamped_t,
+) -> usize {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.len() }
+}
+
+/// Get a point by index. Returns 0 on success, -1 if index out of range.
+#[no_mangle]
+pub extern "C" fn ros_polygon_stamped_get_point(
+    view: *const ros_polygon_stamped_t,
+    index: usize,
+    x: *mut f32,
+    y: *mut f32,
+    z: *mut f32,
+) -> i32 {
+    if view.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    match unsafe { (*view).0.point(index) } {
+        Some(p) => unsafe {
+            if !x.is_null() {
+                *x = p.x;
+            }
+            if !y.is_null() {
+                *y = p.y;
+            }
+            if !z.is_null() {
+                *z = p.z;
+            }
+            0
+        },
+        None => {
+            set_errno(EINVAL);
+            -1
+        }
+    }
+}
+
+// ── PoseArray (buffer-backed) ───────────────────────────────────────
+
+pub struct ros_pose_array_t(geometry_msgs::PoseArray<&'static [u8]>);
+
+/// Parse CDR bytes into a PoseArray view handle.
+#[no_mangle]
+pub extern "C" fn ros_pose_array_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut ros_pose_array_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match geometry_msgs::PoseArray::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_pose_array_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Free a PoseArray view handle.
+#[no_mangle]
+pub extern "C" fn ros_pose_array_free(view: *mut ros_pose_array_t) {
+    if !view.is_null() {
+        unsafe {
+            drop(Box::from_raw(view));
+        }
+    }
+}
+
+/// Get stamp seconds.
+#[no_mangle]
+pub extern "C" fn ros_pose_array_get_stamp_sec(view: *const ros_pose_array_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+/// Get stamp nanoseconds.
+#[no_mangle]
+pub extern "C" fn ros_pose_array_get_stamp_nanosec(view: *const ros_pose_array_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+/// Get frame_id (borrowed pointer valid while handle lives).
+#[no_mangle]
+pub extern "C" fn ros_pose_array_get_frame_id(
+    view: *const ros_pose_array_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+/// Get the number of poses in the array.
+#[no_mangle]
+pub extern "C" fn ros_pose_array_get_len(view: *const ros_pose_array_t) -> usize {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.len() }
+}
+
+/// Get a pose by index. Returns 0 on success, -1 if index out of range.
+#[no_mangle]
+pub extern "C" fn ros_pose_array_get_pose(
+    view: *const ros_pose_array_t,
+    index: usize,
+    px: *mut f64,
+    py: *mut f64,
+    pz: *mut f64,
+    ox: *mut f64,
+    oy: *mut f64,
+    oz: *mut f64,
+    ow: *mut f64,
+) -> i32 {
+    if view.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    match unsafe { (*view).0.pose(index) } {
+        Some(p) => unsafe {
+            if !px.is_null() {
+                *px = p.position.x;
+            }
+            if !py.is_null() {
+                *py = p.position.y;
+            }
+            if !pz.is_null() {
+                *pz = p.position.z;
+            }
+            if !ox.is_null() {
+                *ox = p.orientation.x;
+            }
+            if !oy.is_null() {
+                *oy = p.orientation.y;
+            }
+            if !oz.is_null() {
+                *oz = p.orientation.z;
+            }
+            if !ow.is_null() {
+                *ow = p.orientation.w;
+            }
+            0
+        },
+        None => {
+            set_errno(EINVAL);
+            -1
+        }
+    }
+}
 
 // =============================================================================
 // mavros_msgs — Altitude
@@ -4686,6 +5117,25 @@ impl_as_cdr!(ros_twist_stamped_as_cdr, ros_twist_stamped_t);
 impl_as_cdr!(ros_accel_stamped_as_cdr, ros_accel_stamped_t);
 impl_as_cdr!(ros_point_stamped_as_cdr, ros_point_stamped_t);
 impl_as_cdr!(ros_inertia_stamped_as_cdr, ros_inertia_stamped_t);
+impl_as_cdr!(ros_vector3_stamped_as_cdr, ros_vector3_stamped_t);
+impl_as_cdr!(ros_pose_stamped_as_cdr, ros_pose_stamped_t);
+impl_as_cdr!(ros_quaternion_stamped_as_cdr, ros_quaternion_stamped_t);
+impl_as_cdr!(ros_wrench_stamped_as_cdr, ros_wrench_stamped_t);
+impl_as_cdr!(
+    ros_pose_with_covariance_stamped_as_cdr,
+    ros_pose_with_covariance_stamped_t
+);
+impl_as_cdr!(
+    ros_twist_with_covariance_stamped_as_cdr,
+    ros_twist_with_covariance_stamped_t
+);
+impl_as_cdr!(
+    ros_accel_with_covariance_stamped_as_cdr,
+    ros_accel_with_covariance_stamped_t
+);
+impl_as_cdr!(ros_polygon_as_cdr, ros_polygon_t);
+impl_as_cdr!(ros_polygon_stamped_as_cdr, ros_polygon_stamped_t);
+impl_as_cdr!(ros_pose_array_as_cdr, ros_pose_array_t);
 impl_as_cdr!(ros_radar_cube_as_cdr, ros_radar_cube_t);
 impl_as_cdr!(ros_radar_info_as_cdr, ros_radar_info_t);
 impl_as_cdr!(ros_model_info_as_cdr, ros_model_info_t);

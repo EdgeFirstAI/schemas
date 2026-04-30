@@ -144,6 +144,26 @@ typedef struct ros_accel_stamped_t ros_accel_stamped_t;
 typedef struct ros_point_stamped_t ros_point_stamped_t;
 /** @brief Opaque buffer-backed view handle for geometry_msgs::InertiaStamped. */
 typedef struct ros_inertia_stamped_t ros_inertia_stamped_t;
+/** @brief Opaque buffer-backed view handle for geometry_msgs::Vector3Stamped. */
+typedef struct ros_vector3_stamped_t ros_vector3_stamped_t;
+/** @brief Opaque buffer-backed view handle for geometry_msgs::PoseStamped. */
+typedef struct ros_pose_stamped_t ros_pose_stamped_t;
+/** @brief Opaque buffer-backed view handle for geometry_msgs::QuaternionStamped. */
+typedef struct ros_quaternion_stamped_t ros_quaternion_stamped_t;
+/** @brief Opaque buffer-backed view handle for geometry_msgs::WrenchStamped. */
+typedef struct ros_wrench_stamped_t ros_wrench_stamped_t;
+/** @brief Opaque buffer-backed view handle for geometry_msgs::PoseWithCovarianceStamped. */
+typedef struct ros_pose_with_covariance_stamped_t ros_pose_with_covariance_stamped_t;
+/** @brief Opaque buffer-backed view handle for geometry_msgs::TwistWithCovarianceStamped. */
+typedef struct ros_twist_with_covariance_stamped_t ros_twist_with_covariance_stamped_t;
+/** @brief Opaque buffer-backed view handle for geometry_msgs::AccelWithCovarianceStamped. */
+typedef struct ros_accel_with_covariance_stamped_t ros_accel_with_covariance_stamped_t;
+/** @brief Opaque buffer-backed view handle for geometry_msgs::Polygon. */
+typedef struct ros_polygon_t ros_polygon_t;
+/** @brief Opaque buffer-backed view handle for geometry_msgs::PolygonStamped. */
+typedef struct ros_polygon_stamped_t ros_polygon_stamped_t;
+/** @brief Opaque buffer-backed view handle for geometry_msgs::PoseArray. */
+typedef struct ros_pose_array_t ros_pose_array_t;
 
 /* foxglove_msgs */
 /** @brief Opaque buffer-backed view handle for foxglove_msgs::CompressedVideo. */
@@ -535,6 +555,43 @@ int ros_accel_encode(uint8_t* buf, size_t cap, size_t* written,
 int ros_accel_decode(const uint8_t* data, size_t len,
                      double* lx, double* ly, double* lz,
                      double* ax, double* ay, double* az);
+
+/* ============================================================================
+ * geometry_msgs - Wrench (CdrFixed)
+ * ========================================================================= */
+
+/**
+ * @brief Encode a Wrench message to CDR.
+ * @param buf Destination buffer, or NULL to query required size
+ * @param cap Capacity of buf in bytes
+ * @param written Receives the number of bytes written (or required)
+ * @param fx Force X
+ * @param fy Force Y
+ * @param fz Force Z
+ * @param tx Torque X
+ * @param ty Torque Y
+ * @param tz Torque Z
+ * @return 0 on success, -1 on error
+ */
+int ros_wrench_encode(uint8_t* buf, size_t cap, size_t* written,
+                      double fx, double fy, double fz,
+                      double tx, double ty, double tz);
+
+/**
+ * @brief Decode a Wrench message from CDR.
+ * @param data CDR encoded bytes
+ * @param len Length of data
+ * @param fx Receives force X (may be NULL)
+ * @param fy Receives force Y (may be NULL)
+ * @param fz Receives force Z (may be NULL)
+ * @param tx Receives torque X (may be NULL)
+ * @param ty Receives torque Y (may be NULL)
+ * @param tz Receives torque Z (may be NULL)
+ * @return 0 on success, -1 on error
+ */
+int ros_wrench_decode(const uint8_t* data, size_t len,
+                      double* fx, double* fy, double* fz,
+                      double* tx, double* ty, double* tz);
 
 /* ============================================================================
  * sensor_msgs - NavSatStatus (CdrFixed)
@@ -1592,6 +1649,195 @@ uint32_t ros_inertia_stamped_get_stamp_nanosec(const ros_inertia_stamped_t* view
 const char* ros_inertia_stamped_get_frame_id(const ros_inertia_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_inertia_stamped_as_cdr(const ros_inertia_stamped_t* view, size_t* out_len);
+
+/* ============================================================================
+ * geometry_msgs - Vector3Stamped (buffer-backed)
+ * ========================================================================= */
+
+/** @brief Create a Vector3Stamped view from CDR bytes. */
+ros_vector3_stamped_t* ros_vector3_stamped_from_cdr(const uint8_t* data, size_t len);
+/** @brief Free a Vector3Stamped view handle. */
+void ros_vector3_stamped_free(ros_vector3_stamped_t* view);
+/** @brief Get stamp seconds. */
+int32_t ros_vector3_stamped_get_stamp_sec(const ros_vector3_stamped_t* view);
+/** @brief Get stamp nanoseconds. */
+uint32_t ros_vector3_stamped_get_stamp_nanosec(const ros_vector3_stamped_t* view);
+/** @brief Get frame_id (borrowed). */
+const char* ros_vector3_stamped_get_frame_id(const ros_vector3_stamped_t* view);
+/** @brief Borrow raw CDR bytes from the handle. */
+const uint8_t* ros_vector3_stamped_as_cdr(const ros_vector3_stamped_t* view, size_t* out_len);
+
+/* ============================================================================
+ * geometry_msgs - PoseStamped (buffer-backed)
+ * ========================================================================= */
+
+/** @brief Create a PoseStamped view from CDR bytes. */
+ros_pose_stamped_t* ros_pose_stamped_from_cdr(const uint8_t* data, size_t len);
+/** @brief Free a PoseStamped view handle. */
+void ros_pose_stamped_free(ros_pose_stamped_t* view);
+/** @brief Get stamp seconds. */
+int32_t ros_pose_stamped_get_stamp_sec(const ros_pose_stamped_t* view);
+/** @brief Get stamp nanoseconds. */
+uint32_t ros_pose_stamped_get_stamp_nanosec(const ros_pose_stamped_t* view);
+/** @brief Get frame_id (borrowed). */
+const char* ros_pose_stamped_get_frame_id(const ros_pose_stamped_t* view);
+/** @brief Borrow raw CDR bytes from the handle. */
+const uint8_t* ros_pose_stamped_as_cdr(const ros_pose_stamped_t* view, size_t* out_len);
+
+/* ============================================================================
+ * geometry_msgs - QuaternionStamped (buffer-backed)
+ * ========================================================================= */
+
+/** @brief Create a QuaternionStamped view from CDR bytes. */
+ros_quaternion_stamped_t* ros_quaternion_stamped_from_cdr(const uint8_t* data, size_t len);
+/** @brief Free a QuaternionStamped view handle. */
+void ros_quaternion_stamped_free(ros_quaternion_stamped_t* view);
+/** @brief Get stamp seconds. */
+int32_t ros_quaternion_stamped_get_stamp_sec(const ros_quaternion_stamped_t* view);
+/** @brief Get stamp nanoseconds. */
+uint32_t ros_quaternion_stamped_get_stamp_nanosec(const ros_quaternion_stamped_t* view);
+/** @brief Get frame_id (borrowed). */
+const char* ros_quaternion_stamped_get_frame_id(const ros_quaternion_stamped_t* view);
+/** @brief Borrow raw CDR bytes from the handle. */
+const uint8_t* ros_quaternion_stamped_as_cdr(const ros_quaternion_stamped_t* view, size_t* out_len);
+
+/* ============================================================================
+ * geometry_msgs - WrenchStamped (buffer-backed)
+ * ========================================================================= */
+
+/** @brief Create a WrenchStamped view from CDR bytes. */
+ros_wrench_stamped_t* ros_wrench_stamped_from_cdr(const uint8_t* data, size_t len);
+/** @brief Free a WrenchStamped view handle. */
+void ros_wrench_stamped_free(ros_wrench_stamped_t* view);
+/** @brief Get stamp seconds. */
+int32_t ros_wrench_stamped_get_stamp_sec(const ros_wrench_stamped_t* view);
+/** @brief Get stamp nanoseconds. */
+uint32_t ros_wrench_stamped_get_stamp_nanosec(const ros_wrench_stamped_t* view);
+/** @brief Get frame_id (borrowed). */
+const char* ros_wrench_stamped_get_frame_id(const ros_wrench_stamped_t* view);
+/** @brief Borrow raw CDR bytes from the handle. */
+const uint8_t* ros_wrench_stamped_as_cdr(const ros_wrench_stamped_t* view, size_t* out_len);
+
+/* ============================================================================
+ * geometry_msgs - PoseWithCovarianceStamped (buffer-backed)
+ * ========================================================================= */
+
+/** @brief Create a PoseWithCovarianceStamped view from CDR bytes. */
+ros_pose_with_covariance_stamped_t* ros_pose_with_covariance_stamped_from_cdr(const uint8_t* data, size_t len);
+/** @brief Free a PoseWithCovarianceStamped view handle. */
+void ros_pose_with_covariance_stamped_free(ros_pose_with_covariance_stamped_t* view);
+/** @brief Get stamp seconds. */
+int32_t ros_pose_with_covariance_stamped_get_stamp_sec(const ros_pose_with_covariance_stamped_t* view);
+/** @brief Get stamp nanoseconds. */
+uint32_t ros_pose_with_covariance_stamped_get_stamp_nanosec(const ros_pose_with_covariance_stamped_t* view);
+/** @brief Get frame_id (borrowed). */
+const char* ros_pose_with_covariance_stamped_get_frame_id(const ros_pose_with_covariance_stamped_t* view);
+/** @brief Borrow raw CDR bytes from the handle. */
+const uint8_t* ros_pose_with_covariance_stamped_as_cdr(const ros_pose_with_covariance_stamped_t* view, size_t* out_len);
+
+/* ============================================================================
+ * geometry_msgs - TwistWithCovarianceStamped (buffer-backed)
+ * ========================================================================= */
+
+/** @brief Create a TwistWithCovarianceStamped view from CDR bytes. */
+ros_twist_with_covariance_stamped_t* ros_twist_with_covariance_stamped_from_cdr(const uint8_t* data, size_t len);
+/** @brief Free a TwistWithCovarianceStamped view handle. */
+void ros_twist_with_covariance_stamped_free(ros_twist_with_covariance_stamped_t* view);
+/** @brief Get stamp seconds. */
+int32_t ros_twist_with_covariance_stamped_get_stamp_sec(const ros_twist_with_covariance_stamped_t* view);
+/** @brief Get stamp nanoseconds. */
+uint32_t ros_twist_with_covariance_stamped_get_stamp_nanosec(const ros_twist_with_covariance_stamped_t* view);
+/** @brief Get frame_id (borrowed). */
+const char* ros_twist_with_covariance_stamped_get_frame_id(const ros_twist_with_covariance_stamped_t* view);
+/** @brief Borrow raw CDR bytes from the handle. */
+const uint8_t* ros_twist_with_covariance_stamped_as_cdr(const ros_twist_with_covariance_stamped_t* view, size_t* out_len);
+
+/* ============================================================================
+ * geometry_msgs - AccelWithCovarianceStamped (buffer-backed)
+ * ========================================================================= */
+
+/** @brief Create an AccelWithCovarianceStamped view from CDR bytes. */
+ros_accel_with_covariance_stamped_t* ros_accel_with_covariance_stamped_from_cdr(const uint8_t* data, size_t len);
+/** @brief Free an AccelWithCovarianceStamped view handle. */
+void ros_accel_with_covariance_stamped_free(ros_accel_with_covariance_stamped_t* view);
+/** @brief Get stamp seconds. */
+int32_t ros_accel_with_covariance_stamped_get_stamp_sec(const ros_accel_with_covariance_stamped_t* view);
+/** @brief Get stamp nanoseconds. */
+uint32_t ros_accel_with_covariance_stamped_get_stamp_nanosec(const ros_accel_with_covariance_stamped_t* view);
+/** @brief Get frame_id (borrowed). */
+const char* ros_accel_with_covariance_stamped_get_frame_id(const ros_accel_with_covariance_stamped_t* view);
+/** @brief Borrow raw CDR bytes from the handle. */
+const uint8_t* ros_accel_with_covariance_stamped_as_cdr(const ros_accel_with_covariance_stamped_t* view, size_t* out_len);
+
+/* ============================================================================
+ * geometry_msgs - Polygon (buffer-backed, sequence type)
+ * ========================================================================= */
+
+/** @brief Create a Polygon view from CDR bytes. */
+ros_polygon_t* ros_polygon_from_cdr(const uint8_t* data, size_t len);
+/** @brief Free a Polygon view handle. */
+void ros_polygon_free(ros_polygon_t* view);
+/** @brief Get the number of points. */
+size_t ros_polygon_get_len(const ros_polygon_t* view);
+/**
+ * @brief Get a point by index.
+ * @return 0 on success, -1 if index out of range or NULL view.
+ */
+int ros_polygon_get_point(const ros_polygon_t* view, size_t index,
+                          float* x, float* y, float* z);
+/** @brief Borrow raw CDR bytes from the handle. */
+const uint8_t* ros_polygon_as_cdr(const ros_polygon_t* view, size_t* out_len);
+
+/* ============================================================================
+ * geometry_msgs - PolygonStamped (buffer-backed)
+ * ========================================================================= */
+
+/** @brief Create a PolygonStamped view from CDR bytes. */
+ros_polygon_stamped_t* ros_polygon_stamped_from_cdr(const uint8_t* data, size_t len);
+/** @brief Free a PolygonStamped view handle. */
+void ros_polygon_stamped_free(ros_polygon_stamped_t* view);
+/** @brief Get stamp seconds. */
+int32_t ros_polygon_stamped_get_stamp_sec(const ros_polygon_stamped_t* view);
+/** @brief Get stamp nanoseconds. */
+uint32_t ros_polygon_stamped_get_stamp_nanosec(const ros_polygon_stamped_t* view);
+/** @brief Get frame_id (borrowed). */
+const char* ros_polygon_stamped_get_frame_id(const ros_polygon_stamped_t* view);
+/** @brief Get the number of points. */
+size_t ros_polygon_stamped_get_len(const ros_polygon_stamped_t* view);
+/**
+ * @brief Get a point by index.
+ * @return 0 on success, -1 if index out of range or NULL view.
+ */
+int ros_polygon_stamped_get_point(const ros_polygon_stamped_t* view, size_t index,
+                                  float* x, float* y, float* z);
+/** @brief Borrow raw CDR bytes from the handle. */
+const uint8_t* ros_polygon_stamped_as_cdr(const ros_polygon_stamped_t* view, size_t* out_len);
+
+/* ============================================================================
+ * geometry_msgs - PoseArray (buffer-backed)
+ * ========================================================================= */
+
+/** @brief Create a PoseArray view from CDR bytes. */
+ros_pose_array_t* ros_pose_array_from_cdr(const uint8_t* data, size_t len);
+/** @brief Free a PoseArray view handle. */
+void ros_pose_array_free(ros_pose_array_t* view);
+/** @brief Get stamp seconds. */
+int32_t ros_pose_array_get_stamp_sec(const ros_pose_array_t* view);
+/** @brief Get stamp nanoseconds. */
+uint32_t ros_pose_array_get_stamp_nanosec(const ros_pose_array_t* view);
+/** @brief Get frame_id (borrowed). */
+const char* ros_pose_array_get_frame_id(const ros_pose_array_t* view);
+/** @brief Get the number of poses. */
+size_t ros_pose_array_get_len(const ros_pose_array_t* view);
+/**
+ * @brief Get a pose by index.
+ * @return 0 on success, -1 if index out of range or NULL view.
+ */
+int ros_pose_array_get_pose(const ros_pose_array_t* view, size_t index,
+                            double* px, double* py, double* pz,
+                            double* ox, double* oy, double* oz, double* ow);
+/** @brief Borrow raw CDR bytes from the handle. */
+const uint8_t* ros_pose_array_as_cdr(const ros_pose_array_t* view, size_t* out_len);
 
 /* ============================================================================
  * edgefirst_msgs - RadarCube (buffer-backed)
