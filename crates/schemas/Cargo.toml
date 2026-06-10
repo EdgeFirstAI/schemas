@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright © 2026 Au-Zone Technologies. All Rights Reserved.
+
+[package]
+name = "edgefirst-schemas"
+description = "Message schemas for EdgeFirst Perception - ROS2 Common Interfaces, Foxglove, and custom types"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+readme = "README.md"
+homepage.workspace = true
+repository.workspace = true
+documentation = "https://docs.rs/edgefirst-schemas/"
+keywords = ["ros2", "perception", "schemas", "edge-ai", "zenoh"]
+categories = ["encoding", "data-structures"]
+
+# rlib only — staticlib and cdylib outputs live in crates/capi.
+[lib]
+
+[dependencies]
+errno = { workspace = true }
+libc = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+mcap = { workspace = true }
+memmap2 = { workspace = true }
+rand = { workspace = true }
+
+[[bench]]
+name = "serialization"
+harness = false

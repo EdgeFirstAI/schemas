@@ -122,9 +122,23 @@ EdgeFirst Perception Schemas
 
 ### Language Binding Structure
 
-**Rust** (`src/`):
+The repository is a Cargo workspace with three member crates. The split exists
+to keep each binding's build artifacts isolated — most importantly, the C
+library's `build.rs` (which emits `DT_SONAME = libedgefirst_schemas.so.MAJOR`)
+runs only inside the capi crate, so it never leaks into the PyO3 wheel.
+
 ```
-src/
+crates/
+├── schemas/   pure-Rust rlib  (`edgefirst-schemas`)
+├── capi/      C lib            (`edgefirst-schemas-capi` package,
+│                                produces `libedgefirst_schemas.{a,so}`)
+└── python/    PyO3 wheel       (`edgefirst-schemas-python` package,
+                                 importable as `edgefirst.schemas`)
+```
+
+**Rust schemas crate** (`crates/schemas/src/`):
+```
+crates/schemas/src/
 ├── lib.rs                  # Public API, re-exports
 ├── cdr.rs                  # Zero-copy CDR1-LE: CdrCursor, CdrWriter, CdrSizer, CdrFixed
 ├── std_msgs.rs             # ROS2 standard messages
@@ -137,9 +151,23 @@ src/
 ├── rosgraph_msgs.rs        # ROS2 graph (Clock)
 ├── foxglove_msgs.rs        # Foxglove visualization
 ├── edgefirst_msgs.rs       # EdgeFirst custom messages
+├── tensor.rs               # Tensor / TensorPlane payload, plane codec, builders
 ├── schema_registry.rs      # Runtime schema name registry
-├── service.rs              # ROS2 service wrapper
-└── ffi.rs                  # C API via FFI (cbindgen)
+└── service.rs              # ROS2 service wrapper
+```
+
+**C library crate** (`crates/capi/`):
+```
+crates/capi/
+├── src/lib.rs              # #[no_mangle] ros_* / cdr_* FFI surface (was src/ffi.rs)
+├── src/tensor.rs           # Tensor-family C bindings (was src/ffi/tensor.rs)
+├── build.rs                # cargo:rustc-cdylib-link-arg=-Wl,-soname,...
+├── include/edgefirst/
+│   ├── schemas.h           # Hand-maintained C header
+│   ├── schemas.hpp         # C++ wrapper
+│   └── stdlib/{expected,span}.hpp
+├── edgefirst-schemas.pc.in # pkg-config template
+└── tests/{c,cpp}/          # Criterion-based C and C++ tests
 ```
 
 **Python** (`edgefirst/schemas/`):
@@ -228,13 +256,13 @@ assert_eq!(view.frame_id(), "camera"); // reads directly from buffer
 ### Serialization Libraries
 
 **Rust**:
-- Custom zero-copy CDR1-LE implementation (`src/cdr.rs`):
+- Custom zero-copy CDR1-LE implementation (`crates/schemas/src/cdr.rs`):
   `CdrCursor` (reader), `CdrWriter` (builder), `CdrSizer` (size calculator), `CdrFixed` (trait for fixed-size types)
 - No `serde` dependency — all serialization is hand-written for zero-copy
 
 **C API**:
 - FFI bindings via `cbindgen` — same zero-copy CDR under the hood
-- Header generated as `include/edgefirst/schemas.h`
+- Header hand-maintained at `crates/capi/include/edgefirst/schemas.h` (cbindgen is wired for future auto-generation but not invoked today)
 
 **Python**:
 - PyO3 compiled Rust extension (built via `maturin`) — CDR logic lives in Rust; no separate CDR library is needed at runtime
@@ -330,7 +358,7 @@ for field in pcd.fields_iter() {
 }
 ```
 
-**PointCloud Access Layer** (`src/sensor_msgs/pointcloud.rs`):
+**PointCloud Access Layer** (`crates/schemas/src/sensor_msgs/pointcloud.rs`):
 
 Two-tier zero-copy access over PointCloud2 data buffers — see [PointCloud Access Layer](#pointcloud-access-layer) below.
 
@@ -758,15 +786,15 @@ resolves this.
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
-| **CDR infrastructure** | `src/cdr.rs` | Zero-copy CDR1-LE: CdrCursor, CdrWriter, CdrSizer, CdrFixed |
-| **PointCloud2 message** | `src/sensor_msgs/mod.rs` | Buffer-backed PointCloud2 with field iteration |
-| **PointCloud access** | `src/sensor_msgs/pointcloud.rs` | DynPointCloud, PointCloud\<P\>, define_point! |
-| **Tensor / TensorPlane** | `src/tensor.rs` | Tensor payload, plane codec, builders |
-| **TensorStamped / CameraFrame** | `src/edgefirst_msgs.rs` | Byte-identical stamped wrappers over `Tensor` |
-| **Tensor C API** | `src/ffi/tensor.rs` | C bindings for the tensor family |
-| **Detect message** | `src/edgefirst_msgs.rs` | Object detection results |
-| **C API (FFI)** | `src/ffi.rs` | C bindings, header via cbindgen |
-| **Schema registry** | `src/schema_registry.rs` | Runtime type lookup by ROS2 schema name |
+| **CDR infrastructure** | `crates/schemas/src/cdr.rs` | Zero-copy CDR1-LE: CdrCursor, CdrWriter, CdrSizer, CdrFixed |
+| **PointCloud2 message** | `crates/schemas/src/sensor_msgs/mod.rs` | Buffer-backed PointCloud2 with field iteration |
+| **PointCloud access** | `crates/schemas/src/sensor_msgs/pointcloud.rs` | DynPointCloud, PointCloud\<P\>, define_point! |
+| **Tensor / TensorPlane** | `crates/schemas/src/tensor.rs` | Tensor payload, plane codec, builders |
+| **TensorStamped / CameraFrame** | `crates/schemas/src/edgefirst_msgs.rs` | Byte-identical stamped wrappers over `Tensor` |
+| **Tensor C API** | `crates/capi/src/tensor.rs` | C bindings for the tensor family |
+| **Detect message** | `crates/schemas/src/edgefirst_msgs.rs` | Object detection results |
+| **C API (FFI)** | `crates/capi/src/lib.rs` | C bindings, header hand-maintained at `crates/capi/include/edgefirst/schemas.h` |
+| **Schema registry** | `crates/schemas/src/schema_registry.rs` | Runtime type lookup by ROS2 schema name |
 | **Python decode_pcd** | `edgefirst/schemas/__init__.py` | Python point cloud decode |
 | **Message definitions** | `edgefirst_msgs/msg/*.msg` | Source IDL definitions |
 

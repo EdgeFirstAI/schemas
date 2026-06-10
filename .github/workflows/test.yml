@@ -109,31 +109,36 @@ jobs:
 
       - name: Run C API tests
         run: |
-          # Copy instrumented library to where Makefile/gcc expect it
-          # This overwrites any non-instrumented library that might exist
+          # Copy instrumented library to where Makefile/gcc expect it. Cargo's
+          # output basename is libedgefirst_schemas_capi.* (the capi crate's
+          # `[lib] name`); the public-facing name is libedgefirst_schemas.* —
+          # we symlink between them so `-ledgefirst_schemas` resolves and the
+          # SONAME-driven runtime lookup works.
           mkdir -p target/debug/deps
-          cp -f target/llvm-cov-target/debug/deps/libedgefirst_schemas.* target/debug/deps/ 2>/dev/null || true
-          cp -f target/llvm-cov-target/debug/deps/libedgefirst_schemas.* target/debug/ 2>/dev/null || true
+          cp -f target/llvm-cov-target/debug/deps/libedgefirst_schemas_capi.* target/debug/deps/ 2>/dev/null || true
+          cp -f target/llvm-cov-target/debug/deps/libedgefirst_schemas_capi.* target/debug/ 2>/dev/null || true
+          ln -sf libedgefirst_schemas_capi.so target/debug/deps/libedgefirst_schemas.so
+          ln -sf libedgefirst_schemas_capi.a  target/debug/deps/libedgefirst_schemas.a
 
           # Create SONAME symlink so the runtime linker can find the library.
-          # build.rs sets SONAME to libedgefirst_schemas.so.<major>, but cargo
-          # produces the file as libedgefirst_schemas.so — the symlink bridges this.
+          # build.rs in crates/capi sets SONAME to libedgefirst_schemas.so.<major>;
+          # we symlink it to the cargo output so dynamic resolution succeeds.
           MAJOR=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\([0-9]*\).*/\1/')
-          ln -sf libedgefirst_schemas.so target/debug/deps/libedgefirst_schemas.so.${MAJOR}
+          ln -sf libedgefirst_schemas_capi.so target/debug/deps/libedgefirst_schemas.so.${MAJOR}
 
           # Verify we have the instrumented library (check for profile symbols)
           echo "Verifying instrumented library:"
-          nm target/debug/deps/libedgefirst_schemas.so 2>/dev/null | grep -c "__llvm_profile" || \
-          nm target/debug/deps/libedgefirst_schemas.dylib 2>/dev/null | grep -c "__llvm_profile" || \
+          nm target/debug/deps/libedgefirst_schemas_capi.so 2>/dev/null | grep -c "__llvm_profile" || \
+          nm target/debug/deps/libedgefirst_schemas_capi.dylib 2>/dev/null | grep -c "__llvm_profile" || \
           echo "Warning: Library may not be instrumented"
           
           # Build C tests without rebuilding the library (lib target would overwrite instrumented library)
           # Build test binaries directly
           mkdir -p build build/test-results
-          for src in tests/c/test_*.c; do
+          for src in crates/capi/tests/c/test_*.c; do
             name=$(basename $src .c)
             echo "Compiling $name..."
-            gcc -Wall -Wextra -Werror -std=c11 -I./include -I/usr/include/criterion \
+            gcc -Wall -Wextra -Werror -std=c11 -I./crates/capi/include -I/usr/include/criterion \
                 -o build/$name $src \
                 -L./target/debug/deps -ledgefirst_schemas -lcriterion -lm \
                 -Wl,-rpath,./target/debug/deps

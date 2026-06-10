@@ -20,24 +20,29 @@ else
   CARGO_FLAGS =
 endif
 LIB_NAME = libedgefirst_schemas
+# Cargo writes this basename (driven by `[lib] name` in crates/capi/Cargo.toml).
+# We symlink LIB_NAME.{a,so} → CARGO_LIB_NAME.{a,so} so downstream consumers
+# see the public name; the SONAME baked into the cdylib is independent of the
+# file basename (libedgefirst_schemas.so.MAJOR, set by crates/capi/build.rs).
+CARGO_LIB_NAME = libedgefirst_schemas_capi
 
 # C test configuration
 CC = gcc
 CRITERION_PREFIX = $(shell brew --prefix criterion 2>/dev/null || echo /usr/local)
-CFLAGS = -Wall -Wextra -Werror -std=c11 -I./include -I$(CRITERION_PREFIX)/include
+CFLAGS = -Wall -Wextra -Werror -std=c11 -I./crates/capi/include -I$(CRITERION_PREFIX)/include
 LDFLAGS = -L$(LIB_DIR) -ledgefirst_schemas -L$(CRITERION_PREFIX)/lib -lcriterion -lm -Wl,-rpath,$(LIB_DIR)
 
 # C++ test configuration
 CXX ?= g++
 CXXSTD ?= c++17
-CXXFLAGS_BASE = -std=$(CXXSTD) -Wall -Wextra -Werror -I./include -Itests/cpp
+CXXFLAGS_BASE = -std=$(CXXSTD) -Wall -Wextra -Werror -I./crates/capi/include -Icrates/capi/tests/cpp
 CXXFLAGS = $(CXXFLAGS_BASE) -O2
 CXXFLAGS_ASAN = $(CXXFLAGS_BASE) -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Wno-maybe-uninitialized
 CXXLDFLAGS = -L$(LIB_DIR) -ledgefirst_schemas -Wl,-rpath,$(LIB_DIR)
 CXXLDFLAGS_ASAN = $(CXXLDFLAGS) -fsanitize=address,undefined
 
 # C++ test sources and binaries
-CPP_TEST_DIR = tests/cpp
+CPP_TEST_DIR = crates/capi/tests/cpp
 CPP_TEST_SOURCES = $(wildcard $(CPP_TEST_DIR)/test_*.cpp)
 CPP_TEST_BINARIES = $(patsubst $(CPP_TEST_DIR)/%.cpp,$(BUILD_DIR)/%,$(CPP_TEST_SOURCES))
 CPP_TEST_BINARIES_ASAN = $(patsubst $(CPP_TEST_DIR)/%.cpp,$(BUILD_DIR)/%_asan,$(CPP_TEST_SOURCES))
@@ -52,7 +57,7 @@ LIBDIR  = $(DESTDIR)$(PREFIX)/lib
 BUILD_DIR = build
 
 # C test sources
-TEST_DIR = tests/c
+TEST_DIR = crates/capi/tests/c
 TEST_SOURCES = $(wildcard $(TEST_DIR)/test_*.c)
 TEST_BINARIES = $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/%,$(TEST_SOURCES))
 
@@ -86,24 +91,20 @@ lib:
 	@echo "Building Rust library..."
 	@cargo build $(CARGO_FLAGS)
 	@set -e; \
-	LIB_DIR='$(LIB_DIR)'; LIB='$(LIB_NAME)'; \
+	LIB_DIR='$(LIB_DIR)'; LIB='$(LIB_NAME)'; CARGO_LIB='$(CARGO_LIB_NAME)'; \
 	VERSION='$(VERSION_FULL)'; MAJOR='$(VERSION_MAJOR)'; MINOR='$(VERSION_MINOR)'; \
 	REAL="$$LIB_DIR/$$LIB.so.$$VERSION"; \
-	if [ -f "$$LIB_DIR/$$LIB.so" ] && [ ! -L "$$LIB_DIR/$$LIB.so" ]; then \
-	    find "$$LIB_DIR" -maxdepth 1 \( -type l -o -type f \) -name "$$LIB.so.*" \
-	        ! -name "$$LIB.so.$$VERSION" -exec rm -f {} +; \
-	    mv -f "$$LIB_DIR/$$LIB.so" "$$REAL"; \
-	elif [ ! -e "$$REAL" ]; then \
-	    echo "error: cargo output missing and no prior $$LIB.so.$$VERSION found" >&2; \
-	    echo "hint: run 'make clean' then retry (version bump without clean build)" >&2; \
+	if [ ! -f "$$LIB_DIR/$$CARGO_LIB.so" ]; then \
+	    echo "error: expected cargo output $$LIB_DIR/$$CARGO_LIB.so not found" >&2; \
 	    exit 1; \
 	fi; \
-	rm -f "$$LIB_DIR/$$LIB.so" \
-	      "$$LIB_DIR/$$LIB.so.$$MAJOR" \
-	      "$$LIB_DIR/$$LIB.so.$$MAJOR.$$MINOR"; \
-	ln -s "$$LIB.so.$$VERSION"        "$$LIB_DIR/$$LIB.so.$$MAJOR.$$MINOR"; \
-	ln -s "$$LIB.so.$$MAJOR.$$MINOR"  "$$LIB_DIR/$$LIB.so.$$MAJOR"; \
-	ln -s "$$LIB.so.$$MAJOR"          "$$LIB_DIR/$$LIB.so"
+	find "$$LIB_DIR" -maxdepth 1 \( -type l -o -type f \) -name "$$LIB.so*" -exec rm -f {} +; \
+	rm -f "$$LIB_DIR/$$LIB.a"; \
+	ln -s "$$CARGO_LIB.so" "$$LIB_DIR/$$LIB.so.$$VERSION"; \
+	ln -s "$$LIB.so.$$VERSION"       "$$LIB_DIR/$$LIB.so.$$MAJOR.$$MINOR"; \
+	ln -s "$$LIB.so.$$MAJOR.$$MINOR" "$$LIB_DIR/$$LIB.so.$$MAJOR"; \
+	ln -s "$$LIB.so.$$MAJOR"         "$$LIB_DIR/$$LIB.so"; \
+	ln -s "$$CARGO_LIB.a" "$$LIB_DIR/$$LIB.a"
 
 # Ensure build directory exists
 $(BUILD_DIR):
@@ -288,10 +289,10 @@ example-cpp: lib | $(BUILD_DIR)
 install: lib
 	@echo "Installing headers to $(INCDIR)/edgefirst/..."
 	@install -d $(INCDIR)/edgefirst/stdlib
-	@install -m 644 include/edgefirst/schemas.h             $(INCDIR)/edgefirst/schemas.h
-	@install -m 644 include/edgefirst/schemas.hpp           $(INCDIR)/edgefirst/schemas.hpp
-	@install -m 644 include/edgefirst/stdlib/expected.hpp   $(INCDIR)/edgefirst/stdlib/expected.hpp
-	@install -m 644 include/edgefirst/stdlib/span.hpp       $(INCDIR)/edgefirst/stdlib/span.hpp
+	@install -m 644 crates/capi/include/edgefirst/schemas.h             $(INCDIR)/edgefirst/schemas.h
+	@install -m 644 crates/capi/include/edgefirst/schemas.hpp           $(INCDIR)/edgefirst/schemas.hpp
+	@install -m 644 crates/capi/include/edgefirst/stdlib/expected.hpp   $(INCDIR)/edgefirst/stdlib/expected.hpp
+	@install -m 644 crates/capi/include/edgefirst/stdlib/span.hpp       $(INCDIR)/edgefirst/stdlib/span.hpp
 	@echo "Installing library to $(LIBDIR)/..."
 	@install -d $(LIBDIR)
 	@set -e; \
@@ -305,7 +306,7 @@ install: lib
 	@install -d $(LIBDIR)/pkgconfig
 	@sed \
 		-e 's|@VERSION@|$(VERSION_FULL)|g' \
-		edgefirst-schemas.pc.in > $(BUILD_DIR)/edgefirst-schemas.pc
+		crates/capi/edgefirst-schemas.pc.in > $(BUILD_DIR)/edgefirst-schemas.pc
 	@install -m 644 $(BUILD_DIR)/edgefirst-schemas.pc \
 		$(LIBDIR)/pkgconfig/edgefirst-schemas.pc
 	@echo "Installed edgefirst-schemas $(VERSION_FULL) to $(DESTDIR)$(PREFIX)"

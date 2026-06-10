@@ -58,7 +58,11 @@ jobs:
         run: rustup toolchain install stable --profile minimal
 
       - name: Build edgefirst-schemas shared library
-        run: cargo build --release
+        # `make lib` builds crates/capi and lays down the public-name symlink
+        # chain (libedgefirst_schemas.so[.MAJOR[.MINOR[.PATCH]]]) over cargo's
+        # libedgefirst_schemas_capi.so output, which is what the CMake
+        # find_library() call and the SONAME-driven runtime lookup expect.
+        run: make lib
 
       - name: Configure and build C++ benchmarks (native aarch64)
         run: |
@@ -72,7 +76,12 @@ jobs:
           cp benches/cpp/build/aarch64/bench_edgefirst cpp-benchmark-binaries/
           cp benches/cpp/build/aarch64/bench_fastcdr   cpp-benchmark-binaries/
           cp benches/cpp/build/aarch64/parity_test     cpp-benchmark-binaries/
-          cp target/release/libedgefirst_schemas.so    cpp-benchmark-binaries/
+          # The benchmark binaries record DT_NEEDED = libedgefirst_schemas.so.MAJOR
+          # (from the SONAME), so stage the library under that name — artifact
+          # upload dereferences symlinks, so copy the real file.
+          MAJOR=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\([0-9]*\).*/\1/')
+          cp target/release/libedgefirst_schemas_capi.so \
+             "cpp-benchmark-binaries/libedgefirst_schemas.so.${MAJOR}"
 
       - name: Upload binaries
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0

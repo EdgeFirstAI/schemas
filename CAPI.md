@@ -45,7 +45,7 @@ gcc $(pkg-config --cflags edgefirst-schemas) -o myapp myapp.c \
 ```bash
 # Install header
 sudo mkdir -p /usr/local/include/edgefirst
-sudo cp include/edgefirst/schemas.h /usr/local/include/edgefirst/
+sudo cp crates/capi/include/edgefirst/schemas.h /usr/local/include/edgefirst/
 
 # Install library (Linux) — install the versioned real file and create the
 # symlink chain expected by the GNU/Linux dynamic linker. Replace 2.2.1 with
@@ -1720,7 +1720,7 @@ Common causes:
 ## C++ Wrapper
 
 A header-only C++17 wrapper is available at
-`include/edgefirst/schemas.hpp`. It provides RAII-managed view and owning
+`crates/capi/include/edgefirst/schemas.hpp`. It provides RAII-managed view and owning
 types for every C handle type — `ImageView`/`Image`, `HeaderView`/`Header`,
 `DetectView`, `ModelView`, `MaskView`/`Mask`, and so on — together with
 `expected<T, Error>` error handling (no exceptions) and range-based iteration
@@ -1750,7 +1750,7 @@ the C++ header and link with `-ledgefirst_schemas` exactly as you would for C.
 See [README.md § C++ Usage](README.md#c-usage) for the full introduction,
 installation notes, and working examples. The per-type API surface (constructors,
 field accessors, encode/decode signatures) is documented inline in
-`include/edgefirst/schemas.hpp`.
+`crates/capi/include/edgefirst/schemas.hpp`.
 
 ## Building from Source
 
@@ -1763,14 +1763,14 @@ cargo build --release
 #   target/release/libedgefirst_schemas.dylib   (macOS)
 #
 # The header is at:
-#   include/edgefirst/schemas.h
+#   crates/capi/include/edgefirst/schemas.h
 
 # Run the C API test suite (requires libcriterion-dev)
 sudo apt-get install -y libcriterion-dev
 mkdir -p build
-for src in tests/c/test_*.c; do
+for src in crates/capi/tests/c/test_*.c; do
     name=$(basename $src .c)
-    gcc -Wall -Wextra -Werror -std=c11 -I./include \
+    gcc -Wall -Wextra -Werror -std=c11 -I./crates/capi/include \
         -o build/$name $src \
         -L./target/release -ledgefirst_schemas -lcriterion -lm \
         -Wl,-rpath,./target/release

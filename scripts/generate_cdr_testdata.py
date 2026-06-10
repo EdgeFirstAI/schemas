@@ -6,7 +6,7 @@
 
 Each message type is serialized with pycdr2 using hardcoded, non-trivial field
 values.  The resulting .cdr files live under testdata/cdr/{namespace}/ and are
-consumed by Rust integration tests in tests/cdr_golden.rs.
+consumed by Rust integration tests in crates/schemas/tests/cdr_golden.rs.
 
 Usage:
     source venv/bin/activate
@@ -676,7 +676,7 @@ def gen_edgefirst_msgs():
                   planes=[]))
 
     # Both wrappers, same tensor and same header — the encoded bytes must be
-    # identical to each other, which tests/cdr_golden.rs asserts.
+    # identical to each other, which crates/schemas/tests/cdr_golden.rs asserts.
     write_cdr("edgefirst_msgs", "TensorStamped",
               _le.TensorStamped(header=_le_hdr, seq=99, tensor=nv12))
     write_cdr("edgefirst_msgs", "CameraFrame",

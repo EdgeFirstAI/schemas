@@ -114,7 +114,7 @@ For complete command reference, see the [Commands Cheat Sheet](#commands-cheat-s
 | **sensor_msgs** | 85% | Camera, LiDAR, IMU |
 | **edgefirst_msgs** | 80% | Custom detection types |
 | **foxglove_msgs** | 80% | Visualization |
-| **FFI (src/ffi.rs)** | 70% | Tested via C tests |
+| **FFI (crates/capi/src/lib.rs)** | 70% | Tested via C tests |
 | **CDR encode/decode** | 95% | Serialization critical |
 
 ---
@@ -125,28 +125,28 @@ For complete command reference, see the [Commands Cheat Sheet](#commands-cheat-s
 
 ```
 schemas/
-├── src/                          # Rust library
-│   ├── lib.rs                    # Unit tests inline
-│   ├── std_msgs.rs               # #[cfg(test)] mod tests
-│   ├── sensor_msgs.rs
-│   └── ffi.rs                    # Tested via C
+├── crates/
+│   ├── schemas/                  # Pure-Rust rlib (`edgefirst-schemas`)
+│   │   ├── src/                  # #[cfg(test)] mod tests inline
+│   │   ├── benches/serialization.rs  # Criterion benchmarks
+│   │   └── tests/                # Rust integration tests
+│   ├── capi/                     # C library (`edgefirst-schemas-capi`)
+│   │   ├── src/lib.rs            # #[no_mangle] FFI surface (tested via C)
+│   │   └── tests/
+│   │       ├── c/                # Criterion C tests
+│   │       │   ├── test_builtin_interfaces.c
+│   │       │   ├── test_std_msgs.c
+│   │       │   ├── test_geometry_msgs.c
+│   │       │   ├── test_sensor_msgs.c
+│   │       │   └── test_edgefirst_msgs.c
+│   │       └── cpp/              # Criterion C++ tests
+│   │           ├── test_image_view.cpp
+│   │           └── ...
+│   └── python/                   # PyO3 wheel (`edgefirst-schemas-python`)
+│       ├── src/                  # Rust binding code
+│       └── python/               # .pyi type stubs
 │
-├── benches/                      # Rust benchmarks (Criterion)
-│   └── serialization.rs          # All benchmarks in single file
-│
-├── tests/c/                      # C tests and benchmarks
-│   ├── Makefile                  # Build system
-│   ├── test_builtin_interfaces.c # Criterion tests
-│   ├── test_std_msgs.c
-│   ├── test_geometry_msgs.c
-│   ├── test_sensor_msgs.c
-│   ├── test_edgefirst_msgs.c
-│   ├── bench_helpers.h           # Benchmark utilities
-│   ├── bench_runner.c            # Benchmark orchestration
-│   ├── bench_serialization.c     # Serialize benchmarks
-│   └── bench_deserialization.c   # Deserialize benchmarks
-│
-└── tests/python/                 # Python tests
+└── tests/python/                 # Python integration tests (top-level)
     ├── test_std_msgs.py
     ├── test_sensor_msgs.py
     ├── test_geometry_msgs.py

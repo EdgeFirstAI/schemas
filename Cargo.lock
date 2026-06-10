@@ -364,13 +364,22 @@ dependencies = [
 name = "edgefirst-schemas"
 version = "3.5.0"
 dependencies = [
- "cbindgen",
  "criterion",
  "errno",
  "libc",
  "mcap",
  "memmap2",
  "rand",
+]
+
+[[package]]
+name = "edgefirst-schemas-capi"
+version = "3.5.0"
+dependencies = [
+ "cbindgen",
+ "edgefirst-schemas",
+ "errno",
+ "libc",
 ]
 
 [[package]]

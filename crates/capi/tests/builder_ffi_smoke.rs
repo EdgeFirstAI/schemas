@@ -10,6 +10,11 @@
 
 #![allow(non_camel_case_types)]
 
+// Pulls the capi rlib's `#[no_mangle]` FFI exports into this test binary's
+// link set. Without this, rustc passes the rlib via `--extern` but the
+// linker never sees a Rust-level use of it, so `ros_*` symbols are dropped.
+extern crate edgefirst_schemas_capi as _capi;
+
 use edgefirst_schemas::builtin_interfaces::{Duration, Time};
 use edgefirst_schemas::edgefirst_msgs::{self, Date, DetectBoxView, MaskView};
 use edgefirst_schemas::foxglove_msgs::{
