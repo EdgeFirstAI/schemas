@@ -134,6 +134,9 @@ fn validate_message(schema_name: &str, data: &[u8]) -> Result<Vec<u8>, TestError
         "foxglove_msgs/msg/CompressedVideo" => {
             roundtrip_buf!(foxglove_msgs::FoxgloveCompressedVideo<Vec<u8>>, data)
         }
+        "foxglove_msgs/msg/CompressedImage" => {
+            roundtrip_buf!(foxglove_msgs::FoxgloveCompressedImage<Vec<u8>>, data)
+        }
 
         // edgefirst_msgs — buffer-backed
         "edgefirst_msgs/msg/Detect" => roundtrip_buf!(edgefirst_msgs::Detect<Vec<u8>>, data),
@@ -384,6 +387,9 @@ fn deserialize_message(schema_name: &str, data: &[u8]) -> Result<(), TestError> 
         // foxglove_msgs — buffer-backed
         "foxglove_msgs/msg/CompressedVideo" => {
             deser_buf!(foxglove_msgs::FoxgloveCompressedVideo<Vec<u8>>)
+        }
+        "foxglove_msgs/msg/CompressedImage" => {
+            deser_buf!(foxglove_msgs::FoxgloveCompressedImage<Vec<u8>>)
         }
 
         // edgefirst_msgs — buffer-backed

@@ -3,17 +3,22 @@
 
 """Tests for `edgefirst.schemas.foxglove_msgs`.
 
-The pyo3 module currently wraps `CompressedVideo` from the Foxglove
-schema set. Other Foxglove types (TextAnnotation, PointAnnotation,
-ImageAnnotation, …) are present in the Rust crate but not yet exposed
-to Python.
+The pyo3 module wraps `CompressedVideo` and `CompressedImage` from the
+Foxglove schema set. Other Foxglove types (TextAnnotation,
+PointAnnotation, ImageAnnotation, …) are present in the Rust crate but
+not yet exposed to Python.
 """
 
 import numpy as np
 import pytest
 
 from edgefirst.schemas.builtin_interfaces import Time
-from edgefirst.schemas.foxglove_msgs import Color, CompressedVideo, Point2
+from edgefirst.schemas.foxglove_msgs import (
+    Color,
+    CompressedImage,
+    CompressedVideo,
+    Point2,
+)
 
 
 class TestCompressedVideo:
@@ -53,6 +58,58 @@ class TestCompressedVideo:
         a1 = np.frombuffer(v1, dtype=np.uint8)
         a2 = np.frombuffer(v2, dtype=np.uint8)
         assert a1.ctypes.data == a2.ctypes.data
+
+
+class TestCompressedImage:
+    def test_round_trip(self):
+        rng = np.random.default_rng(seed=0x1A6E)
+        payload = rng.bytes(50_000)
+        ci = CompressedImage(
+            timestamp=Time(sec=1234567890, nanosec=123456789),
+            frame_id="camera",
+            data=payload,
+            format="jpeg",
+        )
+        restored = CompressedImage.from_cdr(ci.to_bytes())
+        assert restored.timestamp.sec == 1234567890
+        assert restored.frame_id == "camera"
+        assert restored.format == "jpeg"
+        assert restored.data.tobytes() == payload
+
+    @pytest.mark.parametrize("format", ["jpeg", "png", "webp", "avif"])
+    def test_format_round_trip(self, format):
+        ci = CompressedImage(
+            timestamp=Time(0, 0),
+            frame_id="cam",
+            data=b"\xff\xd8\xff\xe0",  # JPEG SOI + APP0
+            format=format,
+        )
+        assert CompressedImage.from_cdr(ci.to_bytes()).format == format
+
+    def test_data_view_zero_copy(self):
+        payload = bytes(100_000)
+        ci = CompressedImage(
+            timestamp=Time(0, 0), frame_id="cam", data=payload, format="jpeg"
+        )
+        v1 = ci.data.view()
+        v2 = ci.data.view()
+        a1 = np.frombuffer(v1, dtype=np.uint8)
+        a2 = np.frombuffer(v2, dtype=np.uint8)
+        assert a1.ctypes.data == a2.ctypes.data
+
+    def test_wire_identical_to_compressed_video(self):
+        # CompressedImage and CompressedVideo share an identical CDR layout;
+        # only the typename and the documented `format` semantics differ.
+        kwargs = dict(
+            timestamp=Time(sec=42, nanosec=7),
+            frame_id="cam0",
+            data=b"\x01\x02\x03\x04",
+            format="h264",
+        )
+        assert (
+            CompressedImage(**kwargs).to_bytes()
+            == CompressedVideo(**kwargs).to_bytes()
+        )
 
 
 class TestPoint2:

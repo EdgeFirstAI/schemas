@@ -49,6 +49,7 @@ enum ros_model_builder_t {}
 enum ros_model_info_builder_t {}
 enum ros_vibration_builder_t {}
 enum ros_foxglove_compressed_video_builder_t {}
+enum ros_foxglove_compressed_image_builder_t {}
 enum ros_foxglove_text_annotation_builder_t {}
 enum ros_foxglove_point_annotation_builder_t {}
 enum ros_foxglove_image_annotation_builder_t {}
@@ -835,6 +836,34 @@ extern "C" {
     ) -> i32;
     fn ros_foxglove_compressed_video_builder_encode_into(
         b: *mut ros_foxglove_compressed_video_builder_t,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+
+    // FoxgloveCompressedImage
+    fn ros_foxglove_compressed_image_builder_new() -> *mut ros_foxglove_compressed_image_builder_t;
+    fn ros_foxglove_compressed_image_builder_free(b: *mut ros_foxglove_compressed_image_builder_t);
+    fn ros_foxglove_compressed_image_builder_set_stamp(
+        b: *mut ros_foxglove_compressed_image_builder_t,
+        sec: i32,
+        nsec: u32,
+    );
+    fn ros_foxglove_compressed_image_builder_set_frame_id(
+        b: *mut ros_foxglove_compressed_image_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_foxglove_compressed_image_builder_set_data(
+        b: *mut ros_foxglove_compressed_image_builder_t,
+        data: *const u8,
+        len: usize,
+    ) -> i32;
+    fn ros_foxglove_compressed_image_builder_set_format(
+        b: *mut ros_foxglove_compressed_image_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_foxglove_compressed_image_builder_encode_into(
+        b: *mut ros_foxglove_compressed_image_builder_t,
         buf: *mut u8,
         cap: usize,
         out_len: *mut usize,
@@ -2176,6 +2205,48 @@ fn ros_foxglove_compressed_video_builder_encode_into_matches_rust_builder() {
         assert_eq!(&buf[..out_len], via_rust.as_cdr());
 
         ros_foxglove_compressed_video_builder_free(b);
+    }
+}
+
+#[test]
+fn ros_foxglove_compressed_image_builder_encode_into_matches_rust_builder() {
+    unsafe {
+        let b = ros_foxglove_compressed_image_builder_new();
+        assert!(!b.is_null());
+        ros_foxglove_compressed_image_builder_set_stamp(b, 100, 500_000_000);
+        let frame = CString::new("camera").unwrap();
+        assert_eq!(
+            ros_foxglove_compressed_image_builder_set_frame_id(b, frame.as_ptr()),
+            0
+        );
+        let data: Vec<u8> = vec![0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10];
+        ros_foxglove_compressed_image_builder_set_data(b, data.as_ptr(), data.len());
+        let fmt = CString::new("jpeg").unwrap();
+        assert_eq!(
+            ros_foxglove_compressed_image_builder_set_format(b, fmt.as_ptr()),
+            0
+        );
+
+        let mut buf = [0u8; 256];
+        let mut out_len: usize = 0;
+        let rc = ros_foxglove_compressed_image_builder_encode_into(
+            b,
+            buf.as_mut_ptr(),
+            buf.len(),
+            &mut out_len,
+        );
+        assert_eq!(rc, 0);
+
+        let via_rust = foxglove_msgs::FoxgloveCompressedImage::builder()
+            .stamp(Time::new(100, 500_000_000))
+            .frame_id("camera")
+            .data(&data)
+            .format("jpeg")
+            .build()
+            .expect("rust builder.build()");
+        assert_eq!(&buf[..out_len], via_rust.as_cdr());
+
+        ros_foxglove_compressed_image_builder_free(b);
     }
 }
 

@@ -627,6 +627,13 @@ def gen_foxglove_msgs():
                   timestamp=STAMP, frame_id="camera",
                   data=list(range(32)), format="h264"))
 
+    # CompressedImage — wire-identical layout to CompressedVideo; the format
+    # carries an image media type instead of a video codec.
+    write_cdr("foxglove_msgs", "CompressedImage",
+              foxglove_msgs.CompressedImage(
+                  timestamp=STAMP, frame_id="camera",
+                  data=list(range(32)), format="jpeg"))
+
     # TextAnnotation
     text_color = foxglove_msgs.Color(r=1.0, g=1.0, b=1.0, a=1.0)
     bg_color = foxglove_msgs.Color(r=0.0, g=0.0, b=0.0, a=0.5)

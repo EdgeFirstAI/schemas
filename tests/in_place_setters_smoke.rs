@@ -134,6 +134,14 @@ extern "C" {
         nsec: u32,
     ) -> i32;
 
+    // foxglove_msgs::FoxgloveCompressedImage
+    fn ros_foxglove_compressed_image_set_stamp(
+        buf: *mut u8,
+        len: usize,
+        sec: i32,
+        nsec: u32,
+    ) -> i32;
+
     // foxglove_msgs::FoxgloveTextAnnotation
     fn ros_foxglove_text_annotation_set_position(buf: *mut u8, len: usize, x: f64, y: f64) -> i32;
     fn ros_foxglove_text_annotation_set_font_size(buf: *mut u8, len: usize, v: f64) -> i32;
@@ -807,6 +815,26 @@ fn ros_foxglove_compressed_video_in_place_set_stamp() {
         0
     );
     let decoded = foxglove_msgs::FoxgloveCompressedVideo::from_cdr(&buf[..]).unwrap();
+    assert_eq!(decoded.stamp(), Time::new(50, 60));
+}
+
+// ----- foxglove_msgs::FoxgloveCompressedImage -----
+
+#[test]
+fn ros_foxglove_compressed_image_in_place_set_stamp() {
+    let msg = foxglove_msgs::FoxgloveCompressedImage::builder()
+        .frame_id("cam")
+        .format("jpeg")
+        .data(b"xyz")
+        .build()
+        .unwrap();
+    let mut buf = msg.into_cdr();
+    let len = buf.len();
+    assert_eq!(
+        unsafe { ros_foxglove_compressed_image_set_stamp(buf.as_mut_ptr(), len, 50, 60) },
+        0
+    );
+    let decoded = foxglove_msgs::FoxgloveCompressedImage::from_cdr(&buf[..]).unwrap();
     assert_eq!(decoded.stamp(), Time::new(50, 60));
 }
 

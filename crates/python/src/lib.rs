@@ -41,9 +41,9 @@ use edgefirst_schemas::edgefirst_msgs::{
     ModelInfo, RadarCube, RadarInfo, Track, Vibration,
 };
 use edgefirst_schemas::foxglove_msgs::{
-    FoxgloveCircleAnnotations, FoxgloveColor, FoxgloveCompressedVideo, FoxgloveImageAnnotation,
-    FoxglovePoint2, FoxglovePointAnnotation, FoxglovePointAnnotationView, FoxgloveTextAnnotation,
-    FoxgloveTextAnnotationView,
+    FoxgloveCircleAnnotations, FoxgloveColor, FoxgloveCompressedImage, FoxgloveCompressedVideo,
+    FoxgloveImageAnnotation, FoxglovePoint2, FoxglovePointAnnotation, FoxglovePointAnnotationView,
+    FoxgloveTextAnnotation, FoxgloveTextAnnotationView,
 };
 use edgefirst_schemas::geometry_msgs::{
     Accel, AccelStamped, AccelWithCovariance, AccelWithCovarianceStamped, Inertia, InertiaStamped,
@@ -2245,6 +2245,106 @@ impl PyFoxgloveCompressedVideo {
     fn __repr__(&self) -> String {
         format!(
             "CompressedVideo(timestamp={:?}, frame_id={:?}, format={:?}, data=<{} bytes>)",
+            self.inner.timestamp(),
+            self.inner.frame_id(),
+            self.inner.format(),
+            self.inner.data().len(),
+        )
+    }
+}
+
+// ── FoxgloveCompressedImage (foxglove_msgs) ─────────────────────────
+
+/// `foxglove_msgs.CompressedImage` — JPEG/PNG/WebP/etc. encoded image plus a
+/// format string and timestamp.
+#[pyclass(
+    name = "CompressedImage",
+    module = "edgefirst.schemas.foxglove_msgs",
+    frozen
+)]
+pub struct PyFoxgloveCompressedImage {
+    inner: FoxgloveCompressedImage<PyBuf>,
+}
+
+#[pymethods]
+impl PyFoxgloveCompressedImage {
+    #[new]
+    #[pyo3(signature = (timestamp, frame_id, data, format))]
+    fn new(
+        py: Python<'_>,
+        timestamp: PyTime,
+        frame_id: &str,
+        data: &Bound<'_, PyAny>,
+        format: &str,
+    ) -> PyResult<Self> {
+        let data_owned = copy_buffer(data)?;
+        let stamp = timestamp.0;
+        let frame_id_owned = frame_id.to_string();
+        let format_owned = format.to_string();
+
+        let inner = py.detach(move || {
+            FoxgloveCompressedImage::builder()
+                .stamp(stamp)
+                .frame_id(frame_id_owned.as_str())
+                .data(&data_owned)
+                .format(format_owned.as_str())
+                .build()
+        });
+        let inner = inner.map_err(map_cdr_err)?;
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        _py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let pybuf = smart_buffer(buf)?;
+        let inner = FoxgloveCompressedImage::from_cdr(pybuf).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn timestamp(&self) -> PyTime {
+        PyTime(self.inner.timestamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn format(&self) -> &str {
+        self.inner.format()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.cdr_size()
+    }
+
+    /// Zero-copy view of the encoded image payload.
+    #[getter]
+    fn data(slf: Bound<'_, Self>) -> PyResult<Py<BorrowedBuf>> {
+        let py = slf.py();
+        let (ptr, len) = {
+            let s = slf.borrow();
+            let d = s.inner.data();
+            (d.as_ptr(), d.len())
+        };
+        let parent: Py<PyAny> = slf.into_any().unbind();
+        let view = unsafe { BorrowedBuf::new(parent, ptr, len) };
+        Py::new(py, view)
+    }
+
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CompressedImage(timestamp={:?}, frame_id={:?}, format={:?}, data=<{} bytes>)",
             self.inner.timestamp(),
             self.inner.frame_id(),
             self.inner.format(),
@@ -6811,6 +6911,7 @@ fn schemas(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // foxglove_msgs submodule
     let foxg = PyModule::new(py, "foxglove_msgs")?;
     foxg.add_class::<PyFoxgloveCompressedVideo>()?;
+    foxg.add_class::<PyFoxgloveCompressedImage>()?;
     foxg.add_class::<PyFoxglovePoint2>()?;
     foxg.add_class::<PyFoxgloveColor>()?;
     foxg.add_class::<PyFoxgloveCircleAnnotations>()?;

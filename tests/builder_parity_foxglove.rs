@@ -7,9 +7,9 @@
 
 use edgefirst_schemas::builtin_interfaces::Time;
 use edgefirst_schemas::foxglove_msgs::{
-    point_annotation_type, FoxgloveCircleAnnotations, FoxgloveColor, FoxgloveCompressedVideo,
-    FoxgloveImageAnnotation, FoxglovePoint2, FoxglovePointAnnotation, FoxglovePointAnnotationView,
-    FoxgloveTextAnnotation, FoxgloveTextAnnotationView,
+    point_annotation_type, FoxgloveCircleAnnotations, FoxgloveColor, FoxgloveCompressedImage,
+    FoxgloveCompressedVideo, FoxgloveImageAnnotation, FoxglovePoint2, FoxglovePointAnnotation,
+    FoxglovePointAnnotationView, FoxgloveTextAnnotation, FoxgloveTextAnnotationView,
 };
 
 #[test]
@@ -42,6 +42,45 @@ fn foxglove_compressed_video_builder_byte_parity_with_new() {
     // Also verify encode_into_vec parity.
     let mut reused = Vec::new();
     FoxgloveCompressedVideo::builder()
+        .stamp(stamp)
+        .frame_id(frame_id)
+        .data(&data)
+        .format(format)
+        .encode_into_vec(&mut reused)
+        .unwrap();
+    assert_eq!(legacy.as_cdr(), &reused[..]);
+}
+
+#[test]
+fn foxglove_compressed_image_builder_byte_parity_with_new() {
+    let stamp = Time::new(1_717_000_000, 123_456_789);
+    let frame_id = "front_camera";
+    // JPEG SOI + APP0 marker prefix plus a few payload bytes.
+    let data: Vec<u8> = vec![
+        0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00,
+        0x01, 0x00, 0x01,
+    ];
+    let format = "jpeg";
+
+    let legacy = FoxgloveCompressedImage::new(stamp, frame_id, &data, format).unwrap();
+
+    let built = FoxgloveCompressedImage::builder()
+        .stamp(stamp)
+        .frame_id(frame_id)
+        .data(&data)
+        .format(format)
+        .build()
+        .unwrap();
+
+    assert_eq!(
+        legacy.as_cdr(),
+        built.as_cdr(),
+        "FoxgloveCompressedImage builder must produce byte-identical CDR",
+    );
+
+    // Also verify encode_into_vec parity.
+    let mut reused = Vec::new();
+    FoxgloveCompressedImage::builder()
         .stamp(stamp)
         .frame_id(frame_id)
         .data(&data)

@@ -156,6 +156,7 @@ mod tests {
         assert!(is_supported("geometry_msgs/msg/Pose"));
         assert!(is_supported("edgefirst_msgs/msg/Box"));
         assert!(is_supported("foxglove_msgs/msg/CompressedVideo"));
+        assert!(is_supported("foxglove_msgs/msg/CompressedImage"));
         assert!(!is_supported("unknown_msgs/msg/Foo"));
         assert!(!is_supported("sensor_msgs/Image")); // Wrong format
     }
