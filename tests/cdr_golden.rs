@@ -1847,6 +1847,27 @@ fn golden_foxglove_msgs_compressed_video() {
 }
 
 #[test]
+fn golden_foxglove_msgs_compressed_image() {
+    let golden = read_golden("foxglove_msgs", "CompressedImage");
+    let view = foxglove_msgs::FoxgloveCompressedImage::from_cdr(&golden[..]).unwrap();
+    assert_eq!(view.stamp(), STAMP);
+    assert_eq!(view.frame_id(), "camera");
+    let expected_data: Vec<u8> = (0..32).collect();
+    assert_eq!(view.data(), expected_data.as_slice());
+    assert_eq!(view.format(), "jpeg");
+    // Phase 2
+    let built =
+        foxglove_msgs::FoxgloveCompressedImage::new(STAMP, "camera", &expected_data, "jpeg")
+            .unwrap();
+    assert_eq!(built.to_cdr(), golden);
+    // Phase 3: modify stamp
+    let mut ci = foxglove_msgs::FoxgloveCompressedImage::from_cdr(golden.clone()).unwrap();
+    ci.set_stamp(Time::new(42, 0)).unwrap();
+    assert_eq!(ci.stamp(), Time::new(42, 0));
+    assert_eq!(ci.format(), "jpeg"); // unchanged
+}
+
+#[test]
 fn golden_foxglove_msgs_text_annotation() {
     let golden = read_golden("foxglove_msgs", "TextAnnotation");
     let view = foxglove_msgs::FoxgloveTextAnnotation::from_cdr(&golden[..]).unwrap();

@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.2] - 2026-06-26
+
+### Added
+
+- **`foxglove_msgs.CompressedImage` restored.** The Foxglove `CompressedImage`
+  schema (`timestamp`, `frame_id`, `data`, `format`) was present in the
+  pure-Python module (<= 3.1.0) but dropped in 3.2.0 when the package became a
+  pyo3 binding — the removal was not flagged as a migration item, which broke
+  code and `mkdocstrings`-generated documentation referencing
+  `edgefirst.schemas.foxglove_msgs.CompressedImage`. It is now reinstated as a
+  first-class type with full cross-language support (Rust, C, C++, Python):
+  - Rust `FoxgloveCompressedImage` buffer-backed type and builder
+  - C API under the `ros_foxglove_compressed_image_` prefix (the short
+    `ros_compressed_image_` prefix belongs to `sensor_msgs::CompressedImage`)
+  - C++ `FoxgloveCompressedImage` / `FoxgloveCompressedImageView` /
+    `FoxgloveCompressedImageBuilder` wrappers
+  - Python `foxglove_msgs.CompressedImage` with `.pyi` stub
+  - Schema registry support (`foxglove_msgs/msg/CompressedImage`) for MCAP
+    topic discovery
+- The wire layout is byte-identical to `foxglove_msgs.CompressedVideo`; the
+  schemas differ only in their ROS typename and the meaning of `format` (image
+  media types such as `jpeg`/`png`/`webp` rather than video codecs).
+
 ## [3.4.1] - 2026-06-26
 
 ### Added
@@ -936,7 +959,8 @@ CDR serialization. No migration required.
 - Python build issues with wheel generation
 - Removed auxiliary files from ROS2 schemas not required for this project
 
-[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v3.4.1...HEAD
+[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v3.4.2...HEAD
+[3.4.2]: https://github.com/EdgeFirstAI/schemas/compare/v3.4.1...v3.4.2
 [3.4.1]: https://github.com/EdgeFirstAI/schemas/compare/v3.4.0...v3.4.1
 [3.4.0]: https://github.com/EdgeFirstAI/schemas/compare/v3.3.0...v3.4.0
 [3.3.0]: https://github.com/EdgeFirstAI/schemas/compare/v3.2.0...v3.3.0

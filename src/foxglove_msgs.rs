@@ -5,9 +5,10 @@
 //!
 //! CdrFixed: `FoxglovePoint2`, `FoxgloveColor`, `FoxgloveCircleAnnotations`
 //!
-//! Buffer-backed: `FoxgloveCompressedVideo`, `FoxgloveTextAnnotation`
-//! (`FoxgloveTextAnnotationView`), `FoxglovePointAnnotation`
-//! (`FoxglovePointAnnotationView`), `FoxgloveImageAnnotation`
+//! Buffer-backed: `FoxgloveCompressedVideo`, `FoxgloveCompressedImage`,
+//! `FoxgloveTextAnnotation` (`FoxgloveTextAnnotationView`),
+//! `FoxglovePointAnnotation` (`FoxglovePointAnnotationView`),
+//! `FoxgloveImageAnnotation`
 
 use crate::builtin_interfaces::Time;
 use crate::cdr::*;
@@ -343,6 +344,245 @@ impl<'a> FoxgloveCompressedVideoBuilder<'a> {
 }
 
 impl<B: AsRef<[u8]> + AsMut<[u8]>> FoxgloveCompressedVideo<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)?;
+        Ok(())
+    }
+
+    /// Alias for `set_stamp()`. Matches the Foxglove schema field name.
+    pub fn set_timestamp(&mut self, t: Time) -> Result<(), CdrError> {
+        self.set_stamp(t)
+    }
+}
+
+// ── FoxgloveCompressedImage<B> — foxglove_msgs/msg/CompressedImage ──
+//
+// Wire-identical to FoxgloveCompressedVideo; only the typename and the
+// documented meaning of `format` differ (image media types such as
+// `jpeg`/`png`/`webp` rather than video codecs such as `h264`).
+//
+// CDR layout (NOTE: data comes BEFORE format in the struct):
+//   4: stamp (8 bytes)
+//  12: frame_id (string)  [read at the fixed offset CDR_HEADER_SIZE + 8]
+//   ~: data (byte seq)  → offsets[0]  (= Header::end_offset(), start of data)
+//   ~: format (string)  → offsets[1]  (start of format)
+//   ~: end of message   → offsets[2]
+
+pub struct FoxgloveCompressedImage<B> {
+    buf: B,
+    offsets: [usize; 3],
+}
+
+impl<B> FoxgloveCompressedImage<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> FoxgloveCompressedImage<C> {
+        FoxgloveCompressedImage {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
+}
+
+impl<B: AsRef<[u8]>> FoxgloveCompressedImage<B> {
+    pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
+        let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
+        let o0 = header.end_offset();
+        let mut c = CdrCursor::resume(buf.as_ref(), o0);
+        let _ = c.read_bytes()?; // data
+        let o1 = c.offset();
+        let _ = c.read_string()?; // format
+        let o2 = c.offset();
+        Ok(FoxgloveCompressedImage {
+            offsets: [o0, o1, o2],
+            buf,
+        })
+    }
+
+    /// Returns a `Header` view (re-parses CDR prefix; prefer `stamp()`/`frame_id()`).
+    pub fn header(&self) -> Header<&[u8]> {
+        Header::from_cdr(self.buf.as_ref()).expect("header bytes validated during from_cdr")
+    }
+
+    pub fn stamp(&self) -> Time {
+        rd_time(self.buf.as_ref(), CDR_HEADER_SIZE)
+    }
+
+    /// Alias for `stamp()`. Matches the Foxglove schema field name.
+    pub fn timestamp(&self) -> Time {
+        self.stamp()
+    }
+
+    pub fn frame_id(&self) -> &str {
+        rd_string(self.buf.as_ref(), CDR_HEADER_SIZE + 8).0
+    }
+
+    pub fn data(&self) -> &[u8] {
+        rd_bytes(self.buf.as_ref(), self.offsets[0]).0
+    }
+
+    /// Image media type — typically `"jpeg"`, `"png"`, or `"webp"`.
+    pub fn format(&self) -> &str {
+        rd_string(self.buf.as_ref(), self.offsets[1]).0
+    }
+
+    pub fn as_cdr(&self) -> &[u8] {
+        self.buf.as_ref()
+    }
+
+    pub fn cdr_size(&self) -> usize {
+        self.buf.as_ref().len()
+    }
+
+    pub fn to_cdr(&self) -> Vec<u8> {
+        self.buf.as_ref().to_vec()
+    }
+}
+
+impl FoxgloveCompressedImage<Vec<u8>> {
+    #[deprecated(
+        since = "3.2.0",
+        note = "use FoxgloveCompressedImage::builder() for allocation-free buffer reuse; FoxgloveCompressedImage::new will be removed in 4.0"
+    )]
+    pub fn new(stamp: Time, frame_id: &str, data: &[u8], format: &str) -> Result<Self, CdrError> {
+        let mut sizer = CdrSizer::new();
+        Time::size_cdr(&mut sizer);
+        sizer.size_string(frame_id);
+        let o0 = sizer.offset();
+        sizer.size_bytes(data.len());
+        let o1 = sizer.offset();
+        sizer.size_string(format);
+        let o2 = sizer.offset();
+
+        let mut buf = vec![0u8; sizer.size()];
+        let mut w = CdrWriter::new(&mut buf)?;
+        stamp.write_cdr(&mut w);
+        w.write_string(frame_id);
+        w.write_bytes(data);
+        w.write_string(format);
+        w.finish()?;
+
+        Ok(FoxgloveCompressedImage {
+            offsets: [o0, o1, o2],
+            buf,
+        })
+    }
+
+    pub fn into_cdr(self) -> Vec<u8> {
+        self.buf
+    }
+
+    /// Start a new `FoxgloveCompressedImageBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> FoxgloveCompressedImageBuilder<'a> {
+        FoxgloveCompressedImageBuilder::new()
+    }
+}
+
+// ── FoxgloveCompressedImageBuilder<'a> ──────────────────────────────
+
+/// Builder for `FoxgloveCompressedImage<Vec<u8>>` with buffer-reuse finalizers.
+///
+/// Strings use `Cow<'a, str>`; bulk `data` is borrowed for zero-copy input
+/// semantics. All borrows must remain valid until `build()`,
+/// `encode_into_vec()`, or `encode_into_slice()` is called.
+pub struct FoxgloveCompressedImageBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    data: &'a [u8],
+    format: std::borrow::Cow<'a, str>,
+}
+
+impl<'a> Default for FoxgloveCompressedImageBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            data: &[],
+            format: std::borrow::Cow::Borrowed(""),
+        }
+    }
+}
+
+impl<'a> FoxgloveCompressedImageBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+
+    /// Alias for `stamp()`. Matches the Foxglove schema field name.
+    pub fn timestamp(&mut self, t: Time) -> &mut Self {
+        self.stamp(t)
+    }
+
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn data(&mut self, d: &'a [u8]) -> &mut Self {
+        self.data = d;
+        self
+    }
+    pub fn format(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.format = s.into();
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.size_bytes(self.data.len());
+        s.size_string(&self.format);
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.write_bytes(self.data);
+        w.write_string(&self.format);
+        w.finish()
+    }
+
+    /// Allocate a fresh `Vec<u8>` and return a fully-parsed
+    /// `FoxgloveCompressedImage<Vec<u8>>`.
+    pub fn build(&self) -> Result<FoxgloveCompressedImage<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        FoxgloveCompressedImage::from_cdr(buf)
+    }
+
+    /// Serialize into the caller's `Vec<u8>`, resizing to exactly the encoded
+    /// size. Reuses existing allocation when capacity suffices.
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    /// Serialize into `buf` and return bytes written. Errors with
+    /// `BufferTooShort` when `buf` is smaller than the required size;
+    /// nothing is mutated in that case.
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
+    }
+}
+
+impl<B: AsRef<[u8]> + AsMut<[u8]>> FoxgloveCompressedImage<B> {
     pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
         let b = self.buf.as_mut();
         wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
@@ -1335,12 +1575,15 @@ impl<'a> FoxgloveImageAnnotationBuilder<'a> {
 
 /// Check if a type name is supported by this module.
 pub fn is_type_supported(type_name: &str) -> bool {
-    matches!(type_name, "CompressedVideo")
+    matches!(type_name, "CompressedVideo" | "CompressedImage")
 }
 
 /// List all type schema names in this module.
 pub fn list_types() -> &'static [&'static str] {
-    &["foxglove_msgs/msg/CompressedVideo"]
+    &[
+        "foxglove_msgs/msg/CompressedVideo",
+        "foxglove_msgs/msg/CompressedImage",
+    ]
 }
 
 // SchemaType implementations
@@ -1566,6 +1809,98 @@ mod tests {
         assert_eq!(video.stamp(), Time::new(42, 7));
         assert_eq!(video.frame_id(), "camera");
         assert_eq!(video.format(), "h264");
+    }
+
+    #[test]
+    fn foxglove_compressed_image_roundtrip() {
+        let image = FoxgloveCompressedImage::new(
+            Time::new(100, 500_000_000),
+            "camera",
+            &[0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10],
+            "jpeg",
+        )
+        .unwrap();
+        assert_eq!(image.stamp(), Time::new(100, 500_000_000));
+        assert_eq!(image.frame_id(), "camera");
+        assert_eq!(image.data(), &[0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+        assert_eq!(image.format(), "jpeg");
+
+        let bytes = image.to_cdr();
+        let decoded = FoxgloveCompressedImage::from_cdr(bytes).unwrap();
+        assert_eq!(decoded.format(), "jpeg");
+        assert_eq!(decoded.data().len(), 6);
+    }
+
+    #[test]
+    fn foxglove_compressed_image_timestamp_alias() {
+        // `timestamp()` accessors are permanent additive aliases for `stamp()`,
+        // matching the Foxglove schema field name. Both must agree on the view
+        // side, the builder side, and the in-place setter side.
+        let mut image = FoxgloveCompressedImage::new(
+            Time::new(100, 500_000_000),
+            "camera",
+            &[0xab, 0xcd],
+            "png",
+        )
+        .unwrap();
+
+        assert_eq!(image.stamp(), image.timestamp());
+        assert_eq!(image.timestamp(), Time::new(100, 500_000_000));
+
+        image.set_timestamp(Time::new(7, 9)).unwrap();
+        assert_eq!(image.stamp(), Time::new(7, 9));
+        assert_eq!(image.timestamp(), Time::new(7, 9));
+
+        let via_stamp = FoxgloveCompressedImageBuilder::default()
+            .stamp(Time::new(42, 100))
+            .frame_id("c")
+            .data(&[1, 2, 3])
+            .format("png")
+            .build()
+            .unwrap();
+        let via_timestamp = FoxgloveCompressedImageBuilder::default()
+            .timestamp(Time::new(42, 100))
+            .frame_id("c")
+            .data(&[1, 2, 3])
+            .format("png")
+            .build()
+            .unwrap();
+        assert_eq!(via_stamp.to_cdr(), via_timestamp.to_cdr());
+    }
+
+    #[test]
+    fn foxglove_compressed_image_set_stamp() {
+        let mut image =
+            FoxgloveCompressedImage::new(Time::new(100, 500_000_000), "camera", &[0u8; 4], "png")
+                .unwrap();
+        image.set_stamp(Time::new(42, 7)).unwrap();
+        assert_eq!(image.stamp(), Time::new(42, 7));
+        assert_eq!(image.frame_id(), "camera");
+        assert_eq!(image.format(), "png");
+    }
+
+    #[test]
+    fn foxglove_compressed_image_wire_identical_to_video() {
+        // CompressedImage and CompressedVideo share an identical CDR layout;
+        // only the ROS typename and the documented `format` semantics differ.
+        // Identical field values must therefore produce byte-identical CDR.
+        let stamp = Time::new(123, 456_000_000);
+        let data = &[0x01, 0x02, 0x03, 0x04];
+        let image = FoxgloveCompressedImage::builder()
+            .stamp(stamp)
+            .frame_id("cam0")
+            .data(data)
+            .format("h264")
+            .build()
+            .unwrap();
+        let video = FoxgloveCompressedVideo::builder()
+            .stamp(stamp)
+            .frame_id("cam0")
+            .data(data)
+            .format("h264")
+            .build()
+            .unwrap();
+        assert_eq!(image.to_cdr(), video.to_cdr());
     }
 
     #[test]

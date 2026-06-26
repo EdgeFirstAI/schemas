@@ -163,3 +163,123 @@ Test(foxglove_msgs, compressed_video_getters_null) {
     cr_assert_null(ros_compressed_video_get_format(NULL));
     cr_assert_null(ros_compressed_video_get_data(NULL, NULL));
 }
+
+// ============================================================================
+// FoxgloveCompressedImage Tests
+//
+// Wire-identical to CompressedVideo; uses the ros_foxglove_compressed_image_
+// prefix (the short ros_compressed_image_ belongs to sensor_msgs).
+// ============================================================================
+
+Test(foxglove_msgs, compressed_image_encode_from_cdr_roundtrip) {
+    uint8_t test_data[] = {0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46};
+    uint8_t *bytes = NULL;
+    size_t len = 0;
+
+    int ret = ros_foxglove_compressed_image_encode(&bytes, &len,
+                                                    1234567890, 123456789, // stamp
+                                                    "image_stream",        // frame_id
+                                                    test_data, sizeof(test_data),
+                                                    "jpeg");               // format
+    cr_assert_eq(ret, 0, "Encode should succeed");
+    cr_assert_not_null(bytes);
+    cr_assert_gt(len, 0);
+
+    ros_foxglove_compressed_image_t *handle =
+        ros_foxglove_compressed_image_from_cdr(bytes, len);
+    cr_assert_not_null(handle, "from_cdr should succeed");
+
+    cr_assert_eq(ros_foxglove_compressed_image_get_stamp_sec(handle), 1234567890);
+    cr_assert_eq(ros_foxglove_compressed_image_get_stamp_nanosec(handle), 123456789);
+    // timestamp alias getters must agree with stamp getters.
+    cr_assert_eq(ros_foxglove_compressed_image_get_timestamp_sec(handle), 1234567890);
+    cr_assert_eq(ros_foxglove_compressed_image_get_timestamp_nanosec(handle), 123456789);
+    cr_assert_str_eq(ros_foxglove_compressed_image_get_frame_id(handle), "image_stream");
+    cr_assert_str_eq(ros_foxglove_compressed_image_get_format(handle), "jpeg");
+
+    size_t data_len = 0;
+    const uint8_t *data = ros_foxglove_compressed_image_get_data(handle, &data_len);
+    cr_assert_eq(data_len, sizeof(test_data));
+    for (size_t i = 0; i < data_len; i++) {
+        cr_assert_eq(data[i], test_data[i]);
+    }
+
+    ros_foxglove_compressed_image_free(handle);
+    ros_bytes_free(bytes, len);
+}
+
+Test(foxglove_msgs, compressed_image_builder_roundtrip) {
+    uint8_t test_data[] = {0x89, 0x50, 0x4E, 0x47}; // PNG signature prefix
+    ros_foxglove_compressed_image_builder_t *b =
+        ros_foxglove_compressed_image_builder_new();
+    cr_assert_not_null(b);
+
+    ros_foxglove_compressed_image_builder_set_timestamp(b, 7, 9);
+    cr_assert_eq(ros_foxglove_compressed_image_builder_set_frame_id(b, "cam0"), 0);
+    cr_assert_eq(ros_foxglove_compressed_image_builder_set_data(b, test_data, sizeof(test_data)), 0);
+    cr_assert_eq(ros_foxglove_compressed_image_builder_set_format(b, "png"), 0);
+
+    uint8_t *bytes = NULL;
+    size_t len = 0;
+    cr_assert_eq(ros_foxglove_compressed_image_builder_build(b, &bytes, &len), 0);
+    ros_foxglove_compressed_image_builder_free(b);
+
+    ros_foxglove_compressed_image_t *handle =
+        ros_foxglove_compressed_image_from_cdr(bytes, len);
+    cr_assert_not_null(handle);
+    cr_assert_eq(ros_foxglove_compressed_image_get_stamp_sec(handle), 7);
+    cr_assert_str_eq(ros_foxglove_compressed_image_get_format(handle), "png");
+
+    // In-place stamp setter rewrites the buffer.
+    cr_assert_eq(ros_foxglove_compressed_image_set_stamp(bytes, len, 100, 200), 0);
+    ros_foxglove_compressed_image_free(handle);
+    handle = ros_foxglove_compressed_image_from_cdr(bytes, len);
+    cr_assert_eq(ros_foxglove_compressed_image_get_stamp_sec(handle), 100);
+    cr_assert_eq(ros_foxglove_compressed_image_get_stamp_nanosec(handle), 200);
+
+    ros_foxglove_compressed_image_free(handle);
+    ros_bytes_free(bytes, len);
+}
+
+Test(foxglove_msgs, compressed_image_wire_identical_to_video) {
+    uint8_t d[] = {0x01, 0x02, 0x03, 0x04};
+    uint8_t *img = NULL, *vid = NULL;
+    size_t img_len = 0, vid_len = 0;
+
+    cr_assert_eq(ros_foxglove_compressed_image_encode(
+                     &img, &img_len, 42, 7, "cam0", d, sizeof(d), "h264"),
+                 0);
+    cr_assert_eq(ros_compressed_video_encode(
+                     &vid, &vid_len, 42, 7, "cam0", d, sizeof(d), "h264"),
+                 0);
+    cr_assert_eq(img_len, vid_len, "wire sizes must match");
+    cr_assert_eq(memcmp(img, vid, img_len), 0, "CDR bytes must be identical");
+
+    ros_bytes_free(img, img_len);
+    ros_bytes_free(vid, vid_len);
+}
+
+Test(foxglove_msgs, compressed_image_from_cdr_null) {
+    errno = 0;
+    ros_foxglove_compressed_image_t *handle =
+        ros_foxglove_compressed_image_from_cdr(NULL, 100);
+    cr_assert_null(handle, "Should return NULL for NULL data");
+    cr_assert_eq(errno, EINVAL, "errno should be EINVAL");
+}
+
+Test(foxglove_msgs, compressed_image_from_cdr_invalid) {
+    uint8_t garbage[] = {0xDE, 0xAD, 0xBE, 0xEF};
+    errno = 0;
+    ros_foxglove_compressed_image_t *handle =
+        ros_foxglove_compressed_image_from_cdr(garbage, sizeof(garbage));
+    cr_assert_null(handle, "Should return NULL for invalid CDR data");
+    cr_assert_eq(errno, EBADMSG, "errno should be EBADMSG");
+}
+
+Test(foxglove_msgs, compressed_image_getters_null) {
+    cr_assert_eq(ros_foxglove_compressed_image_get_stamp_sec(NULL), 0);
+    cr_assert_eq(ros_foxglove_compressed_image_get_stamp_nanosec(NULL), 0);
+    cr_assert_null(ros_foxglove_compressed_image_get_frame_id(NULL));
+    cr_assert_null(ros_foxglove_compressed_image_get_format(NULL));
+    cr_assert_null(ros_foxglove_compressed_image_get_data(NULL, NULL));
+}

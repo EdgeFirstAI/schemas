@@ -9,6 +9,7 @@
 #define CATCH_CONFIG_MAIN
 #include "catch.hpp"
 #include <edgefirst/schemas.hpp>
+#include <cstring>
 
 namespace ef = edgefirst::schemas;
 
@@ -565,6 +566,68 @@ TEST_CASE("CompressedVideo move semantics", "[buffer_backed][compressed_video]")
     auto v2 = std::move(*v1);
     CHECK(v2.format() == "av1");
     CHECK(!v2.as_cdr().empty());
+}
+
+// ============================================================================
+// foxglove_msgs - CompressedImage
+//
+// Wire-identical to CompressedVideo; Foxglove-prefixed C++ names avoid
+// colliding with the sensor_msgs::CompressedImage wrapper.
+// ============================================================================
+
+TEST_CASE("FoxgloveCompressedImage encode+view roundtrip", "[buffer_backed][foxglove_compressed_image]") {
+    const std::uint8_t idata[] = {0xFF, 0xD8, 0xFF, 0xE0, 0x00};
+    ef::span<const std::uint8_t> data_span{idata, sizeof(idata)};
+    auto img = ef::FoxgloveCompressedImage::encode({500, 0}, "camera_front", data_span, "jpeg");
+    REQUIRE(img.has_value());
+    CHECK(img->stamp().sec == 500);
+    CHECK(img->timestamp().sec == 500);
+    CHECK(img->frame_id() == "camera_front");
+    CHECK(img->format() == "jpeg");
+    CHECK(img->data().size() == 5);
+    CHECK(!img->as_cdr().empty());
+}
+
+TEST_CASE("FoxgloveCompressedImageView from_cdr error on empty span", "[buffer_backed][foxglove_compressed_image]") {
+    auto v = ef::FoxgloveCompressedImageView::from_cdr({});
+    REQUIRE_FALSE(v.has_value());
+}
+
+TEST_CASE("FoxgloveCompressedImageView from_cdr + move", "[buffer_backed][foxglove_compressed_image]") {
+    const std::uint8_t id[] = {0x01, 0x02};
+    auto img = ef::FoxgloveCompressedImage::encode({7, 8}, "back_cam",
+                                                   ef::span<const std::uint8_t>{id, 2}, "png");
+    REQUIRE(img.has_value());
+    auto cdr = img->as_cdr();
+    auto v1 = ef::FoxgloveCompressedImageView::from_cdr(cdr);
+    REQUIRE(v1.has_value());
+    auto v2 = std::move(*v1);
+    CHECK(v2.format() == "png");
+    CHECK(v2.frame_id() == "back_cam");
+    CHECK(v2.data().size() == 2);
+}
+
+TEST_CASE("FoxgloveCompressedImage move semantics", "[buffer_backed][foxglove_compressed_image]") {
+    const std::uint8_t id[] = {0xFF};
+    auto v1 = ef::FoxgloveCompressedImage::encode({0, 0}, "side",
+                                                  ef::span<const std::uint8_t>{id, 1}, "webp");
+    REQUIRE(v1.has_value());
+    auto v2 = std::move(*v1);
+    CHECK(v2.format() == "webp");
+    CHECK(!v2.as_cdr().empty());
+}
+
+TEST_CASE("FoxgloveCompressedImage wire-identical to CompressedVideo", "[buffer_backed][foxglove_compressed_image]") {
+    const std::uint8_t d[] = {0x01, 0x02, 0x03, 0x04};
+    ef::span<const std::uint8_t> span{d, sizeof(d)};
+    auto img = ef::FoxgloveCompressedImage::encode({42, 7}, "cam0", span, "h264");
+    auto vid = ef::CompressedVideo::encode({42, 7}, "cam0", span, "h264");
+    REQUIRE(img.has_value());
+    REQUIRE(vid.has_value());
+    auto ib = img->as_cdr();
+    auto vb = vid->as_cdr();
+    REQUIRE(ib.size() == vb.size());
+    CHECK(std::memcmp(ib.data(), vb.data(), ib.size()) == 0);
 }
 
 // ============================================================================

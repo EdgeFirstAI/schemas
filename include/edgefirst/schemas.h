@@ -168,6 +168,8 @@ typedef struct ros_pose_array_t ros_pose_array_t;
 /* foxglove_msgs */
 /** @brief Opaque buffer-backed view handle for foxglove_msgs::CompressedVideo. */
 typedef struct ros_compressed_video_t ros_compressed_video_t;
+/** @brief Opaque buffer-backed view handle for foxglove_msgs::CompressedImage. */
+typedef struct ros_foxglove_compressed_image_t ros_foxglove_compressed_image_t;
 
 /* edgefirst_msgs */
 /**
@@ -1087,6 +1089,73 @@ int ros_compressed_video_encode(uint8_t** out_bytes, size_t* out_len,
                                 const char* frame_id,
                                 const uint8_t* data, size_t data_len,
                                 const char* format);
+
+/* ============================================================================
+ * foxglove_msgs - CompressedImage (buffer-backed)
+ * ========================================================================= */
+
+/**
+ * @brief Create a Foxglove CompressedImage view from CDR bytes.
+ * @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+ * @param len Length of data
+ * @return Opaque handle or NULL on error
+ *
+ * @note Wire-identical to CompressedVideo; only the typename and the meaning
+ *       of `format` differ (image media types vs. video codecs). The short
+ *       `ros_compressed_image_` prefix belongs to sensor_msgs::CompressedImage,
+ *       so the Foxglove variant uses the `ros_foxglove_compressed_image_` prefix.
+ */
+ros_foxglove_compressed_image_t* ros_foxglove_compressed_image_from_cdr(const uint8_t* data, size_t len);
+
+/** @brief Free a Foxglove CompressedImage view handle. */
+void ros_foxglove_compressed_image_free(ros_foxglove_compressed_image_t* view);
+
+/** @brief Get stamp seconds. */
+int32_t ros_foxglove_compressed_image_get_stamp_sec(const ros_foxglove_compressed_image_t* view);
+
+/** @brief Get stamp nanoseconds. */
+uint32_t ros_foxglove_compressed_image_get_stamp_nanosec(const ros_foxglove_compressed_image_t* view);
+
+/** @brief Alias for ros_foxglove_compressed_image_get_stamp_sec; matches Foxglove schema naming. */
+int32_t ros_foxglove_compressed_image_get_timestamp_sec(const ros_foxglove_compressed_image_t* view);
+
+/** @brief Alias for ros_foxglove_compressed_image_get_stamp_nanosec; matches Foxglove schema naming. */
+uint32_t ros_foxglove_compressed_image_get_timestamp_nanosec(const ros_foxglove_compressed_image_t* view);
+
+/** @brief Get frame_id (borrowed). */
+const char* ros_foxglove_compressed_image_get_frame_id(const ros_foxglove_compressed_image_t* view);
+
+/**
+ * @brief Get compressed image data (borrowed).
+ * @param view CompressedImage handle
+ * @param out_len Receives byte count
+ * @return Pointer to image data or NULL
+ */
+const uint8_t* ros_foxglove_compressed_image_get_data(const ros_foxglove_compressed_image_t* view, size_t* out_len);
+
+/** @brief Get format string (borrowed), e.g. "jpeg", "png", "webp". */
+const char* ros_foxglove_compressed_image_get_format(const ros_foxglove_compressed_image_t* view);
+
+/** @brief Borrow raw CDR bytes from the handle. */
+const uint8_t* ros_foxglove_compressed_image_as_cdr(const ros_foxglove_compressed_image_t* view, size_t* out_len);
+
+/**
+ * @brief Encode a Foxglove CompressedImage to CDR (allocates output).
+ * @param out_bytes Receives allocated byte pointer (free with ros_bytes_free)
+ * @param out_len Receives byte count
+ * @param stamp_sec Stamp seconds
+ * @param stamp_nanosec Stamp nanoseconds
+ * @param frame_id Frame ID string
+ * @param data Image data
+ * @param data_len Length of image data
+ * @param format Format string
+ * @return 0 on success, -1 on error
+ */
+int ros_foxglove_compressed_image_encode(uint8_t** out_bytes, size_t* out_len,
+                                         int32_t stamp_sec, uint32_t stamp_nanosec,
+                                         const char* frame_id,
+                                         const uint8_t* data, size_t data_len,
+                                         const char* format);
 
 /* ============================================================================
  * edgefirst_msgs - Mask (buffer-backed)
@@ -3504,6 +3573,38 @@ int  ros_foxglove_compressed_video_builder_encode_into(
     uint8_t* buf, size_t cap, size_t* out_len);
 
 /* ============================================================================
+ * foxglove_msgs - CompressedImage (builder, 3.4.2+)
+ * ========================================================================= */
+typedef struct ros_foxglove_compressed_image_builder_s
+    ros_foxglove_compressed_image_builder_t;
+ros_foxglove_compressed_image_builder_t*
+ros_foxglove_compressed_image_builder_new(void);
+void ros_foxglove_compressed_image_builder_free(
+    ros_foxglove_compressed_image_builder_t* b);
+void ros_foxglove_compressed_image_builder_set_stamp(
+    ros_foxglove_compressed_image_builder_t* b, int32_t sec, uint32_t nsec);
+/** @brief Alias for ros_foxglove_compressed_image_builder_set_stamp; matches Foxglove schema naming. */
+void ros_foxglove_compressed_image_builder_set_timestamp(
+    ros_foxglove_compressed_image_builder_t* b, int32_t sec, uint32_t nsec);
+int  ros_foxglove_compressed_image_builder_set_frame_id(
+    ros_foxglove_compressed_image_builder_t* b, const char* s);
+/** BORROWED until next setter / build / free.
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
+ *         or NULL pointer with non-zero count/len).
+ */
+int  ros_foxglove_compressed_image_builder_set_data(
+    ros_foxglove_compressed_image_builder_t* b,
+    const uint8_t* data, size_t len);
+int  ros_foxglove_compressed_image_builder_set_format(
+    ros_foxglove_compressed_image_builder_t* b, const char* s);
+int  ros_foxglove_compressed_image_builder_build(
+    ros_foxglove_compressed_image_builder_t* b,
+    uint8_t** out_bytes, size_t* out_len);
+int  ros_foxglove_compressed_image_builder_encode_into(
+    ros_foxglove_compressed_image_builder_t* b,
+    uint8_t* buf, size_t cap, size_t* out_len);
+
+/* ============================================================================
  * foxglove_msgs - FoxgloveTextAnnotation (builder, 3.2.0+)
  * ========================================================================= */
 typedef struct ros_foxglove_text_annotation_builder_s
@@ -5303,6 +5404,25 @@ int32_t ros_foxglove_compressed_video_set_stamp(uint8_t* buf, size_t len, int32_
 
 /** @brief Alias for ros_foxglove_compressed_video_set_stamp; matches Foxglove schema naming. */
 int32_t ros_foxglove_compressed_video_set_timestamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/* ---- foxglove_msgs - FoxgloveCompressedImage ---- */
+
+/**
+ * @brief Set the stamp field in place on a FoxgloveCompressedImage buffer.
+ *
+ * Re-parses the buffer to locate the field offset, then writes the value
+ * directly. Fixed-size fields only — use the builder API for variable-length
+ * fields (strings, bulk data, nested sequences).
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t ros_foxglove_compressed_image_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/** @brief Alias for ros_foxglove_compressed_image_set_stamp; matches Foxglove schema naming. */
+int32_t ros_foxglove_compressed_image_set_timestamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /* ---- foxglove_msgs - FoxgloveTextAnnotation ---- */
 

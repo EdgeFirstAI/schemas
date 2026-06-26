@@ -1444,6 +1444,157 @@ pub extern "C" fn ros_compressed_video_encode(
 }
 
 // =============================================================================
+// FoxgloveCompressedImage (buffer-backed)
+// =============================================================================
+//
+// NOTE: the short `ros_compressed_image_` prefix belongs to
+// `sensor_msgs::CompressedImage`; the Foxglove variant uses the
+// `ros_foxglove_compressed_image_` prefix (matching the builder-side naming).
+
+pub struct ros_foxglove_compressed_image_t(foxglove_msgs::FoxgloveCompressedImage<&'static [u8]>);
+
+/// @brief Create a Foxglove CompressedImage view from CDR bytes.
+/// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
+/// @param len Length of data
+/// @return Opaque handle or NULL on error (errno set)
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_image_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut ros_foxglove_compressed_image_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match foxglove_msgs::FoxgloveCompressedImage::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_foxglove_compressed_image_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_image_free(view: *mut ros_foxglove_compressed_image_t) {
+    if !view.is_null() {
+        unsafe {
+            drop(Box::from_raw(view));
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_image_get_stamp_sec(
+    view: *const ros_foxglove_compressed_image_t,
+) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+/// Alias for `ros_foxglove_compressed_image_get_stamp_sec`; matches the Foxglove schema field name.
+#[no_mangle]
+pub unsafe extern "C" fn ros_foxglove_compressed_image_get_timestamp_sec(
+    view: *const ros_foxglove_compressed_image_t,
+) -> i32 {
+    ros_foxglove_compressed_image_get_stamp_sec(view)
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_image_get_stamp_nanosec(
+    view: *const ros_foxglove_compressed_image_t,
+) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+/// Alias for `ros_foxglove_compressed_image_get_stamp_nanosec`; matches the Foxglove schema field name.
+#[no_mangle]
+pub unsafe extern "C" fn ros_foxglove_compressed_image_get_timestamp_nanosec(
+    view: *const ros_foxglove_compressed_image_t,
+) -> u32 {
+    ros_foxglove_compressed_image_get_stamp_nanosec(view)
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_image_get_frame_id(
+    view: *const ros_foxglove_compressed_image_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_image_get_data(
+    view: *const ros_foxglove_compressed_image_t,
+    out_len: *mut usize,
+) -> *const u8 {
+    if view.is_null() {
+        if !out_len.is_null() {
+            unsafe {
+                *out_len = 0;
+            }
+        }
+        return ptr::null();
+    }
+    let data = unsafe { (*view).0.data() };
+    unsafe {
+        if !out_len.is_null() {
+            *out_len = data.len();
+        }
+    }
+    data.as_ptr()
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_image_get_format(
+    view: *const ros_foxglove_compressed_image_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.format() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_image_encode(
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: *const c_char,
+    data: *const u8,
+    data_len: usize,
+    format: *const c_char,
+) -> i32 {
+    let fid = unsafe { c_to_str(frame_id) };
+    let fmt = unsafe { c_to_str(format) };
+    let d = if data.is_null() {
+        &[]
+    } else {
+        unsafe { slice::from_raw_parts(data, data_len) }
+    };
+    let v = match foxglove_msgs::FoxgloveCompressedImage::builder()
+        .stamp(Time::new(stamp_sec, stamp_nanosec))
+        .frame_id(fid)
+        .data(d)
+        .format(fmt)
+        .build()
+    {
+        Ok(v) => v,
+        Err(_) => {
+            set_errno(EBADMSG);
+            return -1;
+        }
+    };
+    return_cdr_bytes(v.into_cdr(), out_bytes, out_len)
+}
+
+// =============================================================================
 // Mask (buffer-backed)
 // =============================================================================
 
@@ -5179,6 +5330,10 @@ impl_as_cdr!(ros_header_as_cdr, ros_header_t);
 impl_as_cdr!(ros_image_as_cdr, ros_image_t);
 impl_as_cdr!(ros_compressed_image_as_cdr, ros_compressed_image_t);
 impl_as_cdr!(ros_compressed_video_as_cdr, ros_compressed_video_t);
+impl_as_cdr!(
+    ros_foxglove_compressed_image_as_cdr,
+    ros_foxglove_compressed_image_t
+);
 impl_as_cdr!(ros_dmabuffer_as_cdr, ros_dmabuffer_t);
 impl_as_cdr!(ros_imu_as_cdr, ros_imu_t);
 impl_as_cdr!(ros_nav_sat_fix_as_cdr, ros_nav_sat_fix_t);
@@ -12051,6 +12206,200 @@ pub extern "C" fn ros_foxglove_compressed_video_builder_encode_into(
     }
 }
 
+// ── foxglove_msgs::FoxgloveCompressedImage ──────────────────────────
+
+struct FoxgloveCompressedImageBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    data: *const u8,
+    data_len: usize,
+    format: String,
+}
+
+pub struct ros_foxglove_compressed_image_builder_t(FoxgloveCompressedImageBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_image_builder_new(
+) -> *mut ros_foxglove_compressed_image_builder_t {
+    Box::into_raw(Box::new(ros_foxglove_compressed_image_builder_t(
+        FoxgloveCompressedImageBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            data: ptr::null(),
+            data_len: 0,
+            format: String::new(),
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_image_builder_free(
+    b: *mut ros_foxglove_compressed_image_builder_t,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_image_builder_set_stamp(
+    b: *mut ros_foxglove_compressed_image_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+/// Alias for `ros_foxglove_compressed_image_builder_set_stamp`; matches the Foxglove schema field name.
+#[no_mangle]
+pub unsafe extern "C" fn ros_foxglove_compressed_image_builder_set_timestamp(
+    b: *mut ros_foxglove_compressed_image_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    ros_foxglove_compressed_image_builder_set_stamp(b, sec, nanosec)
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_image_builder_set_frame_id(
+    b: *mut ros_foxglove_compressed_image_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_image_builder_set_data(
+    b: *mut ros_foxglove_compressed_image_builder_t,
+    data: *const u8,
+    len: usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    if data.is_null() && len > 0 {
+        set_errno(EINVAL);
+        return -1;
+    }
+    unsafe {
+        (*b).0.data = data;
+        (*b).0.data_len = len;
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_image_builder_set_format(
+    b: *mut ros_foxglove_compressed_image_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.format = s_str.to_string();
+    }
+    0
+}
+
+fn foxglove_compressed_image_data_slice(inner: &FoxgloveCompressedImageBuilderOwned) -> &[u8] {
+    if inner.data.is_null() || inner.data_len == 0 {
+        &[][..]
+    } else {
+        unsafe { slice::from_raw_parts(inner.data, inner.data_len) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_image_builder_build(
+    b: *mut ros_foxglove_compressed_image_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = foxglove_msgs::FoxgloveCompressedImage::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .data(foxglove_compressed_image_data_slice(inner))
+        .format(inner.format.as_str())
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_image_builder_encode_into(
+    b: *mut ros_foxglove_compressed_image_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = foxglove_msgs::FoxgloveCompressedImage::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .data(foxglove_compressed_image_data_slice(inner))
+        .format(inner.format.as_str())
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
 // ── foxglove_msgs::FoxgloveTextAnnotation ───────────────────────────
 
 struct FoxgloveTextAnnotationBuilderOwned {
@@ -16232,6 +16581,53 @@ pub unsafe extern "C" fn ros_foxglove_compressed_video_set_timestamp(
     nsec: u32,
 ) -> i32 {
     ros_foxglove_compressed_video_set_stamp(buf, len, sec, nsec)
+}
+
+/// Set the stamp field in place on a FoxgloveCompressedImage buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn ros_foxglove_compressed_image_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: foxglove_msgs::FoxgloveCompressedImage<&mut [u8]> =
+        match foxglove_msgs::FoxgloveCompressedImage::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_stamp(Time::new(sec, nsec)) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Alias for `ros_foxglove_compressed_image_set_stamp`; matches the Foxglove schema field name.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub unsafe extern "C" fn ros_foxglove_compressed_image_set_timestamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
+    ros_foxglove_compressed_image_set_stamp(buf, len, sec, nsec)
 }
 
 /// Set the timestamp field in place on a FoxgloveTextAnnotation buffer.

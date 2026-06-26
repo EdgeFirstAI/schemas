@@ -13,12 +13,51 @@ from .builtin_interfaces import Time
 __all__ = [
     "CircleAnnotations",
     "Color",
+    "CompressedImage",
     "CompressedVideo",
     "ImageAnnotation",
     "Point2",
     "PointAnnotation",
     "TextAnnotation",
 ]
+
+
+class CompressedImage:
+    """``foxglove_msgs.CompressedImage`` — JPEG / PNG / WebP / etc. encoded
+    still image with timestamp + format string.
+
+    Mirrors the Foxglove schema used for browser-side image display. Wire-
+    identical to :class:`CompressedVideo`; only the ROS typename and the
+    meaning of ``format`` differ (image media types rather than video codecs).
+    """
+
+    def __init__(
+        self,
+        timestamp: Time,
+        frame_id: str,
+        data: BufferLike,
+        format: str,
+    ) -> None: ...
+
+    @property
+    def timestamp(self) -> Time: ...
+    @property
+    def frame_id(self) -> str: ...
+    @property
+    def format(self) -> str:
+        """Image media type — typically ``"jpeg"``, ``"png"``, or ``"webp"``."""
+
+    @property
+    def cdr_size(self) -> int: ...
+
+    @property
+    def data(self) -> BorrowedBuf:
+        """Zero-copy view of the encoded image payload."""
+
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> CompressedImage: ...
+    def __repr__(self) -> str: ...
 
 
 class CompressedVideo:

@@ -179,6 +179,7 @@ represented as opaque handles wrapping an internal CDR byte buffer.
 | CameraInfo | sensor_msgs |
 | TransformStamped | geometry_msgs |
 | CompressedVideo | foxglove_msgs |
+| CompressedImage | foxglove_msgs |
 | DmaBuffer | edgefirst_msgs |
 | Mask | edgefirst_msgs |
 | RadarCube | edgefirst_msgs |
@@ -777,6 +778,36 @@ int ros_compressed_video_encode(uint8_t** out_bytes, size_t* out_len,
                                 const char* frame_id,
                                 const uint8_t* data, size_t data_len,
                                 const char* format);
+```
+
+#### CompressedImage
+
+Wire-identical to `CompressedVideo`; only the typename and the meaning of
+`format` differ (image media types such as `jpeg`/`png`/`webp` rather than
+video codecs). The short `ros_compressed_image_` prefix belongs to
+`sensor_msgs::CompressedImage`, so the Foxglove variant uses the
+`ros_foxglove_compressed_image_` prefix.
+
+```c
+ros_foxglove_compressed_image_t* ros_foxglove_compressed_image_from_cdr(const uint8_t* data,
+                                                                         size_t len);
+void ros_foxglove_compressed_image_free(ros_foxglove_compressed_image_t* view);
+
+int32_t     ros_foxglove_compressed_image_get_stamp_sec(const ros_foxglove_compressed_image_t* view);
+uint32_t    ros_foxglove_compressed_image_get_stamp_nanosec(const ros_foxglove_compressed_image_t* view);
+const char* ros_foxglove_compressed_image_get_frame_id(const ros_foxglove_compressed_image_t* view);
+const uint8_t* ros_foxglove_compressed_image_get_data(const ros_foxglove_compressed_image_t* view,
+                                                      size_t* out_len);
+const char* ros_foxglove_compressed_image_get_format(const ros_foxglove_compressed_image_t* view);
+
+const uint8_t* ros_foxglove_compressed_image_as_cdr(const ros_foxglove_compressed_image_t* view,
+                                                    size_t* out_len);
+
+int ros_foxglove_compressed_image_encode(uint8_t** out_bytes, size_t* out_len,
+                                         int32_t stamp_sec, uint32_t stamp_nanosec,
+                                         const char* frame_id,
+                                         const uint8_t* data, size_t data_len,
+                                         const char* format);
 ```
 
 ---

@@ -1615,6 +1615,14 @@ struct CompressedVideoTraits {
     static constexpr std::string_view name = "ros_compressed_video";
 };
 
+struct FoxgloveCompressedImageTraits {
+    using handle_type = ros_foxglove_compressed_image_t;
+    static constexpr auto from_cdr = ros_foxglove_compressed_image_from_cdr;
+    static constexpr auto free     = ros_foxglove_compressed_image_free;
+    static constexpr auto as_cdr   = ros_foxglove_compressed_image_as_cdr;
+    static constexpr std::string_view name = "ros_foxglove_compressed_image";
+};
+
 // MaskTraits: ros_mask_as_cdr does not exist in the C API (removed in the
 // Task 4 refactor).  The as_cdr field is intentionally absent; MaskView uses
 // ViewBaseNoCdr and Mask uses OwnedBaseNoCdr to avoid calling it.
@@ -2119,6 +2127,17 @@ struct FoxgloveCompressedVideoBuilderTraits {
     static constexpr std::string_view name = "ros_foxglove_compressed_video_builder";
     static constexpr std::string_view build_name = "ros_foxglove_compressed_video_builder_build";
     static constexpr std::string_view encode_into_name = "ros_foxglove_compressed_video_builder_encode_into";
+};
+
+struct FoxgloveCompressedImageBuilderTraits {
+    using builder_type = ros_foxglove_compressed_image_builder_t;
+    static constexpr auto new_fn = ros_foxglove_compressed_image_builder_new;
+    static constexpr auto free_fn = ros_foxglove_compressed_image_builder_free;
+    static constexpr auto build_fn = ros_foxglove_compressed_image_builder_build;
+    static constexpr auto encode_into_fn = ros_foxglove_compressed_image_builder_encode_into;
+    static constexpr std::string_view name = "ros_foxglove_compressed_image_builder";
+    static constexpr std::string_view build_name = "ros_foxglove_compressed_image_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_foxglove_compressed_image_builder_encode_into";
 };
 
 struct FoxgloveTextAnnotationBuilderTraits {
@@ -3423,6 +3442,127 @@ public:
     [[nodiscard]] span<const std::uint8_t> data() const noexcept {
         std::size_t n = 0;
         auto* p = ros_compressed_video_get_data(handle(), &n);
+        return {p, n};
+    }
+};
+
+// ---------------------------------------------------------------------------
+// foxglove_msgs - CompressedImage
+//
+// Wire-identical to CompressedVideo; only the typename and the meaning of
+// `format` differ. Named with a `Foxglove` prefix to avoid colliding with the
+// `sensor_msgs::CompressedImage` wrapper that already occupies the
+// `CompressedImage` name in this namespace.
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Non-owning, move-only view over a `foxglove_msgs::CompressedImage`.
+ *
+ * Wraps a CDR payload carrying a compressed still image (JPEG, PNG, WebP, …)
+ * together with its metadata.
+ *
+ * @warning Backing CDR buffer must outlive this view and every borrowed
+ *          reference returned by `frame_id()`, `format()`, `data()`.
+ * @note Move-only.
+ * @see FoxgloveCompressedImage for the owning counterpart.
+ */
+class FoxgloveCompressedImageView
+    : public detail::ViewBase<FoxgloveCompressedImageView, detail::FoxgloveCompressedImageTraits> {
+    using Base = detail::ViewBase<FoxgloveCompressedImageView, detail::FoxgloveCompressedImageTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    /// @brief Message timestamp.
+    /// @return The header stamp as a Time value.
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_foxglove_compressed_image_get_stamp_sec(handle()),
+                ros_foxglove_compressed_image_get_stamp_nanosec(handle())};
+    }
+    /// Alias for stamp(); matches the Foxglove schema field name.
+    [[nodiscard]] Time timestamp() const noexcept { return stamp(); }
+    /// @brief Coordinate frame identifier.
+    /// @return A `std::string_view` borrowed from the CDR buffer.
+    /// @note Valid only while this view and its backing buffer are alive.
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_foxglove_compressed_image_get_frame_id(handle());
+    }
+    /// @brief Image media type (e.g. "jpeg", "png", "webp").
+    /// @return A `std::string_view` borrowed from the CDR buffer.
+    /// @note Valid only while this view and its backing buffer are alive.
+    [[nodiscard]] std::string_view format() const noexcept {
+        return ros_foxglove_compressed_image_get_format(handle());
+    }
+    /// @brief Compressed image payload bytes.
+    /// @return A `span<const std::uint8_t>` borrowed from the CDR buffer.
+    /// @warning Invalidated when this view or its backing buffer is
+    ///          destroyed.
+    [[nodiscard]] span<const std::uint8_t> data() const noexcept {
+        std::size_t n = 0;
+        auto* p = ros_foxglove_compressed_image_get_data(handle(), &n);
+        return {p, n};
+    }
+};
+
+/**
+ * @brief Owning, move-only `foxglove_msgs::CompressedImage` instance.
+ *
+ * Holds both the CDR-encoded byte buffer and a view handle over it.
+ *
+ * @see FoxgloveCompressedImageView for the non-owning counterpart.
+ */
+class FoxgloveCompressedImage
+    : public detail::OwnedBase<FoxgloveCompressedImage, detail::FoxgloveCompressedImageTraits> {
+    using Base = detail::OwnedBase<FoxgloveCompressedImage, detail::FoxgloveCompressedImageTraits>;
+    friend Base;
+public:
+    /// @brief Encode a fresh CompressedImage into a newly-allocated CDR
+    ///        buffer.
+    /// @param stamp Message timestamp.
+    /// @param frame_id Coordinate frame identifier (non-null UTF-8).
+    /// @param data Compressed image payload; copied into the encoded
+    ///        buffer by the underlying C encoder.
+    /// @param format Image media type (e.g. "jpeg", "png", "webp").
+    /// @return A new CompressedImage on success, or an Error on allocator
+    ///         failure or invalid UTF-8.
+    [[nodiscard]] static expected<FoxgloveCompressedImage, Error>
+    encode(Time stamp, std::string_view frame_id,
+           span<const std::uint8_t> data, std::string_view format) noexcept {
+        std::uint8_t* out = nullptr; std::size_t len = 0;
+        if (ros_foxglove_compressed_image_encode(&out, &len,
+                stamp.sec, stamp.nanosec,
+                frame_id.data(),
+                data.data(), data.size(),
+                format.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_image_encode"));
+        return make_(out, len);
+    }
+    /// @brief Message timestamp.
+    /// @return The header stamp as a Time value.
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_foxglove_compressed_image_get_stamp_sec(handle()),
+                ros_foxglove_compressed_image_get_stamp_nanosec(handle())};
+    }
+    /// Alias for stamp(); matches the Foxglove schema field name.
+    [[nodiscard]] Time timestamp() const noexcept { return stamp(); }
+    /// @brief Coordinate frame identifier.
+    /// @return A `std::string_view` borrowed from this instance's buffer.
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_foxglove_compressed_image_get_frame_id(handle());
+    }
+    /// @brief Image media type.
+    /// @return A `std::string_view` borrowed from this instance's buffer.
+    [[nodiscard]] std::string_view format() const noexcept {
+        return ros_foxglove_compressed_image_get_format(handle());
+    }
+    /// @brief Compressed image payload bytes.
+    /// @return A `span<const std::uint8_t>` borrowed from this instance's
+    ///         buffer.
+    [[nodiscard]] span<const std::uint8_t> data() const noexcept {
+        std::size_t n = 0;
+        auto* p = ros_foxglove_compressed_image_get_data(handle(), &n);
         return {p, n};
     }
 };
@@ -6177,6 +6317,47 @@ public:
     [[nodiscard]] expected<void, Error> format(const char* s) noexcept {
         if (ros_foxglove_compressed_video_builder_set_format(ptr(), s) != 0)
             return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_video_builder_set_format"));
+        return {};
+    }
+};
+
+// ---------------------------------------------------------------------------
+// foxglove_msgs - FoxgloveCompressedImageBuilder
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `foxglove_msgs::CompressedImage` messages.
+class FoxgloveCompressedImageBuilder
+    : public detail::BuilderBase<FoxgloveCompressedImageBuilder,
+                                 detail::FoxgloveCompressedImageBuilderTraits> {
+    using Base = detail::BuilderBase<FoxgloveCompressedImageBuilder,
+                                     detail::FoxgloveCompressedImageBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    FoxgloveCompressedImageBuilder& stamp(Time t) noexcept {
+        ros_foxglove_compressed_image_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    /// Alias for stamp(); matches the Foxglove schema field name.
+    FoxgloveCompressedImageBuilder& timestamp(Time t) noexcept { return stamp(t); }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_foxglove_compressed_image_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_image_builder_set_frame_id"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error>
+    data(span<const std::uint8_t> d) noexcept {
+        if (ros_foxglove_compressed_image_builder_set_data(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_image_builder_set_data"));
+        return {};
+    }
+    [[nodiscard]] expected<void, Error> format(const char* s) noexcept {
+        if (ros_foxglove_compressed_image_builder_set_format(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_image_builder_set_format"));
         return {};
     }
 };
