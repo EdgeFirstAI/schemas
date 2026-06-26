@@ -229,7 +229,7 @@ class CameraInfo(IdlStruct, typename='sensor_msgs/CameraInfo'):
     """
     The distortion model used. Supported models are listed in
     sensor_msgs/distortion_models.hpp. For most cameras, "plumb_bob" - a
-    simple model of radial and tangential distortion - is sufficent.
+    simple model of radial and tangential distortion - is sufficient.
     """
 
     d: sequence[float64] = default_field([])
@@ -358,7 +358,7 @@ class CompressedImage(IdlStruct, typename='sensor_msgs/CompressedImage'):
     """
     Header timestamp should be acquisition time of image
     Header frame_id should be optical frame of camera
-    origin of frame should be optical center of cameara
+    origin of frame should be optical center of camera
     +x should point to the right in the image
     +y should point down in the image
     +z should point into to plane of the image
@@ -441,7 +441,7 @@ class Image(IdlStruct, typename='sensor_msgs/Image'):
     """
     Header timestamp should be acquisition time of image
     Header frame_id should be optical frame of camera
-    origin of frame should be optical center of cameara
+    origin of frame should be optical center of camera
     +x should point to the right in the image
     +y should point down in the image
     +z should point into to plane of the image

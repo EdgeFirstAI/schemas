@@ -3,9 +3,9 @@
 
 # Radar Cube Message Interface - edgefirst/msg/RadarCube
 #
-# The RadarCube interface carries various radar cube reprensentations of the
+# The RadarCube interface carries various radar cube representations of the
 # Radar FFT before generally being processed by CFAR into a point cloud.  The
-# cube coud be R, RD, RAD, RA, and so on where R=Range, D=Dopper, and A=Azimuth.
+# cube could be R, RD, RAD, RA, and so on where R=Range, D=Doppler, and A=Azimuth.
 
 # Dimensional labels are used to describe the radar cube layout.  Not all cubes
 # include every label.  Undefined is used for dimensions not covered by this list.

@@ -385,9 +385,9 @@ class RadarChannel(Enum):
 @dataclass
 class RadarCube(IdlStruct, typename='edgefirst_msgs/RadarCube'):
     """
-    The RadarCube interface carries various radar cube reprensentations of the
+    The RadarCube interface carries various radar cube representations of the
     Radar FFT before generally being processed by CFAR into a point cloud.  The
-    cube coud be R, RD, RAD, RA, and so on where R=Range, D=Dopper, and
+    cube could be R, RD, RAD, RA, and so on where R=Range, D=Doppler, and
     A=Azimuth.
 
     Dimensional labels are used to describe the radar cube layout.  Not all
