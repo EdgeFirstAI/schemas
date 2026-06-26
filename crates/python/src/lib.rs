@@ -6787,6 +6787,13 @@ fn schemas(m: &Bound<'_, PyModule>) -> PyResult<()> {
     edgef.add_class::<PyVibration>()?;
     edgef.add_class::<PyModelInfo>()?;
     edgef.add_class::<PyDetectBox>()?;
+    // Backwards-compatibility alias: the message was exposed as `Box` in the
+    // pure-Python module (<= 3.1.0). When the package became a pyo3 binding in
+    // 3.2.0 the type was renamed `DetectBox` to avoid shadowing the Rust
+    // prelude's `std::boxed::Box`. Keep `Box` resolvable so pre-3.2.0 code and
+    // documentation that reference `edgefirst.schemas.edgefirst_msgs.Box`
+    // continue to work; both names point at the same class object.
+    edgef.add("Box", py.get_type::<PyDetectBox>())?;
     edgef.add_class::<PyDetect>()?;
     edgef.add_class::<PyCameraPlane>()?;
     edgef.add_class::<PyCameraFrame>()?;

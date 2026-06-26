@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`edgefirst_msgs.Box` backwards-compatibility alias.** The Python class
+  exposed as `Box` in the pure-Python module (<= 3.1.0) was renamed `DetectBox`
+  in 3.2.0 (when the package became a pyo3 binding) to avoid shadowing Rust's
+  `std::boxed::Box`. The rename was not flagged as a migration item, which broke
+  code and `mkdocstrings`-generated documentation referencing
+  `edgefirst.schemas.edgefirst_msgs.Box`. `Box` is now restored as an alias of
+  `DetectBox` (same class object), so both names resolve. New code should prefer
+  `DetectBox`.
+
 ## [3.4.0] - 2026-04-30
 
 ### Added

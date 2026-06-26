@@ -13,6 +13,7 @@ from .std_msgs import Header
 from .geometry_msgs import Vector3
 
 __all__ = [
+    "Box",
     "CameraFrame",
     "CameraPlane",
     "Date",
@@ -338,6 +339,12 @@ class DetectBox:
     def track_lifetime(self) -> int: ...
     @property
     def track_created(self) -> Time: ...
+
+
+# Backwards-compatibility alias for the pre-3.2.0 name. `Box` was renamed
+# `DetectBox` when the module became a pyo3 binding (avoids shadowing Rust's
+# `std::boxed::Box`); the old name remains a resolvable alias of the same class.
+Box = DetectBox
 
 
 class Detect:
