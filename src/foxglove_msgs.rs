@@ -365,9 +365,10 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> FoxgloveCompressedVideo<B> {
 //
 // CDR layout (NOTE: data comes BEFORE format in the struct):
 //   4: stamp (8 bytes)
-//  12: frame_id (string) → offsets[0]
-//   ~: data (byte seq) → offsets[1]
-//   ~: format (string) → offsets[2]
+//  12: frame_id (string)  [read at the fixed offset CDR_HEADER_SIZE + 8]
+//   ~: data (byte seq)  → offsets[0]  (= Header::end_offset(), start of data)
+//   ~: format (string)  → offsets[1]  (start of format)
+//   ~: end of message   → offsets[2]
 
 pub struct FoxgloveCompressedImage<B> {
     buf: B,
@@ -1835,9 +1836,13 @@ mod tests {
         // `timestamp()` accessors are permanent additive aliases for `stamp()`,
         // matching the Foxglove schema field name. Both must agree on the view
         // side, the builder side, and the in-place setter side.
-        let mut image =
-            FoxgloveCompressedImage::new(Time::new(100, 500_000_000), "camera", &[0xab, 0xcd], "png")
-                .unwrap();
+        let mut image = FoxgloveCompressedImage::new(
+            Time::new(100, 500_000_000),
+            "camera",
+            &[0xab, 0xcd],
+            "png",
+        )
+        .unwrap();
 
         assert_eq!(image.stamp(), image.timestamp());
         assert_eq!(image.timestamp(), Time::new(100, 500_000_000));
