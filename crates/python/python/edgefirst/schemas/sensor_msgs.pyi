@@ -24,7 +24,9 @@ __all__ = [
     "PointCloud2",
     "PointField",
     "RegionOfInterest",
+    "RelativeHumidity",
     "Temperature",
+    "TimeReference",
 ]
 
 
@@ -574,3 +576,55 @@ class BatteryState:
     def to_bytes(self) -> bytes: ...
     @classmethod
     def from_cdr(cls, buf: BufferLike) -> BatteryState: ...
+
+
+class RelativeHumidity:
+    """``sensor_msgs.RelativeHumidity`` — relative humidity measurement (0–1 ratio).
+
+    Relative humidity as a dimensionless ratio in [0, 1] with a variance field.
+    """
+
+    def __init__(
+        self, header: Header, relative_humidity: float = 0.0, variance: float = 0.0
+    ) -> None: ...
+
+    @property
+    def stamp(self) -> Time: ...
+    @property
+    def frame_id(self) -> str: ...
+    @property
+    def relative_humidity(self) -> float: ...
+    @property
+    def variance(self) -> float: ...
+    @property
+    def cdr_size(self) -> int: ...
+
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> RelativeHumidity: ...
+
+
+class TimeReference:
+    """``sensor_msgs.TimeReference`` — UTC / GPS / PPS time reference with a source label."""
+
+    def __init__(
+        self,
+        header: Header,
+        time_ref: Optional[Time] = None,
+        source: str = "",
+    ) -> None: ...
+
+    @property
+    def stamp(self) -> Time: ...
+    @property
+    def frame_id(self) -> str: ...
+    @property
+    def time_ref(self) -> Time: ...
+    @property
+    def source(self) -> str: ...
+    @property
+    def cdr_size(self) -> int: ...
+
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> TimeReference: ...

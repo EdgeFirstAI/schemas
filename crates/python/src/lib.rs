@@ -56,11 +56,12 @@ use edgefirst_schemas::mavros_msgs::{
     Altitude as MavAltitude, EstimatorStatus, ExtendedState, GpsRaw, State as MavState, StatusText,
     SysStatus, TimesyncStatus, VfrHud,
 };
-use edgefirst_schemas::nav_msgs::Odometry;
+use edgefirst_schemas::nav_msgs::{GridCells, MapMetaData, OccupancyGrid, Odometry, Path};
 use edgefirst_schemas::rosgraph_msgs::Clock;
 use edgefirst_schemas::sensor_msgs::{
     BatteryState, CameraInfo, CompressedImage, FluidPressure, Image, Imu, MagneticField, NavSatFix,
-    NavSatStatus, PointCloud2, PointFieldView, RegionOfInterest, Temperature,
+    NavSatStatus, PointCloud2, PointFieldView, RegionOfInterest, RelativeHumidity, Temperature,
+    TimeReference,
 };
 use edgefirst_schemas::std_msgs::{ColorRGBA, Header};
 
@@ -3741,6 +3742,136 @@ impl PyTemperature {
     }
 }
 
+// ── sensor_msgs.RelativeHumidity ────────────────────────────────────
+
+#[pyclass(
+    name = "RelativeHumidity",
+    module = "edgefirst.schemas.sensor_msgs",
+    frozen
+)]
+pub struct PyRelativeHumidity {
+    inner: RelativeHumidity<PyBuf>,
+}
+
+#[pymethods]
+impl PyRelativeHumidity {
+    #[new]
+    #[pyo3(signature = (header, relative_humidity=0.0, variance=0.0))]
+    fn new(header: &PyHeader, relative_humidity: f64, variance: f64) -> PyResult<Self> {
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let inner = RelativeHumidity::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .relative_humidity(relative_humidity)
+            .variance(variance)
+            .build()
+            .map_err(map_cdr_err)?;
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        _py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let pybuf = smart_buffer(buf)?;
+        let inner = RelativeHumidity::from_cdr(pybuf).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn relative_humidity(&self) -> f64 {
+        self.inner.relative_humidity()
+    }
+    #[getter]
+    fn variance(&self) -> f64 {
+        self.inner.variance()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
+// ── sensor_msgs.TimeReference ────────────────────────────────────────
+
+#[pyclass(
+    name = "TimeReference",
+    module = "edgefirst.schemas.sensor_msgs",
+    frozen
+)]
+pub struct PyTimeReference {
+    inner: TimeReference<PyBuf>,
+}
+
+#[pymethods]
+impl PyTimeReference {
+    #[new]
+    #[pyo3(signature = (header, time_ref=None, source=""))]
+    fn new(header: &PyHeader, time_ref: Option<PyTime>, source: &str) -> PyResult<Self> {
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let tref = time_ref
+            .map(|t| t.0)
+            .unwrap_or(edgefirst_schemas::builtin_interfaces::Time { sec: 0, nanosec: 0 });
+        let inner =
+            TimeReference::new(stamp, frame_id.as_str(), tref, source).map_err(map_cdr_err)?;
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        _py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let pybuf = smart_buffer(buf)?;
+        let inner = TimeReference::from_cdr(pybuf).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn time_ref(&self) -> PyTime {
+        PyTime(self.inner.time_ref())
+    }
+    #[getter]
+    fn source(&self) -> &str {
+        self.inner.source()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
 // ── sensor_msgs.CameraInfo (buffer-backed) ──────────────────────────
 
 #[pyclass(name = "CameraInfo", module = "edgefirst.schemas.sensor_msgs", frozen)]
@@ -4172,6 +4303,331 @@ impl PyOdometry {
             self.inner.frame_id(),
             self.inner.child_frame_id(),
         )
+    }
+}
+
+// ── nav_msgs.MapMetaData (CdrFixed) ─────────────────────────────────
+
+/// `nav_msgs.MapMetaData` — map metadata with load time, resolution, size, and origin pose.
+#[pyclass(name = "MapMetaData", module = "edgefirst.schemas.nav_msgs", frozen)]
+#[derive(Clone, Copy)]
+pub struct PyMapMetaData(pub MapMetaData);
+
+#[pymethods]
+impl PyMapMetaData {
+    #[new]
+    #[pyo3(signature = (map_load_time=None, resolution=0.0, width=0, height=0, origin=None))]
+    fn new(
+        map_load_time: Option<PyTime>,
+        resolution: f32,
+        width: u32,
+        height: u32,
+        origin: Option<PyPose>,
+    ) -> Self {
+        use edgefirst_schemas::builtin_interfaces::Time as BITime;
+        use edgefirst_schemas::geometry_msgs::{Point, Quaternion};
+        let mlt = map_load_time
+            .map(|t| t.0)
+            .unwrap_or(BITime { sec: 0, nanosec: 0 });
+        let orig = origin.map(|p| p.0).unwrap_or(Pose {
+            position: Point {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            orientation: Quaternion {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                w: 1.0,
+            },
+        });
+        Self(MapMetaData {
+            map_load_time: mlt,
+            resolution,
+            width,
+            height,
+            origin: orig,
+        })
+    }
+
+    #[getter]
+    fn map_load_time(&self) -> PyTime {
+        PyTime(self.0.map_load_time)
+    }
+    #[getter]
+    fn resolution(&self) -> f32 {
+        self.0.resolution
+    }
+    #[getter]
+    fn width(&self) -> u32 {
+        self.0.width
+    }
+    #[getter]
+    fn height(&self) -> u32 {
+        self.0.height
+    }
+    #[getter]
+    fn origin(&self) -> PyPose {
+        PyPose(self.0.origin)
+    }
+
+    fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        cdrfixed_encode(py, &self.0)
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        Ok(Self(cdrfixed_decode::<MapMetaData>(py, buf)?))
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "MapMetaData(resolution={}, width={}, height={})",
+            self.0.resolution, self.0.width, self.0.height
+        )
+    }
+}
+
+// ── nav_msgs.GridCells ───────────────────────────────────────────────
+
+#[pyclass(name = "GridCells", module = "edgefirst.schemas.nav_msgs", frozen)]
+pub struct PyGridCells {
+    inner: GridCells<PyBuf>,
+}
+
+#[pymethods]
+impl PyGridCells {
+    #[new]
+    #[pyo3(signature = (header, cell_width=0.0, cell_height=0.0, cells=None))]
+    fn new(
+        header: &PyHeader,
+        cell_width: f32,
+        cell_height: f32,
+        cells: Option<Vec<PyPoint>>,
+    ) -> PyResult<Self> {
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let pts: Vec<Point> = cells.unwrap_or_default().into_iter().map(|p| p.0).collect();
+        let inner = GridCells::new(stamp, frame_id.as_str(), cell_width, cell_height, &pts)
+            .map_err(map_cdr_err)?
+            .map_buffer(PyBuf::Owned);
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        _py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let pybuf = smart_buffer(buf)?;
+        let inner = GridCells::from_cdr(pybuf).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn cell_width(&self) -> f32 {
+        self.inner.cell_width()
+    }
+    #[getter]
+    fn cell_height(&self) -> f32 {
+        self.inner.cell_height()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+
+    fn __len__(&self) -> usize {
+        self.inner.len()
+    }
+
+    fn __getitem__(&self, idx: isize) -> PyResult<PyPoint> {
+        let len = self.inner.len();
+        let idx = if idx < 0 {
+            (len as isize + idx) as usize
+        } else {
+            idx as usize
+        };
+        self.inner
+            .cell(idx)
+            .map(PyPoint)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("index out of range"))
+    }
+
+    #[getter]
+    fn cells(&self) -> Vec<PyPoint> {
+        self.inner.cells().into_iter().map(PyPoint).collect()
+    }
+
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
+// ── nav_msgs.OccupancyGrid ───────────────────────────────────────────
+
+#[pyclass(name = "OccupancyGrid", module = "edgefirst.schemas.nav_msgs", frozen)]
+pub struct PyOccupancyGrid {
+    inner: OccupancyGrid<PyBuf>,
+}
+
+#[pymethods]
+impl PyOccupancyGrid {
+    #[new]
+    #[pyo3(signature = (header, info=None, data=None))]
+    fn new(
+        header: &PyHeader,
+        info: Option<PyMapMetaData>,
+        data: Option<Vec<i8>>,
+    ) -> PyResult<Self> {
+        use edgefirst_schemas::builtin_interfaces::Time as BITime;
+        use edgefirst_schemas::geometry_msgs::{Point, Quaternion};
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let meta = info.map(|m| m.0).unwrap_or(MapMetaData {
+            map_load_time: BITime { sec: 0, nanosec: 0 },
+            resolution: 0.0,
+            width: 0,
+            height: 0,
+            origin: Pose {
+                position: Point {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                orientation: Quaternion {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                    w: 1.0,
+                },
+            },
+        });
+        let d = data.unwrap_or_default();
+        let inner = OccupancyGrid::new(stamp, frame_id.as_str(), meta, &d)
+            .map_err(map_cdr_err)?
+            .map_buffer(PyBuf::Owned);
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        _py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let pybuf = smart_buffer(buf)?;
+        let inner = OccupancyGrid::from_cdr(pybuf).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn info(&self) -> PyMapMetaData {
+        PyMapMetaData(self.inner.info())
+    }
+    #[getter]
+    fn data<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        let d = self.inner.data();
+        // SAFETY: i8 and u8 have same size/alignment; we reinterpret for PyBytes.
+        let bytes = unsafe { std::slice::from_raw_parts(d.as_ptr() as *const u8, d.len()) };
+        PyBytes::new(py, bytes)
+    }
+    #[getter]
+    fn data_len(&self) -> usize {
+        self.inner.len()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+}
+
+// ── nav_msgs.Path ────────────────────────────────────────────────────
+
+#[pyclass(name = "Path", module = "edgefirst.schemas.nav_msgs", frozen)]
+pub struct PyPath {
+    inner: Path<PyBuf>,
+}
+
+#[pymethods]
+impl PyPath {
+    #[new]
+    #[pyo3(signature = (header, poses=None))]
+    fn new(header: &PyHeader, poses: Option<Vec<PyPose>>) -> PyResult<Self> {
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let ps: Vec<Pose> = poses.unwrap_or_default().into_iter().map(|p| p.0).collect();
+        let tuples: Vec<_> = ps.iter().map(|p| (stamp, frame_id.as_str(), *p)).collect();
+        let inner = Path::new(stamp, frame_id.as_str(), &tuples)
+            .map_err(map_cdr_err)?
+            .map_buffer(PyBuf::Owned);
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        _py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let pybuf = smart_buffer(buf)?;
+        let inner = Path::from_cdr(pybuf).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+
+    fn __len__(&self) -> usize {
+        self.inner.len()
+    }
+
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+
+    /// Returns list of (stamp, frame_id, pose) tuples for all poses.
+    fn poses(&self) -> Vec<(PyTime, String, PyPose)> {
+        self.inner
+            .poses()
+            .into_iter()
+            .map(|(s, f, p)| (PyTime(s), f, PyPose(p)))
+            .collect()
     }
 }
 
@@ -6832,6 +7288,8 @@ fn schemas(m: &Bound<'_, PyModule>) -> PyResult<()> {
     sensor.add_class::<PyTemperature>()?;
     sensor.add_class::<PyCameraInfo>()?;
     sensor.add_class::<PyBatteryState>()?;
+    sensor.add_class::<PyRelativeHumidity>()?;
+    sensor.add_class::<PyTimeReference>()?;
     m.add_submodule(&sensor)?;
     register_submodule(py, m, "sensor_msgs", &sensor)?;
 
@@ -6872,6 +7330,10 @@ fn schemas(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // nav_msgs submodule
     let nav = PyModule::new(py, "nav_msgs")?;
     nav.add_class::<PyOdometry>()?;
+    nav.add_class::<PyMapMetaData>()?;
+    nav.add_class::<PyGridCells>()?;
+    nav.add_class::<PyOccupancyGrid>()?;
+    nav.add_class::<PyPath>()?;
     m.add_submodule(&nav)?;
     register_submodule(py, m, "nav_msgs", &nav)?;
 

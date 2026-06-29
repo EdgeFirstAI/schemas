@@ -25,6 +25,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List
 
+# Legacy pycdr2 message definitions used for new types not yet in the
+# edgefirst-schemas Python extension (nav_msgs: GridCells, MapMetaData,
+# OccupancyGrid, Path; sensor_msgs: RelativeHumidity, TimeReference).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "benches" / "python"))
+from legacy import nav_msgs as _legacy_nav_msgs  # noqa: E402
+from legacy import sensor_msgs as _legacy_sensor_msgs  # noqa: E402
+from legacy import geometry_msgs as _legacy_geometry_msgs  # noqa: E402
+
 from pycdr2 import IdlStruct
 from pycdr2.types import float64, int16, int32, uint32
 
@@ -209,6 +217,84 @@ def gen_nav_msgs():
                       twist=geometry_msgs.Twist(linear=lin, angular=ang),
                       covariance=twist_cov)))
 
+    # Legacy types (GridCells, MapMetaData, OccupancyGrid, Path) ─────────
+    _lg = _legacy_nav_msgs
+    _lg_geo = _legacy_geometry_msgs
+
+    _lg_stamp = _lg.Time(sec=STAMP.sec, nanosec=STAMP.nanosec)
+    _lg_header = _lg.Header(stamp=_lg_stamp, frame_id=FRAME_ID)
+
+    # MapMetaData — standalone fixed-size encoding
+    _origin = _lg_geo.Pose(
+        position=_lg_geo.Point(x=-5.0, y=-5.0, z=0.0),
+        orientation=_lg_geo.Quaternion(x=0.0, y=0.0, z=0.0, w=1.0))
+    write_cdr("nav_msgs", "MapMetaData",
+              _lg.MapMetaData(
+                  map_load_time=_lg_stamp,
+                  resolution=0.05,
+                  width=200,
+                  height=200,
+                  origin=_origin))
+
+    # GridCells — 3 cells
+    _cells = [
+        _lg_geo.Point(x=1.0, y=2.0, z=0.0),
+        _lg_geo.Point(x=3.0, y=4.0, z=0.0),
+        _lg_geo.Point(x=5.0, y=6.0, z=0.0),
+    ]
+    write_cdr("nav_msgs", "GridCells",
+              _lg.GridCells(
+                  header=_lg_header,
+                  cell_width=0.5,
+                  cell_height=0.5,
+                  cells=_cells))
+
+    # OccupancyGrid — 4×2 grid with non-trivial values
+    _info = _lg.MapMetaData(
+        map_load_time=_lg_stamp,
+        resolution=0.1,
+        width=4,
+        height=2,
+        origin=_lg_geo.Pose(
+            position=_lg_geo.Point(x=0.0, y=0.0, z=0.0),
+            orientation=_lg_geo.Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)))
+    write_cdr("nav_msgs", "OccupancyGrid",
+              _lg.OccupancyGrid(
+                  header=_lg_header,
+                  info=_info,
+                  data=[0, 50, 100, -1, 25, 75, 0, 0]))
+
+    # Path — 3 poses with different frame_ids
+    _pose_a = _lg_geo.Pose(
+        position=_lg_geo.Point(x=1.0, y=0.0, z=0.0),
+        orientation=_lg_geo.Quaternion(x=0.0, y=0.0, z=0.0, w=1.0))
+    _pose_b = _lg_geo.Pose(
+        position=_lg_geo.Point(x=2.0, y=1.0, z=0.0),
+        orientation=_lg_geo.Quaternion(x=0.0, y=0.0, z=0.707, w=0.707))
+    _pose_c = _lg_geo.Pose(
+        position=_lg_geo.Point(x=3.0, y=2.0, z=0.0),
+        orientation=_lg_geo.Quaternion(x=0.0, y=0.0, z=1.0, w=0.0))
+    write_cdr("nav_msgs", "Path",
+              _lg.Path(
+                  header=_lg_header,
+                  poses=[
+                      _lg_geo.PoseStamped(
+                          header=_lg.Header(
+                              stamp=_lg.Time(sec=1, nanosec=0),
+                              frame_id="map"),
+                          pose=_pose_a),
+                      _lg_geo.PoseStamped(
+                          header=_lg.Header(
+                              stamp=_lg.Time(sec=2, nanosec=0),
+                              frame_id="map"),
+                          pose=_pose_b),
+                      _lg_geo.PoseStamped(
+                          header=_lg.Header(
+                              stamp=_lg.Time(sec=3, nanosec=0),
+                              frame_id="map"),
+                          pose=_pose_c),
+                  ]))
+
 
 def gen_std_msgs():
     write_cdr("std_msgs", "ColorRGBA",
@@ -340,6 +426,25 @@ def gen_sensor_msgs():
                   distortion_model="plumb_bob", d=d_coeffs,
                   k=k_matrix, r=r_matrix, p=p_matrix,
                   binning_x=1, binning_y=1, roi=roi))
+
+    # Legacy types (RelativeHumidity, TimeReference) ─────────────────────
+    _ls = _legacy_sensor_msgs
+    _lg_stamp = _ls.Time(sec=STAMP.sec, nanosec=STAMP.nanosec)
+    _lg_header = _ls.Header(stamp=_lg_stamp, frame_id=FRAME_ID)
+
+    # RelativeHumidity — 65 % RH with 0.001 variance
+    write_cdr("sensor_msgs", "RelativeHumidity",
+              _ls.RelativeHumidity(
+                  header=_lg_header,
+                  relative_humidity=0.65,
+                  variance=0.001))
+
+    # TimeReference — GPS UTC source
+    write_cdr("sensor_msgs", "TimeReference",
+              _ls.TimeReference(
+                  header=_lg_header,
+                  time_ref=_ls.Time(sec=1234567890, nanosec=987654321),
+                  source="GPS_UTC"))
 
 
 def gen_edgefirst_msgs():

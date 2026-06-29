@@ -5372,7 +5372,12 @@ impl_as_cdr!(ros_magnetic_field_as_cdr, ros_magnetic_field_t);
 impl_as_cdr!(ros_fluid_pressure_as_cdr, ros_fluid_pressure_t);
 impl_as_cdr!(ros_temperature_as_cdr, ros_temperature_t);
 impl_as_cdr!(ros_battery_state_as_cdr, ros_battery_state_t);
+impl_as_cdr!(ros_relative_humidity_as_cdr, ros_relative_humidity_t);
+impl_as_cdr!(ros_time_reference_as_cdr, ros_time_reference_t);
 impl_as_cdr!(ros_odometry_as_cdr, ros_odometry_t);
+impl_as_cdr!(ros_grid_cells_as_cdr, ros_grid_cells_t);
+impl_as_cdr!(ros_occupancy_grid_as_cdr, ros_occupancy_grid_t);
+impl_as_cdr!(ros_path_as_cdr, ros_path_t);
 impl_as_cdr!(ros_vibration_as_cdr, ros_vibration_t);
 impl_as_cdr!(ros_mavros_altitude_as_cdr, ros_mavros_altitude_t);
 impl_as_cdr!(ros_mavros_vfrhud_as_cdr, ros_mavros_vfrhud_t);
@@ -6229,6 +6234,503 @@ pub extern "C" fn ros_odometry_get_twist_covariance(view: *const ros_odometry_t,
     unsafe {
         ptr::copy_nonoverlapping(t.covariance.as_ptr(), out, 36);
     }
+}
+
+// =============================================================================
+// nav_msgs::MapMetaData (CdrFixed — encode/decode)
+// =============================================================================
+
+/// Encode a `MapMetaData` into a caller-supplied buffer.
+///
+/// Pass `buf = NULL` to query the required size (written to `*written`).
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL written,
+/// ENOBUFS for buffer too small, EBADMSG for encoding error).
+#[no_mangle]
+pub extern "C" fn ros_map_meta_data_encode(
+    buf: *mut u8,
+    cap: usize,
+    written: *mut usize,
+    map_load_time_sec: i32,
+    map_load_time_nanosec: u32,
+    resolution: f32,
+    width: u32,
+    height: u32,
+    origin_px: f64,
+    origin_py: f64,
+    origin_pz: f64,
+    origin_ox: f64,
+    origin_oy: f64,
+    origin_oz: f64,
+    origin_ow: f64,
+) -> i32 {
+    use crate::geometry_msgs::{Point, Pose, Quaternion};
+    encode_fixed_to_buf(
+        &nav_msgs::MapMetaData {
+            map_load_time: Time::new(map_load_time_sec, map_load_time_nanosec),
+            resolution,
+            width,
+            height,
+            origin: Pose {
+                position: Point {
+                    x: origin_px,
+                    y: origin_py,
+                    z: origin_pz,
+                },
+                orientation: Quaternion {
+                    x: origin_ox,
+                    y: origin_oy,
+                    z: origin_oz,
+                    w: origin_ow,
+                },
+            },
+        },
+        buf,
+        cap,
+        written,
+    )
+}
+
+/// Decode a `MapMetaData` from a CDR-encoded buffer.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL data,
+/// EBADMSG for invalid CDR).
+#[no_mangle]
+pub extern "C" fn ros_map_meta_data_decode(
+    data: *const u8,
+    len: usize,
+    map_load_time_sec: *mut i32,
+    map_load_time_nanosec: *mut u32,
+    resolution: *mut f32,
+    width: *mut u32,
+    height: *mut u32,
+    origin_px: *mut f64,
+    origin_py: *mut f64,
+    origin_pz: *mut f64,
+    origin_ox: *mut f64,
+    origin_oy: *mut f64,
+    origin_oz: *mut f64,
+    origin_ow: *mut f64,
+) -> i32 {
+    match decode_fixed_from_buf::<nav_msgs::MapMetaData>(data, len) {
+        Ok(v) => unsafe {
+            if !map_load_time_sec.is_null() {
+                *map_load_time_sec = v.map_load_time.sec;
+            }
+            if !map_load_time_nanosec.is_null() {
+                *map_load_time_nanosec = v.map_load_time.nanosec;
+            }
+            if !resolution.is_null() {
+                *resolution = v.resolution;
+            }
+            if !width.is_null() {
+                *width = v.width;
+            }
+            if !height.is_null() {
+                *height = v.height;
+            }
+            if !origin_px.is_null() {
+                *origin_px = v.origin.position.x;
+            }
+            if !origin_py.is_null() {
+                *origin_py = v.origin.position.y;
+            }
+            if !origin_pz.is_null() {
+                *origin_pz = v.origin.position.z;
+            }
+            if !origin_ox.is_null() {
+                *origin_ox = v.origin.orientation.x;
+            }
+            if !origin_oy.is_null() {
+                *origin_oy = v.origin.orientation.y;
+            }
+            if !origin_oz.is_null() {
+                *origin_oz = v.origin.orientation.z;
+            }
+            if !origin_ow.is_null() {
+                *origin_ow = v.origin.orientation.w;
+            }
+            0
+        },
+        Err(()) => -1,
+    }
+}
+
+// =============================================================================
+// nav_msgs::GridCells (buffer-backed)
+// =============================================================================
+
+pub struct ros_grid_cells_t(nav_msgs::GridCells<&'static [u8]>);
+
+/// Parse CDR bytes into a GridCells view handle.
+#[no_mangle]
+pub extern "C" fn ros_grid_cells_from_cdr(data: *const u8, len: usize) -> *mut ros_grid_cells_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match nav_msgs::GridCells::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_grid_cells_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Free a GridCells view handle.
+#[no_mangle]
+pub extern "C" fn ros_grid_cells_free(view: *mut ros_grid_cells_t) {
+    if !view.is_null() {
+        unsafe {
+            drop(Box::from_raw(view));
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_grid_cells_get_stamp_sec(view: *const ros_grid_cells_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_grid_cells_get_stamp_nanosec(view: *const ros_grid_cells_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_grid_cells_get_frame_id(view: *const ros_grid_cells_t) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_grid_cells_get_cell_width(view: *const ros_grid_cells_t) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.cell_width() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_grid_cells_get_cell_height(view: *const ros_grid_cells_t) -> f32 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.cell_height() }
+}
+
+/// Get the number of cells in the sequence.
+#[no_mangle]
+pub extern "C" fn ros_grid_cells_get_len(view: *const ros_grid_cells_t) -> usize {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.len() }
+}
+
+/// Get a cell centre point by index.  Returns 0 on success, -1 if index out of range.
+#[no_mangle]
+pub extern "C" fn ros_grid_cells_get_cell(
+    view: *const ros_grid_cells_t,
+    index: usize,
+    x: *mut f64,
+    y: *mut f64,
+    z: *mut f64,
+) -> i32 {
+    if view.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    match unsafe { (*view).0.cell(index) } {
+        Some(p) => unsafe {
+            if !x.is_null() {
+                *x = p.x;
+            }
+            if !y.is_null() {
+                *y = p.y;
+            }
+            if !z.is_null() {
+                *z = p.z;
+            }
+            0
+        },
+        None => {
+            set_errno(EINVAL);
+            -1
+        }
+    }
+}
+
+// =============================================================================
+// nav_msgs::OccupancyGrid (buffer-backed)
+// =============================================================================
+
+pub struct ros_occupancy_grid_t(nav_msgs::OccupancyGrid<&'static [u8]>);
+
+/// Parse CDR bytes into an OccupancyGrid view handle.
+#[no_mangle]
+pub extern "C" fn ros_occupancy_grid_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut ros_occupancy_grid_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match nav_msgs::OccupancyGrid::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_occupancy_grid_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Free an OccupancyGrid view handle.
+#[no_mangle]
+pub extern "C" fn ros_occupancy_grid_free(view: *mut ros_occupancy_grid_t) {
+    if !view.is_null() {
+        unsafe {
+            drop(Box::from_raw(view));
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_occupancy_grid_get_stamp_sec(view: *const ros_occupancy_grid_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_occupancy_grid_get_stamp_nanosec(view: *const ros_occupancy_grid_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_occupancy_grid_get_frame_id(
+    view: *const ros_occupancy_grid_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+/// Get map metadata info fields (resolution, width, height, origin).
+///
+/// Passes all MapMetaData fields out via pointer arguments (any may be NULL).
+#[no_mangle]
+pub extern "C" fn ros_occupancy_grid_get_info(
+    view: *const ros_occupancy_grid_t,
+    map_load_time_sec: *mut i32,
+    map_load_time_nanosec: *mut u32,
+    resolution: *mut f32,
+    width: *mut u32,
+    height: *mut u32,
+    origin_px: *mut f64,
+    origin_py: *mut f64,
+    origin_pz: *mut f64,
+    origin_ox: *mut f64,
+    origin_oy: *mut f64,
+    origin_oz: *mut f64,
+    origin_ow: *mut f64,
+) {
+    if view.is_null() {
+        return;
+    }
+    let info = unsafe { (*view).0.info() };
+    unsafe {
+        if !map_load_time_sec.is_null() {
+            *map_load_time_sec = info.map_load_time.sec;
+        }
+        if !map_load_time_nanosec.is_null() {
+            *map_load_time_nanosec = info.map_load_time.nanosec;
+        }
+        if !resolution.is_null() {
+            *resolution = info.resolution;
+        }
+        if !width.is_null() {
+            *width = info.width;
+        }
+        if !height.is_null() {
+            *height = info.height;
+        }
+        if !origin_px.is_null() {
+            *origin_px = info.origin.position.x;
+        }
+        if !origin_py.is_null() {
+            *origin_py = info.origin.position.y;
+        }
+        if !origin_pz.is_null() {
+            *origin_pz = info.origin.position.z;
+        }
+        if !origin_ox.is_null() {
+            *origin_ox = info.origin.orientation.x;
+        }
+        if !origin_oy.is_null() {
+            *origin_oy = info.origin.orientation.y;
+        }
+        if !origin_oz.is_null() {
+            *origin_oz = info.origin.orientation.z;
+        }
+        if !origin_ow.is_null() {
+            *origin_ow = info.origin.orientation.w;
+        }
+    }
+}
+
+/// Get the number of data cells in the occupancy grid.
+#[no_mangle]
+pub extern "C" fn ros_occupancy_grid_get_data_len(view: *const ros_occupancy_grid_t) -> usize {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.len() }
+}
+
+/// Get a zero-copy pointer to the occupancy data (one i8 per cell).
+///
+/// Returns NULL if view is NULL. The pointer is valid as long as the view handle lives.
+#[no_mangle]
+pub extern "C" fn ros_occupancy_grid_get_data(view: *const ros_occupancy_grid_t) -> *const i8 {
+    if view.is_null() {
+        return ptr::null();
+    }
+    let d = unsafe { (*view).0.data() };
+    d.as_ptr()
+}
+
+// =============================================================================
+// nav_msgs::Path (buffer-backed)
+// =============================================================================
+
+pub struct ros_path_t(nav_msgs::Path<&'static [u8]>);
+
+/// Parse CDR bytes into a Path view handle.
+#[no_mangle]
+pub extern "C" fn ros_path_from_cdr(data: *const u8, len: usize) -> *mut ros_path_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match nav_msgs::Path::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_path_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Free a Path view handle.
+#[no_mangle]
+pub extern "C" fn ros_path_free(view: *mut ros_path_t) {
+    if !view.is_null() {
+        unsafe {
+            drop(Box::from_raw(view));
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_path_get_stamp_sec(view: *const ros_path_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_path_get_stamp_nanosec(view: *const ros_path_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_path_get_frame_id(view: *const ros_path_t) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+/// Get the number of poses in the path.
+#[no_mangle]
+pub extern "C" fn ros_path_get_len(view: *const ros_path_t) -> usize {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.len() }
+}
+
+/// Get a PoseStamped by index.  Returns 0 on success, -1 if out of range.
+///
+/// Note: scanning variable-length PoseStamped sequences is O(n).
+/// For bulk access prefer iterating from 0..len using this function.
+#[no_mangle]
+pub extern "C" fn ros_path_get_pose(
+    view: *const ros_path_t,
+    index: usize,
+    stamp_sec: *mut i32,
+    stamp_nanosec: *mut u32,
+    px: *mut f64,
+    py: *mut f64,
+    pz: *mut f64,
+    ox: *mut f64,
+    oy: *mut f64,
+    oz: *mut f64,
+    ow: *mut f64,
+) -> i32 {
+    if view.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let poses = unsafe { (*view).0.poses() };
+    if index >= poses.len() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let (stamp, _, pose) = &poses[index];
+    unsafe {
+        if !stamp_sec.is_null() {
+            *stamp_sec = stamp.sec;
+        }
+        if !stamp_nanosec.is_null() {
+            *stamp_nanosec = stamp.nanosec;
+        }
+        if !px.is_null() {
+            *px = pose.position.x;
+        }
+        if !py.is_null() {
+            *py = pose.position.y;
+        }
+        if !pz.is_null() {
+            *pz = pose.position.z;
+        }
+        if !ox.is_null() {
+            *ox = pose.orientation.x;
+        }
+        if !oy.is_null() {
+            *oy = pose.orientation.y;
+        }
+        if !oz.is_null() {
+            *oz = pose.orientation.z;
+        }
+        if !ow.is_null() {
+            *ow = pose.orientation.w;
+        }
+    }
+    0
 }
 
 // =============================================================================
@@ -9121,6 +9623,329 @@ pub extern "C" fn ros_temperature_builder_encode_into(
             -1
         }
     }
+}
+
+// =============================================================================
+// sensor_msgs::RelativeHumidity (buffer-backed)
+// =============================================================================
+
+pub struct ros_relative_humidity_t(sensor_msgs::RelativeHumidity<&'static [u8]>);
+
+/// Parse CDR bytes into a RelativeHumidity view handle.
+#[no_mangle]
+pub extern "C" fn ros_relative_humidity_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut ros_relative_humidity_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match sensor_msgs::RelativeHumidity::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_relative_humidity_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Free a RelativeHumidity view handle.
+#[no_mangle]
+pub extern "C" fn ros_relative_humidity_free(view: *mut ros_relative_humidity_t) {
+    if !view.is_null() {
+        unsafe {
+            drop(Box::from_raw(view));
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_relative_humidity_get_stamp_sec(view: *const ros_relative_humidity_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_relative_humidity_get_stamp_nanosec(
+    view: *const ros_relative_humidity_t,
+) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_relative_humidity_get_frame_id(
+    view: *const ros_relative_humidity_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_relative_humidity_get_relative_humidity(
+    view: *const ros_relative_humidity_t,
+) -> f64 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.relative_humidity() }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_relative_humidity_get_variance(view: *const ros_relative_humidity_t) -> f64 {
+    if view.is_null() {
+        return 0.0;
+    }
+    unsafe { (*view).0.variance() }
+}
+
+// ── sensor_msgs::RelativeHumidity builder ───────────────────────────
+
+struct RelativeHumidityBuilderOwned {
+    stamp_sec: i32,
+    stamp_nanosec: u32,
+    frame_id: String,
+    relative_humidity: f64,
+    variance: f64,
+}
+
+pub struct ros_relative_humidity_builder_t(RelativeHumidityBuilderOwned);
+
+#[no_mangle]
+pub extern "C" fn ros_relative_humidity_builder_new() -> *mut ros_relative_humidity_builder_t {
+    Box::into_raw(Box::new(ros_relative_humidity_builder_t(
+        RelativeHumidityBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            relative_humidity: 0.0,
+            variance: 0.0,
+        },
+    )))
+}
+
+#[no_mangle]
+pub extern "C" fn ros_relative_humidity_builder_free(b: *mut ros_relative_humidity_builder_t) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_relative_humidity_builder_set_stamp(
+    b: *mut ros_relative_humidity_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
+    if b.is_null() {
+        return;
+    }
+    let inner = unsafe { &mut (*b).0 };
+    inner.stamp_sec = sec;
+    inner.stamp_nanosec = nanosec;
+}
+
+#[no_mangle]
+pub extern "C" fn ros_relative_humidity_builder_set_frame_id(
+    b: *mut ros_relative_humidity_builder_t,
+    s: *const c_char,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let s_str = match unsafe { c_to_str_checked(s) } {
+        Ok(v) => v,
+        Err(_) => return -1,
+    };
+    unsafe {
+        (*b).0.frame_id = s_str.to_string();
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn ros_relative_humidity_builder_set_relative_humidity(
+    b: *mut ros_relative_humidity_builder_t,
+    v: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.relative_humidity = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_relative_humidity_builder_set_variance(
+    b: *mut ros_relative_humidity_builder_t,
+    v: f64,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.variance = v;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_relative_humidity_builder_build(
+    b: *mut ros_relative_humidity_builder_t,
+    out_bytes: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let r = sensor_msgs::RelativeHumidity::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .relative_humidity(inner.relative_humidity)
+        .variance(inner.variance)
+        .build();
+    match r {
+        Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_relative_humidity_builder_encode_into(
+    b: *mut ros_relative_humidity_builder_t,
+    buf: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if b.is_null() || buf.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let inner = unsafe { &(*b).0 };
+    let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
+    let r = sensor_msgs::RelativeHumidity::builder()
+        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+        .frame_id(inner.frame_id.as_str())
+        .relative_humidity(inner.relative_humidity)
+        .variance(inner.variance)
+        .encode_into_slice(dst);
+    match r {
+        Ok(n) => {
+            unsafe {
+                *out_len = n;
+            }
+            0
+        }
+        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+            set_errno(ENOBUFS);
+            -1
+        }
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+// =============================================================================
+// sensor_msgs::TimeReference (buffer-backed)
+// =============================================================================
+
+pub struct ros_time_reference_t(sensor_msgs::TimeReference<&'static [u8]>);
+
+/// Parse CDR bytes into a TimeReference view handle.
+#[no_mangle]
+pub extern "C" fn ros_time_reference_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut ros_time_reference_t {
+    check_null_ret_null!(data);
+    let slice = unsafe { slice::from_raw_parts(data, len) };
+    match sensor_msgs::TimeReference::from_cdr(unsafe { erase_lifetime(slice) }) {
+        Ok(v) => Box::into_raw(Box::new(ros_time_reference_t(v))),
+        Err(_) => {
+            set_errno(EBADMSG);
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Free a TimeReference view handle.
+#[no_mangle]
+pub extern "C" fn ros_time_reference_free(view: *mut ros_time_reference_t) {
+    if !view.is_null() {
+        unsafe {
+            drop(Box::from_raw(view));
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_time_reference_get_stamp_sec(view: *const ros_time_reference_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().sec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_time_reference_get_stamp_nanosec(view: *const ros_time_reference_t) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.stamp().nanosec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_time_reference_get_frame_id(
+    view: *const ros_time_reference_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.frame_id() })
+}
+
+#[no_mangle]
+pub extern "C" fn ros_time_reference_get_time_ref_sec(view: *const ros_time_reference_t) -> i32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.time_ref().sec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_time_reference_get_time_ref_nanosec(
+    view: *const ros_time_reference_t,
+) -> u32 {
+    if view.is_null() {
+        return 0;
+    }
+    unsafe { (*view).0.time_ref().nanosec }
+}
+
+#[no_mangle]
+pub extern "C" fn ros_time_reference_get_source(
+    view: *const ros_time_reference_t,
+) -> *const c_char {
+    if view.is_null() {
+        return ptr::null();
+    }
+    str_as_c(unsafe { (*view).0.source() })
 }
 
 // ── edgefirst_msgs::Mask ────────────────────────────────────────────

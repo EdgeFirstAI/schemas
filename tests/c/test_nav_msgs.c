@@ -91,3 +91,251 @@ Test(nav_msgs, odometry_getters_null) {
     ros_odometry_get_twist(NULL, NULL, NULL, NULL, NULL, NULL, NULL);
     ros_odometry_get_twist_covariance(NULL, NULL);
 }
+
+// ============================================================================
+// MapMetaData Tests (CdrFixed)
+// ============================================================================
+
+Test(nav_msgs, map_meta_data_encode_decode_roundtrip) {
+    uint8_t buf[256];
+    size_t written = 0;
+    int ret = ros_map_meta_data_encode(buf, sizeof(buf), &written,
+        0, 0,        /* map_load_time */
+        0.05f,       /* resolution */
+        200, 200,    /* width, height */
+        -5.0, -5.0, 0.0,  /* origin position */
+        0.0, 0.0, 0.0, 1.0 /* origin orientation */
+    );
+    cr_assert_eq(ret, 0);
+    cr_assert_gt(written, 0);
+
+    float res = 0.0f;
+    uint32_t w = 0, h = 0;
+    double px = 0, py = 0, ow = 0;
+    ret = ros_map_meta_data_decode(buf, written,
+        NULL, NULL, &res, &w, &h, &px, &py, NULL, NULL, NULL, NULL, &ow);
+    cr_assert_eq(ret, 0);
+    cr_assert_float_eq(res, 0.05f, 1e-6f);
+    cr_assert_eq(w, 200u);
+    cr_assert_eq(h, 200u);
+    cr_assert_float_eq(px, -5.0, 1e-12);
+    cr_assert_float_eq(py, -5.0, 1e-12);
+    cr_assert_float_eq(ow, 1.0, 1e-12);
+}
+
+Test(nav_msgs, map_meta_data_encode_size_query) {
+    size_t written = 0;
+    int ret = ros_map_meta_data_encode(NULL, 0, &written,
+        0, 0, 0.0f, 0, 0, 0, 0, 0, 0, 0, 0, 1.0);
+    cr_assert_eq(ret, 0);
+    cr_assert_gt(written, 0);
+}
+
+Test(nav_msgs, map_meta_data_decode_null_data) {
+    float res;
+    errno = 0;
+    int ret = ros_map_meta_data_decode(NULL, 100,
+        NULL, NULL, &res, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+    cr_assert_eq(ret, -1);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(nav_msgs, map_meta_data_from_golden_fixture) {
+    size_t len = 0;
+    uint8_t *b = load_fixture_nm("testdata/cdr/nav_msgs/MapMetaData.cdr", &len);
+    cr_assert_not_null(b, "failed to load MapMetaData fixture");
+
+    float res = 0;
+    uint32_t w = 0, h = 0;
+    double px = 0, py = 0, ow = 0;
+    int ret = ros_map_meta_data_decode(b, len,
+        NULL, NULL, &res, &w, &h, &px, &py, NULL, NULL, NULL, NULL, &ow);
+    cr_assert_eq(ret, 0);
+    cr_assert_float_eq(res, 0.05f, 1e-6f);
+    cr_assert_eq(w, 200u);
+    cr_assert_eq(h, 200u);
+    cr_assert_float_eq(px, -5.0, 1e-12);
+    cr_assert_float_eq(py, -5.0, 1e-12);
+    cr_assert_float_eq(ow, 1.0, 1e-12);
+    free(b);
+}
+
+// ============================================================================
+// GridCells Tests (buffer-backed)
+// ============================================================================
+
+Test(nav_msgs, grid_cells_from_golden_fixture) {
+    size_t len = 0;
+    uint8_t *b = load_fixture_nm("testdata/cdr/nav_msgs/GridCells.cdr", &len);
+    cr_assert_not_null(b, "failed to load GridCells fixture");
+    ros_grid_cells_t *v = ros_grid_cells_from_cdr(b, len);
+    cr_assert_not_null(v);
+
+    cr_assert_str_eq(ros_grid_cells_get_frame_id(v), "test_frame");
+    cr_assert_float_eq(ros_grid_cells_get_cell_width(v), 0.5f, 1e-6f);
+    cr_assert_float_eq(ros_grid_cells_get_cell_height(v), 0.5f, 1e-6f);
+    cr_assert_eq(ros_grid_cells_get_len(v), 3u);
+
+    double x = 0, y = 0, z = 0;
+    cr_assert_eq(ros_grid_cells_get_cell(v, 0, &x, &y, &z), 0);
+    cr_assert_float_eq(x, 1.0, 1e-12);
+    cr_assert_float_eq(y, 2.0, 1e-12);
+
+    cr_assert_eq(ros_grid_cells_get_cell(v, 2, &x, &y, &z), 0);
+    cr_assert_float_eq(x, 5.0, 1e-12);
+    cr_assert_float_eq(y, 6.0, 1e-12);
+
+    ros_grid_cells_free(v);
+    free(b);
+}
+
+Test(nav_msgs, grid_cells_from_cdr_null) {
+    errno = 0;
+    cr_assert_null(ros_grid_cells_from_cdr(NULL, 100));
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(nav_msgs, grid_cells_from_cdr_invalid) {
+    uint8_t bad[] = {0xDE, 0xAD, 0xBE, 0xEF};
+    errno = 0;
+    cr_assert_null(ros_grid_cells_from_cdr(bad, sizeof(bad)));
+    cr_assert_eq(errno, EBADMSG);
+}
+
+Test(nav_msgs, grid_cells_free_null) {
+    ros_grid_cells_free(NULL);
+}
+
+Test(nav_msgs, grid_cells_getters_null) {
+    cr_assert_eq(ros_grid_cells_get_stamp_sec(NULL), 0);
+    cr_assert_eq(ros_grid_cells_get_stamp_nanosec(NULL), 0);
+    cr_assert_null(ros_grid_cells_get_frame_id(NULL));
+    cr_assert_float_eq(ros_grid_cells_get_cell_width(NULL), 0.0f, 1e-6f);
+    cr_assert_eq(ros_grid_cells_get_len(NULL), 0u);
+    cr_assert_eq(ros_grid_cells_get_cell(NULL, 0, NULL, NULL, NULL), -1);
+}
+
+Test(nav_msgs, grid_cells_cell_out_of_range) {
+    size_t len = 0;
+    uint8_t *b = load_fixture_nm("testdata/cdr/nav_msgs/GridCells.cdr", &len);
+    cr_assert_not_null(b);
+    ros_grid_cells_t *v = ros_grid_cells_from_cdr(b, len);
+    cr_assert_not_null(v);
+    errno = 0;
+    cr_assert_eq(ros_grid_cells_get_cell(v, 99, NULL, NULL, NULL), -1);
+    cr_assert_eq(errno, EINVAL);
+    ros_grid_cells_free(v);
+    free(b);
+}
+
+// ============================================================================
+// OccupancyGrid Tests (buffer-backed)
+// ============================================================================
+
+Test(nav_msgs, occupancy_grid_from_golden_fixture) {
+    size_t len = 0;
+    uint8_t *b = load_fixture_nm("testdata/cdr/nav_msgs/OccupancyGrid.cdr", &len);
+    cr_assert_not_null(b, "failed to load OccupancyGrid fixture");
+    ros_occupancy_grid_t *v = ros_occupancy_grid_from_cdr(b, len);
+    cr_assert_not_null(v);
+
+    cr_assert_str_eq(ros_occupancy_grid_get_frame_id(v), "test_frame");
+
+    float res = 0;
+    uint32_t w = 0, h = 0;
+    ros_occupancy_grid_get_info(v, NULL, NULL, &res, &w, &h,
+        NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+    cr_assert_float_eq(res, 0.1f, 1e-6f);
+    cr_assert_eq(w, 4u);
+    cr_assert_eq(h, 2u);
+
+    cr_assert_eq(ros_occupancy_grid_get_data_len(v), 8u);
+    const int8_t *data = ros_occupancy_grid_get_data(v);
+    cr_assert_not_null(data);
+    cr_assert_eq(data[0], 0);
+    cr_assert_eq(data[1], 50);
+    cr_assert_eq(data[2], 100);
+    cr_assert_eq(data[3], -1);
+
+    ros_occupancy_grid_free(v);
+    free(b);
+}
+
+Test(nav_msgs, occupancy_grid_from_cdr_null) {
+    errno = 0;
+    cr_assert_null(ros_occupancy_grid_from_cdr(NULL, 100));
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(nav_msgs, occupancy_grid_free_null) {
+    ros_occupancy_grid_free(NULL);
+}
+
+Test(nav_msgs, occupancy_grid_getters_null) {
+    cr_assert_eq(ros_occupancy_grid_get_stamp_sec(NULL), 0);
+    cr_assert_null(ros_occupancy_grid_get_frame_id(NULL));
+    cr_assert_eq(ros_occupancy_grid_get_data_len(NULL), 0u);
+    cr_assert_null(ros_occupancy_grid_get_data(NULL));
+    ros_occupancy_grid_get_info(NULL, NULL, NULL, NULL, NULL, NULL,
+        NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+}
+
+// ============================================================================
+// Path Tests (buffer-backed)
+// ============================================================================
+
+Test(nav_msgs, path_from_golden_fixture) {
+    size_t len = 0;
+    uint8_t *b = load_fixture_nm("testdata/cdr/nav_msgs/Path.cdr", &len);
+    cr_assert_not_null(b, "failed to load Path fixture");
+    ros_path_t *v = ros_path_from_cdr(b, len);
+    cr_assert_not_null(v);
+
+    cr_assert_str_eq(ros_path_get_frame_id(v), "test_frame");
+    cr_assert_eq(ros_path_get_len(v), 3u);
+
+    int32_t ssec = 0;
+    double px = 0, py = 0, pz = 0;
+    cr_assert_eq(ros_path_get_pose(v, 0, &ssec, NULL, &px, &py, &pz,
+                                    NULL, NULL, NULL, NULL), 0);
+    cr_assert_eq(ssec, 1);
+    cr_assert_float_eq(px, 1.0, 1e-12);
+    cr_assert_float_eq(py, 0.0, 1e-12);
+
+    cr_assert_eq(ros_path_get_pose(v, 2, &ssec, NULL, NULL, NULL, NULL,
+                                    NULL, NULL, NULL, NULL), 0);
+    cr_assert_eq(ssec, 3);
+
+    ros_path_free(v);
+    free(b);
+}
+
+Test(nav_msgs, path_from_cdr_null) {
+    errno = 0;
+    cr_assert_null(ros_path_from_cdr(NULL, 100));
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(nav_msgs, path_free_null) {
+    ros_path_free(NULL);
+}
+
+Test(nav_msgs, path_getters_null) {
+    cr_assert_eq(ros_path_get_stamp_sec(NULL), 0);
+    cr_assert_null(ros_path_get_frame_id(NULL));
+    cr_assert_eq(ros_path_get_len(NULL), 0u);
+    cr_assert_eq(ros_path_get_pose(NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL), -1);
+}
+
+Test(nav_msgs, path_pose_out_of_range) {
+    size_t len = 0;
+    uint8_t *b = load_fixture_nm("testdata/cdr/nav_msgs/Path.cdr", &len);
+    cr_assert_not_null(b);
+    ros_path_t *v = ros_path_from_cdr(b, len);
+    cr_assert_not_null(v);
+    errno = 0;
+    cr_assert_eq(ros_path_get_pose(v, 99, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL), -1);
+    cr_assert_eq(errno, EINVAL);
+    ros_path_free(v);
+    free(b);
+}

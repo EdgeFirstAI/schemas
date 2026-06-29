@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.4] - 2026-06-29
+
+### Added
+
+- **DE-2781: Full C and Python API for nav_msgs and sensor_msgs missing types.**
+  Exposed the six types implemented in DE-2781 via C FFI, Python bindings, type
+  stubs, and golden CDR tests:
+  - `nav_msgs`: `MapMetaData` (CdrFixed encode/decode), `GridCells`,
+    `OccupancyGrid`, `Path` (buffer-backed).
+  - `sensor_msgs`: `RelativeHumidity` (with builder), `TimeReference`.
+  - C API: `ros_map_meta_data_{encode,decode}`, `ros_grid_cells_*`,
+    `ros_occupancy_grid_*`, `ros_path_*`, `ros_relative_humidity_*`,
+    `ros_time_reference_*` functions declared in `include/edgefirst/schemas.h`.
+  - Python: `PyMapMetaData`, `PyGridCells`, `PyOccupancyGrid`, `PyPath`
+    registered in `nav_msgs` submodule; `PyRelativeHumidity`, `PyTimeReference`
+    registered in `sensor_msgs` submodule; `.pyi` stubs updated.
+  - Tests: Python and C golden-fixture round-trip tests for all six types.
+
 ## [3.4.3] - 2026-06-29
 
 ### Added

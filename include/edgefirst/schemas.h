@@ -3092,6 +3092,112 @@ int  ros_battery_state_builder_encode_into(
     size_t* out_len);
 
 /* =========================================================================
+ * sensor_msgs/RelativeHumidity  (buffer-backed)
+ * =========================================================================
+ */
+
+/** @brief Opaque view handle for RelativeHumidity messages. */
+typedef struct ros_relative_humidity_t ros_relative_humidity_t;
+
+/** @brief Parse CDR bytes into a RelativeHumidity view handle.
+ *
+ *  Returns NULL on error (errno: EINVAL for NULL data, EBADMSG for invalid CDR).
+ *  The caller must keep the CDR buffer alive for the lifetime of the handle.
+ */
+ros_relative_humidity_t* ros_relative_humidity_from_cdr(const uint8_t* data, size_t len);
+
+/** @brief Free a RelativeHumidity view handle. */
+void ros_relative_humidity_free(ros_relative_humidity_t* view);
+
+int32_t     ros_relative_humidity_get_stamp_sec(const ros_relative_humidity_t* view);
+uint32_t    ros_relative_humidity_get_stamp_nanosec(const ros_relative_humidity_t* view);
+const char* ros_relative_humidity_get_frame_id(const ros_relative_humidity_t* view);
+double      ros_relative_humidity_get_relative_humidity(const ros_relative_humidity_t* view);
+double      ros_relative_humidity_get_variance(const ros_relative_humidity_t* view);
+
+/** @brief Borrow the raw CDR bytes of the RelativeHumidity message. */
+const uint8_t* ros_relative_humidity_as_cdr(const ros_relative_humidity_t* view, size_t* out_len);
+
+/** @brief Opaque builder handle for ros_relative_humidity_t messages. */
+typedef struct ros_relative_humidity_builder_s ros_relative_humidity_builder_t;
+
+/**
+ * @brief Allocate a new RelativeHumidity builder with zero-valued defaults.
+ *
+ *  Must be freed with ros_relative_humidity_builder_free.
+ */
+ros_relative_humidity_builder_t* ros_relative_humidity_builder_new(void);
+
+/** @brief Free a RelativeHumidity builder. */
+void ros_relative_humidity_builder_free(ros_relative_humidity_builder_t* b);
+
+/** @brief Set the header stamp (sec, nanosec). */
+void ros_relative_humidity_builder_set_stamp(ros_relative_humidity_builder_t* b,
+                                              int32_t sec, uint32_t nanosec);
+
+/**
+ * @brief Set the frame_id string.
+ *
+ *  Returns 0 on success, -1 on error (errno: EINVAL for NULL builder or bad UTF-8).
+ */
+int  ros_relative_humidity_builder_set_frame_id(ros_relative_humidity_builder_t* b,
+                                                 const char* s);
+
+/** @brief Set the relative_humidity field (dimensionless ratio 0..1). */
+void ros_relative_humidity_builder_set_relative_humidity(ros_relative_humidity_builder_t* b,
+                                                          double v);
+
+/** @brief Set the variance field. */
+void ros_relative_humidity_builder_set_variance(ros_relative_humidity_builder_t* b, double v);
+
+/**
+ * @brief Build a RelativeHumidity CDR message into a heap allocation.
+ *
+ *  Returns 0 on success, -1 on error.
+ *  Call ros_bytes_free(*out_bytes) to release.
+ */
+int  ros_relative_humidity_builder_build(ros_relative_humidity_builder_t* b,
+                                          uint8_t** out_bytes, size_t* out_len);
+
+/**
+ * @brief Encode a RelativeHumidity CDR message into a caller-supplied buffer.
+ *
+ *  Returns 0 on success, -1 on error (errno: EINVAL for NULL args,
+ *  ENOBUFS for buffer too small, EBADMSG for encoding error).
+ */
+int  ros_relative_humidity_builder_encode_into(ros_relative_humidity_builder_t* b,
+                                                uint8_t* buf, size_t cap,
+                                                size_t* out_len);
+
+/* =========================================================================
+ * sensor_msgs/TimeReference  (buffer-backed)
+ * =========================================================================
+ */
+
+/** @brief Opaque view handle for TimeReference messages. */
+typedef struct ros_time_reference_t ros_time_reference_t;
+
+/** @brief Parse CDR bytes into a TimeReference view handle.
+ *
+ *  Returns NULL on error (errno: EINVAL for NULL data, EBADMSG for invalid CDR).
+ *  The caller must keep the CDR buffer alive for the lifetime of the handle.
+ */
+ros_time_reference_t* ros_time_reference_from_cdr(const uint8_t* data, size_t len);
+
+/** @brief Free a TimeReference view handle. */
+void ros_time_reference_free(ros_time_reference_t* view);
+
+int32_t         ros_time_reference_get_stamp_sec(const ros_time_reference_t* view);
+uint32_t        ros_time_reference_get_stamp_nanosec(const ros_time_reference_t* view);
+const char*     ros_time_reference_get_frame_id(const ros_time_reference_t* view);
+int32_t         ros_time_reference_get_time_ref_sec(const ros_time_reference_t* view);
+uint32_t        ros_time_reference_get_time_ref_nanosec(const ros_time_reference_t* view);
+const char*     ros_time_reference_get_source(const ros_time_reference_t* view);
+
+/** @brief Borrow the raw CDR bytes of the TimeReference message. */
+const uint8_t*  ros_time_reference_as_cdr(const ros_time_reference_t* view, size_t* out_len);
+
+/* =========================================================================
  * nav_msgs/Odometry  (buffer-backed, decode-only)
  * =========================================================================
  */
@@ -3112,6 +3218,169 @@ void ros_odometry_get_twist(const ros_odometry_t* view,
                             double* ax, double* ay, double* az);
 void ros_odometry_get_twist_covariance(const ros_odometry_t* view, double* out);
 const uint8_t* ros_odometry_as_cdr(const ros_odometry_t* view, size_t* out_len);
+
+/* =========================================================================
+ * nav_msgs/MapMetaData  (CdrFixed — encode/decode)
+ * =========================================================================
+ */
+
+/**
+ * @brief Encode a MapMetaData into a caller-supplied buffer.
+ *
+ * Pass buf=NULL to query the required size via written.
+ * Returns 0 on success, -1 on error (errno: EINVAL for NULL written,
+ * ENOBUFS for buffer too small, EBADMSG for encoding error).
+ */
+int  ros_map_meta_data_encode(
+    uint8_t* buf, size_t cap, size_t* written,
+    int32_t  map_load_time_sec, uint32_t map_load_time_nanosec,
+    float    resolution, uint32_t width, uint32_t height,
+    double   origin_px, double origin_py, double origin_pz,
+    double   origin_ox, double origin_oy, double origin_oz, double origin_ow);
+
+/**
+ * @brief Decode a MapMetaData from a CDR-encoded buffer.
+ *
+ * All output pointers may be NULL to discard the corresponding field.
+ * Returns 0 on success, -1 on error (errno: EINVAL for NULL data,
+ * EBADMSG for invalid CDR).
+ */
+int  ros_map_meta_data_decode(
+    const uint8_t* data, size_t len,
+    int32_t*  map_load_time_sec, uint32_t* map_load_time_nanosec,
+    float*    resolution, uint32_t* width, uint32_t* height,
+    double*   origin_px, double* origin_py, double* origin_pz,
+    double*   origin_ox, double* origin_oy, double* origin_oz, double* origin_ow);
+
+/* =========================================================================
+ * nav_msgs/GridCells  (buffer-backed)
+ * =========================================================================
+ */
+
+/** @brief Opaque view handle for GridCells messages. */
+typedef struct ros_grid_cells_t ros_grid_cells_t;
+
+/** @brief Parse CDR bytes into a GridCells view handle.
+ *
+ *  Returns NULL on error (errno: EINVAL for NULL data, EBADMSG for invalid CDR).
+ *  The caller must keep the CDR buffer alive for the lifetime of the handle.
+ */
+ros_grid_cells_t* ros_grid_cells_from_cdr(const uint8_t* data, size_t len);
+
+/** @brief Free a GridCells view handle. */
+void ros_grid_cells_free(ros_grid_cells_t* view);
+
+int32_t         ros_grid_cells_get_stamp_sec(const ros_grid_cells_t* view);
+uint32_t        ros_grid_cells_get_stamp_nanosec(const ros_grid_cells_t* view);
+const char*     ros_grid_cells_get_frame_id(const ros_grid_cells_t* view);
+float           ros_grid_cells_get_cell_width(const ros_grid_cells_t* view);
+float           ros_grid_cells_get_cell_height(const ros_grid_cells_t* view);
+
+/** @brief Get the number of cells in the sequence. */
+size_t          ros_grid_cells_get_len(const ros_grid_cells_t* view);
+
+/**
+ * @brief Get a cell centre point by index.
+ *
+ * Returns 0 on success, -1 if index out of range (errno: EINVAL).
+ * Output pointers may be NULL to discard the corresponding component.
+ */
+int             ros_grid_cells_get_cell(const ros_grid_cells_t* view,
+                                        size_t index,
+                                        double* x, double* y, double* z);
+
+/** @brief Borrow the raw CDR bytes of the GridCells message. */
+const uint8_t*  ros_grid_cells_as_cdr(const ros_grid_cells_t* view, size_t* out_len);
+
+/* =========================================================================
+ * nav_msgs/OccupancyGrid  (buffer-backed)
+ * =========================================================================
+ */
+
+/** @brief Opaque view handle for OccupancyGrid messages. */
+typedef struct ros_occupancy_grid_t ros_occupancy_grid_t;
+
+/** @brief Parse CDR bytes into an OccupancyGrid view handle.
+ *
+ *  Returns NULL on error (errno: EINVAL for NULL data, EBADMSG for invalid CDR).
+ *  The caller must keep the CDR buffer alive for the lifetime of the handle.
+ */
+ros_occupancy_grid_t* ros_occupancy_grid_from_cdr(const uint8_t* data, size_t len);
+
+/** @brief Free an OccupancyGrid view handle. */
+void ros_occupancy_grid_free(ros_occupancy_grid_t* view);
+
+int32_t         ros_occupancy_grid_get_stamp_sec(const ros_occupancy_grid_t* view);
+uint32_t        ros_occupancy_grid_get_stamp_nanosec(const ros_occupancy_grid_t* view);
+const char*     ros_occupancy_grid_get_frame_id(const ros_occupancy_grid_t* view);
+
+/**
+ * @brief Get map metadata info fields (resolution, width, height, origin).
+ *
+ * Any of the output pointers may be NULL to discard that field.
+ */
+void ros_occupancy_grid_get_info(
+    const ros_occupancy_grid_t* view,
+    int32_t*  map_load_time_sec, uint32_t* map_load_time_nanosec,
+    float*    resolution, uint32_t* width, uint32_t* height,
+    double*   origin_px, double* origin_py, double* origin_pz,
+    double*   origin_ox, double* origin_oy, double* origin_oz, double* origin_ow);
+
+/** @brief Get the number of data cells in the occupancy grid. */
+size_t          ros_occupancy_grid_get_data_len(const ros_occupancy_grid_t* view);
+
+/**
+ * @brief Get a zero-copy pointer to the occupancy data (one int8_t per cell).
+ *
+ * The pointer is valid while the view handle lives.
+ * Returns NULL if view is NULL.
+ */
+const int8_t*   ros_occupancy_grid_get_data(const ros_occupancy_grid_t* view);
+
+/** @brief Borrow the raw CDR bytes of the OccupancyGrid message. */
+const uint8_t*  ros_occupancy_grid_as_cdr(const ros_occupancy_grid_t* view, size_t* out_len);
+
+/* =========================================================================
+ * nav_msgs/Path  (buffer-backed)
+ * =========================================================================
+ */
+
+/** @brief Opaque view handle for Path messages. */
+typedef struct ros_path_t ros_path_t;
+
+/** @brief Parse CDR bytes into a Path view handle.
+ *
+ *  Returns NULL on error (errno: EINVAL for NULL data, EBADMSG for invalid CDR).
+ *  The caller must keep the CDR buffer alive for the lifetime of the handle.
+ */
+ros_path_t* ros_path_from_cdr(const uint8_t* data, size_t len);
+
+/** @brief Free a Path view handle. */
+void ros_path_free(ros_path_t* view);
+
+int32_t         ros_path_get_stamp_sec(const ros_path_t* view);
+uint32_t        ros_path_get_stamp_nanosec(const ros_path_t* view);
+const char*     ros_path_get_frame_id(const ros_path_t* view);
+
+/** @brief Get the number of poses in the path. */
+size_t          ros_path_get_len(const ros_path_t* view);
+
+/**
+ * @brief Get a PoseStamped by index.
+ *
+ * Returns 0 on success, -1 if out of range (errno: EINVAL).
+ * Output pointers may be NULL to discard the corresponding field.
+ *
+ * Note: scanning variable-length PoseStamped sequences is O(n).
+ */
+int             ros_path_get_pose(const ros_path_t* view,
+                                  size_t index,
+                                  int32_t*  stamp_sec, uint32_t* stamp_nanosec,
+                                  double* px, double* py, double* pz,
+                                  double* ox, double* oy, double* oz, double* ow);
+
+/** @brief Borrow the raw CDR bytes of the Path message. */
+const uint8_t*  ros_path_as_cdr(const ros_path_t* view, size_t* out_len);
 
 /* =========================================================================
  * edgefirst_msgs/Vibration  (buffer-backed, decode-only)
