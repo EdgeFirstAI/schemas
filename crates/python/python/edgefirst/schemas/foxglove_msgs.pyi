@@ -11,13 +11,16 @@ from . import BorrowedBuf, BufferLike
 from .builtin_interfaces import Time
 
 __all__ = [
+    "CircleAnnotation",
     "CircleAnnotations",
     "Color",
     "CompressedImage",
     "CompressedVideo",
     "ImageAnnotation",
+    "ImageAnnotations",
     "Point2",
     "PointAnnotation",
+    "PointsAnnotation",
     "TextAnnotation",
 ]
 
@@ -262,3 +265,11 @@ class ImageAnnotation:
     def to_bytes(self) -> bytes: ...
     @classmethod
     def from_cdr(cls, buf: BufferLike) -> ImageAnnotation: ...
+
+
+# Backwards-compatibility aliases for pre-3.2.0 pure-Python names and Foxglove
+# ROS typenames. New code should prefer CircleAnnotations, PointAnnotation, and
+# ImageAnnotation.
+CircleAnnotation = CircleAnnotations
+PointsAnnotation = PointAnnotation
+ImageAnnotations = ImageAnnotation
