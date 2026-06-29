@@ -15,6 +15,9 @@ target/
 
 .vscode/
 
+*.mcp.json
+reports/
+
 *.egg-info/
 *.eggs/
 __pycache__/
