@@ -1,13 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright © 2026 Au-Zone Technologies. All Rights Reserved.
 
-"""Tests for `edgefirst.schemas.foxglove_msgs`.
-
-The pyo3 module wraps `CompressedVideo` and `CompressedImage` from the
-Foxglove schema set. Other Foxglove types (TextAnnotation,
-PointAnnotation, ImageAnnotation, …) are present in the Rust crate but
-not yet exposed to Python.
-"""
+"""Tests for `edgefirst.schemas.foxglove_msgs`."""
 
 import numpy as np
 import pytest
@@ -248,3 +242,28 @@ class TestImageAnnotation:
         assert restored.circles[0].diameter == 20.0
         assert len(restored.texts) == 1
         assert restored.texts[0].text == "label"
+
+
+# ── Legacy name aliases (pre-3.2.0 pure-Python / Foxglove typenames) ─
+
+from edgefirst.schemas.foxglove_msgs import (
+    CircleAnnotation,
+    ImageAnnotations,
+    PointsAnnotation,
+)
+
+
+class TestFoxgloveLegacyAliases:
+    def test_circle_annotation_alias(self):
+        assert CircleAnnotation is CircleAnnotations
+
+    def test_points_annotation_alias(self):
+        assert PointsAnnotation is PointAnnotation
+
+    def test_image_annotations_alias(self):
+        assert ImageAnnotations is ImageAnnotation
+
+    def test_image_annotations_round_trip_via_alias(self):
+        ia = ImageAnnotations(circles=[CircleAnnotation()])
+        restored = ImageAnnotations.from_cdr(ia.to_bytes())
+        assert len(restored.circles) == 1

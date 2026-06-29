@@ -6918,6 +6918,24 @@ fn schemas(m: &Bound<'_, PyModule>) -> PyResult<()> {
     foxg.add_class::<PyFoxgloveTextAnnotation>()?;
     foxg.add_class::<PyFoxglovePointAnnotation>()?;
     foxg.add_class::<PyFoxgloveImageAnnotation>()?;
+    // Backwards-compatibility aliases: the pure-Python module (<= 3.1.0) and
+    // Foxglove ROS typenames use CircleAnnotation, PointsAnnotation, and
+    // ImageAnnotations. The pyo3 binding (3.2.0+) renamed them to
+    // CircleAnnotations, PointAnnotation, and ImageAnnotation. Keep the legacy
+    // names resolvable so pre-3.2.0 code and mkdocstrings documentation
+    // continue to work; each alias points at the same class object.
+    foxg.add(
+        "CircleAnnotation",
+        py.get_type::<PyFoxgloveCircleAnnotations>(),
+    )?;
+    foxg.add(
+        "PointsAnnotation",
+        py.get_type::<PyFoxglovePointAnnotation>(),
+    )?;
+    foxg.add(
+        "ImageAnnotations",
+        py.get_type::<PyFoxgloveImageAnnotation>(),
+    )?;
     m.add_submodule(&foxg)?;
     register_submodule(py, m, "foxglove_msgs", &foxg)?;
 

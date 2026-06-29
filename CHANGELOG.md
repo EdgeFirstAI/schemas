@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.3] - 2026-06-29
+
+### Added
+
+- **Foxglove annotation backwards-compatibility aliases (DE-2777).** The
+  pure-Python module (<= 3.1.0) and Foxglove ROS typenames exposed
+  `CircleAnnotation`, `PointsAnnotation`, and `ImageAnnotations`. When the
+  package became a pyo3 binding in 3.2.0 these were renamed to
+  `CircleAnnotations`, `PointAnnotation`, and `ImageAnnotation` without a
+  migration notice, which broke code and `mkdocstrings`-generated documentation
+  referencing the legacy names. Each legacy name is now restored as a runtime
+  alias of the current class (same class object). New code should prefer the
+  current names.
+
 ## [3.4.2] - 2026-06-26
 
 ### Added
@@ -959,7 +973,8 @@ CDR serialization. No migration required.
 - Python build issues with wheel generation
 - Removed auxiliary files from ROS2 schemas not required for this project
 
-[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v3.4.2...HEAD
+[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v3.4.3...HEAD
+[3.4.3]: https://github.com/EdgeFirstAI/schemas/compare/v3.4.2...v3.4.3
 [3.4.2]: https://github.com/EdgeFirstAI/schemas/compare/v3.4.1...v3.4.2
 [3.4.1]: https://github.com/EdgeFirstAI/schemas/compare/v3.4.0...v3.4.1
 [3.4.0]: https://github.com/EdgeFirstAI/schemas/compare/v3.3.0...v3.4.0
