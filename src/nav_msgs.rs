@@ -548,6 +548,29 @@ impl<B: AsRef<[u8]>> Path<B> {
         self.count == 0
     }
 
+    /// Zero-copy access to a single PoseStamped element by index.
+    ///
+    /// Scans the variable-length sequence to `index` (O(n)) without
+    /// allocating. Returns `(stamp, frame_id, pose)` borrowing `frame_id`
+    /// from the CDR buffer.
+    pub fn pose_at(&self, index: usize) -> Option<(Time, &str, Pose)> {
+        if index >= self.count {
+            return None;
+        }
+        let mut c = CdrCursor::resume(self.buf.as_ref(), self.offsets[1]);
+        for i in 0..self.count {
+            let stamp = Time::read_cdr(&mut c).expect("stamp validated during from_cdr");
+            let frame_id = c
+                .read_string()
+                .expect("frame_id validated during from_cdr");
+            let pose = Pose::read_cdr(&mut c).expect("pose validated during from_cdr");
+            if i == index {
+                return Some((stamp, frame_id, pose));
+            }
+        }
+        None
+    }
+
     /// Scan through the pose sequence and return all elements.
     ///
     /// Each returned tuple is `(stamp, frame_id, pose)`.  The `frame_id`
@@ -865,6 +888,37 @@ mod tests {
         assert!((all[0].2.position.x - 1.0).abs() < 1e-10);
         assert_eq!(all[1].0, Time::new(2, 0));
         assert!((all[1].2.orientation.z - 0.707).abs() < 1e-10);
+
+        let (s, fid, p) = decoded.pose_at(0).unwrap();
+        assert_eq!(s, Time::new(1, 0));
+        assert_eq!(fid, "map");
+        assert!((p.position.x - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn path_pose_at_distinct_frame_ids() {
+        let pose = Pose {
+            position: Point {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            orientation: Quaternion {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                w: 1.0,
+            },
+        };
+        let poses = [
+            (Time::new(1, 0), "base_link", pose),
+            (Time::new(2, 0), "odom", pose),
+        ];
+        let path = Path::new(Time::new(0, 0), "map", &poses).unwrap();
+        let (_, fid0, _) = path.pose_at(0).unwrap();
+        let (_, fid1, _) = path.pose_at(1).unwrap();
+        assert_eq!(fid0, "base_link");
+        assert_eq!(fid1, "odom");
     }
 
     #[test]

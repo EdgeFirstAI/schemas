@@ -296,13 +296,15 @@ Test(nav_msgs, path_from_golden_fixture) {
 
     int32_t ssec = 0;
     double px = 0, py = 0, pz = 0;
-    cr_assert_eq(ros_path_get_pose(v, 0, &ssec, NULL, &px, &py, &pz,
+    const char *pose_fid = NULL;
+    cr_assert_eq(ros_path_get_pose(v, 0, &ssec, NULL, &pose_fid, &px, &py, &pz,
                                     NULL, NULL, NULL, NULL), 0);
     cr_assert_eq(ssec, 1);
+    cr_assert_str_eq(pose_fid, "map");
     cr_assert_float_eq(px, 1.0, 1e-12);
     cr_assert_float_eq(py, 0.0, 1e-12);
 
-    cr_assert_eq(ros_path_get_pose(v, 2, &ssec, NULL, NULL, NULL, NULL,
+    cr_assert_eq(ros_path_get_pose(v, 2, &ssec, NULL, NULL, NULL, NULL, NULL,
                                     NULL, NULL, NULL, NULL), 0);
     cr_assert_eq(ssec, 3);
 
@@ -324,7 +326,7 @@ Test(nav_msgs, path_getters_null) {
     cr_assert_eq(ros_path_get_stamp_sec(NULL), 0);
     cr_assert_null(ros_path_get_frame_id(NULL));
     cr_assert_eq(ros_path_get_len(NULL), 0u);
-    cr_assert_eq(ros_path_get_pose(NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL), -1);
+    cr_assert_eq(ros_path_get_pose(NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL), -1);
 }
 
 Test(nav_msgs, path_pose_out_of_range) {
@@ -334,7 +336,7 @@ Test(nav_msgs, path_pose_out_of_range) {
     ros_path_t *v = ros_path_from_cdr(b, len);
     cr_assert_not_null(v);
     errno = 0;
-    cr_assert_eq(ros_path_get_pose(v, 99, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL), -1);
+    cr_assert_eq(ros_path_get_pose(v, 99, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL), -1);
     cr_assert_eq(errno, EINVAL);
     ros_path_free(v);
     free(b);

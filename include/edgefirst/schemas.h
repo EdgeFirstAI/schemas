@@ -3370,12 +3370,15 @@ size_t          ros_path_get_len(const ros_path_t* view);
  *
  * Returns 0 on success, -1 if out of range (errno: EINVAL).
  * Output pointers may be NULL to discard the corresponding field.
+ * When @p pose_frame_id is non-NULL, *pose_frame_id is set to the
+ * per-element PoseStamped frame_id (zero-copy, valid for the view lifetime).
  *
  * Note: scanning variable-length PoseStamped sequences is O(n).
  */
 int             ros_path_get_pose(const ros_path_t* view,
                                   size_t index,
                                   int32_t*  stamp_sec, uint32_t* stamp_nanosec,
+                                  const char** pose_frame_id,
                                   double* px, double* py, double* pz,
                                   double* ox, double* oy, double* oz, double* ow);
 

@@ -6677,12 +6677,15 @@ pub extern "C" fn ros_path_get_len(view: *const ros_path_t) -> usize {
 ///
 /// Note: scanning variable-length PoseStamped sequences is O(n).
 /// For bulk access prefer iterating from 0..len using this function.
+/// When `pose_frame_id` is non-null it is set to the per-element frame_id
+/// string (zero-copy, valid for the lifetime of the view).
 #[no_mangle]
 pub extern "C" fn ros_path_get_pose(
     view: *const ros_path_t,
     index: usize,
     stamp_sec: *mut i32,
     stamp_nanosec: *mut u32,
+    pose_frame_id: *mut *const c_char,
     px: *mut f64,
     py: *mut f64,
     pz: *mut f64,
@@ -6695,18 +6698,19 @@ pub extern "C" fn ros_path_get_pose(
         set_errno(EINVAL);
         return -1;
     }
-    let poses = unsafe { (*view).0.poses() };
-    if index >= poses.len() {
+    let Some((stamp, frame_id, pose)) = (unsafe { (*view).0.pose_at(index) }) else {
         set_errno(EINVAL);
         return -1;
-    }
-    let (stamp, _, pose) = &poses[index];
+    };
     unsafe {
         if !stamp_sec.is_null() {
             *stamp_sec = stamp.sec;
         }
         if !stamp_nanosec.is_null() {
             *stamp_nanosec = stamp.nanosec;
+        }
+        if !pose_frame_id.is_null() {
+            *pose_frame_id = str_as_c(frame_id);
         }
         if !px.is_null() {
             *px = pose.position.x;

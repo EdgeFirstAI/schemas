@@ -4547,12 +4547,19 @@ impl PyOccupancyGrid {
     fn info(&self) -> PyMapMetaData {
         PyMapMetaData(self.inner.info())
     }
+    /// Zero-copy view of the occupancy cell data (one i8 per cell).
     #[getter]
-    fn data<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
-        let d = self.inner.data();
-        // SAFETY: i8 and u8 have same size/alignment; we reinterpret for PyBytes.
-        let bytes = unsafe { std::slice::from_raw_parts(d.as_ptr() as *const u8, d.len()) };
-        PyBytes::new(py, bytes)
+    fn data(slf: Bound<'_, Self>) -> PyResult<Py<BorrowedBuf>> {
+        let py = slf.py();
+        let (ptr, len) = {
+            let s = slf.borrow();
+            let d = s.inner.data();
+            // SAFETY: i8 and u8 have the same size/alignment.
+            (d.as_ptr() as *const u8, d.len())
+        };
+        let parent: Py<PyAny> = slf.into_any().unbind();
+        let view = unsafe { BorrowedBuf::new(parent, ptr, len) };
+        Py::new(py, view)
     }
     #[getter]
     fn data_len(&self) -> usize {

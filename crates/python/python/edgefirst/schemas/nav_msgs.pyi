@@ -6,7 +6,7 @@
 from __future__ import annotations
 from typing import List, Optional, Tuple
 
-from . import BufferLike
+from . import BorrowedBuf, BufferLike
 from .builtin_interfaces import Time
 from .geometry_msgs import Pose, Point, PoseWithCovariance, TwistWithCovariance
 from .std_msgs import Header
@@ -106,8 +106,8 @@ class OccupancyGrid:
     @property
     def info(self) -> MapMetaData: ...
     @property
-    def data(self) -> bytes:
-        """Zero-copy ``bytes`` view of the raw int8 occupancy data."""
+    def data(self) -> BorrowedBuf:
+        """Zero-copy view of the raw int8 occupancy data (one byte per cell)."""
         ...
     @property
     def data_len(self) -> int: ...
