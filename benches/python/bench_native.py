@@ -29,14 +29,24 @@ from edgefirst.schemas.geometry_msgs import (
     Twist,
     Vector3,
 )
-from edgefirst.schemas.sensor_msgs import Image, PointCloud2, PointField
+from edgefirst.schemas.nav_msgs import GridCells, MapMetaData, OccupancyGrid, Path
+from edgefirst.schemas.sensor_msgs import (
+    Image,
+    PointCloud2,
+    PointField,
+    RelativeHumidity,
+    TimeReference,
+)
 from edgefirst.schemas.std_msgs import ColorRGBA, Header
 
 from shapes import (
     COMPRESSED_VIDEO_VARIANTS,
     DMA_BUFFER_VARIANTS,
+    GRID_CELLS_VARIANTS,
     IMAGE_VARIANTS,
     MASK_VARIANTS,
+    OCCUPANCY_GRID_VARIANTS,
+    PATH_VARIANTS,
     POINT_CLOUD_VARIANTS,
     RADAR_CUBE_VARIANTS,
 )
@@ -116,6 +126,63 @@ def make_dmabuf(v) -> DmaBuffer:
     )
 
 
+# ── nav_msgs / sensor_msgs fixtures (DE-2781) ──────────────────────
+
+
+def make_relative_humidity() -> RelativeHumidity:
+    return RelativeHumidity(header=make_header(), relative_humidity=0.6532, variance=0.0012)
+
+
+def make_time_reference() -> TimeReference:
+    return TimeReference(
+        header=make_header(),
+        time_ref=Time(sec=1234567899, nanosec=987654321),
+        source="GPS",
+    )
+
+
+def make_map_meta_data() -> MapMetaData:
+    return MapMetaData(
+        map_load_time=Time(sec=1234567890, nanosec=123456789),
+        resolution=0.05, width=4096, height=4096,
+        origin=Pose(
+            position=Point(-100.0, -100.0, 0.0),
+            orientation=Quaternion(0.0, 0.0, 0.707, 0.707),
+        ),
+    )
+
+
+def make_grid_cells(v) -> GridCells:
+    cells = [Point(i * 0.5, i * 0.25, 0.0) for i in range(v.num_cells)]
+    return GridCells(header=make_header(), cell_width=0.5, cell_height=0.5, cells=cells)
+
+
+def make_occupancy_grid(v) -> OccupancyGrid:
+    info = MapMetaData(
+        map_load_time=Time(sec=1234567890, nanosec=123456789),
+        resolution=0.05, width=v.width, height=v.height,
+        origin=Pose(
+            position=Point(0.0, 0.0, 0.0),
+            orientation=Quaternion(0.0, 0.0, 0.0, 1.0),
+        ),
+    )
+    # int8 costmap values in [-1, 100]; list-multiply builds the body at C
+    # speed so the (untimed) fixture setup stays cheap even at 1M cells.
+    data = ([-1, 0, 50, 100] * (v.num_cells // 4 + 1))[: v.num_cells]
+    return OccupancyGrid(header=make_header(), info=info, data=data)
+
+
+def make_path(v) -> Path:
+    poses = [
+        Pose(
+            position=Point(float(i), float(i) * 0.5, 0.0),
+            orientation=Quaternion(0.0, 0.0, 0.707, 0.707),
+        )
+        for i in range(v.num_poses)
+    ]
+    return Path(header=make_header(), poses=poses)
+
+
 # ── Heavy types: parametrized across all variants ──────────────────
 
 
@@ -189,6 +256,74 @@ def test_dmabuf_serialize(benchmark, v):
 def test_dmabuf_deserialize(benchmark, v):
     buf = make_dmabuf(v).to_bytes()
     benchmark(DmaBuffer.from_cdr, buf)
+
+
+# ── nav_msgs sequences: parametrized across variants (DE-2781) ─────
+
+
+@pytest.mark.parametrize("v", GRID_CELLS_VARIANTS, ids=lambda v: v.name)
+def test_grid_cells_serialize(benchmark, v):
+    gc = make_grid_cells(v)
+    benchmark(gc.to_bytes)
+
+
+@pytest.mark.parametrize("v", GRID_CELLS_VARIANTS, ids=lambda v: v.name)
+def test_grid_cells_deserialize(benchmark, v):
+    buf = make_grid_cells(v).to_bytes()
+    benchmark(GridCells.from_cdr, buf)
+
+
+@pytest.mark.parametrize("v", OCCUPANCY_GRID_VARIANTS, ids=lambda v: v.name)
+def test_occupancy_grid_serialize(benchmark, v):
+    og = make_occupancy_grid(v)
+    benchmark(og.to_bytes)
+
+
+@pytest.mark.parametrize("v", OCCUPANCY_GRID_VARIANTS, ids=lambda v: v.name)
+def test_occupancy_grid_deserialize(benchmark, v):
+    buf = make_occupancy_grid(v).to_bytes()
+    benchmark(OccupancyGrid.from_cdr, buf)
+
+
+@pytest.mark.parametrize("v", PATH_VARIANTS, ids=lambda v: v.name)
+def test_path_serialize(benchmark, v):
+    p = make_path(v)
+    benchmark(p.to_bytes)
+
+
+@pytest.mark.parametrize("v", PATH_VARIANTS, ids=lambda v: v.name)
+def test_path_deserialize(benchmark, v):
+    buf = make_path(v).to_bytes()
+    benchmark(Path.from_cdr, buf)
+
+
+@pytest.mark.parametrize("v", PATH_VARIANTS, ids=lambda v: v.name)
+def test_path_iter(benchmark, v):
+    # Single-pass __iter__ over the path — the O(n) zero-copy traversal.
+    path = Path.from_cdr(make_path(v).to_bytes())
+
+    def consume():
+        acc = 0.0
+        for _stamp, _frame_id, pose in path:
+            acc += pose.position.x
+        return acc
+
+    benchmark(consume)
+
+
+@pytest.mark.parametrize("v", PATH_VARIANTS, ids=lambda v: v.name)
+def test_path_getitem(benchmark, v):
+    # Indexed __getitem__ in a 0..len loop — the scan-per-call access path.
+    path = Path.from_cdr(make_path(v).to_bytes())
+    n = len(path)
+
+    def index_all():
+        acc = 0.0
+        for i in range(n):
+            acc += path[i][2].position.x
+        return acc
+
+    benchmark(index_all)
 
 
 # ── Light CdrFixed types ──────────────────────────────────────────
@@ -305,3 +440,33 @@ def test_twist_serialize(benchmark):
 def test_twist_deserialize(benchmark):
     data = Twist(linear=Vector3(1.5, 2.5, 3.5), angular=Vector3(0, 0, 0.5)).to_bytes()
     benchmark(Twist.from_cdr, data)
+
+
+# ── nav_msgs / sensor_msgs single fixtures (DE-2781) ───────────────
+
+
+def test_relative_humidity_serialize(benchmark):
+    benchmark(make_relative_humidity().to_bytes)
+
+
+def test_relative_humidity_deserialize(benchmark):
+    data = make_relative_humidity().to_bytes()
+    benchmark(RelativeHumidity.from_cdr, data)
+
+
+def test_time_reference_serialize(benchmark):
+    benchmark(make_time_reference().to_bytes)
+
+
+def test_time_reference_deserialize(benchmark):
+    data = make_time_reference().to_bytes()
+    benchmark(TimeReference.from_cdr, data)
+
+
+def test_map_meta_data_serialize(benchmark):
+    benchmark(make_map_meta_data().to_bytes)
+
+
+def test_map_meta_data_deserialize(benchmark):
+    data = make_map_meta_data().to_bytes()
+    benchmark(MapMetaData.from_cdr, data)

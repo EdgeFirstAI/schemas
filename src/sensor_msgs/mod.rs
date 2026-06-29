@@ -5,8 +5,10 @@
 //!
 //! CdrFixed: `NavSatStatus`, `RegionOfInterest`
 //!
-//! Buffer-backed: `Image`, `CompressedImage`, `Imu`, `NavSatFix`,
-//! `PointCloud2`, `PointField` (with `PointFieldView`), `CameraInfo`
+//! Buffer-backed: `BatteryState`, `CameraInfo`, `CompressedImage`,
+//! `FluidPressure`, `Image`, `Imu`, `MagneticField`, `NavSatFix`,
+//! `PointCloud2`, `PointField` (with `PointFieldView`), `RelativeHumidity`,
+//! `Temperature`, `TimeReference`
 //!
 //! Pointcloud access: [`pointcloud`] module provides zero-copy
 //! [`DynPointCloud`](pointcloud::DynPointCloud) and
@@ -3872,6 +3874,12 @@ impl TimeReference<Vec<u8>> {
         let mut sizer = CdrSizer::new();
         Time::size_cdr(&mut sizer);
         sizer.size_string(frame_id);
+        // time_ref (Time) is 4-aligned; align BEFORE capturing offsets[0] so it
+        // matches the post-alignment position the writer and from_cdr use. The
+        // accessor time_ref() reads at offsets[0] without re-aligning, so a
+        // pre-alignment offset would read into the padding gap (silently wrong
+        // for any frame_id whose length is not ≡ 3 (mod 4)).
+        sizer.align(4);
         let o0 = sizer.offset();
         Time::size_cdr(&mut sizer); // time_ref
         let o1 = sizer.offset();
@@ -3893,6 +3901,113 @@ impl TimeReference<Vec<u8>> {
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+
+    /// Start a new `TimeReferenceBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> TimeReferenceBuilder<'a> {
+        TimeReferenceBuilder::new()
+    }
+}
+
+// ── TimeReferenceBuilder<'a> ────────────────────────────────────────
+
+/// Builder for `TimeReference<Vec<u8>>` with buffer-reuse finalizers.
+pub struct TimeReferenceBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    time_ref: Time,
+    source: std::borrow::Cow<'a, str>,
+}
+
+impl<'a> Default for TimeReferenceBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            time_ref: Time { sec: 0, nanosec: 0 },
+            source: std::borrow::Cow::Borrowed(""),
+        }
+    }
+}
+
+impl<'a> TimeReferenceBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn time_ref(&mut self, t: Time) -> &mut Self {
+        self.time_ref = t;
+        self
+    }
+    pub fn source(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.source = s.into();
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.align(4);
+        Time::size_cdr(&mut s);
+        s.size_string(&self.source);
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        self.time_ref.write_cdr(&mut w);
+        w.write_string(&self.source);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<TimeReference<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        TimeReference::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
+    }
+}
+
+impl<B: AsRef<[u8]> + AsMut<[u8]>> TimeReference<B> {
+    /// In-place overwrite of the header `stamp` (no re-encode).
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    /// In-place overwrite of the `time_ref` field (no re-encode).
+    pub fn set_time_ref(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, self.offsets[0], t.sec)?;
+        wr_u32(b, self.offsets[0] + 4, t.nanosec)
     }
 }
 
@@ -4644,5 +4759,73 @@ mod tests {
         let decoded = TimeReference::from_cdr(bytes).unwrap();
         assert_eq!(decoded.source(), "");
         assert_eq!(decoded.time_ref(), Time::new(999, 0));
+    }
+
+    /// Regression: `time_ref()` must be correct when read DIRECTLY from a
+    /// `new()`-constructed instance (not only after a from_cdr round-trip).
+    /// Before the `sizer.align(4)` fix, `offsets[0]` was captured before the
+    /// time_ref alignment gap, so the accessor read into padding for any
+    /// frame_id whose length is not ≡ 3 (mod 4). We sweep lengths 0..=5.
+    #[test]
+    fn time_reference_new_time_ref_alignment_regression() {
+        let time_ref = Time::new(0x1122_3344, 0x5566_7788);
+        for frame_id in ["", "a", "ab", "abc", "link", "frame"] {
+            let tr = TimeReference::new(Time::new(7, 8), frame_id, time_ref, "GPS").unwrap();
+            // Direct accessor on the constructed instance — the masked path.
+            assert_eq!(
+                tr.time_ref(),
+                time_ref,
+                "time_ref() wrong for frame_id={frame_id:?} (len {})",
+                frame_id.len()
+            );
+            assert_eq!(
+                tr.source(),
+                "GPS",
+                "source() wrong for frame_id={frame_id:?}"
+            );
+            // And it must still agree after a round-trip through from_cdr.
+            let decoded = TimeReference::from_cdr(tr.to_cdr()).unwrap();
+            assert_eq!(decoded.time_ref(), time_ref);
+        }
+    }
+
+    #[test]
+    fn time_reference_builder_roundtrip() {
+        let time_ref = Time::new(1234567890, 987654321);
+        // Builder output must be byte-identical to the new() constructor.
+        let built = TimeReference::builder()
+            .stamp(Time::new(100, 0))
+            .frame_id("gps")
+            .time_ref(time_ref)
+            .source("GPS_UTC")
+            .build()
+            .unwrap();
+        let direct = TimeReference::new(Time::new(100, 0), "gps", time_ref, "GPS_UTC").unwrap();
+        assert_eq!(built.to_cdr(), direct.to_cdr());
+        assert_eq!(built.time_ref(), time_ref);
+        assert_eq!(built.source(), "GPS_UTC");
+
+        // Buffer-reuse finalizer reproduces the same bytes.
+        let mut buf = Vec::new();
+        TimeReference::builder()
+            .stamp(Time::new(100, 0))
+            .frame_id("gps")
+            .time_ref(time_ref)
+            .source("GPS_UTC")
+            .encode_into_vec(&mut buf)
+            .unwrap();
+        assert_eq!(buf, direct.to_cdr());
+    }
+
+    #[test]
+    fn time_reference_set_stamp_and_time_ref_in_place() {
+        let mut tr = TimeReference::new(Time::new(1, 2), "gps", Time::new(3, 4), "GPS").unwrap();
+        tr.set_stamp(Time::new(10, 20)).unwrap();
+        tr.set_time_ref(Time::new(30, 40)).unwrap();
+        assert_eq!(tr.stamp(), Time::new(10, 20));
+        assert_eq!(tr.time_ref(), Time::new(30, 40));
+        // Variable-length fields untouched.
+        assert_eq!(tr.frame_id(), "gps");
+        assert_eq!(tr.source(), "GPS");
     }
 }

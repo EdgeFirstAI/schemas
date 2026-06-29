@@ -16,7 +16,8 @@ use edgefirst_schemas::foxglove_msgs::{
     self, FoxgloveCircleAnnotations, FoxgloveColor, FoxglovePoint2, FoxglovePointAnnotationView,
     FoxgloveTextAnnotationView,
 };
-use edgefirst_schemas::geometry_msgs::{Quaternion, Vector3};
+use edgefirst_schemas::geometry_msgs::{Point, Pose, Quaternion, Vector3};
+use edgefirst_schemas::nav_msgs::{self, MapMetaData};
 use edgefirst_schemas::sensor_msgs::{self, NavSatStatus, PointFieldView, RegionOfInterest};
 use edgefirst_schemas::std_msgs;
 use std::ffi::CString;
@@ -2645,5 +2646,522 @@ fn ros_detect_builder_boxes_null_label_fails_at_build() {
         assert_eq!(rc, -1);
         assert_eq!(test_errno(), libc::EINVAL);
         ros_detect_builder_free(b);
+    }
+}
+
+// ── nav_msgs + sensor_msgs (DE-2781) builders / Path iterator ────────
+
+enum ros_time_reference_builder_t {}
+enum ros_grid_cells_builder_t {}
+enum ros_occupancy_grid_builder_t {}
+enum ros_path_builder_t {}
+enum ros_path_t {}
+enum ros_path_iter_t {}
+
+extern "C" {
+    // TimeReference builder
+    fn ros_time_reference_builder_new() -> *mut ros_time_reference_builder_t;
+    fn ros_time_reference_builder_free(b: *mut ros_time_reference_builder_t);
+    fn ros_time_reference_builder_set_stamp(
+        b: *mut ros_time_reference_builder_t,
+        sec: i32,
+        nsec: u32,
+    );
+    fn ros_time_reference_builder_set_frame_id(
+        b: *mut ros_time_reference_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_time_reference_builder_set_time_ref(
+        b: *mut ros_time_reference_builder_t,
+        sec: i32,
+        nsec: u32,
+    );
+    fn ros_time_reference_builder_set_source(
+        b: *mut ros_time_reference_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_time_reference_builder_encode_into(
+        b: *mut ros_time_reference_builder_t,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+
+    // GridCells builder
+    fn ros_grid_cells_builder_new() -> *mut ros_grid_cells_builder_t;
+    fn ros_grid_cells_builder_free(b: *mut ros_grid_cells_builder_t);
+    fn ros_grid_cells_builder_set_stamp(b: *mut ros_grid_cells_builder_t, sec: i32, nsec: u32);
+    fn ros_grid_cells_builder_set_frame_id(
+        b: *mut ros_grid_cells_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    fn ros_grid_cells_builder_set_cell_width(b: *mut ros_grid_cells_builder_t, v: f32);
+    fn ros_grid_cells_builder_set_cell_height(b: *mut ros_grid_cells_builder_t, v: f32);
+    fn ros_grid_cells_builder_set_cells(
+        b: *mut ros_grid_cells_builder_t,
+        xyz: *const f64,
+        count: usize,
+    ) -> i32;
+    fn ros_grid_cells_builder_encode_into(
+        b: *mut ros_grid_cells_builder_t,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+
+    // OccupancyGrid builder
+    fn ros_occupancy_grid_builder_new() -> *mut ros_occupancy_grid_builder_t;
+    fn ros_occupancy_grid_builder_free(b: *mut ros_occupancy_grid_builder_t);
+    fn ros_occupancy_grid_builder_set_stamp(
+        b: *mut ros_occupancy_grid_builder_t,
+        sec: i32,
+        nsec: u32,
+    );
+    fn ros_occupancy_grid_builder_set_frame_id(
+        b: *mut ros_occupancy_grid_builder_t,
+        s: *const c_char,
+    ) -> i32;
+    #[allow(clippy::too_many_arguments)]
+    fn ros_occupancy_grid_builder_set_info(
+        b: *mut ros_occupancy_grid_builder_t,
+        map_load_time_sec: i32,
+        map_load_time_nanosec: u32,
+        resolution: f32,
+        width: u32,
+        height: u32,
+        origin_px: f64,
+        origin_py: f64,
+        origin_pz: f64,
+        origin_ox: f64,
+        origin_oy: f64,
+        origin_oz: f64,
+        origin_ow: f64,
+    );
+    fn ros_occupancy_grid_builder_set_data(
+        b: *mut ros_occupancy_grid_builder_t,
+        data: *const i8,
+        len: usize,
+    ) -> i32;
+    fn ros_occupancy_grid_builder_encode_into(
+        b: *mut ros_occupancy_grid_builder_t,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+
+    // Path builder
+    fn ros_path_builder_new() -> *mut ros_path_builder_t;
+    fn ros_path_builder_free(b: *mut ros_path_builder_t);
+    fn ros_path_builder_set_stamp(b: *mut ros_path_builder_t, sec: i32, nsec: u32);
+    fn ros_path_builder_set_frame_id(b: *mut ros_path_builder_t, s: *const c_char) -> i32;
+    #[allow(clippy::too_many_arguments)]
+    fn ros_path_builder_add_pose(
+        b: *mut ros_path_builder_t,
+        sec: i32,
+        nsec: u32,
+        frame_id: *const c_char,
+        px: f64,
+        py: f64,
+        pz: f64,
+        ox: f64,
+        oy: f64,
+        oz: f64,
+        ow: f64,
+    ) -> i32;
+    fn ros_path_builder_encode_into(
+        b: *mut ros_path_builder_t,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+
+    // Path view + iterator
+    fn ros_path_from_cdr(data: *const u8, len: usize) -> *mut ros_path_t;
+    fn ros_path_free(view: *mut ros_path_t);
+    fn ros_path_get_len(view: *const ros_path_t) -> usize;
+    #[allow(clippy::too_many_arguments)]
+    fn ros_path_get_pose(
+        view: *const ros_path_t,
+        index: usize,
+        stamp_sec: *mut i32,
+        stamp_nanosec: *mut u32,
+        pose_frame_id: *mut *const c_char,
+        px: *mut f64,
+        py: *mut f64,
+        pz: *mut f64,
+        ox: *mut f64,
+        oy: *mut f64,
+        oz: *mut f64,
+        ow: *mut f64,
+    ) -> i32;
+    fn ros_path_iter_new(view: *const ros_path_t) -> *mut ros_path_iter_t;
+    #[allow(clippy::too_many_arguments)]
+    fn ros_path_iter_next(
+        it: *mut ros_path_iter_t,
+        out_sec: *mut i32,
+        out_nanosec: *mut u32,
+        out_frame_id: *mut *const c_char,
+        out_px: *mut f64,
+        out_py: *mut f64,
+        out_pz: *mut f64,
+        out_ox: *mut f64,
+        out_oy: *mut f64,
+        out_oz: *mut f64,
+        out_ow: *mut f64,
+    ) -> i32;
+    fn ros_path_iter_free(it: *mut ros_path_iter_t);
+}
+
+#[test]
+fn ros_time_reference_builder_encode_into_matches_rust_builder() {
+    unsafe {
+        let b = ros_time_reference_builder_new();
+        assert!(!b.is_null());
+        ros_time_reference_builder_set_stamp(b, 12, 34);
+        let frame = CString::new("gps_time").unwrap();
+        assert_eq!(
+            ros_time_reference_builder_set_frame_id(b, frame.as_ptr()),
+            0
+        );
+        ros_time_reference_builder_set_time_ref(b, 1_700_000_000, 500);
+        let src = CString::new("gpsd").unwrap();
+        assert_eq!(ros_time_reference_builder_set_source(b, src.as_ptr()), 0);
+
+        let mut buf = [0u8; 256];
+        let mut out_len: usize = 0;
+        let rc =
+            ros_time_reference_builder_encode_into(b, buf.as_mut_ptr(), buf.len(), &mut out_len);
+        assert_eq!(rc, 0);
+
+        let via_rust = sensor_msgs::TimeReference::builder()
+            .stamp(Time::new(12, 34))
+            .frame_id("gps_time")
+            .time_ref(Time::new(1_700_000_000, 500))
+            .source("gpsd")
+            .build()
+            .expect("rust builder.build()");
+        assert_eq!(&buf[..out_len], via_rust.as_cdr());
+
+        ros_time_reference_builder_free(b);
+        ros_time_reference_builder_free(std::ptr::null_mut());
+    }
+}
+
+#[test]
+fn ros_grid_cells_builder_encode_into_matches_rust_builder() {
+    unsafe {
+        let b = ros_grid_cells_builder_new();
+        assert!(!b.is_null());
+        ros_grid_cells_builder_set_stamp(b, 5, 6);
+        let frame = CString::new("map").unwrap();
+        assert_eq!(ros_grid_cells_builder_set_frame_id(b, frame.as_ptr()), 0);
+        ros_grid_cells_builder_set_cell_width(b, 0.5);
+        ros_grid_cells_builder_set_cell_height(b, 0.25);
+        // Three cell centres packed as (x, y, z) f64 triples.
+        let xyz: [f64; 9] = [1.0, 2.0, 0.0, 3.0, 4.0, 0.0, -5.0, 6.5, 0.0];
+        assert_eq!(ros_grid_cells_builder_set_cells(b, xyz.as_ptr(), 3), 0);
+
+        let mut buf = [0u8; 256];
+        let mut out_len: usize = 0;
+        let rc = ros_grid_cells_builder_encode_into(b, buf.as_mut_ptr(), buf.len(), &mut out_len);
+        assert_eq!(rc, 0);
+
+        let cells = [
+            Point {
+                x: 1.0,
+                y: 2.0,
+                z: 0.0,
+            },
+            Point {
+                x: 3.0,
+                y: 4.0,
+                z: 0.0,
+            },
+            Point {
+                x: -5.0,
+                y: 6.5,
+                z: 0.0,
+            },
+        ];
+        let via_rust = nav_msgs::GridCells::builder()
+            .stamp(Time::new(5, 6))
+            .frame_id("map")
+            .cell_width(0.5)
+            .cell_height(0.25)
+            .cells(&cells)
+            .build()
+            .expect("rust builder.build()");
+        assert_eq!(&buf[..out_len], via_rust.as_cdr());
+
+        ros_grid_cells_builder_free(b);
+    }
+}
+
+#[test]
+fn ros_occupancy_grid_builder_encode_into_matches_rust_builder() {
+    unsafe {
+        let b = ros_occupancy_grid_builder_new();
+        assert!(!b.is_null());
+        ros_occupancy_grid_builder_set_stamp(b, 7, 8);
+        let frame = CString::new("map").unwrap();
+        assert_eq!(
+            ros_occupancy_grid_builder_set_frame_id(b, frame.as_ptr()),
+            0
+        );
+        ros_occupancy_grid_builder_set_info(
+            b, 100, 200, 0.05, 4, 2, -1.0, -2.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+        );
+        let data: [i8; 8] = [0, 100, -1, 50, 0, 0, 100, -1];
+        assert_eq!(
+            ros_occupancy_grid_builder_set_data(b, data.as_ptr(), data.len()),
+            0
+        );
+
+        let mut buf = [0u8; 256];
+        let mut out_len: usize = 0;
+        let rc =
+            ros_occupancy_grid_builder_encode_into(b, buf.as_mut_ptr(), buf.len(), &mut out_len);
+        assert_eq!(rc, 0);
+
+        let info = MapMetaData {
+            map_load_time: Time::new(100, 200),
+            resolution: 0.05,
+            width: 4,
+            height: 2,
+            origin: Pose {
+                position: Point {
+                    x: -1.0,
+                    y: -2.0,
+                    z: 0.0,
+                },
+                orientation: Quaternion {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                    w: 1.0,
+                },
+            },
+        };
+        let via_rust = nav_msgs::OccupancyGrid::builder()
+            .stamp(Time::new(7, 8))
+            .frame_id("map")
+            .info(info)
+            .data(&data)
+            .build()
+            .expect("rust builder.build()");
+        assert_eq!(&buf[..out_len], via_rust.as_cdr());
+
+        ros_occupancy_grid_builder_free(b);
+    }
+}
+
+/// Build a Path via the C builder. The poses are deliberately given
+/// per-element frame_ids of varying length to exercise the variable-length
+/// sequence layout.
+unsafe fn build_sample_path_cdr() -> Vec<u8> {
+    let b = ros_path_builder_new();
+    assert!(!b.is_null());
+    ros_path_builder_set_stamp(b, 9, 10);
+    let frame = CString::new("odom").unwrap();
+    assert_eq!(ros_path_builder_set_frame_id(b, frame.as_ptr()), 0);
+
+    let fids = ["a", "frame_two", "third"];
+    for (i, fid) in fids.iter().enumerate() {
+        let c = CString::new(*fid).unwrap();
+        let k = i as f64;
+        assert_eq!(
+            ros_path_builder_add_pose(
+                b,
+                100 + i as i32,
+                i as u32,
+                c.as_ptr(),
+                k,
+                k + 1.0,
+                k + 2.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+            ),
+            0
+        );
+    }
+
+    let mut buf = [0u8; 1024];
+    let mut out_len: usize = 0;
+    let rc = ros_path_builder_encode_into(b, buf.as_mut_ptr(), buf.len(), &mut out_len);
+    assert_eq!(rc, 0);
+    ros_path_builder_free(b);
+    buf[..out_len].to_vec()
+}
+
+#[test]
+fn ros_path_builder_encode_into_matches_rust_builder() {
+    unsafe {
+        let bytes = build_sample_path_cdr();
+
+        let poses = [
+            (
+                Time::new(100, 0),
+                "a",
+                Pose {
+                    position: Point {
+                        x: 0.0,
+                        y: 1.0,
+                        z: 2.0,
+                    },
+                    orientation: Quaternion {
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                        w: 1.0,
+                    },
+                },
+            ),
+            (
+                Time::new(101, 1),
+                "frame_two",
+                Pose {
+                    position: Point {
+                        x: 1.0,
+                        y: 2.0,
+                        z: 3.0,
+                    },
+                    orientation: Quaternion {
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                        w: 1.0,
+                    },
+                },
+            ),
+            (
+                Time::new(102, 2),
+                "third",
+                Pose {
+                    position: Point {
+                        x: 2.0,
+                        y: 3.0,
+                        z: 4.0,
+                    },
+                    orientation: Quaternion {
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                        w: 1.0,
+                    },
+                },
+            ),
+        ];
+        let via_rust = nav_msgs::Path::builder()
+            .stamp(Time::new(9, 10))
+            .frame_id("odom")
+            .poses(&poses)
+            .build()
+            .expect("rust builder.build()");
+        assert_eq!(bytes.as_slice(), via_rust.as_cdr());
+    }
+}
+
+#[test]
+fn ros_path_iter_matches_get_pose() {
+    unsafe {
+        let bytes = build_sample_path_cdr();
+        let view = ros_path_from_cdr(bytes.as_ptr(), bytes.len());
+        assert!(!view.is_null());
+        let len = ros_path_get_len(view);
+        assert_eq!(len, 3);
+
+        let it = ros_path_iter_new(view);
+        assert!(!it.is_null());
+
+        for i in 0..len {
+            // Reference values via the O(n)-per-call indexed accessor.
+            let (mut gp_sec, mut gp_nsec) = (0i32, 0u32);
+            let mut gp_fid: *const c_char = std::ptr::null();
+            let (mut gpx, mut gpy, mut gpz) = (0f64, 0f64, 0f64);
+            let (mut gox, mut goy, mut goz, mut gow) = (0f64, 0f64, 0f64, 0f64);
+            let rc_get = ros_path_get_pose(
+                view,
+                i,
+                &mut gp_sec,
+                &mut gp_nsec,
+                &mut gp_fid,
+                &mut gpx,
+                &mut gpy,
+                &mut gpz,
+                &mut gox,
+                &mut goy,
+                &mut goz,
+                &mut gow,
+            );
+            assert_eq!(rc_get, 0);
+
+            // Same element via the single-pass cursor.
+            let (mut it_sec, mut it_nsec) = (0i32, 0u32);
+            let mut it_fid: *const c_char = std::ptr::null();
+            let (mut ipx, mut ipy, mut ipz) = (0f64, 0f64, 0f64);
+            let (mut iox, mut ioy, mut ioz, mut iow) = (0f64, 0f64, 0f64, 0f64);
+            let rc_iter = ros_path_iter_next(
+                it,
+                &mut it_sec,
+                &mut it_nsec,
+                &mut it_fid,
+                &mut ipx,
+                &mut ipy,
+                &mut ipz,
+                &mut iox,
+                &mut ioy,
+                &mut ioz,
+                &mut iow,
+            );
+            assert_eq!(rc_iter, 1, "iterator exhausted early at {i}");
+
+            assert_eq!((gp_sec, gp_nsec), (it_sec, it_nsec));
+            assert_eq!((gpx, gpy, gpz), (ipx, ipy, ipz));
+            assert_eq!((gox, goy, goz, gow), (iox, ioy, ioz, iow));
+            let gp_str = std::ffi::CStr::from_ptr(gp_fid).to_str().unwrap();
+            let it_str = std::ffi::CStr::from_ptr(it_fid).to_str().unwrap();
+            assert_eq!(gp_str, it_str);
+        }
+
+        // Cursor is now exhausted: returns 0 and does not advance.
+        let rc_end = ros_path_iter_next(
+            it,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+        );
+        assert_eq!(rc_end, 0);
+
+        ros_path_iter_free(it);
+        ros_path_free(view);
+
+        // NULL iterator → 0 with EINVAL.
+        errno::set_errno(errno::Errno(0));
+        let rc_null = ros_path_iter_next(
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+        );
+        assert_eq!(rc_null, 0);
+        assert_eq!(test_errno(), libc::EINVAL);
+        // free NULL is a no-op.
+        ros_path_iter_free(std::ptr::null_mut());
     }
 }

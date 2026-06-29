@@ -230,7 +230,7 @@ Brief summary of what changed and why
 **Python:**
 - Follow PEP 8; use `black` formatter (line length: 100)
 - Type hints for function signatures
-- Uses `pycdr2` for CDR serialization
+- Uses PyO3 (compiled Rust extension via `maturin`) for CDR serialization — `pycdr2` is test-only (golden-fixture oracle, not a runtime dependency)
 - Google-style docstrings
 
 ### Code Review Checklist
@@ -461,7 +461,7 @@ Use SECURITY.md process: email `support@au-zone.com` with subject "Security Vuln
   - Rust: `errno` 0.3, `libc` 0.2
   - Rust dev: `criterion` (benchmarks), `mcap`, `memmap2`, `rand`
   - Rust build: `cbindgen` (C header generation)
-  - Python: `pycdr2` (CDR serialization)
+  - Python: PyO3 extension via `maturin` (CDR serialization implemented in Rust, exposed to Python; `pycdr2` is test-only)
   - C tests: `libcriterion-dev`
 - **Serialization**: Custom zero-copy CDR1 Little-Endian (not serde)
 - **Target platforms**: Linux across diverse processors
@@ -568,7 +568,7 @@ fakeroot debian/rules build
 2. `crates/python/pyproject.toml` — Python package version
 3. `edgefirst_msgs/package.xml` — ROS2 package version
 
-**Current version:** 3.2.0
+**Current version:** 3.5.0
 
 **Semantic Versioning (SemVer 2.0.0):**
 - **MAJOR**: Breaking CDR wire format changes, removed message types, incompatible API changes

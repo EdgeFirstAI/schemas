@@ -462,6 +462,7 @@ class TestRelativeHumidity:
         assert abs(rh.variance - 0.001) < 1e-12
         restored = RelativeHumidity.from_cdr(rh.to_bytes())
         assert rh.to_bytes() == restored.to_bytes()
+        assert RelativeHumidity.from_cdr(golden).to_bytes() == golden
 
     def test_default_values(self, sample_header):
         rh = RelativeHumidity(header=sample_header)
@@ -497,6 +498,7 @@ class TestTimeReference:
         assert tr.source == "GPS_UTC"
         restored = TimeReference.from_cdr(tr.to_bytes())
         assert tr.to_bytes() == restored.to_bytes()
+        assert TimeReference.from_cdr(golden).to_bytes() == golden
 
     def test_default_source_empty(self, sample_header):
         tr = TimeReference(header=sample_header)

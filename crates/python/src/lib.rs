@@ -4624,6 +4624,44 @@ impl PyPath {
         self.inner.len()
     }
 
+    /// Random access to a single pose by index, returning a
+    /// `(stamp, frame_id, pose)` tuple. Supports negative indices.
+    ///
+    /// O(n) per call because `PoseStamped` elements are variable-length and
+    /// must be scanned sequentially. To traverse the whole path use iteration
+    /// (`for p in path`), which is a single O(n) pass — a manual
+    /// `path[i]` loop over every index is O(n²).
+    fn __getitem__(&self, idx: isize) -> PyResult<(PyTime, String, PyPose)> {
+        let len = self.inner.len();
+        let idx = if idx < 0 {
+            (len as isize + idx) as usize
+        } else {
+            idx as usize
+        };
+        self.inner
+            .pose_at(idx)
+            .map(|(s, f, p)| (PyTime(s), f.to_owned(), PyPose(p)))
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("index out of range"))
+    }
+
+    /// Iterate over all poses in a single O(n) pass, yielding
+    /// `(stamp, frame_id, pose)` tuples. `for p in path` is therefore O(n),
+    /// not O(n²): the elements are materialised once from a zero-copy scan of
+    /// the CDR buffer rather than by repeated `__getitem__` calls.
+    fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<pyo3::types::PyIterator>> {
+        use pyo3::types::PyList;
+        let py = slf.py();
+        // Single O(n) zero-copy pass; each frame_id is borrowed from the CDR
+        // buffer and copied into an owned String only at the Python boundary.
+        let items: Vec<(PyTime, String, PyPose)> = slf
+            .inner
+            .iter()
+            .map(|(s, f, p)| (PyTime(s), f.to_owned(), PyPose(p)))
+            .collect();
+        let list = PyList::new(py, items)?;
+        Ok(list.try_iter()?.unbind())
+    }
+
     fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
         PyBytes::new(py, self.inner.as_cdr())
     }

@@ -4,7 +4,7 @@
 """Type stubs for ``edgefirst.schemas.nav_msgs``."""
 
 from __future__ import annotations
-from typing import List, Optional, Tuple
+from typing import Iterator, List, Optional, Tuple
 
 from . import BorrowedBuf, BufferLike
 from .builtin_interfaces import Time
@@ -173,6 +173,16 @@ class Path:
     def cdr_size(self) -> int: ...
 
     def __len__(self) -> int: ...
+    def __getitem__(self, idx: int) -> Tuple[Time, str, Pose]:
+        """Random access to a single ``(stamp, frame_id, pose)`` tuple.
+
+        O(n) per call (variable-length elements are scanned sequentially);
+        prefer iteration for a full traversal.
+        """
+        ...
+    def __iter__(self) -> Iterator[Tuple[Time, str, Pose]]:
+        """Iterate ``(stamp, frame_id, pose)`` tuples in a single O(n) pass."""
+        ...
 
     def poses(self) -> List[Tuple[Time, str, Pose]]:
         """Return all poses as a list of ``(stamp, frame_id, pose)`` tuples."""

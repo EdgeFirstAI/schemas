@@ -143,6 +143,9 @@ primitive values — no strings, no variable-length arrays.
 | Twist | geometry_msgs | 52 B |
 | Accel | geometry_msgs | 52 B |
 | NavSatStatus | sensor_msgs | 8 B |
+| MapMetaData | nav_msgs | 84 B† |
+
+†MapMetaData is position-dependent: 80 B payload (84 B total) when starting at a CDR data offset divisible by 8; 76 B payload when embedded at offset ≡ 4 (mod 8). The standalone `encode`/`decode` functions always use the 84 B form.
 
 **Pattern:**
 
@@ -177,7 +180,12 @@ represented as opaque handles wrapping an internal CDR byte buffer.
 | NavSatFix | sensor_msgs |
 | PointCloud2 | sensor_msgs |
 | CameraInfo | sensor_msgs |
+| RelativeHumidity | sensor_msgs |
+| TimeReference | sensor_msgs |
 | TransformStamped | geometry_msgs |
+| GridCells | nav_msgs |
+| OccupancyGrid | nav_msgs |
+| Path | nav_msgs |
 | CompressedVideo | foxglove_msgs |
 | CompressedImage | foxglove_msgs |
 | DmaBuffer | edgefirst_msgs |
@@ -732,6 +740,83 @@ const uint8_t* ros_camera_info_as_cdr(const ros_camera_info_t* view,
                                        size_t* out_len);
 ```
 
+#### RelativeHumidity
+
+```c
+ros_relative_humidity_t* ros_relative_humidity_from_cdr(const uint8_t* data, size_t len);
+void                     ros_relative_humidity_free(ros_relative_humidity_t* view);
+
+int32_t     ros_relative_humidity_get_stamp_sec(const ros_relative_humidity_t* view);
+uint32_t    ros_relative_humidity_get_stamp_nanosec(const ros_relative_humidity_t* view);
+const char* ros_relative_humidity_get_frame_id(const ros_relative_humidity_t* view);
+double      ros_relative_humidity_get_relative_humidity(const ros_relative_humidity_t* view);
+double      ros_relative_humidity_get_variance(const ros_relative_humidity_t* view);
+
+const uint8_t* ros_relative_humidity_as_cdr(const ros_relative_humidity_t* view,
+                                             size_t* out_len);
+```
+
+**Fields:** `relative_humidity` (dimensionless ratio, 0–1), `variance` (measurement variance, 0 if unknown).
+
+**Builder:**
+
+```c
+ros_relative_humidity_builder_t* ros_relative_humidity_builder_new(void);
+void ros_relative_humidity_builder_free(ros_relative_humidity_builder_t* b);
+
+void ros_relative_humidity_builder_set_stamp(ros_relative_humidity_builder_t* b,
+                                              int32_t sec, uint32_t nanosec);
+int  ros_relative_humidity_builder_set_frame_id(ros_relative_humidity_builder_t* b,
+                                                 const char* s);
+void ros_relative_humidity_builder_set_relative_humidity(ros_relative_humidity_builder_t* b,
+                                                          double v);
+void ros_relative_humidity_builder_set_variance(ros_relative_humidity_builder_t* b, double v);
+
+int  ros_relative_humidity_builder_build(ros_relative_humidity_builder_t* b,
+                                          uint8_t** out_bytes, size_t* out_len);
+int  ros_relative_humidity_builder_encode_into(ros_relative_humidity_builder_t* b,
+                                                uint8_t* buf, size_t cap, size_t* out_len);
+```
+
+#### TimeReference
+
+```c
+ros_time_reference_t* ros_time_reference_from_cdr(const uint8_t* data, size_t len);
+void                  ros_time_reference_free(ros_time_reference_t* view);
+
+int32_t     ros_time_reference_get_stamp_sec(const ros_time_reference_t* view);
+uint32_t    ros_time_reference_get_stamp_nanosec(const ros_time_reference_t* view);
+const char* ros_time_reference_get_frame_id(const ros_time_reference_t* view);
+int32_t     ros_time_reference_get_time_ref_sec(const ros_time_reference_t* view);
+uint32_t    ros_time_reference_get_time_ref_nanosec(const ros_time_reference_t* view);
+const char* ros_time_reference_get_source(const ros_time_reference_t* view);     // borrowed
+
+const uint8_t* ros_time_reference_as_cdr(const ros_time_reference_t* view, size_t* out_len);
+```
+
+**Fields:** `time_ref` (the referenced external clock time as sec/nanosec), `source` (human-readable string identifying the time source; borrowed from the CDR buffer).
+
+**Builder:**
+
+```c
+ros_time_reference_builder_t* ros_time_reference_builder_new(void);
+void ros_time_reference_builder_free(ros_time_reference_builder_t* b);
+
+void ros_time_reference_builder_set_stamp(ros_time_reference_builder_t* b,
+                                          int32_t sec, uint32_t nanosec);
+int  ros_time_reference_builder_set_frame_id(ros_time_reference_builder_t* b,
+                                             const char* s);
+void ros_time_reference_builder_set_time_ref(ros_time_reference_builder_t* b,
+                                             int32_t sec, uint32_t nanosec);
+int  ros_time_reference_builder_set_source(ros_time_reference_builder_t* b,
+                                           const char* s);
+
+int  ros_time_reference_builder_build(ros_time_reference_builder_t* b,
+                                      uint8_t** out_bytes, size_t* out_len);
+int  ros_time_reference_builder_encode_into(ros_time_reference_builder_t* b,
+                                            uint8_t* buf, size_t cap, size_t* out_len);
+```
+
 ---
 
 ### geometry_msgs — Buffer-backed
@@ -751,6 +836,202 @@ const char* ros_transform_stamped_get_child_frame_id(const ros_transform_stamped
 const uint8_t* ros_transform_stamped_as_cdr(const ros_transform_stamped_t* view,
                                              size_t* out_len);
 ```
+
+---
+
+### nav_msgs — CdrFixed
+
+#### MapMetaData
+
+```c
+int ros_map_meta_data_encode(
+    uint8_t* buf, size_t cap, size_t* written,
+    int32_t  map_load_time_sec, uint32_t map_load_time_nanosec,
+    float    resolution, uint32_t width, uint32_t height,
+    double   origin_px, double origin_py, double origin_pz,
+    double   origin_ox, double origin_oy, double origin_oz, double origin_ow);
+
+int ros_map_meta_data_decode(
+    const uint8_t* data, size_t len,
+    int32_t*  map_load_time_sec, uint32_t* map_load_time_nanosec,
+    float*    resolution, uint32_t* width, uint32_t* height,
+    double*   origin_px, double* origin_py, double* origin_pz,
+    double*   origin_ox, double* origin_oy, double* origin_oz, double* origin_ow);
+```
+
+**Fields:** `map_load_time` (when the underlying map file was last loaded), `resolution` (metres per cell), `width`/`height` (grid dimensions in cells), `origin` (pose of cell (0, 0) in the map frame: position `px/py/pz` + orientation quaternion `ox/oy/oz/ow`).
+
+Pass `buf = NULL` to `encode` to query the required buffer size via `written`. All output pointers in `decode` may be `NULL` to discard the corresponding field.
+
+> **Size note:** standalone encoding produces 84 B (4 B CDR header + 80 B payload). When
+> MapMetaData is embedded inside a composite type at a CDR data offset ≡ 4 (mod 8) the
+> payload shrinks to 76 B because the origin's 8-byte alignment padding is not needed.
+> Never apply fixed-offset arithmetic to MapMetaData inside composite types; use
+> `ros_occupancy_grid_get_info` to read it out of an OccupancyGrid.
+
+---
+
+### nav_msgs — Buffer-backed
+
+#### GridCells
+
+```c
+ros_grid_cells_t* ros_grid_cells_from_cdr(const uint8_t* data, size_t len);
+void              ros_grid_cells_free(ros_grid_cells_t* view);
+
+int32_t     ros_grid_cells_get_stamp_sec(const ros_grid_cells_t* view);
+uint32_t    ros_grid_cells_get_stamp_nanosec(const ros_grid_cells_t* view);
+const char* ros_grid_cells_get_frame_id(const ros_grid_cells_t* view);
+float       ros_grid_cells_get_cell_width(const ros_grid_cells_t* view);
+float       ros_grid_cells_get_cell_height(const ros_grid_cells_t* view);
+
+size_t      ros_grid_cells_get_len(const ros_grid_cells_t* view);
+
+int         ros_grid_cells_get_cell(const ros_grid_cells_t* view,
+                                    size_t index,
+                                    double* x, double* y, double* z);
+
+const uint8_t* ros_grid_cells_as_cdr(const ros_grid_cells_t* view, size_t* out_len);
+```
+
+`ros_grid_cells_get_cell` returns 0 on success, -1 (errno: `EINVAL`) if `index >= len`. Output pointers `x`, `y`, `z` may be `NULL` to discard the corresponding component.
+
+**Builder:**
+
+```c
+ros_grid_cells_builder_t* ros_grid_cells_builder_new(void);
+void ros_grid_cells_builder_free(ros_grid_cells_builder_t* b);
+
+void ros_grid_cells_builder_set_stamp(ros_grid_cells_builder_t* b,
+                                      int32_t sec, uint32_t nanosec);
+int  ros_grid_cells_builder_set_frame_id(ros_grid_cells_builder_t* b, const char* s);
+void ros_grid_cells_builder_set_cell_width(ros_grid_cells_builder_t* b, float v);
+void ros_grid_cells_builder_set_cell_height(ros_grid_cells_builder_t* b, float v);
+
+int  ros_grid_cells_builder_set_cells(ros_grid_cells_builder_t* b,
+                                      const double* xyz, size_t count);
+
+int  ros_grid_cells_builder_build(ros_grid_cells_builder_t* b,
+                                  uint8_t** out_bytes, size_t* out_len);
+int  ros_grid_cells_builder_encode_into(ros_grid_cells_builder_t* b,
+                                        uint8_t* buf, size_t cap, size_t* out_len);
+```
+
+`set_cells` expects `count * 3` contiguous doubles `[x₀, y₀, z₀, x₁, y₁, z₁, …]`. The pointer is borrowed and must remain valid until `build` or `encode_into` is called. Pass `NULL` with `count = 0` to clear the cell list.
+
+#### OccupancyGrid
+
+```c
+ros_occupancy_grid_t* ros_occupancy_grid_from_cdr(const uint8_t* data, size_t len);
+void                  ros_occupancy_grid_free(ros_occupancy_grid_t* view);
+
+int32_t        ros_occupancy_grid_get_stamp_sec(const ros_occupancy_grid_t* view);
+uint32_t       ros_occupancy_grid_get_stamp_nanosec(const ros_occupancy_grid_t* view);
+const char*    ros_occupancy_grid_get_frame_id(const ros_occupancy_grid_t* view);
+
+void ros_occupancy_grid_get_info(
+    const ros_occupancy_grid_t* view,
+    int32_t*  map_load_time_sec, uint32_t* map_load_time_nanosec,
+    float*    resolution, uint32_t* width, uint32_t* height,
+    double*   origin_px, double* origin_py, double* origin_pz,
+    double*   origin_ox, double* origin_oy, double* origin_oz, double* origin_ow);
+
+size_t         ros_occupancy_grid_get_data_len(const ros_occupancy_grid_t* view);
+const int8_t*  ros_occupancy_grid_get_data(const ros_occupancy_grid_t* view);
+
+const uint8_t* ros_occupancy_grid_as_cdr(const ros_occupancy_grid_t* view,
+                                          size_t* out_len);
+```
+
+`ros_occupancy_grid_get_info` takes the same field list as `ros_map_meta_data_decode`; any output pointer may be `NULL`. `ros_occupancy_grid_get_data` returns a zero-copy `int8_t*` to the occupancy data (`data_len` cells, row-major). Conventional occupancy values: 0 = free, 100 = occupied, -1 = unknown.
+
+**Builder:**
+
+```c
+ros_occupancy_grid_builder_t* ros_occupancy_grid_builder_new(void);
+void ros_occupancy_grid_builder_free(ros_occupancy_grid_builder_t* b);
+
+void ros_occupancy_grid_builder_set_stamp(ros_occupancy_grid_builder_t* b,
+                                          int32_t sec, uint32_t nanosec);
+int  ros_occupancy_grid_builder_set_frame_id(ros_occupancy_grid_builder_t* b,
+                                             const char* s);
+void ros_occupancy_grid_builder_set_info(
+    ros_occupancy_grid_builder_t* b,
+    int32_t  map_load_time_sec, uint32_t map_load_time_nanosec,
+    float    resolution, uint32_t width, uint32_t height,
+    double   origin_px, double origin_py, double origin_pz,
+    double   origin_ox, double origin_oy, double origin_oz, double origin_ow);
+int  ros_occupancy_grid_builder_set_data(ros_occupancy_grid_builder_t* b,
+                                         const int8_t* data, size_t len);
+
+int  ros_occupancy_grid_builder_build(ros_occupancy_grid_builder_t* b,
+                                      uint8_t** out_bytes, size_t* out_len);
+int  ros_occupancy_grid_builder_encode_into(ros_occupancy_grid_builder_t* b,
+                                            uint8_t* buf, size_t cap, size_t* out_len);
+```
+
+`set_info` takes the same argument list as `ros_map_meta_data_encode`. `set_data` borrows `data`; the pointer must remain valid until `build` or `encode_into` is called.
+
+#### Path
+
+```c
+ros_path_t* ros_path_from_cdr(const uint8_t* data, size_t len);
+void        ros_path_free(ros_path_t* view);
+
+int32_t     ros_path_get_stamp_sec(const ros_path_t* view);
+uint32_t    ros_path_get_stamp_nanosec(const ros_path_t* view);
+const char* ros_path_get_frame_id(const ros_path_t* view);
+
+size_t      ros_path_get_len(const ros_path_t* view);
+
+int         ros_path_get_pose(const ros_path_t* view,
+                              size_t index,
+                              int32_t*  stamp_sec, uint32_t* stamp_nanosec,
+                              const char** pose_frame_id,
+                              double* px, double* py, double* pz,
+                              double* ox, double* oy, double* oz, double* ow);
+
+const uint8_t* ros_path_as_cdr(const ros_path_t* view, size_t* out_len);
+```
+
+`ros_path_get_pose` returns 0 on success, -1 (errno: `EINVAL`) if `index >= len`. `pose_frame_id` is set to a zero-copy pointer into the CDR buffer (valid for the view lifetime); other out-params may be `NULL`. **Performance:** each call scans the variable-length PoseStamped sequence from its head to `index` — O(n) per call. A `0..len` loop over `ros_path_get_pose` is O(n²); use `ros_path_iter_*` for bulk traversal.
+
+**Iterator (O(n) bulk traversal):**
+
+```c
+ros_path_iter_t* ros_path_iter_new(const ros_path_t* view);
+
+int  ros_path_iter_next(ros_path_iter_t* it,
+                        int32_t* out_sec, uint32_t* out_nanosec,
+                        const char** out_frame_id,
+                        double* out_px, double* out_py, double* out_pz,
+                        double* out_ox, double* out_oy, double* out_oz, double* out_ow);
+
+void ros_path_iter_free(ros_path_iter_t* it);
+```
+
+`ros_path_iter_new` returns `NULL` (errno: `EINVAL`) if `view` is `NULL`. `ros_path_iter_next` returns 1 while elements remain, 0 when the sequence is exhausted. `out_frame_id` borrows the per-element string from the CDR buffer (valid while the buffer lives); all other out-params may be `NULL`. The iterator shares the view's CDR buffer and must not outlive the view.
+
+**Builder (accumulator):**
+
+```c
+ros_path_builder_t* ros_path_builder_new(void);
+void ros_path_builder_free(ros_path_builder_t* b);
+
+void ros_path_builder_set_stamp(ros_path_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_path_builder_set_frame_id(ros_path_builder_t* b, const char* s);
+
+int  ros_path_builder_add_pose(ros_path_builder_t* b,
+                               int32_t sec, uint32_t nanosec, const char* frame_id,
+                               double px, double py, double pz,
+                               double ox, double oy, double oz, double ow);
+
+int  ros_path_builder_build(ros_path_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_path_builder_encode_into(ros_path_builder_t* b,
+                                  uint8_t* buf, size_t cap, size_t* out_len);
+```
+
+Unlike other builders, Path uses an accumulator: call `ros_path_builder_add_pose` once per waypoint before calling `build` or `encode_into`. Each call copies `frame_id` into the builder. Returns 0 on success, -1 (errno: `EINVAL`) if `b` is `NULL` or `frame_id` is `NULL` / not valid UTF-8.
 
 ---
 

@@ -341,3 +341,88 @@ Test(nav_msgs, path_pose_out_of_range) {
     ros_path_free(v);
     free(b);
 }
+
+/* ── byte-equality: builder output must be identical to the golden fixture ── */
+
+Test(nav_msgs, grid_cells_builder_matches_golden) {
+    size_t golden_len = 0;
+    uint8_t *golden = load_fixture_nm("testdata/cdr/nav_msgs/GridCells.cdr", &golden_len);
+    cr_assert_not_null(golden, "failed to load GridCells fixture");
+
+    ros_grid_cells_builder_t *b = ros_grid_cells_builder_new();
+    cr_assert_not_null(b);
+    ros_grid_cells_builder_set_stamp(b, 1234567890, 123456789u);
+    cr_assert_eq(ros_grid_cells_builder_set_frame_id(b, "test_frame"), 0);
+    ros_grid_cells_builder_set_cell_width(b, 0.5f);
+    ros_grid_cells_builder_set_cell_height(b, 0.5f);
+    double xyz[9] = {1.0, 2.0, 0.0,  3.0, 4.0, 0.0,  5.0, 6.0, 0.0};
+    cr_assert_eq(ros_grid_cells_builder_set_cells(b, xyz, 3), 0);
+
+    uint8_t *out = NULL;
+    size_t out_len = 0;
+    cr_assert_eq(ros_grid_cells_builder_build(b, &out, &out_len), 0);
+    cr_assert_eq(out_len, golden_len);
+    cr_assert_eq(memcmp(out, golden, golden_len), 0,
+                 "GridCells builder output differs from golden fixture");
+
+    ros_bytes_free(out, out_len);
+    ros_grid_cells_builder_free(b);
+    free(golden);
+}
+
+Test(nav_msgs, occupancy_grid_builder_matches_golden) {
+    size_t golden_len = 0;
+    uint8_t *golden = load_fixture_nm("testdata/cdr/nav_msgs/OccupancyGrid.cdr", &golden_len);
+    cr_assert_not_null(golden, "failed to load OccupancyGrid fixture");
+
+    ros_occupancy_grid_builder_t *b = ros_occupancy_grid_builder_new();
+    cr_assert_not_null(b);
+    ros_occupancy_grid_builder_set_stamp(b, 1234567890, 123456789u);
+    cr_assert_eq(ros_occupancy_grid_builder_set_frame_id(b, "test_frame"), 0);
+    ros_occupancy_grid_builder_set_info(b,
+        1234567890, 123456789u,   /* map_load_time */
+        0.1f, 4u, 2u,             /* resolution, width, height */
+        0.0, 0.0, 0.0,            /* origin position */
+        0.0, 0.0, 0.0, 1.0);     /* origin orientation */
+    const int8_t data[8] = {0, 50, 100, -1, 25, 75, 0, 0};
+    cr_assert_eq(ros_occupancy_grid_builder_set_data(b, data, 8), 0);
+
+    uint8_t *out = NULL;
+    size_t out_len = 0;
+    cr_assert_eq(ros_occupancy_grid_builder_build(b, &out, &out_len), 0);
+    cr_assert_eq(out_len, golden_len);
+    cr_assert_eq(memcmp(out, golden, golden_len), 0,
+                 "OccupancyGrid builder output differs from golden fixture");
+
+    ros_bytes_free(out, out_len);
+    ros_occupancy_grid_builder_free(b);
+    free(golden);
+}
+
+Test(nav_msgs, path_builder_matches_golden) {
+    size_t golden_len = 0;
+    uint8_t *golden = load_fixture_nm("testdata/cdr/nav_msgs/Path.cdr", &golden_len);
+    cr_assert_not_null(golden, "failed to load Path fixture");
+
+    ros_path_builder_t *b = ros_path_builder_new();
+    cr_assert_not_null(b);
+    ros_path_builder_set_stamp(b, 1234567890, 123456789u);
+    cr_assert_eq(ros_path_builder_set_frame_id(b, "test_frame"), 0);
+    cr_assert_eq(ros_path_builder_add_pose(b, 1, 0u, "map",
+        1.0, 0.0, 0.0,  0.0, 0.0, 0.0, 1.0), 0);
+    cr_assert_eq(ros_path_builder_add_pose(b, 2, 0u, "map",
+        2.0, 1.0, 0.0,  0.0, 0.0, 0.707, 0.707), 0);
+    cr_assert_eq(ros_path_builder_add_pose(b, 3, 0u, "map",
+        3.0, 2.0, 0.0,  0.0, 0.0, 1.0, 0.0), 0);
+
+    uint8_t *out = NULL;
+    size_t out_len = 0;
+    cr_assert_eq(ros_path_builder_build(b, &out, &out_len), 0);
+    cr_assert_eq(out_len, golden_len);
+    cr_assert_eq(memcmp(out, golden, golden_len), 0,
+                 "Path builder output differs from golden fixture");
+
+    ros_bytes_free(out, out_len);
+    ros_path_builder_free(b);
+    free(golden);
+}

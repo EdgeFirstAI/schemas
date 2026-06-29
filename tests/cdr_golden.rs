@@ -2739,6 +2739,12 @@ fn golden_nav_msgs_map_meta_data() {
         }
     );
     assert_eq!(encode_fixed(&md).unwrap(), golden);
+    // Phase 3: modify resolution and round-trip via encode_fixed/decode_fixed
+    let mut md2 = md;
+    md2.resolution = 1.0_f32;
+    let re: MapMetaData = decode_fixed(&encode_fixed(&md2).unwrap()).unwrap();
+    assert!((re.resolution - 1.0_f32).abs() < f32::EPSILON);
+    assert_eq!(re.width, 200); // unchanged
 }
 
 // ── nav_msgs/GridCells ───────────────────────────────────────────────
@@ -2779,6 +2785,12 @@ fn golden_nav_msgs_grid_cells() {
     );
     let built = nav_msgs::GridCells::new(STAMP, FRAME_ID, 0.5, 0.5, &cells).unwrap();
     assert_eq!(built.to_cdr(), golden);
+    // Phase 3: mutate cell_width in-place and verify round-trip
+    let mut gc = nav_msgs::GridCells::from_cdr(golden.clone()).unwrap();
+    gc.set_cell_width(1.0).unwrap();
+    assert!((gc.cell_width() - 1.0_f32).abs() < f32::EPSILON);
+    assert!((gc.cell_height() - 0.5_f32).abs() < f32::EPSILON); // unchanged
+    assert_ne!(gc.to_cdr(), golden);
 }
 
 // ── nav_msgs/OccupancyGrid ───────────────────────────────────────────
@@ -2800,6 +2812,12 @@ fn golden_nav_msgs_occupancy_grid() {
         nav_msgs::OccupancyGrid::new(STAMP, FRAME_ID, info, &[0, 50, 100, -1, 25, 75, 0, 0])
             .unwrap();
     assert_eq!(built.to_cdr(), golden);
+    // Phase 3: mutate stamp in-place and verify round-trip
+    let mut og = nav_msgs::OccupancyGrid::from_cdr(golden.clone()).unwrap();
+    og.set_stamp(Time::new(42, 0)).unwrap();
+    assert_eq!(og.stamp(), Time::new(42, 0));
+    assert_eq!(og.frame_id(), FRAME_ID); // unchanged
+    assert_ne!(og.to_cdr(), golden);
 }
 
 // ── nav_msgs/Path ────────────────────────────────────────────────────
@@ -2832,6 +2850,12 @@ fn golden_nav_msgs_path() {
     ];
     let built = nav_msgs::Path::new(STAMP, FRAME_ID, &pose_inputs).unwrap();
     assert_eq!(built.to_cdr(), golden);
+    // Phase 3: mutate stamp in-place and verify round-trip
+    let mut path = nav_msgs::Path::from_cdr(golden.clone()).unwrap();
+    path.set_stamp(Time::new(99, 0)).unwrap();
+    assert_eq!(path.stamp(), Time::new(99, 0));
+    assert_eq!(path.frame_id(), FRAME_ID); // unchanged
+    assert_ne!(path.to_cdr(), golden);
 }
 
 // ── sensor_msgs/RelativeHumidity ─────────────────────────────────────
@@ -2846,6 +2870,12 @@ fn golden_sensor_msgs_relative_humidity() {
     assert!((view.variance() - 0.001_f64).abs() < f64::EPSILON);
     let built = sensor_msgs::RelativeHumidity::new(STAMP, FRAME_ID, 0.65, 0.001).unwrap();
     assert_eq!(built.to_cdr(), golden);
+    // Phase 3: mutate relative_humidity in-place and verify round-trip
+    let mut rh = sensor_msgs::RelativeHumidity::from_cdr(golden.clone()).unwrap();
+    rh.set_relative_humidity(0.90).unwrap();
+    assert!((rh.relative_humidity() - 0.90_f64).abs() < f64::EPSILON);
+    assert!((rh.variance() - 0.001_f64).abs() < f64::EPSILON); // unchanged
+    assert_ne!(rh.to_cdr(), golden);
 }
 
 // ── sensor_msgs/TimeReference ────────────────────────────────────────
@@ -2875,4 +2905,10 @@ fn golden_sensor_msgs_time_reference() {
     )
     .unwrap();
     assert_eq!(built.to_cdr(), golden);
+    // Phase 3: mutate time_ref in-place and verify round-trip
+    let mut tr = sensor_msgs::TimeReference::from_cdr(golden.clone()).unwrap();
+    tr.set_time_ref(Time::new(0, 0)).unwrap();
+    assert_eq!(tr.time_ref(), Time::new(0, 0));
+    assert_eq!(tr.source(), "GPS_UTC"); // unchanged
+    assert_ne!(tr.to_cdr(), golden);
 }

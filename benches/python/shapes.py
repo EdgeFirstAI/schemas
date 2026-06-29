@@ -162,3 +162,70 @@ class DmaBufferVariant(NamedTuple):
 DMA_BUFFER_VARIANTS = [
     DmaBufferVariant("default", 1280, 720, 1280 * 4, 0x32424752, 1280 * 720 * 4),
 ]
+
+
+# ── nav_msgs variants (DE-2781) ────────────────────────────────────
+#
+# NOTE: benches/cpp/common.hpp has no reference fixtures for these six
+# nav_msgs/sensor_msgs types yet — the CycloneDDS reference IDL is not
+# wired, so the shapes.py ↔ common.hpp lock-step is intentionally
+# DEFERRED for them. When the C++ benches gain these types, mirror the
+# variants below into common.hpp to restore the one-for-one invariant.
+
+
+class GridCellsVariant(NamedTuple):
+    name: str
+    num_cells: int
+
+    @property
+    def payload_bytes(self) -> int:
+        # geometry_msgs/Point = 3 × f64 = 24 bytes per cell.
+        return self.num_cells * 24
+
+
+# Cell counts mirror the Rust bench (`bench_grid_cells`): small/medium/large
+# occupancy footprints to expose offset-table build vs O(1) indexed access.
+GRID_CELLS_VARIANTS = [
+    GridCellsVariant("64", 64),
+    GridCellsVariant("1024", 1024),
+    GridCellsVariant("16384", 16384),
+]
+
+
+class OccupancyGridVariant(NamedTuple):
+    name: str
+    width: int
+    height: int
+
+    @property
+    def num_cells(self) -> int:
+        return self.width * self.height
+
+    @property
+    def payload_bytes(self) -> int:
+        return self.num_cells  # one int8 per cell
+
+
+# Square costmaps mirror the Rust bench (`bench_occupancy_grid`): the int8
+# grid body is a zero-copy slice, so deserialize cost is offset-table only.
+OCCUPANCY_GRID_VARIANTS = [
+    OccupancyGridVariant("100x100", 100, 100),
+    OccupancyGridVariant("500x500", 500, 500),
+    OccupancyGridVariant("1000x1000", 1000, 1000),
+]
+
+
+class PathVariant(NamedTuple):
+    name: str
+    num_poses: int
+
+
+# Pose counts mirror the Rust bench (`bench_path`): the larger counts are the
+# regression guard for the O(n²)→O(n) iterator fix (test_path_iter vs
+# test_path_getitem).
+PATH_VARIANTS = [
+    PathVariant("16", 16),
+    PathVariant("256", 256),
+    PathVariant("1024", 1024),
+    PathVariant("4096", 4096),
+]

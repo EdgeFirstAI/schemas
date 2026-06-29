@@ -17,11 +17,13 @@ These tests validate:
 
 import ctypes
 import gc
+import struct
 
 from edgefirst.schemas.builtin_interfaces import Time
-from edgefirst.schemas.sensor_msgs import Image, CompressedImage, Imu
+from edgefirst.schemas.nav_msgs import GridCells, OccupancyGrid, Path
+from edgefirst.schemas.sensor_msgs import Image, CompressedImage, Imu, RelativeHumidity, TimeReference
 from edgefirst.schemas.std_msgs import Header
-from edgefirst.schemas.geometry_msgs import TwistStamped
+from edgefirst.schemas.geometry_msgs import Point, TwistStamped
 
 
 def _make_image_cdr() -> bytes:
@@ -187,6 +189,148 @@ class TestFromCdrMemoryview:
         source[:] = b"\x00" * len(source)
         assert img.height == 2
         assert img.data.tobytes() == b"\x01\x02\x03\x04"
+
+
+# ── helpers for new types ────────────────────────────────────────────────────
+
+def _make_occupancy_grid_cdr() -> bytes:
+    """Build a 2×2 OccupancyGrid CDR buffer."""
+    og = OccupancyGrid(
+        header=Header(stamp=Time(10, 0), frame_id="map"),
+        data=bytes([0, 50, 75, 100]),  # 4 non-negative cells (int8-safe)
+    )
+    return og.to_bytes()
+
+
+def _make_grid_cells_cdr() -> bytes:
+    """Build a GridCells CDR buffer with two known cells."""
+    gc_msg = GridCells(
+        header=Header(stamp=Time(7, 0), frame_id="map"),
+        cell_width=0.25,
+        cell_height=0.25,
+        cells=[Point(1.0, 2.0, 0.0)],
+    )
+    return gc_msg.to_bytes()
+
+
+def _make_relative_humidity_cdr() -> bytes:
+    """Build a RelativeHumidity CDR buffer."""
+    rh = RelativeHumidity(
+        header=Header(stamp=Time(3, 0), frame_id="env"),
+        relative_humidity=0.55,
+        variance=0.002,
+    )
+    return rh.to_bytes()
+
+
+def _make_time_reference_cdr() -> bytes:
+    """Build a TimeReference CDR buffer."""
+    tr = TimeReference(
+        header=Header(stamp=Time(5, 0), frame_id="gps"),
+        time_ref=Time(1000, 500),
+        source="GPS",
+    )
+    return tr.to_bytes()
+
+
+def _make_path_cdr() -> bytes:
+    """Build a Path CDR buffer with one pose."""
+    path = Path(
+        header=Header(stamp=Time(8, 0), frame_id="world"),
+        poses=[],
+    )
+    return path.to_bytes()
+
+
+def _mutate_bytes(cdr: bytes, offset: int, new_value: bytes) -> None:
+    """Write ``new_value`` into the C buffer backing ``cdr`` at ``offset``.
+
+    Uses ``PyBytes_AsString`` to get a writable pointer to the immutable
+    bytes object's internal buffer — this is undefined behavior in Python
+    and exists solely to prove zero-copy aliasing in tests.
+    """
+    PyBytes_AsString = ctypes.pythonapi.PyBytes_AsString
+    PyBytes_AsString.restype = ctypes.POINTER(ctypes.c_ubyte)
+    PyBytes_AsString.argtypes = [ctypes.py_object]
+    buf = PyBytes_AsString(cdr)
+    for i, b in enumerate(new_value):
+        buf[offset + i] = b
+
+
+class TestZeroCopyNewTypes:
+    """Mutate-and-observe proofs for the 5 new message types.
+
+    Each test confirms that ``from_cdr(bytes)`` does not copy the input buffer:
+    a field mutated in the raw bytes is immediately visible through the
+    message accessor, proving true zero-copy aliasing.
+    """
+
+    def test_occupancy_grid_data_aliases_input(self):
+        """OccupancyGrid.data is a BorrowedBuf view into the CDR bytes."""
+        cdr = _make_occupancy_grid_cdr()
+        og = OccupancyGrid.from_cdr(cdr)
+        # Locate the data payload by scanning for the known sequence [0,50,75,100].
+        # The sequence is unique within this minimal CDR buffer.
+        raw = bytes(cdr)
+        data_seq = bytes([0, 50, 75, 100])
+        data_off = raw.find(data_seq)
+        assert data_off >= 0, "data sequence not found in CDR"
+        assert raw[data_off] == 0  # original first cell
+        # Mutate via ctypes: change first cell from 0 → 77
+        _mutate_bytes(cdr, data_off, bytes([77]))
+        # BorrowedBuf must reflect the change immediately
+        assert bytes(og.data)[0] == 77
+
+    def test_grid_cells_cell_width_aliases_input(self):
+        """GridCells cell_width f32 is read directly from the CDR bytes."""
+        cdr = _make_grid_cells_cdr()
+        gc_msg = GridCells.from_cdr(cdr)
+        assert abs(gc_msg.cell_width - 0.25) < 1e-6
+        # Find the f32 0.25 pattern in the buffer
+        raw = bytes(cdr)
+        target = struct.pack("<f", 0.25)
+        offset = raw.find(target)
+        assert offset >= 0, "cell_width pattern not found in CDR"
+        # Overwrite with f32(0.75)
+        _mutate_bytes(cdr, offset, struct.pack("<f", 0.75))
+        assert abs(gc_msg.cell_width - 0.75) < 1e-6
+
+    def test_relative_humidity_value_aliases_input(self):
+        """RelativeHumidity.relative_humidity f64 reads from the CDR bytes."""
+        cdr = _make_relative_humidity_cdr()
+        rh = RelativeHumidity.from_cdr(cdr)
+        assert abs(rh.relative_humidity - 0.55) < 1e-12
+        raw = bytes(cdr)
+        target = struct.pack("<d", 0.55)
+        offset = raw.find(target)
+        assert offset >= 0, "relative_humidity pattern not found in CDR"
+        _mutate_bytes(cdr, offset, struct.pack("<d", 0.99))
+        assert abs(rh.relative_humidity - 0.99) < 1e-12
+
+    def test_time_reference_time_ref_aliases_input(self):
+        """TimeReference.time_ref.sec i32 reads from the CDR bytes."""
+        cdr = _make_time_reference_cdr()
+        tr = TimeReference.from_cdr(cdr)
+        assert tr.time_ref.sec == 1000
+        raw = bytes(cdr)
+        target = struct.pack("<i", 1000)
+        offset = raw.find(target)
+        assert offset >= 0, "time_ref.sec pattern not found in CDR"
+        _mutate_bytes(cdr, offset, struct.pack("<i", 9999))
+        assert tr.time_ref.sec == 9999
+
+    def test_path_stamp_aliases_input(self):
+        """Path.stamp.sec i32 reads from the CDR bytes."""
+        cdr = _make_path_cdr()
+        path = Path.from_cdr(cdr)
+        assert path.stamp.sec == 8
+        raw = bytes(cdr)
+        # stamp.sec=8 encoded as i32 LE at the start of the CDR body
+        target = struct.pack("<i", 8)
+        offset = raw.find(target)
+        assert offset >= 0, "stamp.sec pattern not found in CDR"
+        _mutate_bytes(cdr, offset, struct.pack("<i", 42))
+        assert path.stamp.sec == 42
 
 
 class TestCdrRoundTrip:
