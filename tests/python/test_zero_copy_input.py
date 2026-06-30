@@ -203,7 +203,7 @@ def _make_occupancy_grid_cdr() -> bytes:
 
 
 def _make_grid_cells_cdr() -> bytes:
-    """Build a GridCells CDR buffer with two known cells."""
+    """Build a GridCells CDR buffer with one known cell."""
     gc_msg = GridCells(
         header=Header(stamp=Time(7, 0), frame_id="map"),
         cell_width=0.25,
@@ -234,7 +234,11 @@ def _make_time_reference_cdr() -> bytes:
 
 
 def _make_path_cdr() -> bytes:
-    """Build a Path CDR buffer with one pose."""
+    """Build a Path CDR buffer with no poses (header only).
+
+    The aliasing test mutates the header stamp, which is present regardless of
+    the pose sequence, so an empty path keeps the fixture minimal.
+    """
     path = Path(
         header=Header(stamp=Time(8, 0), frame_id="world"),
         poses=[],
@@ -257,29 +261,82 @@ def _mutate_bytes(cdr: bytes, offset: int, new_value: bytes) -> None:
         buf[offset + i] = b
 
 
-class TestZeroCopyNewTypes:
-    """Mutate-and-observe proofs for the 5 new message types.
+class _Py_buffer(ctypes.Structure):
+    """Mirror of CPython's ``Py_buffer`` for read-only pointer inspection."""
 
-    Each test confirms that ``from_cdr(bytes)`` does not copy the input buffer:
-    a field mutated in the raw bytes is immediately visible through the
-    message accessor, proving true zero-copy aliasing.
+    _fields_ = [
+        ("buf", ctypes.c_void_p),
+        ("obj", ctypes.c_void_p),
+        ("len", ctypes.c_ssize_t),
+        ("itemsize", ctypes.c_ssize_t),
+        ("readonly", ctypes.c_int),
+        ("ndim", ctypes.c_int),
+        ("format", ctypes.c_char_p),
+        ("shape", ctypes.POINTER(ctypes.c_ssize_t)),
+        ("strides", ctypes.POINTER(ctypes.c_ssize_t)),
+        ("suboffsets", ctypes.POINTER(ctypes.c_ssize_t)),
+        ("internal", ctypes.c_void_p),
+    ]
+
+
+def _bytes_base(b: bytes) -> int:
+    """Base address of a ``bytes`` object's internal buffer (read-only — safe)."""
+    fn = ctypes.pythonapi.PyBytes_AsString
+    fn.restype = ctypes.c_void_p
+    fn.argtypes = [ctypes.py_object]
+    return int(fn(b))
+
+
+def _buffer_base_and_len(obj) -> tuple:
+    """Return ``(base_address, length)`` for an object exposing the buffer
+    protocol, via a read-only ``PyObject_GetBuffer`` request.
+
+    This is the safe, deterministic way to prove a view aliases its source —
+    by pointer identity rather than by observing an (undefined-behavior)
+    in-place mutation of an immutable ``bytes`` object.
+    """
+    view = _Py_buffer()
+    get = ctypes.pythonapi.PyObject_GetBuffer
+    get.argtypes = [ctypes.py_object, ctypes.POINTER(_Py_buffer), ctypes.c_int]
+    get.restype = ctypes.c_int
+    if get(ctypes.py_object(obj), ctypes.byref(view), 0) != 0:  # 0 = PyBUF_SIMPLE
+        raise RuntimeError("PyObject_GetBuffer failed")
+    try:
+        return int(view.buf), int(view.len)
+    finally:
+        rel = ctypes.pythonapi.PyBuffer_Release
+        rel.argtypes = [ctypes.POINTER(_Py_buffer)]
+        rel(ctypes.byref(view))
+
+
+class TestZeroCopyNewTypes:
+    """Zero-copy proofs for the 5 new buffer-backed message types.
+
+    ``OccupancyGrid.data`` is proven by pointer identity (safe — the returned
+    view points *inside* the input allocation, with no mutation).  The
+    scalar-field cases use the mutate-and-observe diagnostic established by
+    ``test_zero_copy_shares_buffer`` (Image): scalar accessors return by value,
+    so there is no buffer handle to pointer-check, and mutable inputs are copied
+    by design, leaving in-place mutation of the immutable ``bytes`` as the only
+    way to prove the read aliases the source.  That mutation is UB by spec but
+    confined to freshly-allocated, refcount-1 test buffers; production code must
+    never mutate ``bytes``.
     """
 
-    def test_occupancy_grid_data_aliases_input(self):
-        """OccupancyGrid.data is a BorrowedBuf view into the CDR bytes."""
+    def test_occupancy_grid_data_points_into_input(self):
+        """OccupancyGrid.data is a zero-copy view into the input CDR bytes.
+
+        Proven safely by pointer identity: the buffer returned by ``data`` lies
+        inside the input ``bytes`` allocation, so from_cdr borrowed it rather
+        than copying.
+        """
         cdr = _make_occupancy_grid_cdr()
         og = OccupancyGrid.from_cdr(cdr)
-        # Locate the data payload by scanning for the known sequence [0,50,75,100].
-        # The sequence is unique within this minimal CDR buffer.
-        raw = bytes(cdr)
-        data_seq = bytes([0, 50, 75, 100])
-        data_off = raw.find(data_seq)
-        assert data_off >= 0, "data sequence not found in CDR"
-        assert raw[data_off] == 0  # original first cell
-        # Mutate via ctypes: change first cell from 0 → 77
-        _mutate_bytes(cdr, data_off, bytes([77]))
-        # BorrowedBuf must reflect the change immediately
-        assert bytes(og.data)[0] == 77
+        base = _bytes_base(cdr)
+        data_ptr, data_len = _buffer_base_and_len(og.data)
+        assert base <= data_ptr, "data view starts before the input buffer"
+        assert data_ptr + data_len <= base + len(cdr), "data view overruns input"
+        assert bytes(og.data) == bytes([0, 50, 75, 100])
 
     def test_grid_cells_cell_width_aliases_input(self):
         """GridCells cell_width f32 is read directly from the CDR bytes."""
