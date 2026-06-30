@@ -713,12 +713,18 @@ impl CdrSizer {
 /// depends only on the start offset, not on position-dependent internal
 /// padding.
 ///
-/// A type whose first field is narrower than a later field with stricter
-/// alignment (e.g. `int8` followed by `uint16`) has **position-dependent
-/// internal padding** — its true wire size varies with the CDR-relative
-/// start position. `NavSatStatus { i8, u16 }` is the sole such type in this
-/// crate and occupies 3 or 4 bytes depending on start parity. `CDR_SIZE = 4`
-/// is only correct when the embedding offset is even (CDR-relative).
+/// A type whose earlier fields are less strictly aligned than a later field
+/// (e.g. `int8` followed by `uint16`, or 4-aligned fields followed by an
+/// 8-aligned one) has **position-dependent internal padding** — its true wire
+/// size varies with the CDR-relative start position. Two such types exist in
+/// this crate:
+/// - `NavSatStatus { i8, u16 }` — occupies 3 or 4 bytes depending on start
+///   parity; `CDR_SIZE = 4` is only correct when the embedding offset is even
+///   (CDR-relative).
+/// - `MapMetaData { Time, f32, u32, u32, Pose }` — the 8-aligned `Pose` after
+///   the 4-aligned scalar fields makes it 80 bytes at an 8-aligned start but
+///   76 bytes at a start ≡ 4 (mod 8); `CDR_SIZE = 80` is only correct at an
+///   8-aligned start.
 ///
 /// Offset-math accessors in buffer-backed composite types
 /// (`fixed_base = offsets[0] + T::CDR_SIZE`) are therefore **unsafe** to use

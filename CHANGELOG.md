@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-06-29
+
+### Added
+
+- **DE-2781: Full four-language (Rust, C, C++, Python) support for six new
+  `nav_msgs` / `sensor_msgs` types.** `nav_msgs::{MapMetaData, GridCells,
+  OccupancyGrid, Path}` and `sensor_msgs::{RelativeHumidity, TimeReference}`,
+  each with zero-copy `from_cdr` views, builders, and golden CDR round-trip
+  tests across all four language surfaces.
+  - C API: `ros_map_meta_data_{encode,decode}` and `ros_grid_cells_*`,
+    `ros_occupancy_grid_*`, `ros_path_*`, `ros_relative_humidity_*`,
+    `ros_time_reference_*` (declared in `include/edgefirst/schemas.h`).
+  - C++ wrappers in `include/edgefirst/schemas.hpp`: a `MapMetaData` CdrFixed
+    value class, plus `*View` + `*Builder` for the five buffer-backed types.
+  - Python: `PyMapMetaData`/`PyGridCells`/`PyOccupancyGrid`/`PyPath` and
+    `PyRelativeHumidity`/`PyTimeReference`, with `.pyi` stubs.
+- **Builders for every buffer-backed `nav_msgs` type** (`GridCells`,
+  `OccupancyGrid`, `Path`, `Odometry`) and for `sensor_msgs::TimeReference`,
+  completing the "builder on every buffer-backed type" convention — in Rust, C,
+  and C++ — plus `set_*` in-place scalar mutators.
+- **`Path` zero-copy forward iterator** (`Path::iter()`/`PoseStampedIter`,
+  `ros_path_iter_*`, a C++ `PathView::iterator`, and Python `__iter__`/
+  `__getitem__`) — full traversal is now O(n) instead of O(n²) and borrows each
+  `frame_id` with no per-element allocation (measured: iterating a 4096-pose
+  path drops from ~127 ms to ~62 µs).
+- **Benchmarks** for all six new types (Rust criterion + Python), including a
+  `from_cdr_borrow` vs clone split and a `Path` access benchmark that guards the
+  O(n) iterator against regressing to O(n²).
+- **Zero-copy aliasing proofs** (Python mutate-and-observe + buffer-protocol
+  pointer-identity) for the five buffer-backed new types.
+
+### Fixed
+
+- **`sensor_msgs::TimeReference::new()` produced a view whose `time_ref()`
+  accessor read wrong bytes** for any `frame_id` whose length is not ≡ 3 (mod 4):
+  the field offset was captured before a 4-byte alignment gap. Encoded bytes were
+  always correct (round-trips/golden tests passed), so only `time_ref()` read
+  directly from a `new()`-built instance was affected.
+- **`Path` CDR sequence-count floor** tightened from a loose 13 bytes to the true
+  per-element minimum of 68 (`Time` + length prefix + `Pose`), matching the other
+  sequence types.
+- Restored the golden-fixture drift guard: `scripts/generate_cdr_testdata.py
+  --verify` imported a `default_field` symbol removed in the 3.2.0 PyO3 rewrite;
+  it now imports from the test `legacy` module and runs as a CI tripwire.
+
+### Changed
+
+- Converged 25 hand-rolled C FFI base functions across the five new buffer-backed
+  view types onto the existing `impl_simple_stamped!` macro (~−200 LoC, no ABI
+  change — symbols byte-identical).
+- Reconciled stale docs (`ARCHITECTURE.md`, `.github/copilot-instructions.md`,
+  `README.md`, `CAPI.md`): version, `nav_msgs` inventory, the PyO3 (not pycdr2)
+  Python runtime, and the builder-coverage claim. Documented `MapMetaData` as a
+  position-dependent-padding `CdrFixed` type alongside `NavSatStatus`.
+
 ## [3.4.3] - 2026-06-29
 
 ### Added
@@ -973,7 +1028,8 @@ CDR serialization. No migration required.
 - Python build issues with wheel generation
 - Removed auxiliary files from ROS2 schemas not required for this project
 
-[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v3.4.3...HEAD
+[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v3.5.0...HEAD
+[3.5.0]: https://github.com/EdgeFirstAI/schemas/compare/v3.4.3...v3.5.0
 [3.4.3]: https://github.com/EdgeFirstAI/schemas/compare/v3.4.2...v3.4.3
 [3.4.2]: https://github.com/EdgeFirstAI/schemas/compare/v3.4.1...v3.4.2
 [3.4.1]: https://github.com/EdgeFirstAI/schemas/compare/v3.4.0...v3.4.1

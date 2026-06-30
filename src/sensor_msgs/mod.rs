@@ -5,8 +5,10 @@
 //!
 //! CdrFixed: `NavSatStatus`, `RegionOfInterest`
 //!
-//! Buffer-backed: `Image`, `CompressedImage`, `Imu`, `NavSatFix`,
-//! `PointCloud2`, `PointField` (with `PointFieldView`), `CameraInfo`
+//! Buffer-backed: `BatteryState`, `CameraInfo`, `CompressedImage`,
+//! `FluidPressure`, `Image`, `Imu`, `MagneticField`, `NavSatFix`,
+//! `PointCloud2`, `PointField` (with `PointFieldView`), `RelativeHumidity`,
+//! `Temperature`, `TimeReference`
 //!
 //! Pointcloud access: [`pointcloud`] module provides zero-copy
 //! [`DynPointCloud`](pointcloud::DynPointCloud) and
@@ -3608,6 +3610,407 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> BatteryState<B> {
     }
 }
 
+// ── RelativeHumidity<B> ─────────────────────────────────────────────
+//
+// CDR layout: Header → offsets[0] (start of relative_humidity, 8-aligned),
+//   float64 relative_humidity (8 bytes), float64 variance (8 bytes).
+
+pub struct RelativeHumidity<B> {
+    buf: B,
+    offsets: [usize; 1],
+}
+
+impl<B> RelativeHumidity<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> RelativeHumidity<C> {
+        RelativeHumidity {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
+}
+
+impl<B: AsRef<[u8]>> RelativeHumidity<B> {
+    pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
+        let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
+        let pre = header.end_offset();
+        let mut c = CdrCursor::resume(buf.as_ref(), pre);
+        c.align(8);
+        let o0 = c.offset();
+        c.read_f64()?; // relative_humidity
+        c.read_f64()?; // variance
+        Ok(RelativeHumidity { offsets: [o0], buf })
+    }
+
+    pub fn header(&self) -> Header<&[u8]> {
+        Header::from_cdr(self.buf.as_ref()).expect("header bytes validated during from_cdr")
+    }
+    pub fn stamp(&self) -> Time {
+        rd_time(self.buf.as_ref(), CDR_HEADER_SIZE)
+    }
+    pub fn frame_id(&self) -> &str {
+        rd_string(self.buf.as_ref(), CDR_HEADER_SIZE + 8).0
+    }
+    pub fn relative_humidity(&self) -> f64 {
+        rd_f64(self.buf.as_ref(), self.offsets[0])
+    }
+    pub fn variance(&self) -> f64 {
+        rd_f64(self.buf.as_ref(), self.offsets[0] + 8)
+    }
+    pub fn as_cdr(&self) -> &[u8] {
+        self.buf.as_ref()
+    }
+    pub fn to_cdr(&self) -> Vec<u8> {
+        self.buf.as_ref().to_vec()
+    }
+}
+
+impl RelativeHumidity<Vec<u8>> {
+    pub fn new(
+        stamp: Time,
+        frame_id: &str,
+        relative_humidity: f64,
+        variance: f64,
+    ) -> Result<Self, CdrError> {
+        let mut sizer = CdrSizer::new();
+        Time::size_cdr(&mut sizer);
+        sizer.size_string(frame_id);
+        sizer.align(8);
+        let o0 = sizer.offset();
+        sizer.size_f64();
+        sizer.size_f64();
+
+        let mut buf = vec![0u8; sizer.size()];
+        let mut w = CdrWriter::new(&mut buf)?;
+        stamp.write_cdr(&mut w);
+        w.write_string(frame_id);
+        w.write_f64(relative_humidity);
+        w.write_f64(variance);
+        w.finish()?;
+
+        Ok(RelativeHumidity { offsets: [o0], buf })
+    }
+
+    pub fn into_cdr(self) -> Vec<u8> {
+        self.buf
+    }
+
+    /// Start a new `RelativeHumidityBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> RelativeHumidityBuilder<'a> {
+        RelativeHumidityBuilder::new()
+    }
+}
+
+// ── RelativeHumidityBuilder<'a> ─────────────────────────────────────
+
+/// Builder for `RelativeHumidity<Vec<u8>>` with buffer-reuse finalizers.
+pub struct RelativeHumidityBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    relative_humidity: f64,
+    variance: f64,
+}
+
+impl<'a> Default for RelativeHumidityBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            relative_humidity: 0.0,
+            variance: 0.0,
+        }
+    }
+}
+
+impl<'a> RelativeHumidityBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn relative_humidity(&mut self, v: f64) -> &mut Self {
+        self.relative_humidity = v;
+        self
+    }
+    pub fn variance(&mut self, v: f64) -> &mut Self {
+        self.variance = v;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.align(8);
+        s.size_f64();
+        s.size_f64();
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.write_f64(self.relative_humidity);
+        w.write_f64(self.variance);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<RelativeHumidity<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        RelativeHumidity::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
+    }
+}
+
+impl<B: AsRef<[u8]> + AsMut<[u8]>> RelativeHumidity<B> {
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    pub fn set_relative_humidity(&mut self, v: f64) -> Result<(), CdrError> {
+        wr_f64(self.buf.as_mut(), self.offsets[0], v)
+    }
+
+    pub fn set_variance(&mut self, v: f64) -> Result<(), CdrError> {
+        wr_f64(self.buf.as_mut(), self.offsets[0] + 8, v)
+    }
+}
+
+// ── TimeReference<B> ────────────────────────────────────────────────
+//
+// CDR layout: Header → offsets[0] (start of time_ref.sec, 4-aligned),
+//   Time time_ref (8 bytes) → offsets[1] (start of source string).
+
+pub struct TimeReference<B> {
+    buf: B,
+    offsets: [usize; 2], // [0] = time_ref.sec start, [1] = source string start
+}
+
+impl<B> TimeReference<B> {
+    /// Convert the buffer type without re-parsing the offset table.
+    #[inline]
+    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> TimeReference<C> {
+        TimeReference {
+            buf: f(self.buf),
+            offsets: self.offsets,
+        }
+    }
+}
+
+impl<B: AsRef<[u8]>> TimeReference<B> {
+    pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
+        let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
+        let pre = header.end_offset();
+        let mut c = CdrCursor::resume(buf.as_ref(), pre);
+        c.align(4); // Time fields (i32 + u32) need 4-byte alignment
+        let o0 = c.offset();
+        Time::read_cdr(&mut c)?; // time_ref
+        let o1 = c.offset();
+        c.read_string()?; // source
+        Ok(TimeReference {
+            offsets: [o0, o1],
+            buf,
+        })
+    }
+
+    pub fn header(&self) -> Header<&[u8]> {
+        Header::from_cdr(self.buf.as_ref()).expect("header bytes validated during from_cdr")
+    }
+    pub fn stamp(&self) -> Time {
+        rd_time(self.buf.as_ref(), CDR_HEADER_SIZE)
+    }
+    pub fn frame_id(&self) -> &str {
+        rd_string(self.buf.as_ref(), CDR_HEADER_SIZE + 8).0
+    }
+    pub fn time_ref(&self) -> Time {
+        rd_time(self.buf.as_ref(), self.offsets[0])
+    }
+    pub fn source(&self) -> &str {
+        rd_string(self.buf.as_ref(), self.offsets[1]).0
+    }
+    pub fn as_cdr(&self) -> &[u8] {
+        self.buf.as_ref()
+    }
+    pub fn to_cdr(&self) -> Vec<u8> {
+        self.buf.as_ref().to_vec()
+    }
+}
+
+impl TimeReference<Vec<u8>> {
+    pub fn new(
+        stamp: Time,
+        frame_id: &str,
+        time_ref: Time,
+        source: &str,
+    ) -> Result<Self, CdrError> {
+        let mut sizer = CdrSizer::new();
+        Time::size_cdr(&mut sizer);
+        sizer.size_string(frame_id);
+        // time_ref (Time) is 4-aligned; align BEFORE capturing offsets[0] so it
+        // matches the post-alignment position the writer and from_cdr use. The
+        // accessor time_ref() reads at offsets[0] without re-aligning, so a
+        // pre-alignment offset would read into the padding gap (silently wrong
+        // for any frame_id whose length is not ≡ 3 (mod 4)).
+        sizer.align(4);
+        let o0 = sizer.offset();
+        Time::size_cdr(&mut sizer); // time_ref
+        let o1 = sizer.offset();
+        sizer.size_string(source);
+
+        let mut buf = vec![0u8; sizer.size()];
+        let mut w = CdrWriter::new(&mut buf)?;
+        stamp.write_cdr(&mut w);
+        w.write_string(frame_id);
+        time_ref.write_cdr(&mut w);
+        w.write_string(source);
+        w.finish()?;
+
+        Ok(TimeReference {
+            offsets: [o0, o1],
+            buf,
+        })
+    }
+
+    pub fn into_cdr(self) -> Vec<u8> {
+        self.buf
+    }
+
+    /// Start a new `TimeReferenceBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> TimeReferenceBuilder<'a> {
+        TimeReferenceBuilder::new()
+    }
+}
+
+// ── TimeReferenceBuilder<'a> ────────────────────────────────────────
+
+/// Builder for `TimeReference<Vec<u8>>` with buffer-reuse finalizers.
+pub struct TimeReferenceBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    time_ref: Time,
+    source: std::borrow::Cow<'a, str>,
+}
+
+impl<'a> Default for TimeReferenceBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            time_ref: Time { sec: 0, nanosec: 0 },
+            source: std::borrow::Cow::Borrowed(""),
+        }
+    }
+}
+
+impl<'a> TimeReferenceBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn time_ref(&mut self, t: Time) -> &mut Self {
+        self.time_ref = t;
+        self
+    }
+    pub fn source(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.source = s.into();
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.align(4);
+        Time::size_cdr(&mut s);
+        s.size_string(&self.source);
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        self.time_ref.write_cdr(&mut w);
+        w.write_string(&self.source);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<TimeReference<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        TimeReference::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
+    }
+}
+
+impl<B: AsRef<[u8]> + AsMut<[u8]>> TimeReference<B> {
+    /// In-place overwrite of the header `stamp` (no re-encode).
+    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+    }
+
+    /// In-place overwrite of the `time_ref` field (no re-encode).
+    pub fn set_time_ref(&mut self, t: Time) -> Result<(), CdrError> {
+        let b = self.buf.as_mut();
+        wr_i32(b, self.offsets[0], t.sec)?;
+        wr_u32(b, self.offsets[0] + 4, t.nanosec)
+    }
+}
+
 // ── Registry ────────────────────────────────────────────────────────
 
 /// Check if a type name is supported by this module.
@@ -3626,7 +4029,9 @@ pub fn is_type_supported(type_name: &str) -> bool {
             | "PointCloud2"
             | "PointField"
             | "RegionOfInterest"
+            | "RelativeHumidity"
             | "Temperature"
+            | "TimeReference"
     )
 }
 
@@ -3645,7 +4050,9 @@ pub fn list_types() -> &'static [&'static str] {
         "sensor_msgs/msg/PointCloud2",
         "sensor_msgs/msg/PointField",
         "sensor_msgs/msg/RegionOfInterest",
+        "sensor_msgs/msg/RelativeHumidity",
         "sensor_msgs/msg/Temperature",
+        "sensor_msgs/msg/TimeReference",
     ]
 }
 
@@ -4289,5 +4696,136 @@ mod tests {
         bs_b.set_power_supply_technology(3).unwrap();
         bs_b.set_present(true).unwrap();
         assert_eq!(bs_a.as_cdr(), bs_b.as_cdr(), "BatteryState byte mismatch");
+
+        // RelativeHumidity
+        let rh_a = RelativeHumidity::builder()
+            .stamp(Time::new(15, 16))
+            .frame_id("humidity")
+            .relative_humidity(0.65)
+            .variance(0.001)
+            .build()
+            .unwrap();
+        let mut rh_b = RelativeHumidity::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("humidity")
+            .build()
+            .unwrap();
+        rh_b.set_stamp(Time::new(15, 16)).unwrap();
+        rh_b.set_relative_humidity(0.65).unwrap();
+        rh_b.set_variance(0.001).unwrap();
+        assert_eq!(
+            rh_a.as_cdr(),
+            rh_b.as_cdr(),
+            "RelativeHumidity byte mismatch"
+        );
+    }
+
+    #[test]
+    fn relative_humidity_roundtrip() {
+        let rh =
+            RelativeHumidity::new(Time::new(100, 500_000_000), "hygrometer", 0.72, 0.005).unwrap();
+        assert_eq!(rh.stamp(), Time::new(100, 500_000_000));
+        assert_eq!(rh.frame_id(), "hygrometer");
+        assert!((rh.relative_humidity() - 0.72).abs() < 1e-10);
+        assert!((rh.variance() - 0.005).abs() < 1e-10);
+
+        let bytes = rh.to_cdr();
+        let decoded = RelativeHumidity::from_cdr(bytes).unwrap();
+        assert_eq!(decoded.frame_id(), "hygrometer");
+        assert!((decoded.relative_humidity() - 0.72).abs() < 1e-10);
+        assert!((decoded.variance() - 0.005).abs() < 1e-10);
+    }
+
+    #[test]
+    fn time_reference_roundtrip() {
+        let time_ref = Time::new(1234567890, 987654321);
+        let tr = TimeReference::new(Time::new(100, 0), "gps", time_ref, "GPS_UTC").unwrap();
+        assert_eq!(tr.stamp(), Time::new(100, 0));
+        assert_eq!(tr.frame_id(), "gps");
+        assert_eq!(tr.time_ref(), time_ref);
+        assert_eq!(tr.source(), "GPS_UTC");
+
+        let bytes = tr.to_cdr();
+        let decoded = TimeReference::from_cdr(bytes).unwrap();
+        assert_eq!(decoded.frame_id(), "gps");
+        assert_eq!(decoded.time_ref(), time_ref);
+        assert_eq!(decoded.source(), "GPS_UTC");
+    }
+
+    #[test]
+    fn time_reference_empty_source() {
+        let tr = TimeReference::new(Time::new(0, 0), "link", Time::new(999, 0), "").unwrap();
+        let bytes = tr.to_cdr();
+        let decoded = TimeReference::from_cdr(bytes).unwrap();
+        assert_eq!(decoded.source(), "");
+        assert_eq!(decoded.time_ref(), Time::new(999, 0));
+    }
+
+    /// Regression: `time_ref()` must be correct when read DIRECTLY from a
+    /// `new()`-constructed instance (not only after a from_cdr round-trip).
+    /// Before the `sizer.align(4)` fix, `offsets[0]` was captured before the
+    /// time_ref alignment gap, so the accessor read into padding for any
+    /// frame_id whose length is not ≡ 3 (mod 4). We sweep lengths 0..=5.
+    #[test]
+    fn time_reference_new_time_ref_alignment_regression() {
+        let time_ref = Time::new(0x1122_3344, 0x5566_7788);
+        for frame_id in ["", "a", "ab", "abc", "link", "frame"] {
+            let tr = TimeReference::new(Time::new(7, 8), frame_id, time_ref, "GPS").unwrap();
+            // Direct accessor on the constructed instance — the masked path.
+            assert_eq!(
+                tr.time_ref(),
+                time_ref,
+                "time_ref() wrong for frame_id={frame_id:?} (len {})",
+                frame_id.len()
+            );
+            assert_eq!(
+                tr.source(),
+                "GPS",
+                "source() wrong for frame_id={frame_id:?}"
+            );
+            // And it must still agree after a round-trip through from_cdr.
+            let decoded = TimeReference::from_cdr(tr.to_cdr()).unwrap();
+            assert_eq!(decoded.time_ref(), time_ref);
+        }
+    }
+
+    #[test]
+    fn time_reference_builder_roundtrip() {
+        let time_ref = Time::new(1234567890, 987654321);
+        // Builder output must be byte-identical to the new() constructor.
+        let built = TimeReference::builder()
+            .stamp(Time::new(100, 0))
+            .frame_id("gps")
+            .time_ref(time_ref)
+            .source("GPS_UTC")
+            .build()
+            .unwrap();
+        let direct = TimeReference::new(Time::new(100, 0), "gps", time_ref, "GPS_UTC").unwrap();
+        assert_eq!(built.to_cdr(), direct.to_cdr());
+        assert_eq!(built.time_ref(), time_ref);
+        assert_eq!(built.source(), "GPS_UTC");
+
+        // Buffer-reuse finalizer reproduces the same bytes.
+        let mut buf = Vec::new();
+        TimeReference::builder()
+            .stamp(Time::new(100, 0))
+            .frame_id("gps")
+            .time_ref(time_ref)
+            .source("GPS_UTC")
+            .encode_into_vec(&mut buf)
+            .unwrap();
+        assert_eq!(buf, direct.to_cdr());
+    }
+
+    #[test]
+    fn time_reference_set_stamp_and_time_ref_in_place() {
+        let mut tr = TimeReference::new(Time::new(1, 2), "gps", Time::new(3, 4), "GPS").unwrap();
+        tr.set_stamp(Time::new(10, 20)).unwrap();
+        tr.set_time_ref(Time::new(30, 40)).unwrap();
+        assert_eq!(tr.stamp(), Time::new(10, 20));
+        assert_eq!(tr.time_ref(), Time::new(30, 40));
+        // Variable-length fields untouched.
+        assert_eq!(tr.frame_id(), "gps");
+        assert_eq!(tr.source(), "GPS");
     }
 }

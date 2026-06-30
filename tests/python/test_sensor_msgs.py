@@ -432,3 +432,78 @@ class TestBatteryState:
         assert restored.location == "main"
         assert restored.serial_number == "SN001"
         assert len(restored.cell_voltage) == 3
+
+
+# ── RelativeHumidity ────────────────────────────────────────────────
+
+import pathlib as _pathlib
+
+from edgefirst.schemas.sensor_msgs import RelativeHumidity, TimeReference
+
+_CDR_DIR_SM = _pathlib.Path(__file__).parent.parent.parent / "testdata" / "cdr"
+
+
+def _load_sm(msg: str) -> bytes:
+    return (_CDR_DIR_SM / "sensor_msgs" / f"{msg}.cdr").read_bytes()
+
+
+class TestRelativeHumidity:
+    def test_round_trip(self, sample_header):
+        rh = RelativeHumidity(header=sample_header, relative_humidity=0.65, variance=0.001)
+        restored = RelativeHumidity.from_cdr(rh.to_bytes())
+        assert restored.frame_id == "sensor_frame"
+        assert abs(restored.relative_humidity - 0.65) < 1e-12
+        assert abs(restored.variance - 0.001) < 1e-12
+
+    def test_from_golden(self):
+        golden = _load_sm("RelativeHumidity")
+        rh = RelativeHumidity.from_cdr(golden)
+        assert abs(rh.relative_humidity - 0.65) < 1e-12
+        assert abs(rh.variance - 0.001) < 1e-12
+        restored = RelativeHumidity.from_cdr(rh.to_bytes())
+        assert rh.to_bytes() == restored.to_bytes()
+        assert RelativeHumidity.from_cdr(golden).to_bytes() == golden
+
+    def test_default_values(self, sample_header):
+        rh = RelativeHumidity(header=sample_header)
+        assert rh.relative_humidity == 0.0
+        assert rh.variance == 0.0
+
+    def test_cdr_size_positive(self, sample_header):
+        rh = RelativeHumidity(header=sample_header, relative_humidity=0.5)
+        assert rh.cdr_size > 0
+
+
+# ── TimeReference ────────────────────────────────────────────────────
+
+
+class TestTimeReference:
+    def test_round_trip(self, sample_header):
+        tref = TimeReference(
+            header=sample_header,
+            time_ref=Time(1234567890, 987654321),
+            source="GPS_UTC",
+        )
+        restored = TimeReference.from_cdr(tref.to_bytes())
+        assert restored.frame_id == "sensor_frame"
+        assert restored.time_ref.sec == 1234567890
+        assert restored.time_ref.nanosec == 987654321
+        assert restored.source == "GPS_UTC"
+
+    def test_from_golden(self):
+        golden = _load_sm("TimeReference")
+        tr = TimeReference.from_cdr(golden)
+        assert tr.time_ref.sec == 1234567890
+        assert tr.time_ref.nanosec == 987654321
+        assert tr.source == "GPS_UTC"
+        restored = TimeReference.from_cdr(tr.to_bytes())
+        assert tr.to_bytes() == restored.to_bytes()
+        assert TimeReference.from_cdr(golden).to_bytes() == golden
+
+    def test_default_source_empty(self, sample_header):
+        tr = TimeReference(header=sample_header)
+        assert tr.source == ""
+
+    def test_cdr_size_positive(self, sample_header):
+        tr = TimeReference(header=sample_header, source="NTP")
+        assert tr.cdr_size > 0

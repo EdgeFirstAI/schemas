@@ -243,7 +243,7 @@ jobs:
           python -m venv .venv
           source .venv/bin/activate
           python -m pip install --upgrade pip
-          pip install maturin pytest junitparser numpy
+          pip install maturin pytest junitparser numpy pycdr2==1.0.0
 
       - name: Run pytest under cargo-llvm-cov
         # `cargo llvm-cov` exports RUSTFLAGS / LLVM_PROFILE_FILE so any
@@ -265,6 +265,11 @@ jobs:
         run: |
           source .venv/bin/activate
           python -c "import edgefirst.schemas; print('Package import OK')"
+
+      - name: Verify CDR golden fixtures
+        run: |
+          source .venv/bin/activate
+          python scripts/generate_cdr_testdata.py --verify
 
       - name: Upload Python coverage artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0

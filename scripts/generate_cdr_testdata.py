@@ -25,12 +25,22 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List
 
+# Legacy pycdr2 message definitions used for new types not yet in the
+# edgefirst-schemas Python extension (nav_msgs: GridCells, MapMetaData,
+# OccupancyGrid, Path; sensor_msgs: RelativeHumidity, TimeReference).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "benches" / "python"))
+from legacy import builtin_interfaces as _legacy_builtin_interfaces  # noqa: E402
+from legacy import nav_msgs as _legacy_nav_msgs  # noqa: E402
+from legacy import sensor_msgs as _legacy_sensor_msgs  # noqa: E402
+from legacy import geometry_msgs as _legacy_geometry_msgs  # noqa: E402
+from legacy import edgefirst_msgs as _legacy_edgefirst_msgs  # noqa: E402
+from legacy import default_field  # noqa: E402  (removed from edgefirst.schemas in 3.2.0)
+
 from pycdr2 import IdlStruct
 from pycdr2.types import float64, int16, int32, uint32
 
 from edgefirst.schemas import (
     builtin_interfaces,
-    default_field,
     edgefirst_msgs,
     foxglove_msgs,
     geometry_msgs,
@@ -60,10 +70,14 @@ def write_cdr(namespace: str, type_name: str, msg) -> None:
 
     In verify mode, compare against the on-disk fixture instead of writing
     and record any mismatch in `_DIFFS`.
+
+    Accepts both pycdr2 objects (``msg.serialize()``) and edgefirst.schemas
+    PyO3 objects (``msg.to_bytes()``), which replaced pycdr2 in release 3.2.0.
     """
     out_dir = TESTDATA_CDR / namespace
     path = out_dir / f"{type_name}.cdr"
-    fresh = msg.serialize()
+    # pycdr2 objects expose .serialize(); PyO3 objects expose .to_bytes()
+    fresh = msg.serialize() if hasattr(msg, "serialize") else msg.to_bytes()
     rel = path.relative_to(TESTDATA_CDR.parent.parent)
     if _VERIFY_MODE:
         if not path.exists():
@@ -86,7 +100,7 @@ def write_cdr(namespace: str, type_name: str, msg) -> None:
 
 @dataclass
 class Clock(IdlStruct, typename="rosgraph_msgs/Clock"):
-    clock: builtin_interfaces.Time = default_field(builtin_interfaces.Time)
+    clock: _legacy_builtin_interfaces.Time = default_field(_legacy_builtin_interfaces.Time)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -209,6 +223,84 @@ def gen_nav_msgs():
                       twist=geometry_msgs.Twist(linear=lin, angular=ang),
                       covariance=twist_cov)))
 
+    # Legacy types (GridCells, MapMetaData, OccupancyGrid, Path) ─────────
+    _lg = _legacy_nav_msgs
+    _lg_geo = _legacy_geometry_msgs
+
+    _lg_stamp = _lg.Time(sec=STAMP.sec, nanosec=STAMP.nanosec)
+    _lg_header = _lg.Header(stamp=_lg_stamp, frame_id=FRAME_ID)
+
+    # MapMetaData — standalone fixed-size encoding
+    _origin = _lg_geo.Pose(
+        position=_lg_geo.Point(x=-5.0, y=-5.0, z=0.0),
+        orientation=_lg_geo.Quaternion(x=0.0, y=0.0, z=0.0, w=1.0))
+    write_cdr("nav_msgs", "MapMetaData",
+              _lg.MapMetaData(
+                  map_load_time=_lg_stamp,
+                  resolution=0.05,
+                  width=200,
+                  height=200,
+                  origin=_origin))
+
+    # GridCells — 3 cells
+    _cells = [
+        _lg_geo.Point(x=1.0, y=2.0, z=0.0),
+        _lg_geo.Point(x=3.0, y=4.0, z=0.0),
+        _lg_geo.Point(x=5.0, y=6.0, z=0.0),
+    ]
+    write_cdr("nav_msgs", "GridCells",
+              _lg.GridCells(
+                  header=_lg_header,
+                  cell_width=0.5,
+                  cell_height=0.5,
+                  cells=_cells))
+
+    # OccupancyGrid — 4×2 grid with non-trivial values
+    _info = _lg.MapMetaData(
+        map_load_time=_lg_stamp,
+        resolution=0.1,
+        width=4,
+        height=2,
+        origin=_lg_geo.Pose(
+            position=_lg_geo.Point(x=0.0, y=0.0, z=0.0),
+            orientation=_lg_geo.Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)))
+    write_cdr("nav_msgs", "OccupancyGrid",
+              _lg.OccupancyGrid(
+                  header=_lg_header,
+                  info=_info,
+                  data=[0, 50, 100, -1, 25, 75, 0, 0]))
+
+    # Path — 3 poses with different frame_ids
+    _pose_a = _lg_geo.Pose(
+        position=_lg_geo.Point(x=1.0, y=0.0, z=0.0),
+        orientation=_lg_geo.Quaternion(x=0.0, y=0.0, z=0.0, w=1.0))
+    _pose_b = _lg_geo.Pose(
+        position=_lg_geo.Point(x=2.0, y=1.0, z=0.0),
+        orientation=_lg_geo.Quaternion(x=0.0, y=0.0, z=0.707, w=0.707))
+    _pose_c = _lg_geo.Pose(
+        position=_lg_geo.Point(x=3.0, y=2.0, z=0.0),
+        orientation=_lg_geo.Quaternion(x=0.0, y=0.0, z=1.0, w=0.0))
+    write_cdr("nav_msgs", "Path",
+              _lg.Path(
+                  header=_lg_header,
+                  poses=[
+                      _lg_geo.PoseStamped(
+                          header=_lg.Header(
+                              stamp=_lg.Time(sec=1, nanosec=0),
+                              frame_id="map"),
+                          pose=_pose_a),
+                      _lg_geo.PoseStamped(
+                          header=_lg.Header(
+                              stamp=_lg.Time(sec=2, nanosec=0),
+                              frame_id="map"),
+                          pose=_pose_b),
+                      _lg_geo.PoseStamped(
+                          header=_lg.Header(
+                              stamp=_lg.Time(sec=3, nanosec=0),
+                              frame_id="map"),
+                          pose=_pose_c),
+                  ]))
+
 
 def gen_std_msgs():
     write_cdr("std_msgs", "ColorRGBA",
@@ -234,10 +326,10 @@ def gen_sensor_msgs():
     write_cdr("sensor_msgs", "CompressedImage",
               sensor_msgs.CompressedImage(
                   header=header, format="jpeg",
-                  data=list(range(16))))
+                  data=bytes(range(16))))
 
     # Image — 4x2 RGB8 (24 bytes of pixel data)
-    pixels = list(range(24))
+    pixels = bytes(range(24))
     write_cdr("sensor_msgs", "Image",
               sensor_msgs.Image(
                   header=header, height=2, width=4, encoding="rgb8",
@@ -282,7 +374,7 @@ def gen_sensor_msgs():
               sensor_msgs.PointCloud2(
                   header=header, height=1, width=4, fields=fields,
                   is_bigendian=False, point_step=12, row_step=48,
-                  data=list(pc_data), is_dense=True))
+                  data=pc_data, is_dense=True))
 
     # MagneticField — Earth-field-magnitude sample
     write_cdr("sensor_msgs", "MagneticField",
@@ -341,6 +433,25 @@ def gen_sensor_msgs():
                   k=k_matrix, r=r_matrix, p=p_matrix,
                   binning_x=1, binning_y=1, roi=roi))
 
+    # Legacy types (RelativeHumidity, TimeReference) ─────────────────────
+    _ls = _legacy_sensor_msgs
+    _lg_stamp = _ls.Time(sec=STAMP.sec, nanosec=STAMP.nanosec)
+    _lg_header = _ls.Header(stamp=_lg_stamp, frame_id=FRAME_ID)
+
+    # RelativeHumidity — 65 % RH with 0.001 variance
+    write_cdr("sensor_msgs", "RelativeHumidity",
+              _ls.RelativeHumidity(
+                  header=_lg_header,
+                  relative_humidity=0.65,
+                  variance=0.001))
+
+    # TimeReference — GPS UTC source
+    write_cdr("sensor_msgs", "TimeReference",
+              _ls.TimeReference(
+                  header=_lg_header,
+                  time_ref=_ls.Time(sec=1234567890, nanosec=987654321),
+                  source="GPS_UTC"))
+
 
 def gen_edgefirst_msgs():
     # CdrFixed
@@ -353,7 +464,7 @@ def gen_edgefirst_msgs():
     write_cdr("edgefirst_msgs", "Mask",
               edgefirst_msgs.Mask(
                   height=2, width=4, length=0, encoding="",
-                  mask=list(range(8)), boxed=False))
+                  mask=bytes(range(8)), boxed=False))
 
     # CameraFrame — 8 variants covering raw, compressed, multi-plane, inlined.
     def _plane(fd=0, offset=0, stride=0, size=0, used=None, data=None):
@@ -467,12 +578,18 @@ def gen_edgefirst_msgs():
                   timezone=-300))
 
     # RadarCube — shape [2,4,2,2] = 32 i16 values
+    # Use legacy (pycdr2) type so that typed-array sequence encoding
+    # (sequence<uint16>, sequence<float32>, sequence<int16>) is byte-identical
+    # to the on-disk golden fixture, which was generated by pycdr2.
+    _le = _legacy_edgefirst_msgs
+    _le_stamp = _le.Time(sec=STAMP.sec, nanosec=STAMP.nanosec)
+    _le_header = _le.Header(stamp=_le_stamp, frame_id=FRAME_ID)
     shape = [2, 4, 2, 2]
     total = 2 * 4 * 2 * 2
     cube_data = [i * 100 for i in range(total)]
     write_cdr("edgefirst_msgs", "RadarCube",
-              edgefirst_msgs.RadarCube(
-                  header=header, timestamp=1234567890123456,
+              _le.RadarCube(
+                  header=_le_header, timestamp=1234567890123456,
                   layout=[6, 1, 5, 2],  # SEQUENCE, RANGE, RXCHANNEL, DOPPLER
                   shape=shape, scales=[1.0, 2.5, 1.0, 0.5],
                   cube=cube_data, is_complex=False))
@@ -490,21 +607,25 @@ def gen_edgefirst_msgs():
                   id="t1", lifetime=5,
                   created=builtin_interfaces.Time(sec=95, nanosec=0)))
 
-    # DetectBox (Box)
-    track = edgefirst_msgs.Track(
+    # DetectBox (Box) — edgefirst_msgs.Box is a value type (no to_bytes()); use
+    # the legacy pycdr2 type for the standalone CDR golden file.
+    _le = _legacy_edgefirst_msgs
+    _le_track = _le.Track(
         id="t1", lifetime=5,
-        created=builtin_interfaces.Time(sec=95, nanosec=0))
+        created=_le.Time(sec=95, nanosec=0))
     write_cdr("edgefirst_msgs", "Box",
-              edgefirst_msgs.Box(
+              _le.Box(
                   center_x=0.5, center_y=0.5, width=0.1, height=0.2,
                   label="car", score=0.98, distance=10.0, speed=5.0,
-                  track=track))
+                  track=_le_track))
 
-    # Detect
+    # Detect — PyO3 Box (value type) is compatible with the legacy CDR encoding;
+    # verified byte-identical against the pycdr2 golden in tests.
     box_msg = edgefirst_msgs.Box(
         center_x=0.5, center_y=0.5, width=0.1, height=0.2,
         label="car", score=0.98, distance=10.0, speed=5.0,
-        track=track)
+        track_id="t1", track_lifetime=5,
+        track_created=builtin_interfaces.Time(sec=95, nanosec=0))
     write_cdr("edgefirst_msgs", "Detect",
               edgefirst_msgs.Detect(
                   header=header,
@@ -518,21 +639,18 @@ def gen_edgefirst_msgs():
         edgefirst_msgs.Box(
             center_x=0.1, center_y=0.2, width=0.5, height=0.6,
             label="a", score=0.95, distance=5.0, speed=1.0,
-            track=edgefirst_msgs.Track(
-                id="t", lifetime=1,
-                created=builtin_interfaces.Time(sec=1, nanosec=0))),
+            track_id="t", track_lifetime=1,
+            track_created=builtin_interfaces.Time(sec=1, nanosec=0)),
         edgefirst_msgs.Box(
             center_x=0.3, center_y=0.4, width=0.2, height=0.3,
             label="person", score=0.87, distance=12.0, speed=3.0,
-            track=edgefirst_msgs.Track(
-                id="track_long_id", lifetime=10,
-                created=builtin_interfaces.Time(sec=2, nanosec=0))),
+            track_id="track_long_id", track_lifetime=10,
+            track_created=builtin_interfaces.Time(sec=2, nanosec=0)),
         edgefirst_msgs.Box(
             center_x=0.7, center_y=0.8, width=0.1, height=0.1,
             label="ab", score=0.50, distance=0.0, speed=0.0,
-            track=edgefirst_msgs.Track(
-                id="abc", lifetime=0,
-                created=builtin_interfaces.Time(sec=0, nanosec=0))),
+            track_id="abc", track_lifetime=0,
+            track_created=builtin_interfaces.Time(sec=0, nanosec=0)),
     ]
     write_cdr("edgefirst_msgs", "Detect_multi",
               edgefirst_msgs.Detect(
@@ -542,7 +660,7 @@ def gen_edgefirst_msgs():
                   output_time=builtin_interfaces.Time(sec=0, nanosec=2000000),
                   boxes=boxes_multi))
 
-    # Model
+    # Model — uses MaskBox (value type) in masks=[]; Mask (standalone) differs.
     write_cdr("edgefirst_msgs", "Model",
               edgefirst_msgs.Model(
                   header=header,
@@ -551,9 +669,9 @@ def gen_edgefirst_msgs():
                   output_time=builtin_interfaces.Duration(sec=0, nanosec=500000),
                   decode_time=builtin_interfaces.Duration(sec=0, nanosec=200000),
                   boxes=[box_msg],
-                  mask=[edgefirst_msgs.Mask(
+                  masks=[edgefirst_msgs.MaskBox(
                       height=2, width=4, length=0, encoding="",
-                      mask=list(range(8)), boxed=True)]))
+                      mask=bytes(range(8)), boxed=True)]))
 
     # ModelInfo
     write_cdr("edgefirst_msgs", "ModelInfo",
@@ -625,14 +743,14 @@ def gen_foxglove_msgs():
     write_cdr("foxglove_msgs", "CompressedVideo",
               foxglove_msgs.CompressedVideo(
                   timestamp=STAMP, frame_id="camera",
-                  data=list(range(32)), format="h264"))
+                  data=bytes(range(32)), format="h264"))
 
     # CompressedImage — wire-identical layout to CompressedVideo; the format
     # carries an image media type instead of a video codec.
     write_cdr("foxglove_msgs", "CompressedImage",
               foxglove_msgs.CompressedImage(
                   timestamp=STAMP, frame_id="camera",
-                  data=list(range(32)), format="jpeg"))
+                  data=bytes(range(32)), format="jpeg"))
 
     # TextAnnotation
     text_color = foxglove_msgs.Color(r=1.0, g=1.0, b=1.0, a=1.0)
@@ -651,7 +769,7 @@ def gen_foxglove_msgs():
     pt_fill = foxglove_msgs.Color(r=0.0, g=0.0, b=1.0, a=0.5)
     write_cdr("foxglove_msgs", "PointsAnnotation",
               foxglove_msgs.PointsAnnotation(
-                  timestamp=STAMP, type=1,  # POINTS
+                  timestamp=STAMP, type_=1,  # POINTS
                   points=pts, outline_color=pt_outline,
                   outline_colors=[], fill_color=pt_fill, thickness=3.0))
 
@@ -663,7 +781,7 @@ def gen_foxglove_msgs():
         timestamp=STAMP, position=text_pos, text="hello",
         font_size=14.0, text_color=text_color, background_color=bg_color)
     pts_ann = foxglove_msgs.PointsAnnotation(
-        timestamp=STAMP, type=1, points=pts,
+        timestamp=STAMP, type_=1, points=pts,
         outline_color=pt_outline, outline_colors=[],
         fill_color=pt_fill, thickness=3.0)
     write_cdr("foxglove_msgs", "ImageAnnotations",
@@ -673,7 +791,7 @@ def gen_foxglove_msgs():
 
 def gen_rosgraph_msgs():
     write_cdr("rosgraph_msgs", "Clock",
-              Clock(clock=builtin_interfaces.Time(sec=1234567890, nanosec=123456789)))
+              Clock(clock=_legacy_builtin_interfaces.Time(sec=1234567890, nanosec=123456789)))
 
 
 # ═══════════════════════════════════════════════════════════════════════════

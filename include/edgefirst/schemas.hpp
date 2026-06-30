@@ -1073,6 +1073,87 @@ public:
     }
 };
 
+/// @brief ROS 2 `nav_msgs::MapMetaData` — fixed-size map metadata: load
+///        time, cell resolution, grid dimensions, and the origin pose.
+///
+/// Encoded as a `CdrFixed` value type (no variable-length fields), so it
+/// follows the same `decode` / `encode` / `encoded_size` shape as `Pose`
+/// and `Transform`. It is also embedded as the `info` block of an
+/// `OccupancyGrid`; see `OccupancyGridView::info()` and
+/// `OccupancyGridBuilder::info()`.
+class MapMetaData {
+public:
+    /// Time at which the map was loaded.
+    Time map_load_time{};
+    /// Map resolution in metres per cell.
+    float resolution{0};
+    /// Map width in cells.
+    std::uint32_t width{0};
+    /// Map height in cells.
+    std::uint32_t height{0};
+    /// Origin of the map: the real-world pose of cell (0, 0).
+    Pose origin{};
+
+    /// @brief Default-construct a zero MapMetaData.
+    constexpr MapMetaData() noexcept = default;
+    /// @brief Construct a MapMetaData from explicit fields.
+    /// @param load_time Time the map was loaded.
+    /// @param res Resolution in metres per cell.
+    /// @param w Map width in cells.
+    /// @param h Map height in cells.
+    /// @param o Origin pose of cell (0, 0).
+    constexpr MapMetaData(Time load_time, float res,
+                          std::uint32_t w, std::uint32_t h, Pose o) noexcept
+        : map_load_time(load_time), resolution(res), width(w), height(h), origin(o) {}
+
+    /// @brief Decode a CDR-encoded MapMetaData from a byte buffer.
+    /// @param data CDR1-LE bytes.
+    /// @return The decoded MapMetaData on success, or an Error on failure.
+    [[nodiscard]] static expected<MapMetaData, Error>
+    decode(span<const std::uint8_t> data) noexcept {
+        MapMetaData m;
+        if (ros_map_meta_data_decode(
+                data.data(), data.size(),
+                &m.map_load_time.sec, &m.map_load_time.nanosec,
+                &m.resolution, &m.width, &m.height,
+                &m.origin.px, &m.origin.py, &m.origin.pz,
+                &m.origin.ox, &m.origin.oy, &m.origin.oz, &m.origin.ow) != 0)
+            return unexpected<Error>(Error::from_errno("ros_map_meta_data_decode"));
+        return m;
+    }
+
+    /// @brief Encode this MapMetaData to CDR into the caller's buffer.
+    /// @param out Destination buffer; must have capacity ≥ encoded_size().
+    /// @return Number of bytes written on success, or an Error.
+    [[nodiscard]] expected<std::size_t, Error>
+    encode(span<std::uint8_t> out) const noexcept {
+        std::size_t written = 0;
+        if (ros_map_meta_data_encode(
+                out.data(), out.size(), &written,
+                map_load_time.sec, map_load_time.nanosec,
+                resolution, width, height,
+                origin.px, origin.py, origin.pz,
+                origin.ox, origin.oy, origin.oz, origin.ow) != 0)
+            return unexpected<Error>(Error::from_errno("ros_map_meta_data_encode"));
+        return written;
+    }
+
+    /// @brief Query the number of bytes required to encode this MapMetaData.
+    /// @return The encoded CDR size on success, or an Error.
+    [[nodiscard]] expected<std::size_t, Error>
+    encoded_size() const noexcept {
+        std::size_t written = 0;
+        if (ros_map_meta_data_encode(
+                nullptr, 0, &written,
+                map_load_time.sec, map_load_time.nanosec,
+                resolution, width, height,
+                origin.px, origin.py, origin.pz,
+                origin.ox, origin.oy, origin.oz, origin.ow) != 0)
+            return unexpected<Error>(Error::from_errno("ros_map_meta_data_encode"));
+        return written;
+    }
+};
+
 // ============================================================================
 // Buffer-backed types — template base classes (no macros)
 // ============================================================================
@@ -1861,6 +1942,48 @@ struct MavrosTimesyncStatusTraits {
     static constexpr std::string_view name = "ros_mavros_timesync_status";
 };
 
+// DE-2781 nav_msgs / sensor_msgs view traits.
+
+struct RelativeHumidityTraits {
+    using handle_type = ros_relative_humidity_t;
+    static constexpr auto from_cdr = ros_relative_humidity_from_cdr;
+    static constexpr auto free     = ros_relative_humidity_free;
+    static constexpr auto as_cdr   = ros_relative_humidity_as_cdr;
+    static constexpr std::string_view name = "ros_relative_humidity";
+};
+
+struct TimeReferenceTraits {
+    using handle_type = ros_time_reference_t;
+    static constexpr auto from_cdr = ros_time_reference_from_cdr;
+    static constexpr auto free     = ros_time_reference_free;
+    static constexpr auto as_cdr   = ros_time_reference_as_cdr;
+    static constexpr std::string_view name = "ros_time_reference";
+};
+
+struct GridCellsTraits {
+    using handle_type = ros_grid_cells_t;
+    static constexpr auto from_cdr = ros_grid_cells_from_cdr;
+    static constexpr auto free     = ros_grid_cells_free;
+    static constexpr auto as_cdr   = ros_grid_cells_as_cdr;
+    static constexpr std::string_view name = "ros_grid_cells";
+};
+
+struct OccupancyGridTraits {
+    using handle_type = ros_occupancy_grid_t;
+    static constexpr auto from_cdr = ros_occupancy_grid_from_cdr;
+    static constexpr auto free     = ros_occupancy_grid_free;
+    static constexpr auto as_cdr   = ros_occupancy_grid_as_cdr;
+    static constexpr std::string_view name = "ros_occupancy_grid";
+};
+
+struct PathTraits {
+    using handle_type = ros_path_t;
+    static constexpr auto from_cdr = ros_path_from_cdr;
+    static constexpr auto free     = ros_path_free;
+    static constexpr auto as_cdr   = ros_path_as_cdr;
+    static constexpr std::string_view name = "ros_path";
+};
+
 // ---------------------------------------------------------------------------
 // Builder traits structs — one per C builder type
 // ---------------------------------------------------------------------------
@@ -2171,6 +2294,63 @@ struct FoxgloveImageAnnotationBuilderTraits {
     static constexpr std::string_view name = "ros_foxglove_image_annotation_builder";
     static constexpr std::string_view build_name = "ros_foxglove_image_annotation_builder_build";
     static constexpr std::string_view encode_into_name = "ros_foxglove_image_annotation_builder_encode_into";
+};
+
+// DE-2781 nav_msgs / sensor_msgs builder traits.
+
+struct RelativeHumidityBuilderTraits {
+    using builder_type = ros_relative_humidity_builder_t;
+    static constexpr auto new_fn = ros_relative_humidity_builder_new;
+    static constexpr auto free_fn = ros_relative_humidity_builder_free;
+    static constexpr auto build_fn = ros_relative_humidity_builder_build;
+    static constexpr auto encode_into_fn = ros_relative_humidity_builder_encode_into;
+    static constexpr std::string_view name = "ros_relative_humidity_builder";
+    static constexpr std::string_view build_name = "ros_relative_humidity_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_relative_humidity_builder_encode_into";
+};
+
+struct TimeReferenceBuilderTraits {
+    using builder_type = ros_time_reference_builder_t;
+    static constexpr auto new_fn = ros_time_reference_builder_new;
+    static constexpr auto free_fn = ros_time_reference_builder_free;
+    static constexpr auto build_fn = ros_time_reference_builder_build;
+    static constexpr auto encode_into_fn = ros_time_reference_builder_encode_into;
+    static constexpr std::string_view name = "ros_time_reference_builder";
+    static constexpr std::string_view build_name = "ros_time_reference_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_time_reference_builder_encode_into";
+};
+
+struct GridCellsBuilderTraits {
+    using builder_type = ros_grid_cells_builder_t;
+    static constexpr auto new_fn = ros_grid_cells_builder_new;
+    static constexpr auto free_fn = ros_grid_cells_builder_free;
+    static constexpr auto build_fn = ros_grid_cells_builder_build;
+    static constexpr auto encode_into_fn = ros_grid_cells_builder_encode_into;
+    static constexpr std::string_view name = "ros_grid_cells_builder";
+    static constexpr std::string_view build_name = "ros_grid_cells_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_grid_cells_builder_encode_into";
+};
+
+struct OccupancyGridBuilderTraits {
+    using builder_type = ros_occupancy_grid_builder_t;
+    static constexpr auto new_fn = ros_occupancy_grid_builder_new;
+    static constexpr auto free_fn = ros_occupancy_grid_builder_free;
+    static constexpr auto build_fn = ros_occupancy_grid_builder_build;
+    static constexpr auto encode_into_fn = ros_occupancy_grid_builder_encode_into;
+    static constexpr std::string_view name = "ros_occupancy_grid_builder";
+    static constexpr std::string_view build_name = "ros_occupancy_grid_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_occupancy_grid_builder_encode_into";
+};
+
+struct PathBuilderTraits {
+    using builder_type = ros_path_builder_t;
+    static constexpr auto new_fn = ros_path_builder_new;
+    static constexpr auto free_fn = ros_path_builder_free;
+    static constexpr auto build_fn = ros_path_builder_build;
+    static constexpr auto encode_into_fn = ros_path_builder_encode_into;
+    static constexpr std::string_view name = "ros_path_builder";
+    static constexpr std::string_view build_name = "ros_path_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_path_builder_encode_into";
 };
 
 /**
@@ -4886,6 +5066,76 @@ public:
 };
 
 // ---------------------------------------------------------------------------
+// sensor_msgs - RelativeHumidity (view; construct via RelativeHumidityBuilder)
+// ---------------------------------------------------------------------------
+
+/// @brief Zero-copy view of a `sensor_msgs::RelativeHumidity` CDR buffer.
+///
+/// The C API exposes no standalone `encode` entry point for this type, so
+/// there is no owning value class; construct messages with
+/// `RelativeHumidityBuilder`, mirroring `TemperatureView` /
+/// `TemperatureBuilder`.
+class RelativeHumidityView
+    : public detail::ViewBase<RelativeHumidityView, detail::RelativeHumidityTraits> {
+    using Base = detail::ViewBase<RelativeHumidityView, detail::RelativeHumidityTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_relative_humidity_get_stamp_sec(handle()),
+                ros_relative_humidity_get_stamp_nanosec(handle())};
+    }
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_relative_humidity_get_frame_id(handle());
+    }
+    /// @brief Relative humidity as a dimensionless ratio in [0, 1].
+    [[nodiscard]] double relative_humidity() const noexcept {
+        return ros_relative_humidity_get_relative_humidity(handle());
+    }
+    [[nodiscard]] double variance() const noexcept {
+        return ros_relative_humidity_get_variance(handle());
+    }
+};
+
+// ---------------------------------------------------------------------------
+// sensor_msgs - TimeReference (view; construct via TimeReferenceBuilder)
+// ---------------------------------------------------------------------------
+
+/// @brief Zero-copy view of a `sensor_msgs::TimeReference` CDR buffer.
+///
+/// Construct messages with `TimeReferenceBuilder` (the C API has no
+/// standalone `encode` entry point for this type).
+class TimeReferenceView
+    : public detail::ViewBase<TimeReferenceView, detail::TimeReferenceTraits> {
+    using Base = detail::ViewBase<TimeReferenceView, detail::TimeReferenceTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_time_reference_get_stamp_sec(handle()),
+                ros_time_reference_get_stamp_nanosec(handle())};
+    }
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_time_reference_get_frame_id(handle());
+    }
+    /// @brief The referenced time (the time being reported by the source).
+    [[nodiscard]] Time time_ref() const noexcept {
+        return {ros_time_reference_get_time_ref_sec(handle()),
+                ros_time_reference_get_time_ref_nanosec(handle())};
+    }
+    /// @brief The time source description (e.g. "GPS_UTC").
+    [[nodiscard]] std::string_view source() const noexcept {
+        return ros_time_reference_get_source(handle());
+    }
+};
+
+// ---------------------------------------------------------------------------
 // sensor_msgs - BatteryState (view-only)
 // ---------------------------------------------------------------------------
 
@@ -5024,6 +5274,259 @@ public:
         ros_odometry_get_twist_covariance(handle(), t.covariance.data());
         return t;
     }
+};
+
+// ---------------------------------------------------------------------------
+// nav_msgs - GridCells (view; construct via GridCellsBuilder)
+// ---------------------------------------------------------------------------
+
+/// @brief Zero-copy view of a `nav_msgs::GridCells` CDR buffer.
+///
+/// Cell centre points are accessed by index via `cell()`; `size()` reports
+/// the count. Construct messages with `GridCellsBuilder`.
+class GridCellsView
+    : public detail::ViewBase<GridCellsView, detail::GridCellsTraits> {
+    using Base = detail::ViewBase<GridCellsView, detail::GridCellsTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_grid_cells_get_stamp_sec(handle()),
+                ros_grid_cells_get_stamp_nanosec(handle())};
+    }
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_grid_cells_get_frame_id(handle());
+    }
+    /// @brief Width of each cell in metres.
+    [[nodiscard]] float cell_width() const noexcept {
+        return ros_grid_cells_get_cell_width(handle());
+    }
+    /// @brief Height of each cell in metres.
+    [[nodiscard]] float cell_height() const noexcept {
+        return ros_grid_cells_get_cell_height(handle());
+    }
+    /// @brief Number of cell centre points.
+    [[nodiscard]] std::size_t size() const noexcept {
+        return ros_grid_cells_get_len(handle());
+    }
+    /// @brief True when there are no cells.
+    [[nodiscard]] bool empty() const noexcept { return size() == 0; }
+
+    /// @brief Get a cell centre point by index.
+    /// @param index Zero-based cell index in `[0, size())`.
+    /// @return The cell centre as a `Point`, or an Error (`EINVAL`) if the
+    ///         index is out of range.
+    [[nodiscard]] expected<Point, Error> cell(std::size_t index) const noexcept {
+        Point p;
+        if (ros_grid_cells_get_cell(handle(), index, &p.x, &p.y, &p.z) != 0)
+            return unexpected<Error>(Error::from_errno("ros_grid_cells_get_cell"));
+        return p;
+    }
+};
+
+// ---------------------------------------------------------------------------
+// nav_msgs - OccupancyGrid (view; construct via OccupancyGridBuilder)
+// ---------------------------------------------------------------------------
+
+/// @brief Zero-copy view of a `nav_msgs::OccupancyGrid` CDR buffer.
+///
+/// `data()` borrows the occupancy values directly from the backing CDR
+/// buffer (one `std::int8_t` per cell, row-major). Construct messages with
+/// `OccupancyGridBuilder`.
+class OccupancyGridView
+    : public detail::ViewBase<OccupancyGridView, detail::OccupancyGridTraits> {
+    using Base = detail::ViewBase<OccupancyGridView, detail::OccupancyGridTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_occupancy_grid_get_stamp_sec(handle()),
+                ros_occupancy_grid_get_stamp_nanosec(handle())};
+    }
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_occupancy_grid_get_frame_id(handle());
+    }
+    /// @brief The map metadata block (resolution, dimensions, origin).
+    [[nodiscard]] MapMetaData info() const noexcept {
+        MapMetaData m;
+        ros_occupancy_grid_get_info(handle(),
+            &m.map_load_time.sec, &m.map_load_time.nanosec,
+            &m.resolution, &m.width, &m.height,
+            &m.origin.px, &m.origin.py, &m.origin.pz,
+            &m.origin.ox, &m.origin.oy, &m.origin.oz, &m.origin.ow);
+        return m;
+    }
+    /// @brief Number of occupancy cells (width * height).
+    [[nodiscard]] std::size_t size() const noexcept {
+        return ros_occupancy_grid_get_data_len(handle());
+    }
+    /// @brief True when there are no occupancy cells.
+    [[nodiscard]] bool empty() const noexcept { return size() == 0; }
+
+    /// @brief Zero-copy view of the occupancy values (one per cell).
+    /// @return A span borrowing into the backing CDR buffer; valid for the
+    ///         lifetime of this view. Values are in the ROS convention:
+    ///         0..100 occupancy probability, -1 for unknown.
+    [[nodiscard]] span<const std::int8_t> data() const noexcept {
+        return {ros_occupancy_grid_get_data(handle()),
+                ros_occupancy_grid_get_data_len(handle())};
+    }
+};
+
+// ---------------------------------------------------------------------------
+// nav_msgs - Path (view + forward iterator; construct via PathBuilder)
+// ---------------------------------------------------------------------------
+
+/// @brief Zero-copy view of a `nav_msgs::Path` CDR buffer.
+///
+/// The path's `PoseStamped` sequence is variable-length, so random access
+/// via `pose(index)` is O(n) per call (O(n²) over the whole path). For bulk
+/// traversal prefer range-based iteration, which wraps the C cursor for a
+/// single O(n) pass:
+///
+/// @code{.cpp}
+/// for (const auto& ps : *path_view) {
+///     use(ps.stamp, ps.frame_id, ps.pose);
+/// }
+/// @endcode
+///
+/// @warning Iterators (and the `std::string_view` `frame_id` they yield)
+///          borrow the same CDR buffer as the view and must not outlive it.
+class PathView : public detail::ViewBase<PathView, detail::PathTraits> {
+    using Base = detail::ViewBase<PathView, detail::PathTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    /// @brief One `PoseStamped` element of a Path.
+    ///
+    /// `frame_id` borrows from the backing CDR buffer (valid for the view
+    /// lifetime); `stamp` and `pose` are plain values.
+    struct PoseStamped {
+        Time             stamp{};
+        std::string_view frame_id{};
+        Pose             pose{};
+    };
+
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_path_get_stamp_sec(handle()),
+                ros_path_get_stamp_nanosec(handle())};
+    }
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_path_get_frame_id(handle());
+    }
+    /// @brief Number of poses in the path.
+    [[nodiscard]] std::size_t size() const noexcept {
+        return ros_path_get_len(handle());
+    }
+    /// @brief True when the path has no poses.
+    [[nodiscard]] bool empty() const noexcept { return size() == 0; }
+
+    /// @brief Get a `PoseStamped` by index.
+    /// @param index Zero-based pose index in `[0, size())`.
+    /// @return The pose, or an Error (`EINVAL`) if the index is out of range.
+    /// @note O(n) per call — prefer iteration for bulk traversal.
+    [[nodiscard]] expected<PoseStamped, Error>
+    pose(std::size_t index) const noexcept {
+        PoseStamped ps;
+        const char* fid = nullptr;
+        if (ros_path_get_pose(handle(), index,
+                              &ps.stamp.sec, &ps.stamp.nanosec, &fid,
+                              &ps.pose.px, &ps.pose.py, &ps.pose.pz,
+                              &ps.pose.ox, &ps.pose.oy, &ps.pose.oz, &ps.pose.ow) != 0)
+            return unexpected<Error>(Error::from_errno("ros_path_get_pose"));
+        ps.frame_id = fid ? std::string_view{fid} : std::string_view{};
+        return ps;
+    }
+
+    /// @brief Single-pass forward input iterator over a Path's poses.
+    ///
+    /// Wraps the C `ros_path_iter_*` cursor so that range-based iteration is
+    /// a single O(n) pass. The iterator owns the underlying cursor uniquely
+    /// (move-only, like the views it borrows from) and frees it on
+    /// destruction.
+    ///
+    /// @warning Must not outlive the `PathView` it was obtained from (nor the
+    ///          CDR buffer that view was parsed from). The yielded
+    ///          `PoseStamped::frame_id` borrows into that same buffer.
+    class iterator {
+    public:
+        using iterator_category = std::input_iterator_tag;
+        using value_type        = PoseStamped;
+        using difference_type    = std::ptrdiff_t;
+        using pointer            = const PoseStamped*;
+        using reference          = const PoseStamped&;
+
+        /// @brief Construct the past-the-end sentinel.
+        iterator() noexcept = default;
+
+        /// @brief Begin a fresh cursor over @p view and load the first pose.
+        explicit iterator(const ros_path_t* view) noexcept
+            : it_(ros_path_iter_new(view)) { advance(); }
+
+        iterator(const iterator&)            = delete;
+        iterator& operator=(const iterator&) = delete;
+
+        iterator(iterator&& o) noexcept
+            : it_(o.it_), cur_(o.cur_), done_(o.done_) {
+            o.it_ = nullptr; o.done_ = true;
+        }
+        iterator& operator=(iterator&& o) noexcept {
+            if (this != &o) {
+                if (it_) ros_path_iter_free(it_);
+                it_ = o.it_; cur_ = o.cur_; done_ = o.done_;
+                o.it_ = nullptr; o.done_ = true;
+            }
+            return *this;
+        }
+        ~iterator() { if (it_) ros_path_iter_free(it_); }
+
+        [[nodiscard]] reference operator*() const noexcept { return cur_; }
+        [[nodiscard]] pointer operator->() const noexcept { return &cur_; }
+
+        iterator& operator++() noexcept { advance(); return *this; }
+
+        /// @brief Two iterators compare equal once both are exhausted; this
+        ///        is sufficient for the `begin() != end()` range-for idiom.
+        [[nodiscard]] bool operator==(const iterator& o) const noexcept {
+            return done_ == o.done_;
+        }
+        [[nodiscard]] bool operator!=(const iterator& o) const noexcept {
+            return !(*this == o);
+        }
+
+    private:
+        void advance() noexcept {
+            const char* fid = nullptr;
+            int r = ros_path_iter_next(it_,
+                        &cur_.stamp.sec, &cur_.stamp.nanosec, &fid,
+                        &cur_.pose.px, &cur_.pose.py, &cur_.pose.pz,
+                        &cur_.pose.ox, &cur_.pose.oy, &cur_.pose.oz, &cur_.pose.ow);
+            if (r == 1) {
+                cur_.frame_id = fid ? std::string_view{fid} : std::string_view{};
+                done_ = false;
+            } else {
+                done_ = true;
+            }
+        }
+
+        ros_path_iter_t* it_{nullptr};
+        PoseStamped      cur_{};
+        bool             done_{true};
+    };
+
+    /// @brief Forward iterator to the first pose (single O(n) pass).
+    [[nodiscard]] iterator begin() const noexcept { return iterator{handle()}; }
+    /// @brief Past-the-end sentinel.
+    [[nodiscard]] iterator end() const noexcept { return iterator{}; }
 };
 
 // ---------------------------------------------------------------------------
@@ -6500,6 +7003,195 @@ public:
     texts(span<const ros_foxglove_text_annotation_elem_t> t) noexcept {
         if (ros_foxglove_image_annotation_builder_set_texts(ptr(), t.data(), t.size()) != 0)
             return unexpected<Error>(Error::from_errno("ros_foxglove_image_annotation_builder_set_texts"));
+        return {};
+    }
+};
+
+// ---------------------------------------------------------------------------
+// DE-2781 nav_msgs / sensor_msgs builders
+// ---------------------------------------------------------------------------
+
+/// @brief Fluent builder for `sensor_msgs::RelativeHumidity` messages.
+class RelativeHumidityBuilder
+    : public detail::BuilderBase<RelativeHumidityBuilder,
+                                 detail::RelativeHumidityBuilderTraits> {
+    using Base = detail::BuilderBase<RelativeHumidityBuilder,
+                                     detail::RelativeHumidityBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    RelativeHumidityBuilder& stamp(Time t) noexcept {
+        ros_relative_humidity_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_relative_humidity_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_relative_humidity_builder_set_frame_id"));
+        return {};
+    }
+    /// @brief Set the relative humidity (dimensionless ratio in [0, 1]).
+    RelativeHumidityBuilder& relative_humidity(double v) noexcept {
+        ros_relative_humidity_builder_set_relative_humidity(ptr(), v); return *this;
+    }
+    RelativeHumidityBuilder& variance(double v) noexcept {
+        ros_relative_humidity_builder_set_variance(ptr(), v); return *this;
+    }
+};
+
+/// @brief Fluent builder for `sensor_msgs::TimeReference` messages.
+class TimeReferenceBuilder
+    : public detail::BuilderBase<TimeReferenceBuilder,
+                                 detail::TimeReferenceBuilderTraits> {
+    using Base = detail::BuilderBase<TimeReferenceBuilder,
+                                     detail::TimeReferenceBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    TimeReferenceBuilder& stamp(Time t) noexcept {
+        ros_time_reference_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_time_reference_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_time_reference_builder_set_frame_id"));
+        return {};
+    }
+    /// @brief Set the referenced time (the time being reported).
+    TimeReferenceBuilder& time_ref(Time t) noexcept {
+        ros_time_reference_builder_set_time_ref(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    /// @brief Set the time source description (string copied into builder).
+    [[nodiscard]] expected<void, Error> source(const char* s) noexcept {
+        if (ros_time_reference_builder_set_source(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_time_reference_builder_set_source"));
+        return {};
+    }
+};
+
+/// @brief Fluent builder for `nav_msgs::GridCells` messages.
+class GridCellsBuilder
+    : public detail::BuilderBase<GridCellsBuilder, detail::GridCellsBuilderTraits> {
+    using Base = detail::BuilderBase<GridCellsBuilder, detail::GridCellsBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    GridCellsBuilder& stamp(Time t) noexcept {
+        ros_grid_cells_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_grid_cells_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_grid_cells_builder_set_frame_id"));
+        return {};
+    }
+    GridCellsBuilder& cell_width(float v) noexcept {
+        ros_grid_cells_builder_set_cell_width(ptr(), v); return *this;
+    }
+    GridCellsBuilder& cell_height(float v) noexcept {
+        ros_grid_cells_builder_set_cell_height(ptr(), v); return *this;
+    }
+    /// @brief Set the cell centre points from a flat (x, y, z) sequence.
+    /// @param xyz `3 * cell_count` contiguous doubles. BORROWED — must
+    ///        remain valid until build/encode_into. The span size must be a
+    ///        multiple of 3; otherwise the trailing remainder is ignored.
+    [[nodiscard]] expected<void, Error>
+    cells(span<const double> xyz) noexcept {
+        if (ros_grid_cells_builder_set_cells(ptr(), xyz.data(), xyz.size() / 3) != 0)
+            return unexpected<Error>(Error::from_errno("ros_grid_cells_builder_set_cells"));
+        return {};
+    }
+};
+
+/// @brief Fluent builder for `nav_msgs::OccupancyGrid` messages.
+class OccupancyGridBuilder
+    : public detail::BuilderBase<OccupancyGridBuilder,
+                                 detail::OccupancyGridBuilderTraits> {
+    using Base = detail::BuilderBase<OccupancyGridBuilder,
+                                     detail::OccupancyGridBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    OccupancyGridBuilder& stamp(Time t) noexcept {
+        ros_occupancy_grid_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_occupancy_grid_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_occupancy_grid_builder_set_frame_id"));
+        return {};
+    }
+    /// @brief Set the MapMetaData info block (load time, resolution,
+    ///        dimensions, origin pose).
+    OccupancyGridBuilder& info(const MapMetaData& m) noexcept {
+        ros_occupancy_grid_builder_set_info(ptr(),
+            m.map_load_time.sec, m.map_load_time.nanosec,
+            m.resolution, m.width, m.height,
+            m.origin.px, m.origin.py, m.origin.pz,
+            m.origin.ox, m.origin.oy, m.origin.oz, m.origin.ow);
+        return *this;
+    }
+    /// @brief Set the occupancy values (one int8_t per cell). BORROWED —
+    ///        must remain valid until build/encode_into.
+    [[nodiscard]] expected<void, Error>
+    data(span<const std::int8_t> d) noexcept {
+        if (ros_occupancy_grid_builder_set_data(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_occupancy_grid_builder_set_data"));
+        return {};
+    }
+};
+
+/// @brief Fluent builder for `nav_msgs::Path` messages.
+///
+/// Poses are appended one at a time with `add_pose()`, each carrying its own
+/// per-element `PoseStamped` header (stamp + frame_id).
+class PathBuilder
+    : public detail::BuilderBase<PathBuilder, detail::PathBuilderTraits> {
+    using Base = detail::BuilderBase<PathBuilder, detail::PathBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    PathBuilder& stamp(Time t) noexcept {
+        ros_path_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_path_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_path_builder_set_frame_id"));
+        return {};
+    }
+    /// @brief Append one `PoseStamped` to the path.
+    /// @param stamp Per-element header stamp.
+    /// @param frame_id Per-element header frame_id (copied into the builder).
+    /// @param pose The pose (position + orientation quaternion).
+    /// @return Empty on success, or an Error (`EINVAL`) if @p frame_id is
+    ///         NULL or not valid UTF-8.
+    [[nodiscard]] expected<void, Error>
+    add_pose(Time stamp, const char* frame_id, Pose pose) noexcept {
+        if (ros_path_builder_add_pose(ptr(), stamp.sec, stamp.nanosec, frame_id,
+                                      pose.px, pose.py, pose.pz,
+                                      pose.ox, pose.oy, pose.oz, pose.ow) != 0)
+            return unexpected<Error>(Error::from_errno("ros_path_builder_add_pose"));
         return {};
     }
 };

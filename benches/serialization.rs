@@ -22,7 +22,8 @@ use edgefirst_schemas::cdr;
 use edgefirst_schemas::edgefirst_msgs::{DmaBuffer, Mask, RadarCube};
 use edgefirst_schemas::foxglove_msgs::FoxgloveCompressedVideo;
 use edgefirst_schemas::geometry_msgs::{Point, Pose, Quaternion, Vector3};
-use edgefirst_schemas::sensor_msgs::Image;
+use edgefirst_schemas::nav_msgs::{GridCells, MapMetaData, OccupancyGrid, Path};
+use edgefirst_schemas::sensor_msgs::{Image, RelativeHumidity, TimeReference};
 use edgefirst_schemas::std_msgs::Header;
 
 /// Check if fast benchmark mode is enabled via BENCH_FAST=1 environment variable.
@@ -505,6 +506,377 @@ fn bench_pointcloud(c: &mut Criterion) {
 }
 
 // ============================================================================
+// BENCHMARK: MapMetaData (CdrFixed, position-dependent padding)
+// ============================================================================
+
+fn bench_map_meta_data(c: &mut Criterion) {
+    let mut group = c.benchmark_group("MapMetaData");
+
+    let meta = MapMetaData {
+        map_load_time: Time {
+            sec: 1234567890,
+            nanosec: 123456789,
+        },
+        resolution: 0.05,
+        width: 4096,
+        height: 4096,
+        origin: Pose {
+            position: Point {
+                x: -100.0,
+                y: -100.0,
+                z: 0.0,
+            },
+            orientation: Quaternion {
+                x: 0.0,
+                y: 0.0,
+                z: 0.707,
+                w: 0.707,
+            },
+        },
+    };
+    let bytes = cdr::encode_fixed(&meta).unwrap();
+
+    group.bench_function("encode", |b| {
+        b.iter(|| cdr::encode_fixed(black_box(&meta)).unwrap())
+    });
+    group.bench_function("decode", |b| {
+        b.iter(|| cdr::decode_fixed::<MapMetaData>(black_box(&bytes)))
+    });
+
+    group.finish();
+}
+
+// ============================================================================
+// BENCHMARK: RelativeHumidity (buffer-backed, 1 offset, lightweight)
+// ============================================================================
+
+fn bench_relative_humidity(c: &mut Criterion) {
+    let mut group = c.benchmark_group("RelativeHumidity");
+
+    let stamp = Time {
+        sec: 1234567890,
+        nanosec: 123456789,
+    };
+    let msg = RelativeHumidity::new(stamp, "humidity_sensor", 0.6532, 0.0012).unwrap();
+    let bytes = msg.to_cdr();
+    group.throughput(Throughput::Bytes(bytes.len() as u64));
+
+    group.bench_function("new", |b| {
+        b.iter(|| {
+            RelativeHumidity::new(
+                black_box(stamp),
+                black_box("humidity_sensor"),
+                black_box(0.6532),
+                black_box(0.0012),
+            )
+            .unwrap()
+        })
+    });
+    group.bench_function("from_cdr", |b| {
+        b.iter(|| RelativeHumidity::from_cdr(black_box(bytes.clone())))
+    });
+    group.bench_function("from_cdr_borrow", |b| {
+        b.iter(|| RelativeHumidity::from_cdr(black_box(bytes.as_slice())))
+    });
+
+    group.finish();
+}
+
+// ============================================================================
+// BENCHMARK: TimeReference (buffer-backed, 2 offsets, lightweight)
+// ============================================================================
+
+fn bench_time_reference(c: &mut Criterion) {
+    let mut group = c.benchmark_group("TimeReference");
+
+    let stamp = Time {
+        sec: 1234567890,
+        nanosec: 123456789,
+    };
+    let time_ref = Time {
+        sec: 1234567899,
+        nanosec: 987654321,
+    };
+    let msg = TimeReference::new(stamp, "gps_receiver", time_ref, "GPS").unwrap();
+    let bytes = msg.to_cdr();
+    group.throughput(Throughput::Bytes(bytes.len() as u64));
+
+    group.bench_function("new", |b| {
+        b.iter(|| {
+            TimeReference::new(
+                black_box(stamp),
+                black_box("gps_receiver"),
+                black_box(time_ref),
+                black_box("GPS"),
+            )
+            .unwrap()
+        })
+    });
+    group.bench_function("from_cdr", |b| {
+        b.iter(|| TimeReference::from_cdr(black_box(bytes.clone())))
+    });
+    group.bench_function("from_cdr_borrow", |b| {
+        b.iter(|| TimeReference::from_cdr(black_box(bytes.as_slice())))
+    });
+
+    group.finish();
+}
+
+// ============================================================================
+// BENCHMARK: GridCells (buffer-backed, 2 offsets, O(1) indexed access)
+// ============================================================================
+
+fn bench_grid_cells(c: &mut Criterion) {
+    let mut group = c.benchmark_group("GridCells");
+
+    let stamp = Time {
+        sec: 1234567890,
+        nanosec: 123456789,
+    };
+    let fast_counts: &[usize] = &[64, 16384];
+    let all_counts: &[usize] = &[64, 1024, 16384];
+    let counts = if is_fast_mode() {
+        fast_counts
+    } else {
+        all_counts
+    };
+
+    for &count in counts {
+        let cells: Vec<Point> = (0..count)
+            .map(|i| Point {
+                x: i as f64 * 0.5,
+                y: i as f64 * 0.25,
+                z: 0.0,
+            })
+            .collect();
+        let msg = GridCells::new(stamp, "grid_frame", 0.5, 0.5, &cells).unwrap();
+        let bytes = msg.to_cdr();
+        group.throughput(Throughput::Bytes(bytes.len() as u64));
+
+        group.bench_with_input(BenchmarkId::new("new", count), &cells, |b, cs| {
+            b.iter(|| {
+                GridCells::new(black_box(stamp), "grid_frame", 0.5, 0.5, black_box(cs)).unwrap()
+            })
+        });
+        group.bench_with_input(BenchmarkId::new("from_cdr", count), &bytes, |b, cdr| {
+            b.iter(|| GridCells::from_cdr(black_box(cdr.clone())))
+        });
+        group.bench_with_input(
+            BenchmarkId::new("from_cdr_borrow", count),
+            &bytes,
+            |b, cdr| b.iter(|| GridCells::from_cdr(black_box(cdr.as_slice()))),
+        );
+
+        // cell_random_access: O(1) indexed reads in pseudo-random order. The
+        // index list is precomputed so the timed loop only measures cell()
+        // (offset arithmetic), proving access cost is independent of position.
+        let decoded = GridCells::from_cdr(bytes.clone()).unwrap();
+        let mut rng = rand::rng();
+        let indices: Vec<usize> = (0..count).map(|_| rng.random_range(0..count)).collect();
+        group.bench_with_input(
+            BenchmarkId::new("cell_random_access", count),
+            &indices,
+            |b, idxs| {
+                b.iter(|| {
+                    let mut acc = 0.0f64;
+                    for &i in idxs {
+                        acc += decoded.cell(black_box(i)).unwrap().x;
+                    }
+                    black_box(acc);
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+// ============================================================================
+// BENCHMARK: OccupancyGrid (buffer-backed, 3 offsets, zero-copy i8 slice)
+// ============================================================================
+
+fn bench_occupancy_grid(c: &mut Criterion) {
+    let mut group = c.benchmark_group("OccupancyGrid");
+
+    let stamp = Time {
+        sec: 1234567890,
+        nanosec: 123456789,
+    };
+    let fast_sizes: &[(u32, u32)] = &[(100, 100), (1000, 1000)];
+    let all_sizes: &[(u32, u32)] = &[(100, 100), (500, 500), (1000, 1000)];
+    let sizes = if is_fast_mode() {
+        fast_sizes
+    } else {
+        all_sizes
+    };
+
+    for &(width, height) in sizes {
+        let count = (width * height) as usize;
+        let mut rng = rand::rng();
+        let data: Vec<i8> = (0..count).map(|_| rng.random()).collect();
+        let info = MapMetaData {
+            map_load_time: stamp,
+            resolution: 0.05,
+            width,
+            height,
+            origin: Pose {
+                position: Point {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                orientation: Quaternion {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                    w: 1.0,
+                },
+            },
+        };
+        let msg = OccupancyGrid::new(stamp, "map", info, &data).unwrap();
+        let bytes = msg.to_cdr();
+        let name = format!("{}x{}", width, height);
+        group.throughput(Throughput::Bytes(count as u64));
+
+        group.bench_with_input(BenchmarkId::new("new", &name), &data, |b, d| {
+            b.iter(|| OccupancyGrid::new(black_box(stamp), "map", info, black_box(d)).unwrap())
+        });
+        group.bench_with_input(BenchmarkId::new("from_cdr", &name), &bytes, |b, cdr| {
+            b.iter(|| OccupancyGrid::from_cdr(black_box(cdr.clone())))
+        });
+        group.bench_with_input(
+            BenchmarkId::new("from_cdr_borrow", &name),
+            &bytes,
+            |b, cdr| b.iter(|| OccupancyGrid::from_cdr(black_box(cdr.as_slice()))),
+        );
+
+        // data_access: zero-copy borrow of the i8 grid + a sum so the slice
+        // read is not optimized away. No allocation or copy of the grid body.
+        let decoded = OccupancyGrid::from_cdr(bytes.clone()).unwrap();
+        group.bench_with_input(BenchmarkId::new("data_access", &name), &decoded, |b, og| {
+            b.iter(|| {
+                let mut acc: i64 = 0;
+                for &v in og.data() {
+                    acc += v as i64;
+                }
+                black_box(acc);
+            })
+        });
+    }
+
+    group.finish();
+}
+
+// ============================================================================
+// BENCHMARK: Path (buffer-backed sequence, O(n²)→O(n) access regression guard)
+// ============================================================================
+//
+// PoseStamped elements are variable-length (each carries its own frame_id
+// string), so a single element cannot be indexed by offset arithmetic — the
+// sequence must be scanned. `pose_at(i)` therefore scans from the start each
+// call: a `0..len()` loop over it is O(n²). `iter()` walks the sequence once
+// (O(n), zero-alloc), and `poses()` is O(n) but allocates a String per element.
+// The three access benches below are the guard that the iterator fix holds.
+
+fn bench_path(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Path");
+
+    let stamp = Time {
+        sec: 1234567890,
+        nanosec: 123456789,
+    };
+    let pose = Pose {
+        position: Point {
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+        },
+        orientation: Quaternion {
+            x: 0.0,
+            y: 0.0,
+            z: 0.707,
+            w: 0.707,
+        },
+    };
+    let fast_counts: &[usize] = &[16, 1024];
+    let all_counts: &[usize] = &[16, 256, 1024, 4096];
+    let counts = if is_fast_mode() {
+        fast_counts
+    } else {
+        all_counts
+    };
+
+    for &count in counts {
+        let poses: Vec<(Time, &str, Pose)> = (0..count).map(|_| (stamp, "map", pose)).collect();
+        let msg = Path::new(stamp, "path_frame", &poses).unwrap();
+        let bytes = msg.to_cdr();
+        group.throughput(Throughput::Elements(count as u64));
+
+        group.bench_with_input(BenchmarkId::new("new", count), &poses, |b, ps| {
+            b.iter(|| Path::new(black_box(stamp), "path_frame", black_box(ps)).unwrap())
+        });
+        group.bench_with_input(BenchmarkId::new("from_cdr", count), &bytes, |b, cdr| {
+            b.iter(|| Path::from_cdr(black_box(cdr.clone())))
+        });
+        group.bench_with_input(
+            BenchmarkId::new("from_cdr_borrow", count),
+            &bytes,
+            |b, cdr| b.iter(|| Path::from_cdr(black_box(cdr.as_slice()))),
+        );
+
+        let decoded = Path::from_cdr(bytes.clone()).unwrap();
+
+        // access_pose_at_loop: the OLD O(n²) pattern — pose_at() rescans from
+        // the start on every call. Kept as the slow baseline for the guard.
+        group.bench_with_input(
+            BenchmarkId::new("access_pose_at_loop", count),
+            &decoded,
+            |b, p| {
+                b.iter(|| {
+                    let mut acc = 0.0f64;
+                    for i in 0..p.len() {
+                        let (_, _, pose) = p.pose_at(black_box(i)).unwrap();
+                        acc += pose.position.x;
+                    }
+                    black_box(acc);
+                })
+            },
+        );
+
+        // access_poses_vec: O(n) single scan, but allocates an owned String
+        // per element into a Vec.
+        group.bench_with_input(
+            BenchmarkId::new("access_poses_vec", count),
+            &decoded,
+            |b, p| {
+                b.iter(|| {
+                    let mut acc = 0.0f64;
+                    for (_, _, pose) in p.poses() {
+                        acc += pose.position.x;
+                    }
+                    black_box(acc);
+                })
+            },
+        );
+
+        // access_iter: the NEW zero-copy borrowing iterator — O(n), no
+        // allocation. Should be materially faster than access_pose_at_loop at
+        // large N (this is the headline proof of the O(n²)→O(n) fix).
+        group.bench_with_input(BenchmarkId::new("access_iter", count), &decoded, |b, p| {
+            b.iter(|| {
+                let mut acc = 0.0f64;
+                for (_, _, pose) in p.iter() {
+                    acc += pose.position.x;
+                }
+                black_box(acc);
+            })
+        });
+    }
+
+    group.finish();
+}
+
+// ============================================================================
 // CRITERION GROUPS
 // ============================================================================
 
@@ -528,6 +900,12 @@ criterion_group! {
         bench_mask,
         bench_dmabuf,
         bench_pointcloud,
+        bench_map_meta_data,
+        bench_relative_humidity,
+        bench_time_reference,
+        bench_grid_cells,
+        bench_occupancy_grid,
+        bench_path,
 }
 
 criterion_main!(benches);

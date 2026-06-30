@@ -36,7 +36,7 @@ use edgefirst_schemas::geometry_msgs::{
     self, Accel, Inertia, Point, Point32, Pose, Pose2D, PoseWithCovariance, Quaternion, Transform,
     Twist, TwistWithCovariance, Vector3,
 };
-use edgefirst_schemas::nav_msgs;
+use edgefirst_schemas::nav_msgs::{self, MapMetaData};
 use edgefirst_schemas::rosgraph_msgs::Clock;
 use edgefirst_schemas::sensor_msgs::{self, NavSatStatus, PointFieldView, RegionOfInterest};
 use edgefirst_schemas::std_msgs::{self, ColorRGBA};
@@ -2707,4 +2707,208 @@ fn pointcloud2_builder_byte_parity_with_new() {
         via_builder.as_cdr(),
         "builder and new() must produce identical CDR bytes",
     );
+}
+
+// ── nav_msgs/MapMetaData ─────────────────────────────────────────────
+
+#[test]
+fn golden_nav_msgs_map_meta_data() {
+    use edgefirst_schemas::cdr::{decode_fixed, encode_fixed};
+
+    let golden = read_golden("nav_msgs", "MapMetaData");
+    let md = decode_fixed::<MapMetaData>(&golden).unwrap();
+    assert_eq!(md.map_load_time, STAMP);
+    assert!((md.resolution - 0.05_f32).abs() < f32::EPSILON);
+    assert_eq!(md.width, 200);
+    assert_eq!(md.height, 200);
+    assert_eq!(
+        md.origin.position,
+        Point {
+            x: -5.0,
+            y: -5.0,
+            z: 0.0
+        }
+    );
+    assert_eq!(
+        md.origin.orientation,
+        Quaternion {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            w: 1.0
+        }
+    );
+    assert_eq!(encode_fixed(&md).unwrap(), golden);
+    // Phase 3: modify resolution and round-trip via encode_fixed/decode_fixed
+    let mut md2 = md;
+    md2.resolution = 1.0_f32;
+    let re: MapMetaData = decode_fixed(&encode_fixed(&md2).unwrap()).unwrap();
+    assert!((re.resolution - 1.0_f32).abs() < f32::EPSILON);
+    assert_eq!(re.width, 200); // unchanged
+}
+
+// ── nav_msgs/GridCells ───────────────────────────────────────────────
+
+#[test]
+fn golden_nav_msgs_grid_cells() {
+    let golden = read_golden("nav_msgs", "GridCells");
+    let view = nav_msgs::GridCells::from_cdr(&golden[..]).unwrap();
+    assert_eq!(view.stamp(), STAMP);
+    assert_eq!(view.frame_id(), FRAME_ID);
+    assert!((view.cell_width() - 0.5_f32).abs() < f32::EPSILON);
+    assert!((view.cell_height() - 0.5_f32).abs() < f32::EPSILON);
+    assert_eq!(view.len(), 3);
+    let cells = view.cells();
+    assert_eq!(
+        cells[0],
+        Point {
+            x: 1.0,
+            y: 2.0,
+            z: 0.0
+        }
+    );
+    assert_eq!(
+        cells[1],
+        Point {
+            x: 3.0,
+            y: 4.0,
+            z: 0.0
+        }
+    );
+    assert_eq!(
+        cells[2],
+        Point {
+            x: 5.0,
+            y: 6.0,
+            z: 0.0
+        }
+    );
+    let built = nav_msgs::GridCells::new(STAMP, FRAME_ID, 0.5, 0.5, &cells).unwrap();
+    assert_eq!(built.to_cdr(), golden);
+    // Phase 3: mutate cell_width in-place and verify round-trip
+    let mut gc = nav_msgs::GridCells::from_cdr(golden.clone()).unwrap();
+    gc.set_cell_width(1.0).unwrap();
+    assert!((gc.cell_width() - 1.0_f32).abs() < f32::EPSILON);
+    assert!((gc.cell_height() - 0.5_f32).abs() < f32::EPSILON); // unchanged
+    assert_ne!(gc.to_cdr(), golden);
+}
+
+// ── nav_msgs/OccupancyGrid ───────────────────────────────────────────
+
+#[test]
+fn golden_nav_msgs_occupancy_grid() {
+    let golden = read_golden("nav_msgs", "OccupancyGrid");
+    let view = nav_msgs::OccupancyGrid::from_cdr(&golden[..]).unwrap();
+    assert_eq!(view.stamp(), STAMP);
+    assert_eq!(view.frame_id(), FRAME_ID);
+    let info = view.info();
+    assert_eq!(info.map_load_time, STAMP);
+    assert!((info.resolution - 0.1_f32).abs() < f32::EPSILON);
+    assert_eq!(info.width, 4);
+    assert_eq!(info.height, 2);
+    assert_eq!(view.len(), 8);
+    assert_eq!(view.data(), &[0i8, 50, 100, -1, 25, 75, 0, 0]);
+    let built =
+        nav_msgs::OccupancyGrid::new(STAMP, FRAME_ID, info, &[0, 50, 100, -1, 25, 75, 0, 0])
+            .unwrap();
+    assert_eq!(built.to_cdr(), golden);
+    // Phase 3: mutate stamp in-place and verify round-trip
+    let mut og = nav_msgs::OccupancyGrid::from_cdr(golden.clone()).unwrap();
+    og.set_stamp(Time::new(42, 0)).unwrap();
+    assert_eq!(og.stamp(), Time::new(42, 0));
+    assert_eq!(og.frame_id(), FRAME_ID); // unchanged
+    assert_ne!(og.to_cdr(), golden);
+}
+
+// ── nav_msgs/Path ────────────────────────────────────────────────────
+
+#[test]
+fn golden_nav_msgs_path() {
+    let golden = read_golden("nav_msgs", "Path");
+    let view = nav_msgs::Path::from_cdr(&golden[..]).unwrap();
+    assert_eq!(view.stamp(), STAMP);
+    assert_eq!(view.frame_id(), FRAME_ID);
+    assert_eq!(view.len(), 3);
+    let poses = view.poses();
+    assert_eq!(poses[0].0, Time { sec: 1, nanosec: 0 });
+    assert_eq!(poses[0].1, "map");
+    assert_eq!(
+        poses[0].2.position,
+        Point {
+            x: 1.0,
+            y: 0.0,
+            z: 0.0
+        }
+    );
+    assert_eq!(poses[1].0, Time { sec: 2, nanosec: 0 });
+    assert_eq!(poses[2].0, Time { sec: 3, nanosec: 0 });
+
+    let pose_inputs: Vec<(Time, &str, Pose)> = vec![
+        (poses[0].0, "map", poses[0].2),
+        (poses[1].0, "map", poses[1].2),
+        (poses[2].0, "map", poses[2].2),
+    ];
+    let built = nav_msgs::Path::new(STAMP, FRAME_ID, &pose_inputs).unwrap();
+    assert_eq!(built.to_cdr(), golden);
+    // Phase 3: mutate stamp in-place and verify round-trip
+    let mut path = nav_msgs::Path::from_cdr(golden.clone()).unwrap();
+    path.set_stamp(Time::new(99, 0)).unwrap();
+    assert_eq!(path.stamp(), Time::new(99, 0));
+    assert_eq!(path.frame_id(), FRAME_ID); // unchanged
+    assert_ne!(path.to_cdr(), golden);
+}
+
+// ── sensor_msgs/RelativeHumidity ─────────────────────────────────────
+
+#[test]
+fn golden_sensor_msgs_relative_humidity() {
+    let golden = read_golden("sensor_msgs", "RelativeHumidity");
+    let view = sensor_msgs::RelativeHumidity::from_cdr(&golden[..]).unwrap();
+    assert_eq!(view.stamp(), STAMP);
+    assert_eq!(view.frame_id(), FRAME_ID);
+    assert!((view.relative_humidity() - 0.65_f64).abs() < f64::EPSILON);
+    assert!((view.variance() - 0.001_f64).abs() < f64::EPSILON);
+    let built = sensor_msgs::RelativeHumidity::new(STAMP, FRAME_ID, 0.65, 0.001).unwrap();
+    assert_eq!(built.to_cdr(), golden);
+    // Phase 3: mutate relative_humidity in-place and verify round-trip
+    let mut rh = sensor_msgs::RelativeHumidity::from_cdr(golden.clone()).unwrap();
+    rh.set_relative_humidity(0.90).unwrap();
+    assert!((rh.relative_humidity() - 0.90_f64).abs() < f64::EPSILON);
+    assert!((rh.variance() - 0.001_f64).abs() < f64::EPSILON); // unchanged
+    assert_ne!(rh.to_cdr(), golden);
+}
+
+// ── sensor_msgs/TimeReference ────────────────────────────────────────
+
+#[test]
+fn golden_sensor_msgs_time_reference() {
+    let golden = read_golden("sensor_msgs", "TimeReference");
+    let view = sensor_msgs::TimeReference::from_cdr(&golden[..]).unwrap();
+    assert_eq!(view.stamp(), STAMP);
+    assert_eq!(view.frame_id(), FRAME_ID);
+    assert_eq!(
+        view.time_ref(),
+        Time {
+            sec: 1234567890,
+            nanosec: 987654321
+        }
+    );
+    assert_eq!(view.source(), "GPS_UTC");
+    let built = sensor_msgs::TimeReference::new(
+        STAMP,
+        FRAME_ID,
+        Time {
+            sec: 1234567890,
+            nanosec: 987654321,
+        },
+        "GPS_UTC",
+    )
+    .unwrap();
+    assert_eq!(built.to_cdr(), golden);
+    // Phase 3: mutate time_ref in-place and verify round-trip
+    let mut tr = sensor_msgs::TimeReference::from_cdr(golden.clone()).unwrap();
+    tr.set_time_ref(Time::new(0, 0)).unwrap();
+    assert_eq!(tr.time_ref(), Time::new(0, 0));
+    assert_eq!(tr.source(), "GPS_UTC"); // unchanged
+    assert_ne!(tr.to_cdr(), golden);
 }

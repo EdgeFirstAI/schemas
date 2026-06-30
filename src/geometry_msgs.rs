@@ -1759,6 +1759,41 @@ impl PoseArray<Vec<u8>> {
     }
 }
 
+// ── PoseStamped sequence helpers (pub(crate)) ───────────────────────
+//
+// Used by nav_msgs::Path to read/write/size embedded PoseStamped
+// elements in a CDR sequence.  These helpers operate on the raw fields
+// (stamp + frame_id + Pose) without the top-level 4-byte CDR
+// encapsulation header, which only appears once at the outermost message
+// boundary.
+
+/// Scan one embedded PoseStamped element from `c` (no CDR header).
+pub(crate) fn scan_pose_stamped(c: &mut CdrCursor<'_>) -> Result<(), CdrError> {
+    crate::builtin_interfaces::Time::read_cdr(c)?;
+    c.read_string()?;
+    Pose::read_cdr(c)?;
+    Ok(())
+}
+
+/// Advance `s` by the size of one embedded PoseStamped element.
+pub(crate) fn size_pose_stamped(s: &mut CdrSizer, frame_id: &str) {
+    crate::builtin_interfaces::Time::size_cdr(s);
+    s.size_string(frame_id);
+    Pose::size_cdr(s);
+}
+
+/// Write one embedded PoseStamped element to `w` (no CDR header).
+pub(crate) fn write_pose_stamped(
+    w: &mut CdrWriter<'_>,
+    stamp: crate::builtin_interfaces::Time,
+    frame_id: &str,
+    pose: Pose,
+) {
+    stamp.write_cdr(w);
+    w.write_string(frame_id);
+    pose.write_cdr(w);
+}
+
 /// Check if a type name is supported by this module.
 pub fn is_type_supported(type_name: &str) -> bool {
     matches!(

@@ -440,3 +440,167 @@ Test(sensor_msgs, new_types_free_null_ok) {
     ros_temperature_free(NULL);
     ros_battery_state_free(NULL);
 }
+
+// ============================================================================
+// RelativeHumidity Tests (buffer-backed)
+// ============================================================================
+
+Test(sensor_msgs, relative_humidity_from_golden_fixture) {
+    size_t len = 0;
+    uint8_t *b = _load_fixture_sm("testdata/cdr/sensor_msgs/RelativeHumidity.cdr", &len);
+    cr_assert_not_null(b, "failed to load RelativeHumidity fixture");
+    ros_relative_humidity_t *v = ros_relative_humidity_from_cdr(b, len);
+    cr_assert_not_null(v);
+
+    cr_assert_float_eq(ros_relative_humidity_get_relative_humidity(v), 0.65, 1e-12);
+    cr_assert_float_eq(ros_relative_humidity_get_variance(v), 0.001, 1e-12);
+
+    ros_relative_humidity_free(v);
+    free(b);
+}
+
+Test(sensor_msgs, relative_humidity_from_cdr_null) {
+    errno = 0;
+    cr_assert_null(ros_relative_humidity_from_cdr(NULL, 100));
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(sensor_msgs, relative_humidity_from_cdr_invalid) {
+    uint8_t bad[] = {0xDE, 0xAD, 0xBE, 0xEF};
+    errno = 0;
+    cr_assert_null(ros_relative_humidity_from_cdr(bad, sizeof(bad)));
+    cr_assert_eq(errno, EBADMSG);
+}
+
+Test(sensor_msgs, relative_humidity_free_null) {
+    ros_relative_humidity_free(NULL);
+}
+
+Test(sensor_msgs, relative_humidity_getters_null) {
+    cr_assert_eq(ros_relative_humidity_get_stamp_sec(NULL), 0);
+    cr_assert_eq(ros_relative_humidity_get_stamp_nanosec(NULL), 0);
+    cr_assert_null(ros_relative_humidity_get_frame_id(NULL));
+    cr_assert_float_eq(ros_relative_humidity_get_relative_humidity(NULL), 0.0, 1e-12);
+    cr_assert_float_eq(ros_relative_humidity_get_variance(NULL), 0.0, 1e-12);
+}
+
+Test(sensor_msgs, relative_humidity_builder_roundtrip) {
+    ros_relative_humidity_builder_t *b = ros_relative_humidity_builder_new();
+    cr_assert_not_null(b);
+    ros_relative_humidity_builder_set_stamp(b, 10, 20);
+    ros_relative_humidity_builder_set_frame_id(b, "sensor");
+    ros_relative_humidity_builder_set_relative_humidity(b, 0.72);
+    ros_relative_humidity_builder_set_variance(b, 0.005);
+
+    uint8_t *bytes = NULL;
+    size_t bytes_len = 0;
+    cr_assert_eq(ros_relative_humidity_builder_build(b, &bytes, &bytes_len), 0);
+    cr_assert_not_null(bytes);
+    cr_assert_gt(bytes_len, 0u);
+
+    ros_relative_humidity_t *v = ros_relative_humidity_from_cdr(bytes, bytes_len);
+    cr_assert_not_null(v);
+    cr_assert_eq(ros_relative_humidity_get_stamp_sec(v), 10);
+    cr_assert_str_eq(ros_relative_humidity_get_frame_id(v), "sensor");
+    cr_assert_float_eq(ros_relative_humidity_get_relative_humidity(v), 0.72, 1e-12);
+    cr_assert_float_eq(ros_relative_humidity_get_variance(v), 0.005, 1e-12);
+
+    ros_relative_humidity_free(v);
+    ros_bytes_free(bytes, bytes_len);
+    ros_relative_humidity_builder_free(b);
+}
+
+Test(sensor_msgs, relative_humidity_builder_matches_golden) {
+    size_t golden_len = 0;
+    uint8_t *golden = _load_fixture_sm("testdata/cdr/sensor_msgs/RelativeHumidity.cdr",
+                                       &golden_len);
+    cr_assert_not_null(golden, "failed to load RelativeHumidity fixture");
+
+    ros_relative_humidity_builder_t *b = ros_relative_humidity_builder_new();
+    cr_assert_not_null(b);
+    ros_relative_humidity_builder_set_stamp(b, 1234567890, 123456789u);
+    cr_assert_eq(ros_relative_humidity_builder_set_frame_id(b, "test_frame"), 0);
+    ros_relative_humidity_builder_set_relative_humidity(b, 0.65);
+    ros_relative_humidity_builder_set_variance(b, 0.001);
+
+    uint8_t *out = NULL;
+    size_t out_len = 0;
+    cr_assert_eq(ros_relative_humidity_builder_build(b, &out, &out_len), 0);
+    cr_assert_eq(out_len, golden_len);
+    cr_assert_eq(memcmp(out, golden, golden_len), 0,
+                 "RelativeHumidity builder output differs from golden fixture");
+
+    ros_bytes_free(out, out_len);
+    ros_relative_humidity_builder_free(b);
+    free(golden);
+}
+
+// ============================================================================
+// TimeReference Tests (buffer-backed)
+// ============================================================================
+
+Test(sensor_msgs, time_reference_from_golden_fixture) {
+    size_t len = 0;
+    uint8_t *b = _load_fixture_sm("testdata/cdr/sensor_msgs/TimeReference.cdr", &len);
+    cr_assert_not_null(b, "failed to load TimeReference fixture");
+    ros_time_reference_t *v = ros_time_reference_from_cdr(b, len);
+    cr_assert_not_null(v);
+
+    cr_assert_eq(ros_time_reference_get_time_ref_sec(v), 1234567890);
+    cr_assert_eq(ros_time_reference_get_time_ref_nanosec(v), 987654321u);
+    cr_assert_str_eq(ros_time_reference_get_source(v), "GPS_UTC");
+
+    ros_time_reference_free(v);
+    free(b);
+}
+
+Test(sensor_msgs, time_reference_from_cdr_null) {
+    errno = 0;
+    cr_assert_null(ros_time_reference_from_cdr(NULL, 100));
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(sensor_msgs, time_reference_from_cdr_invalid) {
+    uint8_t bad[] = {0xDE, 0xAD, 0xBE, 0xEF};
+    errno = 0;
+    cr_assert_null(ros_time_reference_from_cdr(bad, sizeof(bad)));
+    cr_assert_eq(errno, EBADMSG);
+}
+
+Test(sensor_msgs, time_reference_free_null) {
+    ros_time_reference_free(NULL);
+}
+
+Test(sensor_msgs, time_reference_getters_null) {
+    cr_assert_eq(ros_time_reference_get_stamp_sec(NULL), 0);
+    cr_assert_eq(ros_time_reference_get_stamp_nanosec(NULL), 0);
+    cr_assert_null(ros_time_reference_get_frame_id(NULL));
+    cr_assert_eq(ros_time_reference_get_time_ref_sec(NULL), 0);
+    cr_assert_eq(ros_time_reference_get_time_ref_nanosec(NULL), 0u);
+    cr_assert_null(ros_time_reference_get_source(NULL));
+}
+
+Test(sensor_msgs, time_reference_builder_matches_golden) {
+    size_t golden_len = 0;
+    uint8_t *golden = _load_fixture_sm("testdata/cdr/sensor_msgs/TimeReference.cdr",
+                                       &golden_len);
+    cr_assert_not_null(golden, "failed to load TimeReference fixture");
+
+    ros_time_reference_builder_t *b = ros_time_reference_builder_new();
+    cr_assert_not_null(b);
+    ros_time_reference_builder_set_stamp(b, 1234567890, 123456789u);
+    cr_assert_eq(ros_time_reference_builder_set_frame_id(b, "test_frame"), 0);
+    ros_time_reference_builder_set_time_ref(b, 1234567890, 987654321u);
+    cr_assert_eq(ros_time_reference_builder_set_source(b, "GPS_UTC"), 0);
+
+    uint8_t *out = NULL;
+    size_t out_len = 0;
+    cr_assert_eq(ros_time_reference_builder_build(b, &out, &out_len), 0);
+    cr_assert_eq(out_len, golden_len);
+    cr_assert_eq(memcmp(out, golden, golden_len), 0,
+                 "TimeReference builder output differs from golden fixture");
+
+    ros_bytes_free(out, out_len);
+    ros_time_reference_builder_free(b);
+    free(golden);
+}

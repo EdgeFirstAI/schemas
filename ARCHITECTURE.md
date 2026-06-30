@@ -1,7 +1,7 @@
 # EdgeFirst Perception Schemas - Architecture
 
-**Version:** 3.1.0
-**Last Updated:** April 2026
+**Version:** 3.5.0
+**Last Updated:** June 2026
 **Target Audience:** Developers implementing or integrating EdgeFirst Perception
 
 ---
@@ -28,7 +28,7 @@ EdgeFirst Perception Schemas is a **schema library** providing message type defi
 ### Key Characteristics
 
 - **Schema-first design**: Message definitions drive code generation
-- **Multi-language support**: Rust (native) and Python bindings
+- **Multi-language support**: Rust (native), C (FFI), C++ (header wrappers), and Python (PyO3)
 - **Standards-based**: ROS2 CDR serialization, ROS2 message compatibility
 - **Transport-agnostic**: Works over Zenoh, can bridge to ROS2 DDS
 - **Zero-copy capable**: DMA buffer sharing on embedded platforms
@@ -98,7 +98,7 @@ EdgeFirst Perception Schemas
 │   ├── std_msgs (Header, String, primitives)
 │   ├── geometry_msgs (Pose, Transform, Twist, etc.)
 │   ├── sensor_msgs (PointCloud2, Image, CameraInfo, Imu, etc.)
-│   ├── nav_msgs (Odometry, Path)
+│   ├── nav_msgs (MapMetaData, GridCells, OccupancyGrid, Odometry, Path)
 │   └── builtin_interfaces (Time, Duration)
 │
 ├── Foxglove Schemas (visualization)
@@ -234,8 +234,8 @@ assert_eq!(view.frame_id(), "camera"); // reads directly from buffer
 - Header generated as `include/edgefirst/schemas.h`
 
 **Python**:
-- `pycdr2`: CDR encoding/decoding
-- `dataclasses`: Python 3.7+ for message types
+- PyO3 compiled Rust extension (built via `maturin`) — CDR logic lives in Rust; no separate CDR library is needed at runtime
+- `pycdr2` is used only as an independent golden-fixture oracle in the test suite, not at runtime
 
 ### Publisher Buffer Reuse (Builder Pattern)
 
@@ -278,8 +278,8 @@ loop {
 ```
 
 As of 3.2.0 the builder pattern is applied to **every** buffer-backed
-message type in the crate (27 types across `std_msgs`, `sensor_msgs`,
-`edgefirst_msgs`, `foxglove_msgs`). The legacy `Foo::new(...)`
+message type in the crate (30+ types across `std_msgs`, `sensor_msgs`,
+`nav_msgs`, `edgefirst_msgs`, `foxglove_msgs`). The legacy `Foo::new(...)`
 constructors remain as `#[deprecated(since = "3.2.0")]` shims and are
 scheduled for removal in 4.0. The C FFI exposes a parallel
 `ros_<type>_builder_*` handle-based API with the same semantics.
@@ -354,7 +354,7 @@ unaffected by the C API rename.
 ### Python Implementation
 
 **Key Features**:
-- `pycdr2.IdlStruct` base class for CDR compatibility
+- PyO3 compiled Rust extension — Rust CDR logic is exposed directly as a native Python module via `maturin`; no `pycdr2` runtime dependency
 - Type hints for IDE support
 - Named tuples for decoded point clouds
 

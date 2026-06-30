@@ -309,8 +309,8 @@ Standard [ROS2](https://www.ros.org/) message types for broad interoperability:
 
 - **`std_msgs`** - Basic primitive types (Header, String, etc.)
 - **`geometry_msgs`** - Spatial messages (Pose, Transform, Twist, etc.)
-- **`sensor_msgs`** - Sensor data (Image, CameraInfo, Imu, NavSatFix, PointCloud2 with [zero-copy access layer](https://docs.rs/edgefirst-schemas/latest/edgefirst_schemas/sensor_msgs/pointcloud/), etc.)
-- **`nav_msgs`** - Navigation (Odometry, Path)
+- **`sensor_msgs`** - Sensor data (Image, CameraInfo, Imu, NavSatFix, PointCloud2 with [zero-copy access layer](https://docs.rs/edgefirst-schemas/latest/edgefirst_schemas/sensor_msgs/pointcloud/), RelativeHumidity, TimeReference, etc.)
+- **`nav_msgs`** - Navigation (MapMetaData, GridCells, OccupancyGrid, Odometry, Path)
 - **`builtin_interfaces`** - Time and Duration
 - **`rosgraph_msgs`** - Clock
 
