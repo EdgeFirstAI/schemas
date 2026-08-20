@@ -350,40 +350,6 @@ TEST_CASE("ImageBuilder round-trip", "[builder][image]") {
 }
 
 // ============================================================================
-// edgefirst_msgs — CameraFrameBuilder
-// ============================================================================
-
-TEST_CASE("CameraFrameBuilder round-trip", "[builder][camera_frame]") {
-    auto b = ef::CameraFrameBuilder::create();
-    REQUIRE(b.has_value());
-
-    b->stamp({900, 0})
-      .seq(42)
-      .pid(1)
-      .width(1920)
-      .height(1080)
-      .fence_fd(-1);
-    REQUIRE(b->frame_id("cam0").has_value());
-    REQUIRE(b->format("NV12").has_value());
-    REQUIRE(b->color_space("bt709").has_value());
-
-    auto result = b->build();
-    REQUIRE(result.has_value());
-    auto rel = *result;
-
-    auto view = ef::CameraFrameView::from_cdr({rel.data, rel.size});
-    REQUIRE(view.has_value());
-    CHECK(view->stamp().sec == 900);
-    CHECK(view->frame_id() == "cam0");
-    CHECK(view->seq() == 42);
-    CHECK(view->width() == 1920);
-    CHECK(view->height() == 1080);
-    CHECK(view->format() == "NV12");
-
-    free_released(rel);
-}
-
-// ============================================================================
 // foxglove_msgs — FoxgloveTextAnnotationBuilder (builder-only, no view)
 // ============================================================================
 

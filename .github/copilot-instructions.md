@@ -478,7 +478,7 @@ Use SECURITY.md process: email `support@au-zone.com` with subject "Security Vuln
 **Schema layers:**
 1. **ROS2 Common Interfaces** (std_msgs, sensor_msgs, geometry_msgs, nav_msgs, builtin_interfaces, rosgraph_msgs) — Apache-2.0
 2. **Foxglove Schemas** (visualization types) — MIT
-3. **EdgeFirst Custom Schemas** (edgefirst_msgs: Detect, Box, Track, DmaBuffer, RadarCube, RadarInfo, Model, ModelInfo) — Apache-2.0
+3. **EdgeFirst Custom Schemas** (edgefirst_msgs: Detect, Box, Track, Tensor, TensorPlane, TensorStamped, CameraFrame, RadarCube, RadarInfo, Model, ModelInfo) — Apache-2.0
 
 **Data flow:**
 - CDR buffer allocation → In-place field writes ("serialization") → Zenoh publish

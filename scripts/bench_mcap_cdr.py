@@ -43,7 +43,6 @@ SCHEMA_MAP = {
     "geometry_msgs/msg/Twist": geometry_msgs.Twist,
     "foxglove_msgs/msg/CompressedVideo": foxglove_msgs.CompressedVideo,
     "edgefirst_msgs/msg/Detect": edgefirst_msgs.Detect,
-    "edgefirst_msgs/msg/DmaBuffer": edgefirst_msgs.DmaBuffer,
     "edgefirst_msgs/msg/Mask": edgefirst_msgs.Mask,
     "edgefirst_msgs/msg/ModelInfo": edgefirst_msgs.ModelInfo,
     "edgefirst_msgs/msg/RadarCube": edgefirst_msgs.RadarCube,

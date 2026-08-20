@@ -23,7 +23,6 @@
 #include "geometry_msgs/Point.hpp"
 #include "geometry_msgs/Quaternion.hpp"
 #include "geometry_msgs/Pose.hpp"
-#include "edgefirst_msgs/DmaBuffer.hpp"
 #include "sensor_msgs/Image.hpp"
 #include "sensor_msgs/PointField.hpp"
 #include "sensor_msgs/PointCloud2.hpp"
@@ -95,17 +94,6 @@ std::vector<std::uint8_t> encode_pose(const bench::fixtures::PoseFixture& f) {
     msg.position().x(f.px); msg.position().y(f.py); msg.position().z(f.pz);
     msg.orientation().x(f.qx); msg.orientation().y(f.qy);
     msg.orientation().z(f.qz); msg.orientation().w(f.qw);
-    return encode(msg);
-}
-
-std::vector<std::uint8_t> encode_dmabuffer(const bench::fixtures::DmaBufferFixture& f) {
-    edgefirst_msgs::msg::DmaBuffer msg;
-    msg.header().stamp().sec(f.stamp_sec);
-    msg.header().stamp().nanosec(f.stamp_nanos);
-    msg.header().frame_id(f.frame_id);
-    msg.pid(f.pid); msg.fd(f.fd);
-    msg.width(f.width); msg.height(f.height);
-    msg.stride(f.stride); msg.fourcc(f.fourcc); msg.length(f.length);
     return encode(msg);
 }
 

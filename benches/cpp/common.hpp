@@ -92,22 +92,6 @@ struct PoseFixture {
     static constexpr std::string_view variant = "default";
 };
 
-struct DmaBufferFixture {
-    // header
-    std::int32_t  stamp_sec   = 1234567890;
-    std::uint32_t stamp_nanos = 123456789;
-    std::string   frame_id    = "camera_dma";
-    // body
-    std::uint32_t pid    = 12345;
-    std::int32_t  fd     = 7;
-    std::uint32_t width  = 1280;
-    std::uint32_t height = 720;
-    std::uint32_t stride = 1280 * 4;   // RGBA
-    std::uint32_t fourcc = 0x32424752; // 'RGB2'
-    std::uint32_t length = 1280 * 720 * 4;
-    static constexpr std::string_view variant = "default";
-};
-
 struct ImageVariant {
     std::string_view name;       // e.g. "HD_rgb8"
     std::uint32_t    width;

@@ -3,9 +3,8 @@
 
 """Tests for `edgefirst.schemas.edgefirst_msgs`.
 
-Exercises the four wrapped types:
+Exercises the three wrapped types:
 - ``Date`` — CdrFixed (4-byte payload, year/month/day).
-- ``DmaBuffer`` — buffer-backed metadata-only message (deprecated upstream).
 - ``Mask`` — buffer-backed segmentation mask with bulk byte payload.
 - ``RadarCube`` — buffer-backed with multiple typed array fields
   (layout u8, shape u16, scales f32, cube i16).
@@ -15,7 +14,7 @@ import numpy as np
 import pytest
 
 from edgefirst.schemas.builtin_interfaces import Time
-from edgefirst.schemas.edgefirst_msgs import Date, DmaBuffer, LocalTime, Mask, RadarCube, Track
+from edgefirst.schemas.edgefirst_msgs import Date, LocalTime, Mask, RadarCube, Track
 from edgefirst.schemas.std_msgs import Header
 
 
@@ -40,40 +39,6 @@ class TestDate:
         d = Date(year=year, month=month, day=day)
         restored = Date.from_cdr(d.to_bytes())
         assert (restored.year, restored.month, restored.day) == (year, month, day)
-
-
-# ── DmaBuffer (deprecated upstream, kept for bench parity) ─────────
-
-
-class TestDmaBuffer:
-    @pytest.mark.filterwarnings("ignore::DeprecationWarning")
-    def test_round_trip(self, sample_header):
-        # YUYV fourcc = 'YUYV' = 0x56595559
-        db = DmaBuffer(
-            header=sample_header,
-            pid=12345, fd=42,
-            width=1920, height=1080,
-            stride=1920 * 2, fourcc=0x56595559,
-            length=1920 * 1080 * 2,
-        )
-        restored = DmaBuffer.from_cdr(db.to_bytes())
-        assert restored.pid == 12345
-        assert restored.fd == 42
-        assert restored.width == 1920
-        assert restored.height == 1080
-        assert restored.stride == 1920 * 2
-        assert restored.fourcc == 0x56595559
-        assert restored.length == 1920 * 1080 * 2
-
-    @pytest.mark.filterwarnings("ignore::DeprecationWarning")
-    def test_negative_fd_round_trip(self, sample_header):
-        # fd is i32 — sentinel values may be negative in producer code.
-        db = DmaBuffer(
-            header=sample_header,
-            pid=1, fd=-1,
-            width=1, height=1, stride=1, fourcc=0, length=0,
-        )
-        assert DmaBuffer.from_cdr(db.to_bytes()).fd == -1
 
 
 # ── Mask ───────────────────────────────────────────────────────────
@@ -274,53 +239,6 @@ class TestDetect:
         det = Detect(header=sample_header)
         restored = Detect.from_cdr(det.to_bytes())
         assert len(restored.boxes) == 0
-
-
-# ── CameraFrame / CameraPlane ─────────────────────────────────────
-
-from edgefirst.schemas.edgefirst_msgs import CameraFrame, CameraPlane
-
-
-class TestCameraFrame:
-    def test_round_trip(self, sample_header):
-        plane = CameraPlane(fd=5, offset=0, stride=1920, size=1920 * 1080)
-        cf = CameraFrame(
-            header=sample_header,
-            width=1920,
-            height=1080,
-            format="NV12",
-            planes=[plane],
-        )
-        restored = CameraFrame.from_cdr(cf.to_bytes())
-        assert restored.width == 1920
-        assert restored.height == 1080
-        assert restored.format == "NV12"
-        assert len(restored.planes) == 1
-        assert restored.planes[0].fd == 5
-        assert restored.planes[0].stride == 1920
-
-    def test_no_planes(self, sample_header):
-        cf = CameraFrame(header=sample_header, width=640, height=480)
-        restored = CameraFrame.from_cdr(cf.to_bytes())
-        assert len(restored.planes) == 0
-
-    def test_inline_data_plane(self, sample_header):
-        pixel_data = bytes([0xFF] * 64)
-        plane = CameraPlane(fd=-1, offset=0, stride=8, size=64, data=pixel_data)
-        assert plane.fd == -1
-        assert plane.data == pixel_data
-        cf = CameraFrame(
-            header=sample_header, width=8, height=8, format="GRAY8",
-            planes=[plane],
-        )
-        restored = CameraFrame.from_cdr(cf.to_bytes())
-        assert restored.planes[0].fd == -1
-        assert restored.planes[0].data == pixel_data
-
-    def test_inline_data_requires_fd_minus_one(self):
-        import pytest
-        with pytest.raises(ValueError, match="inline data.*fd == -1"):
-            CameraPlane(fd=3, data=b"\x00\x01\x02")
 
 
 # ── Model / MaskBox ───────────────────────────────────────────────

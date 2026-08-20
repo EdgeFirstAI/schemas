@@ -53,6 +53,9 @@ pub mod service;
 /// Zero-copy CDR serialization infrastructure.
 pub mod cdr;
 
+/// Tensor message core: plane codec and composition.
+pub mod tensor;
+
 /// Schema registry for runtime schema name lookup.
 pub mod schema_registry;
 

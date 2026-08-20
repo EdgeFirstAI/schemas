@@ -120,16 +120,6 @@ Test(errno_handling, from_cdr_null_mask) {
     cr_assert_eq(errno, EINVAL);
 }
 
-Test(errno_handling, from_cdr_null_dmabuffer) {
-    errno = 0;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-    ros_dmabuffer_t *handle = ros_dmabuffer_from_cdr(NULL, 100);
-#pragma GCC diagnostic pop
-    cr_assert_null(handle);
-    cr_assert_eq(errno, EINVAL);
-}
-
 Test(errno_handling, from_cdr_null_imu) {
     errno = 0;
     ros_imu_t *handle = ros_imu_from_cdr(NULL, 100);
@@ -295,10 +285,6 @@ Test(errno_handling, free_null_all_types) {
     ros_compressed_image_free(NULL);
     ros_compressed_video_free(NULL);
     ros_mask_free(NULL);
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-    ros_dmabuffer_free(NULL);
-#pragma GCC diagnostic pop
     ros_imu_free(NULL);
     ros_nav_sat_fix_free(NULL);
     ros_transform_stamped_free(NULL);

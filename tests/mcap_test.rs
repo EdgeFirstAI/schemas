@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright © 2025 Au-Zone Technologies. All Rights Reserved.
 
-// MCAP tests still cover DmaBuffer for the deprecation window. Allow
-// the internal usages; downstream consumers still get the warning.
-#![allow(deprecated)]
-
 //! MCAP tests for real-world CDR validation.
 //!
 //! These tests validate that EdgeFirst Schemas can correctly deserialize
@@ -29,6 +25,12 @@ use edgefirst_schemas::sensor_msgs;
 
 /// Path to test data directory relative to crate root
 const TESTDATA_DIR: &str = "testdata/mcap";
+
+/// Schemas present in historical recordings that 4.0.0 intentionally no longer
+/// decodes. `DmaBuffer` was removed in 4.0.0; a 4.x library genuinely cannot
+/// read a 3.x `DmaBuffer` message, and this records that as intended
+/// behaviour rather than hiding it by loosening the assertion below.
+const RETIRED_SCHEMAS: &[&str] = &["edgefirst_msgs/msg/DmaBuffer"];
 
 /// Find all MCAP files in the testdata directory
 fn find_mcap_files() -> Vec<PathBuf> {
@@ -140,7 +142,6 @@ fn validate_message(schema_name: &str, data: &[u8]) -> Result<Vec<u8>, TestError
 
         // edgefirst_msgs — buffer-backed
         "edgefirst_msgs/msg/Detect" => roundtrip_buf!(edgefirst_msgs::Detect<Vec<u8>>, data),
-        "edgefirst_msgs/msg/DmaBuffer" => roundtrip_buf!(edgefirst_msgs::DmaBuffer<Vec<u8>>, data),
         "edgefirst_msgs/msg/Mask" => roundtrip_buf!(edgefirst_msgs::Mask<Vec<u8>>, data),
         "edgefirst_msgs/msg/ModelInfo" => roundtrip_buf!(edgefirst_msgs::ModelInfo<Vec<u8>>, data),
         "edgefirst_msgs/msg/RadarCube" => roundtrip_buf!(edgefirst_msgs::RadarCube<Vec<u8>>, data),
@@ -183,24 +184,38 @@ fn test_all_schemas_supported() {
             .expect("Failed to read MCAP summary")
             .expect("MCAP has no summary");
 
-        let mut unsupported = Vec::new();
+        let mut unsupported: Vec<String> = Vec::new();
         for schema in summary.schemas.values() {
             if !is_schema_supported(&schema.name) {
                 unsupported.push(schema.name.clone());
             }
         }
+        unsupported.sort();
+        unsupported.dedup();
 
-        assert!(
-            unsupported.is_empty(),
-            "Unsupported schemas in {}: {:?}\nAdd these to validate_message() in tests/mcap_test.rs",
+        let mut retired: Vec<&str> = RETIRED_SCHEMAS.to_vec();
+        retired.sort_unstable();
+
+        // The set of unsupported schemas must be *exactly* the retired set:
+        // a genuinely unknown schema (not in RETIRED_SCHEMAS) still fails
+        // this test, and a retired schema that stops appearing as
+        // unsupported (e.g. someone re-adds DmaBuffer decoding without
+        // updating RETIRED_SCHEMAS) also fails it.
+        assert_eq!(
+            unsupported.iter().map(String::as_str).collect::<Vec<_>>(),
+            retired,
+            "Unsupported schemas in {} must equal RETIRED_SCHEMAS exactly.\n\
+             Add newly-unsupported schemas to validate_message() in tests/mcap_test.rs, \
+             or if the removal is intentional, add them to RETIRED_SCHEMAS instead.",
             mcap_path.display(),
-            unsupported
         );
 
         println!(
-            "✓ {} - all {} schemas supported",
+            "✓ {} - all {} schemas supported ({} intentionally retired: {:?})",
             mcap_path.file_name().unwrap().to_string_lossy(),
-            summary.schemas.len()
+            summary.schemas.len(),
+            unsupported.len(),
+            unsupported
         );
     }
 }
@@ -237,6 +252,13 @@ fn test_deserialize_all_messages() {
                 .unwrap_or("unknown");
 
             *message_counts.entry(schema_name.to_string()).or_insert(0) += 1;
+
+            // RETIRED_SCHEMAS are expected-unsupported (see
+            // test_all_schemas_supported); skip them here rather than
+            // counting their absence of support as a deserialization error.
+            if RETIRED_SCHEMAS.contains(&schema_name) {
+                continue;
+            }
 
             if let Err(e) = validate_message(schema_name, &message.data) {
                 errors.push(format!(
@@ -298,6 +320,13 @@ fn test_roundtrip_all_messages() {
                 .as_ref()
                 .map(|s| s.name.as_str())
                 .unwrap_or("unknown");
+
+            // RETIRED_SCHEMAS are expected-unsupported (see
+            // test_all_schemas_supported); skip them here rather than
+            // counting their absence of support as a round-trip error.
+            if RETIRED_SCHEMAS.contains(&schema_name) {
+                continue;
+            }
 
             match validate_message(schema_name, &message.data) {
                 Ok(reserialized) => {
@@ -394,7 +423,6 @@ fn deserialize_message(schema_name: &str, data: &[u8]) -> Result<(), TestError> 
 
         // edgefirst_msgs — buffer-backed
         "edgefirst_msgs/msg/Detect" => deser_buf!(edgefirst_msgs::Detect<Vec<u8>>),
-        "edgefirst_msgs/msg/DmaBuffer" => deser_buf!(edgefirst_msgs::DmaBuffer<Vec<u8>>),
         "edgefirst_msgs/msg/Mask" => deser_buf!(edgefirst_msgs::Mask<Vec<u8>>),
         "edgefirst_msgs/msg/ModelInfo" => deser_buf!(edgefirst_msgs::ModelInfo<Vec<u8>>),
         "edgefirst_msgs/msg/RadarCube" => deser_buf!(edgefirst_msgs::RadarCube<Vec<u8>>),

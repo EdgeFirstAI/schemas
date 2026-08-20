@@ -25,8 +25,6 @@
 #include "geometry_msgs/QuaternionCdrAux.ipp"
 #include "geometry_msgs/Pose.hpp"
 #include "geometry_msgs/PoseCdrAux.ipp"
-#include "edgefirst_msgs/DmaBuffer.hpp"
-#include "edgefirst_msgs/DmaBufferCdrAux.ipp"
 
 // Large message types (Fast-CDR)
 #include "sensor_msgs/Image.hpp"
@@ -55,7 +53,6 @@ std::vector<std::uint8_t> encode_header(const bench::fixtures::HeaderFixture& f)
 std::vector<std::uint8_t> encode_time(const bench::fixtures::TimeFixture& f);
 std::vector<std::uint8_t> encode_vector3(const bench::fixtures::Vector3Fixture& f);
 std::vector<std::uint8_t> encode_pose(const bench::fixtures::PoseFixture& f);
-std::vector<std::uint8_t> encode_dmabuffer(const bench::fixtures::DmaBufferFixture& f);
 std::vector<std::uint8_t> encode_image(const bench::fixtures::ImageVariant& v,
                                         const std::vector<std::uint8_t>& payload);
 std::vector<std::uint8_t> encode_radarcube(const bench::fixtures::RadarCubeVariant& v,
@@ -182,38 +179,6 @@ static std::vector<std::uint8_t> encode_pose_with_fastcdr(const bench::fixtures:
     msg.position().x(f.px); msg.position().y(f.py); msg.position().z(f.pz);
     msg.orientation().x(f.qx); msg.orientation().y(f.qy);
     msg.orientation().z(f.qz); msg.orientation().w(f.qw);
-    return fastcdr_encode(msg);
-}
-
-// ---------------------------------------------------------------------------
-// DmaBuffer parity
-// ---------------------------------------------------------------------------
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-
-static std::vector<std::uint8_t> encode_dmabuffer_with_edgefirst(const bench::fixtures::DmaBufferFixture& f) {
-    auto r = ef::DmaBuffer::encode(
-        ef::Time{f.stamp_sec, f.stamp_nanos},
-        f.frame_id,
-        f.pid, f.fd,
-        f.width, f.height,
-        f.stride, f.fourcc, f.length);
-    if (!r) { std::fprintf(stderr, "edgefirst DmaBuffer::encode failed\n"); std::abort(); }
-    auto sp = r->as_cdr();
-    return std::vector<std::uint8_t>(sp.data(), sp.data() + sp.size());
-}
-
-#pragma GCC diagnostic pop
-
-static std::vector<std::uint8_t> encode_dmabuffer_with_fastcdr(const bench::fixtures::DmaBufferFixture& f) {
-    edgefirst_msgs::msg::DmaBuffer msg;
-    msg.header().stamp().sec(f.stamp_sec);
-    msg.header().stamp().nanosec(f.stamp_nanos);
-    msg.header().frame_id(f.frame_id);
-    msg.pid(f.pid); msg.fd(f.fd);
-    msg.width(f.width); msg.height(f.height);
-    msg.stride(f.stride); msg.fourcc(f.fourcc); msg.length(f.length);
     return fastcdr_encode(msg);
 }
 
@@ -484,10 +449,6 @@ int main() {
         bench::fixtures::PoseFixture f;
         ok &= check_parity("Pose", encode_pose_with_edgefirst(f), encode_pose_with_fastcdr(f));
     }
-    {
-        bench::fixtures::DmaBufferFixture f;
-        ok &= check_parity("DmaBuffer", encode_dmabuffer_with_edgefirst(f), encode_dmabuffer_with_fastcdr(f));
-    }
 
     // Large type parity — one representative variant each
 
@@ -568,12 +529,6 @@ int main() {
         bench::fixtures::PoseFixture f;
         ok &= check_parity("Pose",
             encode_pose_with_edgefirst(f), parity_cdds::encode_pose(f),
-            "edgefirst", "cyclonedds");
-    }
-    {
-        bench::fixtures::DmaBufferFixture f;
-        ok &= check_parity("DmaBuffer",
-            encode_dmabuffer_with_edgefirst(f), parity_cdds::encode_dmabuffer(f),
             "edgefirst", "cyclonedds");
     }
     {

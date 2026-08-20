@@ -193,53 +193,6 @@ static int example_image(void) {
     return 0;
 }
 
-static int example_dmabuffer(void) {
-    printf("\n=== Example: DmaBuffer (buffer-backed) ===\n");
-
-    // Encode a DmaBuffer
-    uint8_t* bytes = NULL;
-    size_t len = 0;
-    if (ros_dmabuffer_encode(&bytes, &len,
-            1000, 500000, "camera0",
-            12345, 42,               // pid, fd
-            1920, 1080,              // width, height
-            1920 * 2,                // stride (YUYV)
-            0x56595559,              // fourcc = 'YUYV'
-            1920 * 1080 * 2) != 0) { // length
-        fprintf(stderr, "ros_dmabuffer_encode failed: %s\n", strerror(errno));
-        return -1;
-    }
-    printf("Encoded DmaBuffer: %zu CDR bytes\n", len);
-
-    // Decode: zero-copy view over `bytes`
-    ros_dmabuffer_t* dmabuf = ros_dmabuffer_from_cdr(bytes, len);
-    if (!dmabuf) {
-        fprintf(stderr, "ros_dmabuffer_from_cdr failed: %s\n", strerror(errno));
-        ros_bytes_free(bytes, len);
-        return -1;
-    }
-
-    uint32_t width = ros_dmabuffer_get_width(dmabuf);
-    uint32_t height = ros_dmabuffer_get_height(dmabuf);
-    uint32_t pid = ros_dmabuffer_get_pid(dmabuf);
-    int32_t fd = ros_dmabuffer_get_fd(dmabuf);
-
-    printf("Decoded: %ux%u pid=%u fd=%d\n", width, height, pid, fd);
-
-    int ok = (width == 1920 && height == 1080 && pid == 12345 && fd == 42);
-
-    ros_dmabuffer_free(dmabuf);
-    ros_bytes_free(bytes, len);
-
-    if (!ok) {
-        fprintf(stderr, "DmaBuffer roundtrip mismatch\n");
-        return -1;
-    }
-
-    printf("DmaBuffer example completed successfully!\n");
-    return 0;
-}
-
 static int example_error_handling(void) {
     printf("\n=== Example: Error Handling ===\n");
 
@@ -292,7 +245,6 @@ int main(void) {
     if (example_vector3() != 0)        failures++;
     if (example_header() != 0)         failures++;
     if (example_image() != 0)          failures++;
-    if (example_dmabuffer() != 0)      failures++;
     if (example_error_handling() != 0) failures++;
 
     printf("\n=================================\n");

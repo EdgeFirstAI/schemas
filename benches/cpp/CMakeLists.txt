@@ -139,7 +139,6 @@ set(CDDS_GENERATED_SOURCES
     types/cyclonedds/geometry_msgs/Point.cpp
     types/cyclonedds/geometry_msgs/Quaternion.cpp
     types/cyclonedds/geometry_msgs/Pose.cpp
-    types/cyclonedds/edgefirst_msgs/DmaBuffer.cpp
     types/cyclonedds/edgefirst_msgs/Mask.cpp
     types/cyclonedds/edgefirst_msgs/RadarCube.cpp
     types/cyclonedds/sensor_msgs/Image.cpp

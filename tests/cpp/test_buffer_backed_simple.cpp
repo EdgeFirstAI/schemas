@@ -687,65 +687,6 @@ TEST_CASE("Mask move semantics", "[buffer_backed][mask]") {
 }
 
 // ============================================================================
-// edgefirst_msgs - DmaBuffer (deprecated in 3.1.0, removed in 4.0.0)
-// ============================================================================
-// Tests kept through the deprecation window; new code should use CameraFrame.
-// GCC/Clang diagnostic suppression mirrors the Rust #[allow(deprecated)] on
-// internal DmaBuffer test paths.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-
-TEST_CASE("DmaBuffer encode+view roundtrip", "[buffer_backed][dmabuffer]") {
-    auto buf = ef::DmaBuffer::encode(
-        {1000, 2000}, "imx8",
-        /*pid=*/1234, /*fd=*/5,
-        /*width=*/1920, /*height=*/1080,
-        /*stride=*/1920, /*fourcc=*/0x32315659, /*length=*/2073600);
-    REQUIRE(buf.has_value());
-    CHECK(buf->stamp().sec == 1000);
-    CHECK(buf->stamp().nanosec == 2000);
-    CHECK(buf->frame_id() == "imx8");
-    CHECK(buf->pid() == 1234u);
-    CHECK(buf->fd() == 5);
-    CHECK(buf->width() == 1920u);
-    CHECK(buf->height() == 1080u);
-    CHECK(buf->stride() == 1920u);
-    CHECK(buf->fourcc() == 0x32315659u);
-    CHECK(buf->length() == 2073600u);
-    CHECK(!buf->as_cdr().empty());
-}
-
-TEST_CASE("DmaBufferView from_cdr error on empty span", "[buffer_backed][dmabuffer]") {
-    auto v = ef::DmaBufferView::from_cdr({});
-    REQUIRE_FALSE(v.has_value());
-}
-
-TEST_CASE("DmaBufferView from_cdr + move", "[buffer_backed][dmabuffer]") {
-    auto buf = ef::DmaBuffer::encode(
-        {0, 0}, "cam",
-        0u, 3, 640u, 480u, 640u, 0u, 307200u);
-    REQUIRE(buf.has_value());
-    auto cdr = buf->as_cdr();
-    auto v1 = ef::DmaBufferView::from_cdr(cdr);
-    REQUIRE(v1.has_value());
-    auto v2 = std::move(*v1);
-    CHECK(v2.fd() == 3);
-    CHECK(v2.width() == 640u);
-    CHECK(v2.height() == 480u);
-}
-
-TEST_CASE("DmaBuffer move semantics", "[buffer_backed][dmabuffer]") {
-    auto b1 = ef::DmaBuffer::encode(
-        {42, 0}, "lidar",
-        0u, -1, 0u, 0u, 0u, 0u, 0u);
-    REQUIRE(b1.has_value());
-    auto b2 = std::move(*b1);
-    CHECK(b2.frame_id() == "lidar");
-    CHECK(b2.fd() == -1);
-    CHECK(!b2.as_cdr().empty());
-}
-
-// ============================================================================
 // edgefirst_msgs - LocalTime (view-only)
 // ============================================================================
 
@@ -1578,5 +1519,3 @@ TEST_CASE("PoseArrayView move semantics", "[buffer_backed][pose_array]") {
     auto v2 = std::move(*v1);
     CHECK(v2.frame_id() == "test_frame");
 }
-
-#pragma GCC diagnostic pop

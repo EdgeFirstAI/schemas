@@ -659,7 +659,6 @@ cross-language support status:
 | **edgefirst_msgs** |
 | Box | ✅ | ✅ | |
 | Detect | ✅ | ✅ | |
-| DmaBuffer | ✅ | ✅ | |
 | Mask | ✅ | ✅ | |
 | ModelInfo | ✅ | ✅ | |
 | RadarCube | ✅ | ✅ | |

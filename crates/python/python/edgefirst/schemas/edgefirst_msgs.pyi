@@ -14,12 +14,9 @@ from .geometry_msgs import Vector3
 
 __all__ = [
     "Box",
-    "CameraFrame",
-    "CameraPlane",
     "Date",
     "Detect",
     "DetectBox",
-    "DmaBuffer",
     "LocalTime",
     "Mask",
     "MaskBox",
@@ -49,61 +46,6 @@ class Date:
     def to_bytes(self) -> bytes: ...
     @classmethod
     def from_cdr(cls, buf: BufferLike) -> Date: ...
-    def __repr__(self) -> str: ...
-
-
-class DmaBuffer:
-    """``edgefirst_msgs.DmaBuffer`` — DMA-buf reference (header + 7 small
-    u32/i32 metadata fields).
-
-    .. deprecated:: 3.1.0
-        Use :class:`CameraFrame` for multi-plane support, colorimetry,
-        GPU fences, and off-device bridging. Kept here for bench parity
-        with pycdr2.
-    """
-
-    def __init__(
-        self,
-        header: Header,
-        pid: int,
-        fd: int,
-        width: int,
-        height: int,
-        stride: int,
-        fourcc: int,
-        length: int,
-    ) -> None: ...
-
-    @property
-    def stamp(self) -> Time: ...
-    @property
-    def frame_id(self) -> str: ...
-    @property
-    def pid(self) -> int: ...
-    @property
-    def fd(self) -> int:
-        """Linux file-descriptor number for the DMA-buf."""
-
-    @property
-    def width(self) -> int: ...
-    @property
-    def height(self) -> int: ...
-    @property
-    def stride(self) -> int: ...
-    @property
-    def fourcc(self) -> int:
-        """Pixel format in V4L2 fourcc encoding (e.g. 0x56595559 = 'YUYV')."""
-
-    @property
-    def length(self) -> int:
-        """Total payload size in bytes."""
-
-    @property
-    def cdr_size(self) -> int: ...
-
-    def to_bytes(self) -> bytes: ...
-    @classmethod
-    def from_cdr(cls, buf: BufferLike) -> DmaBuffer: ...
     def __repr__(self) -> str: ...
 
 
@@ -409,97 +351,6 @@ class MaskBox:
     def mask(self) -> bytes: ...
     @property
     def boxed(self) -> bool: ...
-
-
-class CameraPlane:
-    """``edgefirst_msgs.CameraPlane`` — single DMA plane within a
-    :class:`CameraFrame`.
-    """
-
-    def __init__(
-        self,
-        fd: int = -1,
-        offset: int = 0,
-        stride: int = 0,
-        size: int = 0,
-        used: int = 0,
-        data: Optional[bytes] = None,
-    ) -> None:
-        """Construct a camera plane.
-
-        ``data`` provides inline pixel bytes (only valid when ``fd == -1``).
-        Raises ``ValueError`` if ``data`` is non-empty and ``fd != -1``.
-        """
-
-    @property
-    def fd(self) -> int: ...
-    @property
-    def offset(self) -> int: ...
-    @property
-    def stride(self) -> int: ...
-    @property
-    def size(self) -> int: ...
-    @property
-    def used(self) -> int: ...
-    @property
-    def data(self) -> bytes: ...
-
-
-class CameraFrame:
-    """``edgefirst_msgs.CameraFrame`` — multi-plane camera frame with
-    colorimetry and GPU fence metadata.
-    """
-
-    def __init__(
-        self,
-        header: Header,
-        seq: int = 0,
-        pid: int = 0,
-        width: int = 0,
-        height: int = 0,
-        format: str = "",
-        color_space: str = "",
-        color_transfer: str = "",
-        color_encoding: str = "",
-        color_range: str = "",
-        fence_fd: int = -1,
-        planes: Optional[Sequence[CameraPlane]] = None,
-    ) -> None: ...
-
-    @property
-    def stamp(self) -> Time: ...
-    @property
-    def frame_id(self) -> str: ...
-    @property
-    def seq(self) -> int: ...
-    @property
-    def pid(self) -> int: ...
-    @property
-    def width(self) -> int: ...
-    @property
-    def height(self) -> int: ...
-    @property
-    def format(self) -> str: ...
-    @property
-    def color_space(self) -> str: ...
-    @property
-    def color_transfer(self) -> str: ...
-    @property
-    def color_encoding(self) -> str: ...
-    @property
-    def color_range(self) -> str: ...
-    @property
-    def fence_fd(self) -> int: ...
-    @property
-    def num_planes(self) -> int: ...
-    @property
-    def planes(self) -> List[CameraPlane]: ...
-    @property
-    def cdr_size(self) -> int: ...
-
-    def to_bytes(self) -> bytes: ...
-    @classmethod
-    def from_cdr(cls, buf: BufferLike) -> CameraFrame: ...
 
 
 class Model:

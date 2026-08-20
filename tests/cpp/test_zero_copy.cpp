@@ -1,8 +1,3 @@
-// DmaBuffer / DmaBufferView deprecated in 3.1.0; tests retained through
-// the deprecation window.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-
 /**
  * @file test_zero_copy.cpp
  * @brief Pointer-identity and allocation-counting invariant tests for the C++ wrapper.
@@ -360,30 +355,6 @@ TEST_CASE("CompressedVideoView accessors borrow from CDR buffer", "[zero_copy][c
 }
 
 // ============================================================================
-// Part A — Pointer identity: DmaBufferView::frame_id
-// ============================================================================
-
-TEST_CASE("DmaBufferView accessors borrow from CDR buffer", "[zero_copy][dmabuffer]") {
-    auto dma = ef::DmaBuffer::encode(
-        {100, 200}, "camera0",
-        5678u, 10, 640u, 480u, 1280u, 0x56595559u, 614400u);
-    REQUIRE(dma.has_value());
-    auto cdr = dma->as_cdr();
-
-    auto view = ef::DmaBufferView::from_cdr(cdr);
-    REQUIRE(view.has_value());
-
-    const auto base_addr = reinterpret_cast<std::uintptr_t>(cdr.data());
-
-    // frame_id string_view must borrow from the CDR buffer.
-    auto fid = view->frame_id();
-    const auto fid_addr = reinterpret_cast<std::uintptr_t>(fid.data());
-    CHECK(fid_addr >= base_addr);
-    CHECK(fid_addr < base_addr + cdr.size());
-    CHECK(fid == "camera0");
-}
-
-// ============================================================================
 // Part A — Pointer identity: BorrowedBoxView::label and ::track_id
 //          via DetectView::boxes() iteration
 // ============================================================================
@@ -638,44 +609,6 @@ TEST_CASE("CompressedVideoView field access allocates zero heap memory", "[zero_
 }
 
 // ============================================================================
-// Part B — Allocation counting: DmaBufferView field access
-// ============================================================================
-
-TEST_CASE("DmaBufferView field access allocates zero heap memory", "[zero_copy][allocations]") {
-    // Setup — outside counted region.
-    auto dma = ef::DmaBuffer::encode(
-        {100, 200}, "camera0",
-        5678u, 10, 640u, 480u, 1280u, 0x56595559u, 614400u);
-    REQUIRE(dma.has_value());
-    auto cdr = dma->as_cdr();
-    auto view_result = ef::DmaBufferView::from_cdr(cdr);
-    REQUIRE(view_result.has_value());
-    auto& view = *view_result;
-
-    // Counted region — ONLY field accesses, no REQUIRE/CHECK inside.
-    volatile std::uint8_t sink = 0;
-    const std::size_t start_new = g_new_count.load(std::memory_order_relaxed);
-    {
-        auto fid = view.frame_id();
-        volatile auto pid = view.pid();
-        volatile auto fd  = view.fd();
-        volatile auto w   = view.width();
-        volatile auto h   = view.height();
-        sink ^= static_cast<std::uint8_t>(fid.size() & 0xFF);
-        sink ^= static_cast<std::uint8_t>(pid & 0xFF);
-        sink ^= static_cast<std::uint8_t>(static_cast<std::uint32_t>(fd) & 0xFF);
-        sink ^= static_cast<std::uint8_t>(w & 0xFF);
-        sink ^= static_cast<std::uint8_t>(h & 0xFF);
-    }
-    const std::size_t delta = g_new_count.load(std::memory_order_relaxed) - start_new;
-    (void)sink;
-
-    // Assertion — outside counted region.
-    INFO("DmaBufferView field access alloc delta: " << delta);
-    CHECK(delta == 0);
-}
-
-// ============================================================================
 // Part B — Allocation counting: BorrowedBoxView field access via DetectView
 // ============================================================================
 
@@ -752,5 +685,3 @@ TEST_CASE("BorrowedMaskView field access allocates zero heap memory", "[zero_cop
     INFO("BorrowedMaskView field access alloc delta: " << delta);
     CHECK(delta == 0);
 }
-
-#pragma GCC diagnostic pop

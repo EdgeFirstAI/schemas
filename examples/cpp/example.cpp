@@ -7,7 +7,7 @@
  *
  * Demonstrates:
  * - CdrFixed encode/decode (Time, Vector3) into stack buffers
- * - Buffer-backed encode (Header, Image, DmaBuffer) returning owning types
+ * - Buffer-backed encode (Header, Image) returning owning types
  * - Buffer-backed decode via View types (move-only, RAII)
  * - expected<T, Error> for fallible operations (no exceptions)
  * - Zero-copy field access via std::string_view and span<const uint8_t>
@@ -167,45 +167,6 @@ static int example_image() {
     return 0;
 }
 
-static int example_dmabuffer() {
-    std::cout << "\n=== Example: DmaBuffer (buffer-backed) ===\n";
-
-    // Encode a DmaBuffer
-    auto encoded = ef::DmaBuffer::encode(
-        ef::Time{1000, 500000},
-        "camera0",
-        12345, 42,               // pid, fd
-        1920, 1080,              // width, height
-        1920 * 2,                // stride (YUYV)
-        0x56595559,              // fourcc = 'YUYV'
-        1920 * 1080 * 2          // length
-    );
-    if (!encoded) {
-        std::cerr << "DmaBuffer::encode failed: " << encoded.error().category() << "\n";
-        return -1;
-    }
-    std::cout << "Encoded DmaBuffer: " << encoded->as_cdr().size() << " CDR bytes\n";
-
-    // Access fields from owning DmaBuffer
-    auto width = encoded->width();
-    auto height = encoded->height();
-    auto pid = encoded->pid();
-    auto fd = encoded->fd();
-
-    std::cout << "Decoded: " << width << "x" << height
-              << " pid=" << pid << " fd=" << fd << "\n";
-
-    bool ok = (width == 1920 && height == 1080 && pid == 12345 && fd == 42);
-
-    if (!ok) {
-        std::cerr << "DmaBuffer roundtrip mismatch\n";
-        return -1;
-    }
-
-    std::cout << "DmaBuffer example completed successfully!\n";
-    return 0;
-}
-
 int main() {
     std::cout << "EdgeFirst Schemas C++ API Examples\n";
     std::cout << "===================================\n";
@@ -216,7 +177,6 @@ int main() {
     if (example_vector3() != 0)    failures++;
     if (example_header() != 0)     failures++;
     if (example_image() != 0)      failures++;
-    if (example_dmabuffer() != 0)  failures++;
 
     std::cout << "\n===================================\n";
     if (failures > 0) {

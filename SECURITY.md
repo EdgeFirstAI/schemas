@@ -164,7 +164,7 @@ Message deserialization involves parsing untrusted data. While we implement boun
 
 ### DMA Buffer Sharing
 
-The `DmaBuffer` message type enables zero-copy buffer sharing but requires careful handling:
+The `Tensor` message type carries zero-copy buffer sharing through its `TensorPlane` entries (`handle`/`fence_fd` fields, the same fd-based semantics previously carried by the removed `DmaBuffer` type) and requires careful handling:
 
 - Validate buffer file descriptors
 - Implement access controls

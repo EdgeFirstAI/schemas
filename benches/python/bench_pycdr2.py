@@ -20,7 +20,6 @@ import pytest
 
 from legacy.builtin_interfaces import Duration, Time
 from legacy.edgefirst_msgs import (
-    DmaBuffer,
     Mask,
     RadarCube,
 )
@@ -40,7 +39,6 @@ from legacy.std_msgs import ColorRGBA, Header
 
 from shapes import (
     COMPRESSED_VIDEO_VARIANTS,
-    DMA_BUFFER_VARIANTS,
     IMAGE_VARIANTS,
     MASK_VARIANTS,
     POINT_CLOUD_VARIANTS,
@@ -105,15 +103,6 @@ def make_compressed_video(v) -> FoxgloveCompressedVideo:
     )
 
 
-def make_dmabuf(v) -> DmaBuffer:
-    return DmaBuffer(
-        header=make_header(),
-        pid=12345, fd=7,
-        width=v.width, height=v.height,
-        stride=v.stride, fourcc=v.fourcc, length=v.length,
-    )
-
-
 # ── Heavy types ────────────────────────────────────────────────────
 
 
@@ -175,18 +164,6 @@ def test_compressed_video_serialize(benchmark, v):
 def test_compressed_video_deserialize(benchmark, v):
     buf = make_compressed_video(v).serialize()
     benchmark(FoxgloveCompressedVideo.deserialize, buf)
-
-
-@pytest.mark.parametrize("v", DMA_BUFFER_VARIANTS, ids=lambda v: v.name)
-def test_dmabuf_serialize(benchmark, v):
-    d = make_dmabuf(v)
-    benchmark(d.serialize)
-
-
-@pytest.mark.parametrize("v", DMA_BUFFER_VARIANTS, ids=lambda v: v.name)
-def test_dmabuf_deserialize(benchmark, v):
-    buf = make_dmabuf(v).serialize()
-    benchmark(DmaBuffer.deserialize, buf)
 
 
 # ── Light types ────────────────────────────────────────────────────

@@ -113,10 +113,6 @@ extern "C" {
     fn ros_detect_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32;
     fn ros_detect_set_input_timestamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32;
 
-    // edgefirst_msgs::CameraFrame
-    fn ros_camera_frame_set_seq(buf: *mut u8, len: usize, v: u64) -> i32;
-    fn ros_camera_frame_set_fence_fd(buf: *mut u8, len: usize, v: i32) -> i32;
-
     // edgefirst_msgs::Model
     fn ros_model_set_input_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32;
 
@@ -706,35 +702,6 @@ fn ros_detect_in_place_setters() {
     let decoded = edgefirst_msgs::Detect::from_cdr(&buf[..]).unwrap();
     assert_eq!(decoded.stamp(), Time::new(10, 20));
     assert_eq!(decoded.input_timestamp(), Time::new(30, 40));
-}
-
-// ----- edgefirst_msgs::CameraFrame -----
-
-#[test]
-fn ros_camera_frame_in_place_setters() {
-    let msg = edgefirst_msgs::CameraFrame::builder()
-        .frame_id("cam")
-        .seq(1)
-        .pid(2)
-        .width(320)
-        .height(240)
-        .format("nv12")
-        .fence_fd(-1)
-        .build()
-        .unwrap();
-    let mut buf = msg.into_cdr();
-    let len = buf.len();
-    assert_eq!(
-        unsafe { ros_camera_frame_set_seq(buf.as_mut_ptr(), len, 42) },
-        0
-    );
-    assert_eq!(
-        unsafe { ros_camera_frame_set_fence_fd(buf.as_mut_ptr(), len, 7) },
-        0
-    );
-    let decoded = edgefirst_msgs::CameraFrame::from_cdr(&buf[..]).unwrap();
-    assert_eq!(decoded.seq(), 42);
-    assert_eq!(decoded.fence_fd(), 7);
 }
 
 // ----- edgefirst_msgs::Model -----
