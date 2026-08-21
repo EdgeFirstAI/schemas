@@ -7636,9 +7636,14 @@ public:
         return {};
     }
 
-    /// @internal
-    /// @brief Raw builder pointer, for attaching to a wrapper builder.
-    /// @return The underlying C builder handle, owned by this object.
+private:
+    // The wrapper builders need the underlying C handle to attach this payload;
+    // nobody else does. Friendship keeps it out of the public API rather than
+    // exposing a public accessor marked @internal — which it was, and which
+    // Doxygen reports as undocumented because INTERNAL_DOCS is off.
+    friend class TensorStampedBuilder;
+    friend class CameraFrameBuilder;
+
     [[nodiscard]] const ros_tensor_builder_t* raw() const noexcept { return ptr(); }
 };
 
