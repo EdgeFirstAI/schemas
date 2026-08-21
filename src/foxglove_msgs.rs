@@ -1590,15 +1590,15 @@ pub fn list_types() -> &'static [&'static str] {
 use crate::schema_registry::SchemaType;
 
 impl SchemaType for FoxglovePoint2 {
-    const SCHEMA_NAME: &str = "foxglove_msgs/msg/FoxglovePoint2";
+    const SCHEMA_NAME: &'static str = "foxglove_msgs/msg/FoxglovePoint2";
 }
 
 impl SchemaType for FoxgloveColor {
-    const SCHEMA_NAME: &str = "foxglove_msgs/msg/FoxgloveColor";
+    const SCHEMA_NAME: &'static str = "foxglove_msgs/msg/FoxgloveColor";
 }
 
 impl SchemaType for FoxgloveCircleAnnotations {
-    const SCHEMA_NAME: &str = "foxglove_msgs/msg/FoxgloveCircleAnnotations";
+    const SCHEMA_NAME: &'static str = "foxglove_msgs/msg/FoxgloveCircleAnnotations";
 }
 
 #[allow(deprecated)]

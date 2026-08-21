@@ -4060,11 +4060,11 @@ pub fn list_types() -> &'static [&'static str] {
 use crate::schema_registry::SchemaType;
 
 impl SchemaType for NavSatStatus {
-    const SCHEMA_NAME: &str = "sensor_msgs/msg/NavSatStatus";
+    const SCHEMA_NAME: &'static str = "sensor_msgs/msg/NavSatStatus";
 }
 
 impl SchemaType for RegionOfInterest {
-    const SCHEMA_NAME: &str = "sensor_msgs/msg/RegionOfInterest";
+    const SCHEMA_NAME: &'static str = "sensor_msgs/msg/RegionOfInterest";
 }
 
 #[cfg(test)]
