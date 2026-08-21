@@ -28,6 +28,17 @@
 //! Every handle also borrows the CDR bytes passed to `from_cdr`; that buffer
 //! must outlive the handle.
 
+// These repeat `ffi.rs`'s module-level attributes rather than relying on them.
+// Rust propagates lint attributes into child modules, so the parent's would
+// cover this file — but a reader (and SonarCloud's Rust analyser, which works
+// file-by-file and does not model module nesting) should not have to know the
+// parent's attributes to understand this one. The `not_unsafe_ptr_arg_deref`
+// allow is the whole point of a C FFI boundary: every `pub extern "C" fn` here
+// takes raw pointers from C and null-checks them before use, exactly as the
+// ~900 entry points in `ffi.rs` do.
+#![allow(non_camel_case_types)]
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
+
 use super::*;
 
 use crate::edgefirst_msgs::{CameraFrame, TensorStamped};
