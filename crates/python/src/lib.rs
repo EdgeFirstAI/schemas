@@ -251,7 +251,7 @@ impl AsRef<[u8]> for PyBuf {
 /// - `bytearray` / `memoryview` / other → copied `PyBuf::Owned` (GIL-safe)
 fn smart_buffer(buf: &Bound<'_, PyAny>) -> PyResult<PyBuf> {
     // Fast path: if it's a `bytes` object, borrow zero-copy.
-    if let Ok(pybytes) = buf.downcast::<PyBytes>() {
+    if let Ok(pybytes) = buf.cast::<PyBytes>() {
         let slice = pybytes.as_bytes();
         let ptr = slice.as_ptr();
         let len = slice.len();
@@ -341,7 +341,7 @@ impl BorrowedBuf {
         // `PyMemoryView_FromObject` does NOT steal `obj_ptr`; release
         // our scratch reference now that the memoryview owns its own.
         unsafe { pyo3::ffi::Py_DECREF(obj_ptr) };
-        unsafe { Py::<PyAny>::from_owned_ptr_or_err(py, mem) }
+        unsafe { Bound::from_owned_ptr_or_err(py, mem) }.map(Bound::unbind)
     }
 
     #[cfg(all(Py_LIMITED_API, not(Py_3_11)))]
@@ -472,7 +472,12 @@ fn cdrfixed_encode<'py, T: edgefirst_schemas::cdr::CdrFixed>(
 }
 
 /// `builtin_interfaces.Time` — seconds (i32) + nanoseconds (u32).
-#[pyclass(name = "Time", module = "edgefirst.schemas.builtin_interfaces", frozen)]
+#[pyclass(
+    name = "Time",
+    module = "edgefirst.schemas.builtin_interfaces",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone, Copy)]
 pub struct PyTime(pub Time);
 
@@ -533,7 +538,8 @@ impl PyTime {
 #[pyclass(
     name = "Duration",
     module = "edgefirst.schemas.builtin_interfaces",
-    frozen
+    frozen,
+    from_py_object
 )]
 #[derive(Clone, Copy)]
 pub struct PyDuration(pub Duration);
@@ -587,7 +593,12 @@ impl PyDuration {
 
 // ── ColorRGBA (CdrFixed, std_msgs) ──────────────────────────────────
 
-#[pyclass(name = "ColorRGBA", module = "edgefirst.schemas.std_msgs", frozen)]
+#[pyclass(
+    name = "ColorRGBA",
+    module = "edgefirst.schemas.std_msgs",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone, Copy)]
 pub struct PyColorRGBA(pub ColorRGBA);
 
@@ -639,7 +650,12 @@ impl PyColorRGBA {
 
 // ── geometry_msgs CdrFixed types ────────────────────────────────────
 
-#[pyclass(name = "Vector3", module = "edgefirst.schemas.geometry_msgs", frozen)]
+#[pyclass(
+    name = "Vector3",
+    module = "edgefirst.schemas.geometry_msgs",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone, Copy)]
 pub struct PyVector3(pub Vector3);
 
@@ -678,7 +694,12 @@ impl PyVector3 {
     }
 }
 
-#[pyclass(name = "Point", module = "edgefirst.schemas.geometry_msgs", frozen)]
+#[pyclass(
+    name = "Point",
+    module = "edgefirst.schemas.geometry_msgs",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone, Copy)]
 pub struct PyPoint(pub Point);
 
@@ -717,7 +738,12 @@ impl PyPoint {
     }
 }
 
-#[pyclass(name = "Point32", module = "edgefirst.schemas.geometry_msgs", frozen)]
+#[pyclass(
+    name = "Point32",
+    module = "edgefirst.schemas.geometry_msgs",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone, Copy)]
 pub struct PyPoint32(pub Point32);
 
@@ -759,7 +785,8 @@ impl PyPoint32 {
 #[pyclass(
     name = "Quaternion",
     module = "edgefirst.schemas.geometry_msgs",
-    frozen
+    frozen,
+    from_py_object
 )]
 #[derive(Clone, Copy)]
 pub struct PyQuaternion(pub Quaternion);
@@ -806,7 +833,12 @@ impl PyQuaternion {
     }
 }
 
-#[pyclass(name = "Pose2D", module = "edgefirst.schemas.geometry_msgs", frozen)]
+#[pyclass(
+    name = "Pose2D",
+    module = "edgefirst.schemas.geometry_msgs",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone, Copy)]
 pub struct PyPose2D(pub Pose2D);
 
@@ -848,7 +880,12 @@ impl PyPose2D {
     }
 }
 
-#[pyclass(name = "Pose", module = "edgefirst.schemas.geometry_msgs", frozen)]
+#[pyclass(
+    name = "Pose",
+    module = "edgefirst.schemas.geometry_msgs",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone, Copy)]
 pub struct PyPose(pub Pose);
 
@@ -898,7 +935,12 @@ impl PyPose {
     }
 }
 
-#[pyclass(name = "Transform", module = "edgefirst.schemas.geometry_msgs", frozen)]
+#[pyclass(
+    name = "Transform",
+    module = "edgefirst.schemas.geometry_msgs",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone, Copy)]
 pub struct PyTransform(pub Transform);
 
@@ -942,7 +984,12 @@ impl PyTransform {
     }
 }
 
-#[pyclass(name = "Twist", module = "edgefirst.schemas.geometry_msgs", frozen)]
+#[pyclass(
+    name = "Twist",
+    module = "edgefirst.schemas.geometry_msgs",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone, Copy)]
 pub struct PyTwist(pub Twist);
 
@@ -1209,7 +1256,12 @@ impl PyImage {
 
 /// `rosgraph_msgs.Clock` — a single `Time` value used for the ROS 2
 /// /clock topic.
-#[pyclass(name = "Clock", module = "edgefirst.schemas.rosgraph_msgs", frozen)]
+#[pyclass(
+    name = "Clock",
+    module = "edgefirst.schemas.rosgraph_msgs",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone, Copy)]
 pub struct PyClock(pub Clock);
 
@@ -1261,7 +1313,8 @@ impl PyClock {
 #[pyclass(
     name = "NavSatStatus",
     module = "edgefirst.schemas.sensor_msgs",
-    frozen
+    frozen,
+    from_py_object
 )]
 #[derive(Clone, Copy)]
 pub struct PyNavSatStatus(pub NavSatStatus);
@@ -1310,7 +1363,8 @@ impl PyNavSatStatus {
 #[pyclass(
     name = "RegionOfInterest",
     module = "edgefirst.schemas.sensor_msgs",
-    frozen
+    frozen,
+    from_py_object
 )]
 #[derive(Clone, Copy)]
 pub struct PyRegionOfInterest(pub RegionOfInterest);
@@ -1374,7 +1428,12 @@ impl PyRegionOfInterest {
 // ── Date (edgefirst_msgs, CdrFixed) ─────────────────────────────────
 
 /// `edgefirst_msgs.Date` — calendar date used by `LocalTime`.
-#[pyclass(name = "Date", module = "edgefirst.schemas.edgefirst_msgs", frozen)]
+#[pyclass(
+    name = "Date",
+    module = "edgefirst.schemas.edgefirst_msgs",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone, Copy)]
 pub struct PyDate(pub Date);
 
@@ -1838,7 +1897,12 @@ impl PyRadarCube {
 /// `sensor_msgs.PointField` — Python-side dataclass-style holder for one
 /// field descriptor used when constructing a PointCloud2. Carries the
 /// owned `name` so it survives builder borrow lifetimes.
-#[pyclass(name = "PointField", module = "edgefirst.schemas.sensor_msgs", frozen)]
+#[pyclass(
+    name = "PointField",
+    module = "edgefirst.schemas.sensor_msgs",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone)]
 pub struct PyPointField {
     pub name: String,
@@ -2295,7 +2359,12 @@ fn extract_array36(seq: Option<Vec<f64>>) -> PyResult<[f64; 36]> {
     Ok(out)
 }
 
-#[pyclass(name = "Accel", module = "edgefirst.schemas.geometry_msgs", frozen)]
+#[pyclass(
+    name = "Accel",
+    module = "edgefirst.schemas.geometry_msgs",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone, Copy)]
 pub struct PyAccel(pub Accel);
 
@@ -2338,7 +2407,12 @@ impl PyAccel {
     }
 }
 
-#[pyclass(name = "Inertia", module = "edgefirst.schemas.geometry_msgs", frozen)]
+#[pyclass(
+    name = "Inertia",
+    module = "edgefirst.schemas.geometry_msgs",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone, Copy)]
 pub struct PyInertia(pub Inertia);
 
@@ -2419,7 +2493,8 @@ impl PyInertia {
 #[pyclass(
     name = "PoseWithCovariance",
     module = "edgefirst.schemas.geometry_msgs",
-    frozen
+    frozen,
+    from_py_object
 )]
 #[derive(Clone, Copy)]
 pub struct PyPoseWithCovariance(pub PoseWithCovariance);
@@ -2471,7 +2546,8 @@ impl PyPoseWithCovariance {
 #[pyclass(
     name = "TwistWithCovariance",
     module = "edgefirst.schemas.geometry_msgs",
-    frozen
+    frozen,
+    from_py_object
 )]
 #[derive(Clone, Copy)]
 pub struct PyTwistWithCovariance(pub TwistWithCovariance);
@@ -2519,7 +2595,12 @@ impl PyTwistWithCovariance {
     }
 }
 
-#[pyclass(name = "Wrench", module = "edgefirst.schemas.geometry_msgs", frozen)]
+#[pyclass(
+    name = "Wrench",
+    module = "edgefirst.schemas.geometry_msgs",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone, Copy)]
 pub struct PyWrench(pub Wrench);
 
@@ -2565,7 +2646,8 @@ impl PyWrench {
 #[pyclass(
     name = "AccelWithCovariance",
     module = "edgefirst.schemas.geometry_msgs",
-    frozen
+    frozen,
+    from_py_object
 )]
 #[derive(Clone, Copy)]
 pub struct PyAccelWithCovariance(pub AccelWithCovariance);
@@ -4209,7 +4291,12 @@ impl PyOdometry {
 // ── nav_msgs.MapMetaData (CdrFixed) ─────────────────────────────────
 
 /// `nav_msgs.MapMetaData` — map metadata with load time, resolution, size, and origin pose.
-#[pyclass(name = "MapMetaData", module = "edgefirst.schemas.nav_msgs", frozen)]
+#[pyclass(
+    name = "MapMetaData",
+    module = "edgefirst.schemas.nav_msgs",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone, Copy)]
 pub struct PyMapMetaData(pub MapMetaData);
 
@@ -5036,7 +5123,8 @@ impl PyModelInfo {
 #[pyclass(
     name = "DetectBox",
     module = "edgefirst.schemas.edgefirst_msgs",
-    frozen
+    frozen,
+    from_py_object
 )]
 #[derive(Clone)]
 pub struct PyDetectBox {
@@ -5275,7 +5363,12 @@ impl PyDetect {
 // ── edgefirst_msgs.Model (buffer-backed) ────────────────────────────
 
 /// Python-facing MaskView (for Model.masks() results).
-#[pyclass(name = "MaskBox", module = "edgefirst.schemas.edgefirst_msgs", frozen)]
+#[pyclass(
+    name = "MaskBox",
+    module = "edgefirst.schemas.edgefirst_msgs",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone)]
 pub struct PyMaskBox {
     pub mask_height: u32,
@@ -5477,7 +5570,12 @@ impl PyModel {
 
 // ── foxglove_msgs CdrFixed value types ──────────────────────────────
 
-#[pyclass(name = "Point2", module = "edgefirst.schemas.foxglove_msgs", frozen)]
+#[pyclass(
+    name = "Point2",
+    module = "edgefirst.schemas.foxglove_msgs",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone, Copy)]
 pub struct PyFoxglovePoint2(pub FoxglovePoint2);
 
@@ -5509,7 +5607,12 @@ impl PyFoxglovePoint2 {
     }
 }
 
-#[pyclass(name = "Color", module = "edgefirst.schemas.foxglove_msgs", frozen)]
+#[pyclass(
+    name = "Color",
+    module = "edgefirst.schemas.foxglove_msgs",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone, Copy)]
 pub struct PyFoxgloveColor(pub FoxgloveColor);
 
@@ -5554,7 +5657,8 @@ impl PyFoxgloveColor {
 #[pyclass(
     name = "CircleAnnotations",
     module = "edgefirst.schemas.foxglove_msgs",
-    frozen
+    frozen,
+    from_py_object
 )]
 #[derive(Clone, Copy)]
 pub struct PyFoxgloveCircleAnnotations(pub FoxgloveCircleAnnotations);
@@ -5920,7 +6024,10 @@ impl PyFoxgloveImageAnnotation {
         let point_objs: Vec<PyRef<'_, PyFoxglovePointAnnotation>> = match &points {
             Some(list) => list
                 .iter()
-                .map(|item| item.extract::<PyRef<'_, PyFoxglovePointAnnotation>>())
+                .map(|item| {
+                    item.extract::<PyRef<'_, PyFoxglovePointAnnotation>>()
+                        .map_err(PyErr::from)
+                })
                 .collect::<PyResult<Vec<_>>>()?,
             None => Vec::new(),
         };
@@ -5940,7 +6047,10 @@ impl PyFoxgloveImageAnnotation {
         let text_objs: Vec<PyRef<'_, PyFoxgloveTextAnnotation>> = match &texts {
             Some(list) => list
                 .iter()
-                .map(|item| item.extract::<PyRef<'_, PyFoxgloveTextAnnotation>>())
+                .map(|item| {
+                    item.extract::<PyRef<'_, PyFoxgloveTextAnnotation>>()
+                        .map_err(PyErr::from)
+                })
                 .collect::<PyResult<Vec<_>>>()?,
             None => Vec::new(),
         };
