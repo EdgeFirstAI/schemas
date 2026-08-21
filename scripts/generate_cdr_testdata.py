@@ -620,6 +620,77 @@ def gen_edgefirst_msgs():
                   vibration=geometry_msgs.Vector3(x=0.42, y=0.51, z=0.37),
                   clipping=[3, 1, 0]))
 
+    # ── Tensor family ────────────────────────────────────────────────────
+    #
+    # Generated from the legacy pycdr2 dataclasses, NOT from the PyO3
+    # bindings. That is the whole point: goldens produced by the same code
+    # they validate would only prove self-consistency. pycdr2 is an
+    # independent implementation of the same .msg contract, so a mismatch
+    # means one of the two encoders is wrong.
+    _le = _legacy_edgefirst_msgs
+    _le_hdr = _le.Header(
+        stamp=_le.Time(sec=STAMP.sec, nanosec=STAMP.nanosec), frame_id=FRAME_ID)
+
+    # Referenced NV12: one allocation, Y at 0 and UV at w*h, unquantized.
+    # shape is [h, w] with a U8 dtype against an h*w*3/2 allocation — the
+    # addressing grid, deliberately not the byte layout.
+    nv12_planes = [
+        _le.TensorPlane(handle=7, offset=0, stride=640,
+                        size=640 * 480, used=640 * 480, modifier=0,
+                        handle_bytes=[0xDE, 0xAD, 0xBE, 0xEF], data=[]),
+        _le.TensorPlane(handle=7, offset=640 * 480, stride=640,
+                        size=640 * 480 // 2, used=640 * 480 // 2, modifier=0,
+                        handle_bytes=[], data=[]),
+    ]
+    nv12 = _le.Tensor(
+        storage_kind=2, pid=4242, fence_fd=-1, dtype=1, quant_axis=-2,
+        shape=[480, 640], strides=[640, 1],
+        quant_scales=[], quant_zero_points=[],
+        format="NV12", color_space="bt709", color_transfer="bt709",
+        color_encoding="bt709", color_range="limited",
+        planes=nv12_planes)
+    write_cdr("edgefirst_msgs", "Tensor", nv12)
+
+    # Inline single plane — the off-device bridging path, where bytes travel
+    # in the message instead of behind a handle.
+    write_cdr("edgefirst_msgs", "Tensor_inline",
+              _le.Tensor(
+                  storage_kind=0, pid=0, fence_fd=-1, dtype=1, quant_axis=-2,
+                  shape=[2, 4], strides=[4, 1],
+                  quant_scales=[], quant_zero_points=[],
+                  format="mono8", color_space="", color_transfer="",
+                  color_encoding="", color_range="",
+                  planes=[_le.TensorPlane(
+                      handle=-1, offset=0, stride=4, size=8, used=8,
+                      modifier=0, handle_bytes=[], data=list(range(8)))]))
+
+    # Per-axis quantization: exactly shape[quant_axis] scales.
+    write_cdr("edgefirst_msgs", "Tensor_quantized",
+              _le.Tensor(
+                  storage_kind=0, pid=0, fence_fd=-1, dtype=3, quant_axis=0,
+                  shape=[3, 8], strides=[],
+                  quant_scales=[0.5, 0.25, 0.125],
+                  quant_zero_points=[128, 0, -128],
+                  format="", color_space="", color_transfer="",
+                  color_encoding="", color_range="",
+                  planes=[]))
+
+    # Both wrappers, same tensor and same header — the encoded bytes must be
+    # identical to each other, which tests/cdr_golden.rs asserts.
+    write_cdr("edgefirst_msgs", "TensorStamped",
+              _le.TensorStamped(header=_le_hdr, seq=99, tensor=nv12))
+    write_cdr("edgefirst_msgs", "CameraFrame",
+              _le.CameraFrame(header=_le_hdr, seq=99, tensor=nv12))
+
+    # A long frame_id shifts every header byte but must NOT shift the embedded
+    # tensor: `seq` (uint64) forces it to the same 8-aligned offset either way.
+    write_cdr("edgefirst_msgs", "CameraFrame_long_frame_id",
+              _le.CameraFrame(
+                  header=_le.Header(
+                      stamp=_le.Time(sec=STAMP.sec, nanosec=STAMP.nanosec),
+                      frame_id="a_very_long_frame_identifier_x"),
+                  seq=99, tensor=nv12))
+
 
 def gen_foxglove_msgs():
     # CdrFixed types

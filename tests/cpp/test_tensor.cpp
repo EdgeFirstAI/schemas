@@ -22,6 +22,8 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
+#include <fstream>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -507,4 +509,135 @@ TEST_CASE("from_cdr rejects malformed input", "[tensor]") {
     CHECK_FALSE(ef::TensorView::from_cdr({bad.data(), bad.size()}).has_value());
     CHECK_FALSE(ef::CameraFrameView::from_cdr({bad.data(), bad.size()}).has_value());
     CHECK_FALSE(ef::TensorStampedView::from_cdr({bad.data(), bad.size()}).has_value());
+}
+
+// ============================================================================
+// Golden fixtures
+// ============================================================================
+//
+// The .cdr files come from the pycdr2 dataclasses in benches/python/legacy/ —
+// an implementation of the same .msg contract independent of this library.
+// Decoding them checks the C++ surface against a second encoder rather than
+// against itself.
+
+static std::vector<std::uint8_t> load_golden(const std::string& name) {
+    const std::string path = "testdata/cdr/edgefirst_msgs/" + name + ".cdr";
+    std::ifstream f(path, std::ios::binary);
+    if (!f) return {};
+    return std::vector<std::uint8_t>((std::istreambuf_iterator<char>(f)),
+                                     std::istreambuf_iterator<char>());
+}
+
+TEST_CASE("Golden Tensor decodes", "[tensor][golden]") {
+    auto g = load_golden("Tensor");
+    INFO("fixture missing - run scripts/generate_cdr_testdata.py");
+    REQUIRE_FALSE(g.empty());
+
+    auto t = ef::TensorView::from_cdr({g.data(), g.size()});
+    REQUIRE(t.has_value());
+    CHECK(t->storage_kind() == 2);
+    CHECK(t->pid() == 4242);
+    CHECK(t->dtype() == 1);
+    CHECK(t->quant_axis() == -2);
+    CHECK(t->format() == "NV12");
+    CHECK(t->color_range() == "limited");
+    CHECK(t->num_planes() == 2);
+    REQUIRE(t->shape() == std::vector<std::uint64_t>{480, 640});
+    REQUIRE(t->strides() == std::vector<std::int64_t>{640, 1});
+    CHECK(t->quant_scales().empty());
+
+    std::vector<std::uint64_t> offsets;
+    for (auto p : t->planes()) offsets.push_back(p.offset());
+    REQUIRE(offsets == std::vector<std::uint64_t>{0, 640 * 480});
+}
+
+TEST_CASE("Golden inline and quantized tensors decode", "[tensor][golden]") {
+    SECTION("inline") {
+        auto g = load_golden("Tensor_inline");
+        INFO("fixture missing");
+        REQUIRE_FALSE(g.empty());
+        auto t = ef::TensorView::from_cdr({g.data(), g.size()});
+        REQUIRE(t.has_value());
+        CHECK(t->format() == "mono8");
+        auto p = *t->planes().begin();
+        CHECK(p.is_inline());
+        auto d = p.data();
+        REQUIRE(d.size() == 8);
+        for (std::size_t i = 0; i < d.size(); ++i) CHECK(d[i] == i);
+    }
+    SECTION("quantized") {
+        auto g = load_golden("Tensor_quantized");
+        INFO("fixture missing");
+        REQUIRE_FALSE(g.empty());
+        auto t = ef::TensorView::from_cdr({g.data(), g.size()});
+        REQUIRE(t.has_value());
+        CHECK(t->quant_axis() == 0);
+        auto sc = t->quant_scales();
+        REQUIRE(sc.size() == 3);  // == shape[0]
+        CHECK(sc[0] == 0.5f);
+        auto zp = t->quant_zero_points();
+        REQUIRE(zp.size() == 3);
+        CHECK(zp[2] == -128);
+    }
+}
+
+TEST_CASE("Either wrapper decodes either golden fixture", "[tensor][golden]") {
+    for (const char* name : {"TensorStamped", "CameraFrame"}) {
+        auto g = load_golden(name);
+        INFO("fixture missing");
+        REQUIRE_FALSE(g.empty());
+
+        auto f = ef::CameraFrameView::from_cdr({g.data(), g.size()});
+        REQUIRE(f.has_value());
+        CHECK(f->seq() == 99);
+        CHECK(f->frame_id() == "test_frame");
+        CHECK(f->tensor().format() == "NV12");
+
+        auto s = ef::TensorStampedView::from_cdr({g.data(), g.size()});
+        REQUIRE(s.has_value());
+        CHECK(s->seq() == 99);
+        CHECK(s->tensor().num_planes() == 2);
+    }
+}
+
+TEST_CASE("Golden wrapper fixtures are byte-identical", "[tensor][golden]") {
+    auto a = load_golden("TensorStamped");
+    auto b = load_golden("CameraFrame");
+    INFO("fixtures missing");
+    REQUIRE_FALSE((a.empty() || b.empty()));
+    CHECK(a == b);
+}
+
+TEST_CASE("A long frame_id re-heads to the standalone golden", "[tensor][golden]") {
+    auto g = load_golden("CameraFrame_long_frame_id");
+    auto standalone = load_golden("Tensor");
+    INFO("fixtures missing");
+    REQUIRE_FALSE((g.empty() || standalone.empty()));
+
+    auto f = ef::CameraFrameView::from_cdr({g.data(), g.size()});
+    REQUIRE(f.has_value());
+    CHECK(f->frame_id() == "a_very_long_frame_identifier_x");
+
+    auto rehead = f->tensor().to_standalone_cdr();
+    REQUIRE(rehead.has_value());
+    Bytes r{*rehead};
+    REQUIRE(r.span().size() == standalone.size());
+    CHECK(std::memcmp(r.span().data(), standalone.data(), standalone.size()) == 0);
+}
+
+TEST_CASE("Our encoder reproduces the golden bytes", "[tensor][golden]") {
+    auto g = load_golden("Tensor");
+    INFO("fixture missing");
+    REQUIRE_FALSE(g.empty());
+
+    auto tb = ef::TensorBuilder::create();
+    REQUIRE(tb.has_value());
+    auto planes = nv12_planes();
+    configure_nv12(*tb, planes);
+    auto built = tb->build();
+    REQUIRE(built.has_value());
+    Bytes bytes{*built};
+
+    REQUIRE(bytes.span().size() == g.size());
+    CHECK(std::memcmp(bytes.span().data(), g.data(), g.size()) == 0);
 }

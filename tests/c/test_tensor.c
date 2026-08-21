@@ -15,6 +15,7 @@
 #include <criterion/criterion.h>
 #include <errno.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "edgefirst/schemas.h"
@@ -773,4 +774,160 @@ Test(tensor, colorimetry_without_format_is_rejected) {
     cr_assert_eq(ros_tensor_builder_build(tb, &bytes, &len), -1);
     cr_assert_eq(errno, EBADMSG);
     ros_tensor_builder_free(tb);
+}
+
+/* ------------------------------------------------------------------ */
+/* Golden fixtures                                                     */
+/* ------------------------------------------------------------------ */
+/*
+ * The .cdr files are produced by the pycdr2 dataclasses in
+ * benches/python/legacy/ — an implementation of the same .msg contract that
+ * is independent of this library. Decoding them here checks the C surface
+ * against that second encoder rather than against itself.
+ */
+
+static uint8_t *load_fixture(const char *relpath, size_t *out_len) {
+    FILE *f = fopen(relpath, "rb");
+    if (!f) return NULL;
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (sz <= 0) { fclose(f); return NULL; }
+    uint8_t *buf = (uint8_t *) malloc((size_t) sz);
+    if (!buf) { fclose(f); return NULL; }
+    size_t got = fread(buf, 1, (size_t) sz, f);
+    fclose(f);
+    if (got != (size_t) sz) { free(buf); return NULL; }
+    *out_len = got;
+    return buf;
+}
+
+Test(tensor_golden, tensor_decodes) {
+    size_t len = 0;
+    uint8_t *buf = load_fixture("testdata/cdr/edgefirst_msgs/Tensor.cdr", &len);
+    cr_assert_not_null(buf, "fixture missing — run scripts/generate_cdr_testdata.py");
+
+    ros_tensor_t *t = ros_tensor_from_cdr(buf, len);
+    cr_assert_not_null(t);
+    cr_assert_eq(ros_tensor_get_storage_kind(t), 2);
+    cr_assert_eq(ros_tensor_get_pid(t), 4242);
+    cr_assert_eq(ros_tensor_get_dtype(t), 1);
+    cr_assert_eq(ros_tensor_get_quant_axis(t), -2);
+    cr_assert_str_eq(ros_tensor_get_format(t), "NV12");
+    cr_assert_str_eq(ros_tensor_get_color_range(t), "limited");
+    cr_assert_eq(ros_tensor_get_num_planes(t), 2);
+
+    uint64_t shape[2] = {0, 0};
+    cr_assert_eq(ros_tensor_copy_shape(t, shape, 2), 2);
+    cr_assert_eq(shape[0], 480);
+    cr_assert_eq(shape[1], 640);
+
+    const ros_tensor_plane_t *p = ros_tensor_get_plane(t, 1);
+    cr_assert_not_null(p);
+    cr_assert_eq(ros_tensor_plane_get_offset(p), 640u * 480u);
+
+    ros_tensor_free(t);
+    free(buf);
+}
+
+Test(tensor_golden, inline_tensor_decodes) {
+    size_t len = 0;
+    uint8_t *buf = load_fixture("testdata/cdr/edgefirst_msgs/Tensor_inline.cdr", &len);
+    cr_assert_not_null(buf);
+
+    ros_tensor_t *t = ros_tensor_from_cdr(buf, len);
+    cr_assert_not_null(t);
+    cr_assert_str_eq(ros_tensor_get_format(t), "mono8");
+    const ros_tensor_plane_t *p = ros_tensor_get_plane(t, 0);
+    cr_assert(ros_tensor_plane_is_inline(p));
+
+    size_t n = 0;
+    const uint8_t *d = ros_tensor_plane_get_data(p, &n);
+    cr_assert_eq(n, 8);
+    for (size_t i = 0; i < n; i++) cr_assert_eq(d[i], (uint8_t) i);
+
+    ros_tensor_free(t);
+    free(buf);
+}
+
+Test(tensor_golden, quantized_tensor_decodes) {
+    size_t len = 0;
+    uint8_t *buf = load_fixture("testdata/cdr/edgefirst_msgs/Tensor_quantized.cdr", &len);
+    cr_assert_not_null(buf);
+
+    ros_tensor_t *t = ros_tensor_from_cdr(buf, len);
+    cr_assert_not_null(t);
+    cr_assert_eq(ros_tensor_get_quant_axis(t), 0);
+
+    size_t n = 0;
+    const float *sc = ros_tensor_get_quant_scales(t, &n);
+    cr_assert_eq(n, 3); /* == shape[0] */
+    cr_assert_float_eq(sc[0], 0.5f, 1e-6);
+    cr_assert_float_eq(sc[2], 0.125f, 1e-6);
+
+    const int32_t *zp = ros_tensor_get_quant_zero_points(t, &n);
+    cr_assert_eq(n, 3);
+    cr_assert_eq(zp[2], -128);
+
+    ros_tensor_free(t);
+    free(buf);
+}
+
+/* Both wrappers decode from the same golden bytes — that is what
+ * byte-identical means, checked against files pycdr2 generated separately. */
+Test(tensor_golden, both_wrappers_decode_either_fixture) {
+    const char *paths[2] = {
+        "testdata/cdr/edgefirst_msgs/TensorStamped.cdr",
+        "testdata/cdr/edgefirst_msgs/CameraFrame.cdr",
+    };
+    for (int i = 0; i < 2; i++) {
+        size_t len = 0;
+        uint8_t *buf = load_fixture(paths[i], &len);
+        cr_assert_not_null(buf, "fixture missing: %s", paths[i]);
+
+        ros_camera_frame_t *f = ros_camera_frame_from_cdr(buf, len);
+        cr_assert_not_null(f);
+        cr_assert_eq(ros_camera_frame_get_seq(f), 99);
+        cr_assert_str_eq(ros_camera_frame_get_frame_id(f), "test_frame");
+        cr_assert_str_eq(ros_tensor_get_format(ros_camera_frame_get_tensor(f)), "NV12");
+
+        ros_tensor_stamped_t *s = ros_tensor_stamped_from_cdr(buf, len);
+        cr_assert_not_null(s);
+        cr_assert_eq(ros_tensor_stamped_get_seq(s), 99);
+        cr_assert_str_eq(ros_tensor_stamped_get_frame_id(s), "test_frame");
+
+        ros_camera_frame_free(f);
+        ros_tensor_stamped_free(s);
+        free(buf);
+    }
+}
+
+/*
+ * Position independence against goldens: the long-frame_id fixture has a
+ * different header size, so the tensor sits at a different offset — but
+ * re-heading it must reproduce the standalone Tensor golden byte for byte.
+ */
+Test(tensor_golden, long_frame_id_reheads_to_the_standalone_golden) {
+    size_t flen = 0, slen = 0;
+    uint8_t *fbuf = load_fixture(
+        "testdata/cdr/edgefirst_msgs/CameraFrame_long_frame_id.cdr", &flen);
+    uint8_t *sbuf = load_fixture("testdata/cdr/edgefirst_msgs/Tensor.cdr", &slen);
+    cr_assert_not_null(fbuf);
+    cr_assert_not_null(sbuf);
+
+    ros_camera_frame_t *f = ros_camera_frame_from_cdr(fbuf, flen);
+    cr_assert_not_null(f);
+    cr_assert_str_eq(ros_camera_frame_get_frame_id(f), "a_very_long_frame_identifier_x");
+
+    uint8_t *rehead = NULL;
+    size_t rlen = 0;
+    cr_assert_eq(
+        ros_tensor_to_standalone_cdr(ros_camera_frame_get_tensor(f), &rehead, &rlen), 0);
+    cr_assert_eq(rlen, slen);
+    cr_assert_eq(memcmp(rehead, sbuf, rlen), 0);
+
+    ros_bytes_free(rehead, rlen);
+    ros_camera_frame_free(f);
+    free(fbuf);
+    free(sbuf);
 }

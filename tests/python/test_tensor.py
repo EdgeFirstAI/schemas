@@ -15,6 +15,7 @@ hands out a tensor that aliases the same buffer rather than a copy.
 
 import ctypes
 import gc
+import pathlib
 
 import numpy as np
 import pytest
@@ -380,3 +381,81 @@ class TestPositionIndependence:
         assert as_stamped.seq == 11
         assert as_stamped.frame_id == "cam"
         assert as_stamped.tensor.format == "NV12"
+
+
+class TestGoldenFixtures:
+    """Decode the cross-language golden vectors.
+
+    The ``.cdr`` files come from the pycdr2 dataclasses in
+    ``benches/python/legacy/`` — an implementation of the same ``.msg``
+    contract that is independent of these bindings. Decoding them here checks
+    the Python surface against a second encoder rather than against itself.
+    """
+
+    ROOT = pathlib.Path(__file__).resolve().parents[2] / "testdata" / "cdr" / "edgefirst_msgs"
+
+    def golden(self, name: str) -> bytes:
+        path = self.ROOT / f"{name}.cdr"
+        if not path.exists():
+            pytest.skip(f"fixture missing: run scripts/generate_cdr_testdata.py")
+        return path.read_bytes()
+
+    def test_tensor(self):
+        t = Tensor.from_cdr(self.golden("Tensor"))
+        assert t.storage_kind == 2
+        assert t.pid == 4242
+        assert t.dtype == 1
+        assert t.quant_axis == -2
+        assert t.shape == [HEIGHT, WIDTH]
+        assert t.strides == [WIDTH, 1]
+        assert t.format == "NV12"
+        assert t.color_range == "limited"
+        assert t.num_planes == 2
+        assert [p.offset for p in t.planes] == [0, Y_SIZE]
+        assert t.planes[0].handle_bytes == HANDLE_BYTES
+
+    def test_tensor_inline(self):
+        t = Tensor.from_cdr(self.golden("Tensor_inline"))
+        assert t.format == "mono8"
+        assert t.num_planes == 1
+        p = t.planes[0]
+        assert p.is_inline
+        assert p.data == bytes(range(8))
+        assert np.frombuffer(t.plane_data(0), dtype=np.uint8).tolist() == list(range(8))
+
+    def test_tensor_quantized(self):
+        t = Tensor.from_cdr(self.golden("Tensor_quantized"))
+        assert t.quant_axis == 0
+        assert t.quant_scales == [0.5, 0.25, 0.125]
+        assert t.quant_zero_points == [128, 0, -128]
+        assert t.num_planes == 0
+
+    @pytest.mark.parametrize("fixture", ["TensorStamped", "CameraFrame"])
+    @pytest.mark.parametrize("wrapper", [TensorStamped, CameraFrame])
+    def test_either_wrapper_decodes_either_fixture(self, wrapper, fixture):
+        """Byte-identical means the four combinations are interchangeable."""
+        msg = wrapper.from_cdr(self.golden(fixture))
+        assert msg.seq == 99
+        assert msg.frame_id == "test_frame"
+        assert msg.stamp == Time(1234567890, 123456789)
+        assert msg.tensor.format == "NV12"
+        assert msg.tensor.num_planes == 2
+
+    def test_wrapper_goldens_are_byte_identical(self):
+        assert self.golden("TensorStamped") == self.golden("CameraFrame")
+
+    def test_long_frame_id_reheads_to_the_standalone_golden(self):
+        """A different header size must not perturb the embedded tensor."""
+        frame = CameraFrame.from_cdr(self.golden("CameraFrame_long_frame_id"))
+        assert frame.frame_id == "a_very_long_frame_identifier_x"
+        assert frame.tensor.to_standalone_cdr() == self.golden("Tensor")
+
+    def test_our_encoder_reproduces_the_golden_bytes(self):
+        """The strongest form: encode from scratch and compare to pycdr2."""
+        assert nv12_tensor().to_bytes() == self.golden("Tensor")
+        assert CameraFrame(
+            stamp=Time(1234567890, 123456789),
+            frame_id="test_frame",
+            seq=99,
+            tensor=nv12_tensor(),
+        ).to_bytes() == self.golden("CameraFrame")

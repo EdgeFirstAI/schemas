@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from enum import Enum
 
 from pycdr2 import IdlStruct
-from pycdr2.types import (float32, int16, int32, sequence, uint8, uint16,
-                          uint32, uint64)
+from pycdr2.types import (float32, int16, int32, int64, sequence, uint8,
+                          uint16, uint32, uint64)
 
 from . import default_field
 from .builtin_interfaces import Duration, Time
@@ -134,50 +134,82 @@ class Box(IdlStruct, typename='edgefirst_msgs/Box'):
 
 
 @dataclass
-class CameraPlane(IdlStruct, typename='edgefirst_msgs/CameraPlane'):
+class TensorPlane(IdlStruct, typename='edgefirst_msgs/TensorPlane'):
     """
-    Descriptor for a single image plane within a CameraFrame.
+    One plane of a Tensor.
 
-    Two exclusive delivery modes:
-      * fd >= 0  : plane bytes live in DMA-BUF; consumer uses offset/size/used
-                   to mmap. `data` MUST be empty.
-      * fd == -1 : plane bytes are inlined in `data`; offset is ignored;
-                   size and used describe `data` length.
+    Two exclusive transport modes:
+      * handle >= 0  : bytes live behind the platform handle; `data` MUST be
+                       empty. Consumers use offset/size/used against the handle.
+      * handle == -1 : bytes are inlined in `data`; `size` == len(data),
+                       `modifier` == 0, and `handle_bytes` MUST be empty.
+
+    A frame must not mix modes: all planes inline, or none.
     """
-    fd: int32 = -1
-    offset: uint32 = 0
-    stride: uint32 = 0
-    size: uint32 = 0
-    used: uint32 = 0
+    handle: int64 = -1
+    offset: uint64 = 0
+    stride: uint64 = 0
+    size: uint64 = 0
+    used: uint64 = 0
+    modifier: uint64 = 0
+    handle_bytes: sequence[uint8] = default_field([])
     data: sequence[uint8] = default_field([])
 
 
 @dataclass
-class CameraFrame(IdlStruct, typename='edgefirst_msgs/CameraFrame'):
+class Tensor(IdlStruct, typename='edgefirst_msgs/Tensor'):
     """
-    Multi-plane video frame reference.
+    Unstamped tensor payload: element type, addressing grid, optional
+    quantization parameters, optional colorimetry, and one or more planes.
 
-    Carries DMA-BUF file descriptors and/or inlined bytes to one or more image
-    planes, plus frame-level metadata. Supersedes the single-plane DmaBuffer
-    message (deprecated in 3.1.0, removed in 4.0.0).
-
-    Supports raw video, planar model inputs (NV12, I420, RGB planar NCHW),
-    hardware codec bitstreams (H.264/H.265/MJPEG with used < size), GPU fence
-    synchronization (fence_fd), and off-device bridging via per-plane inlined
-    `data` with fd == -1.
+    `shape` is the addressing grid, NOT the byte layout: an NV12 frame carries
+    shape [h, w] with a U8 dtype against an h*w*3/2 allocation. It is never
+    validated against any buffer size. `strides` is in BYTES.
     """
-    header: Header = default_field(Header)
-    seq: uint64 = 0
+    storage_kind: uint32 = 0
     pid: uint32 = 0
-    width: uint32 = 0
-    height: uint32 = 0
+    fence_fd: int32 = -1
+    dtype: uint32 = 0
+    quant_axis: int32 = -2
+    shape: sequence[uint64] = default_field([])
+    strides: sequence[int64] = default_field([])
+    quant_scales: sequence[float32] = default_field([])
+    quant_zero_points: sequence[int32] = default_field([])
     format: str = ''
     color_space: str = ''
     color_transfer: str = ''
     color_encoding: str = ''
     color_range: str = ''
-    fence_fd: int32 = -1
-    planes: sequence[CameraPlane] = default_field([])
+    planes: sequence[TensorPlane] = default_field([])
+
+
+@dataclass
+class TensorStamped(IdlStruct, typename='edgefirst_msgs/TensorStamped'):
+    """
+    A timestamped Tensor, for model input and output topics.
+
+    `seq` is a uint64 and is load-bearing for the wire layout as well as for
+    drop detection: it forces `tensor` to an 8-aligned offset regardless of
+    frame_id length, which is what makes the embedded tensor byte-identical
+    across every wrapper. `tensor` MUST remain the last field.
+    """
+    header: Header = default_field(Header)
+    seq: uint64 = 0
+    tensor: Tensor = default_field(Tensor)
+
+
+@dataclass
+class CameraFrame(IdlStruct, typename='edgefirst_msgs/CameraFrame'):
+    """
+    A timestamped camera frame, carried as a Tensor.
+
+    Byte-identical to TensorStamped by construction; the distinct schema name
+    is the topic contract. Supersedes the multi-plane CameraFrame/CameraPlane
+    pair and the single-plane DmaBuffer, both removed in 4.0.0.
+    """
+    header: Header = default_field(Header)
+    seq: uint64 = 0
+    tensor: Tensor = default_field(Tensor)
 
 
 @dataclass
@@ -323,55 +355,6 @@ _DMABUFFER_DEPRECATION = (
 )
 
 
-@dataclass
-class DmaBuffer(IdlStruct, typename='DmaBuffer'):
-    """DEPRECATED since 3.1.0; use :class:`CameraFrame` instead.
-
-    Removed in 4.0.0. CameraFrame adds multi-plane support (NV12, I420, planar
-    RGB NCHW), compressed bitstream handling (used < size), GPU fence
-    synchronization, frame sequence counter, colorimetry metadata, and an
-    off-device bridge path via inlined per-plane bytes.
-
-    Instantiation and decoding via :meth:`deserialize` emit a
-    :class:`DeprecationWarning`.
-    """
-
-    def __post_init__(self):
-        warnings.warn(_DMABUFFER_DEPRECATION, DeprecationWarning, stacklevel=2)
-    header: Header = default_field(Header)
-    """
-    Metadata including timestamp and coordinate frame
-    """
-    pid: uint32 = 0
-    """
-    The process id of the service that created the DMA buffer
-    """
-    fd: int32 = 0
-    """
-    The file descriptor of the DMA buffer
-    """
-    width: uint32 = 0
-    """
-    The width of the image in pixels
-    """
-    height: uint32 = 0
-    """
-    The height of the image in pixels
-    """
-    stride: uint32 = 0
-    """
-    The stride of the image in bytes
-    """
-    fourcc: uint32 = 0
-    """
-    The fourcc code of the image
-    """
-    length: uint32 = 0
-    """
-    The length of the DMA buffer in bytes, used to mmap the buffer
-    """
-
-
 class RadarChannel(Enum):
     UNDEFINED = 0
     RANGE = 1
@@ -510,16 +493,17 @@ class Vibration(IdlStruct, typename='edgefirst_msgs/Vibration'):
 _TYPES = {
     "Box": Box,
     "CameraFrame": CameraFrame,
-    "CameraPlane": CameraPlane,
     "Date": Date,
     "Detect": Detect,
-    "DmaBuffer": DmaBuffer,
     "LocalTime": LocalTime,
     "Mask": Mask,
     "Model": Model,
     "ModelInfo": ModelInfo,
     "RadarCube": RadarCube,
     "RadarInfo": RadarInfo,
+    "Tensor": Tensor,
+    "TensorPlane": TensorPlane,
+    "TensorStamped": TensorStamped,
     "Track": Track,
     "Vibration": Vibration,
 }
