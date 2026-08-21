@@ -6307,7 +6307,12 @@ fn grid_cells_points(inner: &GridCellsBuilderOwned) -> Vec<crate::geometry_msgs:
         return Vec::new();
     }
     let raw = unsafe { slice::from_raw_parts(inner.cells_xyz, inner.cells_count * 3) };
-    raw.chunks_exact(3)
+    // `as_chunks::<3>()` rather than `chunks_exact(3)`: the const chunk size
+    // gives `&[f64; 3]` elements, so the indexing below is bounds-checked at
+    // compile time. `cells_count * 3` makes the remainder always empty.
+    raw.as_chunks::<3>()
+        .0
+        .iter()
         .map(|c| Point {
             x: c[0],
             y: c[1],
