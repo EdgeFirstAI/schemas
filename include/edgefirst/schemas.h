@@ -6145,6 +6145,8 @@ uint32_t ros_tensor_get_strides_len(const ros_tensor_t* view);
 
 /**
  * @brief Read one `shape` element.
+ * @param view Tensor handle.
+ * @param index Zero-based dimension index.
  * @param out Receives the dimension.
  * @return 0 on success, -1 on NULL/out-of-range (errno=EINVAL).
  */
@@ -6152,6 +6154,8 @@ int32_t ros_tensor_get_shape_at(const ros_tensor_t* view, uint32_t index, uint64
 
 /**
  * @brief Read one `strides` element, in BYTES.
+ * @param view Tensor handle.
+ * @param index Zero-based dimension index.
  * @param out Receives the stride.
  * @return 0 on success, -1 on NULL/out-of-range (errno=EINVAL).
  */
@@ -6159,6 +6163,7 @@ int32_t ros_tensor_get_strides_at(const ros_tensor_t* view, uint32_t index, int6
 
 /**
  * @brief Copy the whole `shape` sequence into a caller buffer.
+ * @param view Tensor handle.
  * @param out Destination array of at least `cap` elements.
  * @param cap Capacity of `out`, in elements.
  * @return Elements written, or -1 on error (EINVAL for NULL, ENOBUFS when
@@ -6171,6 +6176,7 @@ ptrdiff_t ros_tensor_copy_shape(const ros_tensor_t* view, uint64_t* out, size_t 
 
 /**
  * @brief Copy the whole `strides` sequence into a caller buffer.
+ * @param view Tensor handle.
  * @param out Destination array of at least `cap` elements.
  * @param cap Capacity of `out`, in elements.
  * @return Elements written, or -1 on error (EINVAL for NULL, ENOBUFS when
@@ -6180,6 +6186,7 @@ ptrdiff_t ros_tensor_copy_strides(const ros_tensor_t* view, int64_t* out, size_t
 
 /**
  * @brief Borrow the `quant_scales` sequence.
+ * @param view Tensor handle.
  * @param out_len Receives the element count (may be NULL).
  * @return Pointer into the CDR buffer, or NULL when empty.
  *
@@ -6190,6 +6197,7 @@ const float* ros_tensor_get_quant_scales(const ros_tensor_t* view, size_t* out_l
 
 /**
  * @brief Borrow the `quant_zero_points` sequence.
+ * @param view Tensor handle.
  * @param out_len Receives the element count (may be NULL).
  * @return Pointer into the CDR buffer, or NULL when empty.
  */
@@ -6206,6 +6214,7 @@ const ros_tensor_plane_t* ros_tensor_get_plane(const ros_tensor_t* view, uint32_
 
 /**
  * @brief This tensor's own bytes, from its base to the end of the buffer.
+ * @param view Tensor handle.
  * @param out_len Receives the byte length (may be NULL).
  */
 const uint8_t* ros_tensor_get_tensor_bytes(const ros_tensor_t* view, size_t* out_len);
@@ -6250,6 +6259,7 @@ bool ros_tensor_plane_is_inline(const ros_tensor_plane_t* view);
 
 /**
  * @brief Opaque platform handle bytes (empty for an inline plane).
+ * @param view Plane handle.
  * @param out_len Receives the byte length (may be NULL).
  * @return Pointer into the CDR buffer, or NULL when empty.
  */
@@ -6257,6 +6267,7 @@ const uint8_t* ros_tensor_plane_get_handle_bytes(const ros_tensor_plane_t* view,
 
 /**
  * @brief Inlined plane bytes (populated only when handle == -1).
+ * @param view Plane handle.
  * @param out_len Receives the byte length (may be NULL).
  * @return Pointer into the CDR buffer, or NULL when empty.
  */
@@ -6301,6 +6312,7 @@ const ros_tensor_t* ros_tensor_stamped_get_tensor(const ros_tensor_stamped_t* vi
 
 /**
  * @brief Borrow the whole CDR buffer backing this TensorStamped.
+ * @param view TensorStamped handle.
  * @param out_len Receives the byte length (may be NULL).
  */
 const uint8_t* ros_tensor_stamped_get_cdr(const ros_tensor_stamped_t* view, size_t* out_len);
@@ -6356,6 +6368,7 @@ const ros_tensor_t* ros_camera_frame_get_tensor(const ros_camera_frame_t* view);
 
 /**
  * @brief Borrow the whole CDR buffer backing this CameraFrame.
+ * @param view CameraFrame handle.
  * @param out_len Receives the byte length (may be NULL).
  */
 const uint8_t* ros_camera_frame_get_cdr(const ros_camera_frame_t* view, size_t* out_len);
@@ -6388,16 +6401,16 @@ int32_t ros_camera_frame_set_seq(uint8_t* buf, size_t len, uint64_t v);
  * A frame must not mix modes: all planes inline, or none.
  */
 typedef struct {
-    int64_t  handle;
-    uint64_t offset;
-    uint64_t stride;
-    uint64_t size;
-    uint64_t used;
-    uint64_t modifier;
-    const uint8_t* handle_bytes;
-    size_t   handle_bytes_len;
-    const uint8_t* data;
-    size_t   data_len;
+    int64_t  handle;            /**< Platform handle (dma-buf fd, shm fd, IOSurface id); -1 when inline. */
+    uint64_t offset;            /**< Byte offset of this plane within the handle's allocation. */
+    uint64_t stride;            /**< Bytes per line of this plane. */
+    uint64_t size;              /**< Plane capacity, in bytes. */
+    uint64_t used;              /**< Valid payload bytes; must satisfy used <= size. */
+    uint64_t modifier;          /**< DRM format modifier; 0 = DRM_FORMAT_MOD_LINEAR. */
+    const uint8_t* handle_bytes;/**< Opaque handle for non-fd backends; borrowed, may be NULL. */
+    size_t   handle_bytes_len;  /**< Length of `handle_bytes`, in bytes; 0 when unused. */
+    const uint8_t* data;        /**< Inlined plane bytes; borrowed, non-NULL only when handle == -1. */
+    size_t   data_len;          /**< Length of `data`, in bytes; 0 when the plane is referenced. */
 } ros_tensor_plane_elem_t;
 
 /** @brief Opaque builder for Tensor. */
@@ -6471,6 +6484,9 @@ int32_t ros_tensor_builder_build(ros_tensor_builder_t* b, uint8_t** out_bytes, s
 
 /**
  * @brief Encode a standalone Tensor into a caller-provided buffer.
+ * @param b Builder handle.
+ * @param buf Destination buffer.
+ * @param cap Capacity of `buf`, in bytes.
  * @param out_written Receives the byte count (may be NULL).
  * @return 0 on success, -1 on error (errno EINVAL, ENOBUFS or EBADMSG).
  */
@@ -6513,6 +6529,9 @@ int32_t ros_tensor_stamped_builder_build(ros_tensor_stamped_builder_t* b, uint8_
 
 /**
  * @brief Encode a TensorStamped into a caller-provided buffer.
+ * @param b Builder handle.
+ * @param buf Destination buffer.
+ * @param cap Capacity of `buf`, in bytes.
  * @param out_written Receives the byte count (may be NULL).
  * @return 0 on success, -1 on error (errno EINVAL, ENOBUFS or EBADMSG).
  */
@@ -6555,6 +6574,9 @@ int32_t ros_camera_frame_builder_build(ros_camera_frame_builder_t* b, uint8_t** 
 
 /**
  * @brief Encode a CameraFrame into a caller-provided buffer.
+ * @param b Builder handle.
+ * @param buf Destination buffer.
+ * @param cap Capacity of `buf`, in bytes.
  * @param out_written Receives the byte count (may be NULL).
  * @return 0 on success, -1 on error (errno EINVAL, ENOBUFS or EBADMSG).
  */

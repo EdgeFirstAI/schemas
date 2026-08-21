@@ -39,8 +39,20 @@
 #![allow(non_camel_case_types)]
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use super::*;
+// Imported explicitly rather than via `use super::*`, so the FFI helpers this
+// file depends on are visible at a glance. `check_null_ret_null!` is not listed
+// because `macro_rules!` macros are textually scoped: it is in scope here by
+// virtue of being defined in `ffi.rs` above the `mod tensor;` declaration.
+use super::{
+    c_to_str_checked, erase_lifetime, return_cdr_bytes, set_errno, str_as_c, EBADMSG, EINVAL,
+    ENOBUFS,
+};
+use std::os::raw::c_char;
+use std::ptr;
+use std::slice;
 
+use crate::builtin_interfaces::Time;
+use crate::cdr;
 use crate::edgefirst_msgs::{CameraFrame, TensorStamped};
 use crate::tensor::{Tensor, TensorFields, TensorPlaneView};
 

@@ -5306,7 +5306,7 @@ impl PyDetect {
             .unwrap_or(Time { sec: 0, nanosec: 0 });
         let box_views: Vec<DetectBoxView<'_>> = boxes
             .as_ref()
-            .map(|b| b.iter().map(|bx| bx.to_view()).collect())
+            .map(|b| b.iter().map(PyDetectBox::to_view).collect())
             .unwrap_or_default();
         let inner = Detect::builder()
             .stamp(stamp)
@@ -5496,11 +5496,11 @@ impl PyModel {
         let dt = decode_time.map(|d| d.0).unwrap_or(zero_dur);
         let box_views: Vec<DetectBoxView<'_>> = boxes
             .as_ref()
-            .map(|b| b.iter().map(|bx| bx.to_view()).collect())
+            .map(|b| b.iter().map(PyDetectBox::to_view).collect())
             .unwrap_or_default();
         let mask_views: Vec<MaskView<'_>> = masks
             .as_ref()
-            .map(|m| m.iter().map(|mx| mx.to_view()).collect())
+            .map(|m| m.iter().map(PyMaskBox::to_view).collect())
             .unwrap_or_default();
         let inner = Model::builder()
             .stamp(stamp)
@@ -7320,7 +7320,7 @@ impl OwnedTensorParts {
     }
 
     fn plane_views(&self) -> Vec<TensorPlaneView<'_>> {
-        self.planes.iter().map(|p| p.to_view()).collect()
+        self.planes.iter().map(PyTensorPlane::to_view).collect()
     }
 
     fn fields<'a>(&'a self, planes: &'a [TensorPlaneView<'a>]) -> TensorFields<'a> {

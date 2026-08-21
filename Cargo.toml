@@ -24,7 +24,7 @@ libc = "0.2.180"
 
 [dev-dependencies]
 criterion = { version = "0.8.1", features = ["html_reports"] }
-mcap = "0.24"
+mcap = "0.25"
 memmap2 = "0.9"
 rand = "0.9.2"
 

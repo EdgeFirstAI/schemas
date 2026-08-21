@@ -354,7 +354,7 @@ impl CdrFixed for MapMetaData {
 use crate::schema_registry::SchemaType;
 
 impl SchemaType for MapMetaData {
-    const SCHEMA_NAME: &'static str = "nav_msgs/msg/MapMetaData";
+    const SCHEMA_NAME: &str = "nav_msgs/msg/MapMetaData";
 }
 
 // ── GridCells<B> ────────────────────────────────────────────────────

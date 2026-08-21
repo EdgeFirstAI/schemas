@@ -239,20 +239,25 @@ class TestTensorValidation:
             Tensor(shape=[4, 4], strides=[4])
 
     def test_inline_plane_size_must_match_data(self):
+        # Built outside the raises block: TensorPlane itself must succeed, so
+        # only the Tensor call can satisfy the assertion.
+        plane = TensorPlane(handle=-1, size=99, data=b"\x00" * 8)
         with pytest.raises(ValueError):
-            Tensor(planes=[TensorPlane(handle=-1, size=99, data=b"\x00" * 8)])
+            Tensor(planes=[plane])
 
     def test_used_may_not_exceed_size(self):
+        plane = TensorPlane(handle=3, size=16, used=17)
         with pytest.raises(ValueError):
-            Tensor(planes=[TensorPlane(handle=3, size=16, used=17)])
+            Tensor(planes=[plane])
 
     def test_transport_modes_may_not_be_mixed(self):
         """A frame is all-inline or all-referenced; it has one storage_kind."""
+        planes = [
+            TensorPlane(handle=3, size=16),
+            TensorPlane(handle=-1, size=4, data=b"\x00" * 4),
+        ]
         with pytest.raises(ValueError):
-            Tensor(planes=[
-                TensorPlane(handle=3, size=16),
-                TensorPlane(handle=-1, size=4, data=b"\x00" * 4),
-            ])
+            Tensor(planes=planes)
 
     def test_colorimetry_without_format_is_rejected(self):
         with pytest.raises(ValueError):

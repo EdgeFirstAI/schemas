@@ -245,7 +245,7 @@ pub fn list_types() -> &'static [&'static str] {
 use crate::schema_registry::SchemaType;
 
 impl SchemaType for ColorRGBA {
-    const SCHEMA_NAME: &'static str = "std_msgs/msg/ColorRGBA";
+    const SCHEMA_NAME: &str = "std_msgs/msg/ColorRGBA";
 }
 
 #[cfg(test)]

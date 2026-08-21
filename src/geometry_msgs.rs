@@ -1869,46 +1869,46 @@ pub fn list_types() -> &'static [&'static str] {
 use crate::schema_registry::SchemaType;
 
 impl SchemaType for Accel {
-    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/Accel";
+    const SCHEMA_NAME: &str = "geometry_msgs/msg/Accel";
 }
 impl SchemaType for Inertia {
-    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/Inertia";
+    const SCHEMA_NAME: &str = "geometry_msgs/msg/Inertia";
 }
 impl SchemaType for Point {
-    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/Point";
+    const SCHEMA_NAME: &str = "geometry_msgs/msg/Point";
 }
 impl SchemaType for Point32 {
-    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/Point32";
+    const SCHEMA_NAME: &str = "geometry_msgs/msg/Point32";
 }
 impl SchemaType for Pose {
-    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/Pose";
+    const SCHEMA_NAME: &str = "geometry_msgs/msg/Pose";
 }
 impl SchemaType for Pose2D {
-    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/Pose2D";
+    const SCHEMA_NAME: &str = "geometry_msgs/msg/Pose2D";
 }
 impl SchemaType for Quaternion {
-    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/Quaternion";
+    const SCHEMA_NAME: &str = "geometry_msgs/msg/Quaternion";
 }
 impl SchemaType for Transform {
-    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/Transform";
+    const SCHEMA_NAME: &str = "geometry_msgs/msg/Transform";
 }
 impl SchemaType for Twist {
-    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/Twist";
+    const SCHEMA_NAME: &str = "geometry_msgs/msg/Twist";
 }
 impl SchemaType for Vector3 {
-    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/Vector3";
+    const SCHEMA_NAME: &str = "geometry_msgs/msg/Vector3";
 }
 impl SchemaType for Wrench {
-    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/Wrench";
+    const SCHEMA_NAME: &str = "geometry_msgs/msg/Wrench";
 }
 impl SchemaType for AccelWithCovariance {
-    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/AccelWithCovariance";
+    const SCHEMA_NAME: &str = "geometry_msgs/msg/AccelWithCovariance";
 }
 impl SchemaType for PoseWithCovariance {
-    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/PoseWithCovariance";
+    const SCHEMA_NAME: &str = "geometry_msgs/msg/PoseWithCovariance";
 }
 impl SchemaType for TwistWithCovariance {
-    const SCHEMA_NAME: &'static str = "geometry_msgs/msg/TwistWithCovariance";
+    const SCHEMA_NAME: &str = "geometry_msgs/msg/TwistWithCovariance";
 }
 
 #[cfg(test)]

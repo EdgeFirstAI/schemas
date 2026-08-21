@@ -116,11 +116,11 @@ impl CdrFixed for Duration {
 use crate::schema_registry::SchemaType;
 
 impl SchemaType for Duration {
-    const SCHEMA_NAME: &'static str = "builtin_interfaces/msg/Duration";
+    const SCHEMA_NAME: &str = "builtin_interfaces/msg/Duration";
 }
 
 impl SchemaType for Time {
-    const SCHEMA_NAME: &'static str = "builtin_interfaces/msg/Time";
+    const SCHEMA_NAME: &str = "builtin_interfaces/msg/Time";
 }
 
 #[cfg(test)]

@@ -2532,6 +2532,68 @@ private:
     const ros_mask_t* handle_;
 };
 
+
+// ── Tensor family traits ────────────────────────────────────────────────────
+// `Tensor` is the payload; `TensorStamped` and `CameraFrame` are
+// byte-identical wrappers around it, so their traits differ only in the C
+// symbols they name.
+
+struct TensorTraits {
+    using handle_type = ros_tensor_t;
+    static constexpr auto from_cdr = ros_tensor_from_cdr;
+    static constexpr auto free     = ros_tensor_free;
+    static constexpr std::string_view name = "ros_tensor";
+};
+
+struct TensorStampedTraits {
+    using handle_type = ros_tensor_stamped_t;
+    static constexpr auto from_cdr = ros_tensor_stamped_from_cdr;
+    static constexpr auto free     = ros_tensor_stamped_free;
+    static constexpr auto as_cdr   = ros_tensor_stamped_get_cdr;
+    static constexpr std::string_view name = "ros_tensor_stamped";
+};
+
+struct CameraFrameTraits {
+    using handle_type = ros_camera_frame_t;
+    static constexpr auto from_cdr = ros_camera_frame_from_cdr;
+    static constexpr auto free     = ros_camera_frame_free;
+    static constexpr auto as_cdr   = ros_camera_frame_get_cdr;
+    static constexpr std::string_view name = "ros_camera_frame";
+};
+
+struct TensorBuilderTraits {
+    using builder_type = ros_tensor_builder_t;
+    static constexpr auto new_fn = ros_tensor_builder_new;
+    static constexpr auto free_fn = ros_tensor_builder_free;
+    static constexpr auto build_fn = ros_tensor_builder_build;
+    static constexpr auto encode_into_fn = ros_tensor_builder_encode_into;
+    static constexpr std::string_view name = "ros_tensor_builder";
+    static constexpr std::string_view build_name = "ros_tensor_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_tensor_builder_encode_into";
+};
+
+struct TensorStampedBuilderTraits {
+    using builder_type = ros_tensor_stamped_builder_t;
+    static constexpr auto new_fn = ros_tensor_stamped_builder_new;
+    static constexpr auto free_fn = ros_tensor_stamped_builder_free;
+    static constexpr auto build_fn = ros_tensor_stamped_builder_build;
+    static constexpr auto encode_into_fn = ros_tensor_stamped_builder_encode_into;
+    static constexpr std::string_view name = "ros_tensor_stamped_builder";
+    static constexpr std::string_view build_name = "ros_tensor_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_tensor_stamped_builder_encode_into";
+};
+
+struct CameraFrameBuilderTraits {
+    using builder_type = ros_camera_frame_builder_t;
+    static constexpr auto new_fn = ros_camera_frame_builder_new;
+    static constexpr auto free_fn = ros_camera_frame_builder_free;
+    static constexpr auto build_fn = ros_camera_frame_builder_build;
+    static constexpr auto encode_into_fn = ros_camera_frame_builder_encode_into;
+    static constexpr std::string_view name = "ros_camera_frame_builder";
+    static constexpr std::string_view build_name = "ros_camera_frame_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_camera_frame_builder_encode_into";
+};
+
 } // namespace detail
 
 // ============================================================================
@@ -7225,65 +7287,6 @@ public:
 // buffer. They must not outlive the parent view, and the CDR bytes must stay
 // alive for any `span`/`string_view` taken from them.
 
-namespace detail {
-
-struct TensorTraits {
-    using handle_type = ros_tensor_t;
-    static constexpr auto from_cdr = ros_tensor_from_cdr;
-    static constexpr auto free     = ros_tensor_free;
-    static constexpr std::string_view name = "ros_tensor";
-};
-
-struct TensorStampedTraits {
-    using handle_type = ros_tensor_stamped_t;
-    static constexpr auto from_cdr = ros_tensor_stamped_from_cdr;
-    static constexpr auto free     = ros_tensor_stamped_free;
-    static constexpr auto as_cdr   = ros_tensor_stamped_get_cdr;
-    static constexpr std::string_view name = "ros_tensor_stamped";
-};
-
-struct CameraFrameTraits {
-    using handle_type = ros_camera_frame_t;
-    static constexpr auto from_cdr = ros_camera_frame_from_cdr;
-    static constexpr auto free     = ros_camera_frame_free;
-    static constexpr auto as_cdr   = ros_camera_frame_get_cdr;
-    static constexpr std::string_view name = "ros_camera_frame";
-};
-
-struct TensorBuilderTraits {
-    using builder_type = ros_tensor_builder_t;
-    static constexpr auto new_fn = ros_tensor_builder_new;
-    static constexpr auto free_fn = ros_tensor_builder_free;
-    static constexpr auto build_fn = ros_tensor_builder_build;
-    static constexpr auto encode_into_fn = ros_tensor_builder_encode_into;
-    static constexpr std::string_view name = "ros_tensor_builder";
-    static constexpr std::string_view build_name = "ros_tensor_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_tensor_builder_encode_into";
-};
-
-struct TensorStampedBuilderTraits {
-    using builder_type = ros_tensor_stamped_builder_t;
-    static constexpr auto new_fn = ros_tensor_stamped_builder_new;
-    static constexpr auto free_fn = ros_tensor_stamped_builder_free;
-    static constexpr auto build_fn = ros_tensor_stamped_builder_build;
-    static constexpr auto encode_into_fn = ros_tensor_stamped_builder_encode_into;
-    static constexpr std::string_view name = "ros_tensor_stamped_builder";
-    static constexpr std::string_view build_name = "ros_tensor_stamped_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_tensor_stamped_builder_encode_into";
-};
-
-struct CameraFrameBuilderTraits {
-    using builder_type = ros_camera_frame_builder_t;
-    static constexpr auto new_fn = ros_camera_frame_builder_new;
-    static constexpr auto free_fn = ros_camera_frame_builder_free;
-    static constexpr auto build_fn = ros_camera_frame_builder_build;
-    static constexpr auto encode_into_fn = ros_camera_frame_builder_encode_into;
-    static constexpr std::string_view name = "ros_camera_frame_builder";
-    static constexpr std::string_view build_name = "ros_camera_frame_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_camera_frame_builder_encode_into";
-};
-
-} // namespace detail
 
 /**
  * @brief A single plane of a Tensor, borrowed from its parent.
@@ -7635,6 +7638,7 @@ public:
 
     /// @internal
     /// @brief Raw builder pointer, for attaching to a wrapper builder.
+    /// @return The underlying C builder handle, owned by this object.
     [[nodiscard]] const ros_tensor_builder_t* raw() const noexcept { return ptr(); }
 };
 

@@ -134,7 +134,7 @@ macro_rules! stamped_tensor_message {
         }
 
         impl crate::schema_registry::SchemaType for $msg<Vec<u8>> {
-            const SCHEMA_NAME: &'static str = $schema;
+            const SCHEMA_NAME: &str = $schema;
         }
 
         #[doc = concat!("Builder for [`", stringify!($msg), "`].")]
@@ -3615,7 +3615,7 @@ pub fn list_types() -> &'static [&'static str] {
 use crate::schema_registry::SchemaType;
 
 impl SchemaType for Date {
-    const SCHEMA_NAME: &'static str = "edgefirst_msgs/msg/Date";
+    const SCHEMA_NAME: &str = "edgefirst_msgs/msg/Date";
 }
 
 #[cfg(test)]
