@@ -210,6 +210,23 @@ typedef struct ros_track_t ros_track_t;
 typedef struct ros_box_t ros_box_t;
 /** @brief Opaque buffer-backed view handle for edgefirst_msgs::LocalTime. */
 typedef struct ros_local_time_t ros_local_time_t;
+/** @brief Opaque buffer-backed view handle for edgefirst_msgs::Tensor. */
+typedef struct ros_tensor_t ros_tensor_t;
+/**
+ * @brief Opaque view handle for a single edgefirst_msgs::TensorPlane.
+ *
+ * Returned by ros_tensor_get_plane() as a parent-borrowed handle: its
+ * lifetime is tied to the owning ros_tensor_t (and, for an embedded
+ * tensor, to that tensor's wrapper). It must NOT be passed to
+ * ros_tensor_plane_free(); see Memory Management Rule 5. That function
+ * detects borrowed handles and safely no-ops with errno=EINVAL rather
+ * than corrupting the parent's storage.
+ */
+typedef struct ros_tensor_plane_t ros_tensor_plane_t;
+/** @brief Opaque buffer-backed view handle for edgefirst_msgs::TensorStamped. */
+typedef struct ros_tensor_stamped_t ros_tensor_stamped_t;
+/** @brief Opaque buffer-backed view handle for edgefirst_msgs::CameraFrame. */
+typedef struct ros_camera_frame_t ros_camera_frame_t;
 
 /* ============================================================================
  * Memory Management
@@ -6043,6 +6060,507 @@ int64_t ros_mavros_timesync_status_get_estimated_offset_ns(const ros_mavros_time
 float ros_mavros_timesync_status_get_round_trip_time_ms(const ros_mavros_timesync_status_t* view);
 
 /** @} */ /* end defgroup mavros_msgs */
+
+/* ============================================================================
+ * edgefirst_msgs :: Tensor family
+ *
+ * `Tensor` is the payload; `TensorStamped` and `CameraFrame` are
+ * byte-identical wrappers around it (header + seq + Tensor). The C API
+ * mirrors that composition rather than flattening it: a wrapper hands out a
+ * borrowed `const ros_tensor_t*` and every tensor accessor is shared.
+ *
+ *     ros_camera_frame_t*   f = ros_camera_frame_from_cdr(buf, len);
+ *     const ros_tensor_t*   t = ros_camera_frame_get_tensor(f);
+ *     uint32_t              d = ros_tensor_get_dtype(t);
+ *     const ros_tensor_plane_t* p = ros_tensor_get_plane(t, 0);
+ *     int64_t               h = ros_tensor_plane_get_handle(p);
+ *     ros_camera_frame_free(f);   // frees the borrowed tensor and planes too
+ *
+ * Memory: `ros_*_get_tensor()` and `ros_tensor_get_plane()` return BORROWED
+ * pointers. Do not free them; they die with the parent handle. Every handle
+ * also borrows the CDR bytes given to `from_cdr`, which must outlive it.
+ * ========================================================================= */
+
+/** @defgroup tensor edgefirst_msgs Tensor family
+ *  @{
+ */
+
+/* ── Tensor (payload) ─────────────────────────────────────────────────── */
+
+/**
+ * @brief Create a standalone Tensor view from CDR bytes.
+ * @param data CDR encoded bytes (borrowed; must outlive the handle).
+ * @param len Length of data.
+ * @return Opaque handle, or NULL on error (errno EINVAL or EBADMSG).
+ */
+ros_tensor_t* ros_tensor_from_cdr(const uint8_t* data, size_t len);
+
+/**
+ * @brief Free a Tensor handle.
+ *
+ * NULL-safe. A parent-borrowed handle (from ros_tensor_stamped_get_tensor()
+ * or ros_camera_frame_get_tensor()) is not owned here: this no-ops and sets
+ * errno=EINVAL rather than double-freeing.
+ */
+void ros_tensor_free(ros_tensor_t* view);
+
+/** @brief Storage class of every plane (see the HAL storage_kind codes). */
+uint32_t ros_tensor_get_storage_kind(const ros_tensor_t* view);
+/** @brief Producer PID, for handle resolution. 0 when not applicable. */
+uint32_t ros_tensor_get_pid(const ros_tensor_t* view);
+/** @brief ACQUIRE fence fd; -1 when there is no fence. */
+int32_t ros_tensor_get_fence_fd(const ros_tensor_t* view);
+/** @brief Element type (see the HAL dtype codes). */
+uint32_t ros_tensor_get_dtype(const ros_tensor_t* view);
+/** @brief Quantization axis; -2 when unquantized. */
+int32_t ros_tensor_get_quant_axis(const ros_tensor_t* view);
+/** @brief Number of planes. */
+uint32_t ros_tensor_get_num_planes(const ros_tensor_t* view);
+
+/** @brief Pixel/element format string (borrowed, NUL-terminated). */
+const char* ros_tensor_get_format(const ros_tensor_t* view);
+/** @brief Colour primaries (borrowed, NUL-terminated; "" when unset). */
+const char* ros_tensor_get_color_space(const ros_tensor_t* view);
+/** @brief Transfer characteristics (borrowed; "" when unset). */
+const char* ros_tensor_get_color_transfer(const ros_tensor_t* view);
+/** @brief Matrix coefficients (borrowed; "" when unset). */
+const char* ros_tensor_get_color_encoding(const ros_tensor_t* view);
+/** @brief Full/limited range (borrowed; "" when unset). */
+const char* ros_tensor_get_color_range(const ros_tensor_t* view);
+
+/** @brief Number of dimensions in `shape`. */
+uint32_t ros_tensor_get_shape_len(const ros_tensor_t* view);
+/** @brief Number of entries in `strides` (0, or equal to shape_len). */
+uint32_t ros_tensor_get_strides_len(const ros_tensor_t* view);
+
+/*
+ * shape/strides are 64-bit CDR sequences. They are NOT exposed as
+ * `const uint64_t*` into the buffer: CDR 8-byte alignment is relative to the
+ * data start at absolute offset 4, so their elements land at absolute offset
+ * ≡ 4 (mod 8) and never satisfy alignof(uint64_t). A borrowed pointer there
+ * would invite misaligned loads — undefined behaviour on strict-alignment
+ * targets. Element reads below go through byte-wise little-endian decoding
+ * and are alignment-safe by construction.
+ */
+
+/**
+ * @brief Read one `shape` element.
+ * @param out Receives the dimension.
+ * @return 0 on success, -1 on NULL/out-of-range (errno=EINVAL).
+ */
+int32_t ros_tensor_get_shape_at(const ros_tensor_t* view, uint32_t index, uint64_t* out);
+
+/**
+ * @brief Read one `strides` element, in BYTES.
+ * @param out Receives the stride.
+ * @return 0 on success, -1 on NULL/out-of-range (errno=EINVAL).
+ */
+int32_t ros_tensor_get_strides_at(const ros_tensor_t* view, uint32_t index, int64_t* out);
+
+/**
+ * @brief Copy the whole `shape` sequence into a caller buffer.
+ * @param out Destination array of at least `cap` elements.
+ * @param cap Capacity of `out`, in elements.
+ * @return Elements written, or -1 on error (EINVAL for NULL, ENOBUFS when
+ *         `cap` < shape_len).
+ *
+ * O(n) for the whole sequence. Prefer this to calling
+ * ros_tensor_get_shape_at() in a loop, which rescans and is O(n^2).
+ */
+ptrdiff_t ros_tensor_copy_shape(const ros_tensor_t* view, uint64_t* out, size_t cap);
+
+/**
+ * @brief Copy the whole `strides` sequence into a caller buffer.
+ * @param out Destination array of at least `cap` elements.
+ * @param cap Capacity of `out`, in elements.
+ * @return Elements written, or -1 on error (EINVAL for NULL, ENOBUFS when
+ *         `cap` < strides_len).
+ */
+ptrdiff_t ros_tensor_copy_strides(const ros_tensor_t* view, int64_t* out, size_t cap);
+
+/**
+ * @brief Borrow the `quant_scales` sequence.
+ * @param out_len Receives the element count (may be NULL).
+ * @return Pointer into the CDR buffer, or NULL when empty.
+ *
+ * Unlike shape/strides these are 4-byte elements whose CDR alignment does
+ * coincide with their natural alignment, so they can be borrowed directly.
+ */
+const float* ros_tensor_get_quant_scales(const ros_tensor_t* view, size_t* out_len);
+
+/**
+ * @brief Borrow the `quant_zero_points` sequence.
+ * @param out_len Receives the element count (may be NULL).
+ * @return Pointer into the CDR buffer, or NULL when empty.
+ */
+const int32_t* ros_tensor_get_quant_zero_points(const ros_tensor_t* view, size_t* out_len);
+
+/**
+ * @brief Borrowed view of the i-th plane.
+ *
+ * NOT a separately-owned handle: do not pass it to ros_tensor_plane_free().
+ * Invalid once the owning tensor (or its wrapper) is freed.
+ * @return Borrowed handle, or NULL when out of range (errno=EINVAL).
+ */
+const ros_tensor_plane_t* ros_tensor_get_plane(const ros_tensor_t* view, uint32_t index);
+
+/**
+ * @brief This tensor's own bytes, from its base to the end of the buffer.
+ * @param out_len Receives the byte length (may be NULL).
+ */
+const uint8_t* ros_tensor_get_tensor_bytes(const ros_tensor_t* view, size_t* out_len);
+
+/**
+ * @brief Re-head an embedded tensor as a standalone Tensor CDR message.
+ *
+ * The republish path — forwarding a camera frame's tensor onto a tensor
+ * topic. Copies metadata only; plane payloads stay behind their handles.
+ * Because the layout is position-independent the result is byte-identical
+ * to encoding the same tensor standalone from scratch.
+ *
+ * Allocates; free with ros_bytes_free().
+ * @return 0 on success, -1 on error (errno=EINVAL).
+ */
+int32_t ros_tensor_to_standalone_cdr(const ros_tensor_t* view, uint8_t** out_bytes, size_t* out_len);
+
+/* ── TensorPlane ──────────────────────────────────────────────────────── */
+
+/**
+ * @brief Free a TensorPlane handle.
+ *
+ * NULL-safe. Handles from ros_tensor_get_plane() are parent-borrowed, so
+ * this no-ops with errno=EINVAL.
+ */
+void ros_tensor_plane_free(ros_tensor_plane_t* view);
+
+/** @brief Platform handle; -1 means the bytes are inline in `data`. */
+int64_t ros_tensor_plane_get_handle(const ros_tensor_plane_t* view);
+/** @brief Byte offset of this plane within its allocation. */
+uint64_t ros_tensor_plane_get_offset(const ros_tensor_plane_t* view);
+/** @brief Row stride in bytes. */
+uint64_t ros_tensor_plane_get_stride(const ros_tensor_plane_t* view);
+/** @brief Allocated size of the plane, in bytes. */
+uint64_t ros_tensor_plane_get_size(const ros_tensor_plane_t* view);
+/** @brief Bytes actually populated; always <= size. */
+uint64_t ros_tensor_plane_get_used(const ros_tensor_plane_t* view);
+/** @brief Format modifier (tiling/compression); 0 for linear. */
+uint64_t ros_tensor_plane_get_modifier(const ros_tensor_plane_t* view);
+/** @brief True when the plane's bytes travel inline rather than by handle. */
+bool ros_tensor_plane_is_inline(const ros_tensor_plane_t* view);
+
+/**
+ * @brief Opaque platform handle bytes (empty for an inline plane).
+ * @param out_len Receives the byte length (may be NULL).
+ * @return Pointer into the CDR buffer, or NULL when empty.
+ */
+const uint8_t* ros_tensor_plane_get_handle_bytes(const ros_tensor_plane_t* view, size_t* out_len);
+
+/**
+ * @brief Inlined plane bytes (populated only when handle == -1).
+ * @param out_len Receives the byte length (may be NULL).
+ * @return Pointer into the CDR buffer, or NULL when empty.
+ */
+const uint8_t* ros_tensor_plane_get_data(const ros_tensor_plane_t* view, size_t* out_len);
+
+/* ── TensorStamped ─────────────────────────────────────────────── */
+
+/**
+ * @brief Create a TensorStamped view from CDR bytes.
+ * @param data CDR encoded bytes (borrowed; must outlive the handle).
+ * @param len Length of data.
+ * @return Opaque handle, or NULL on error (errno EINVAL or EBADMSG).
+ */
+ros_tensor_stamped_t* ros_tensor_stamped_from_cdr(const uint8_t* data, size_t len);
+
+/** @brief Free a TensorStamped handle (also releases its borrowed tensor and planes). */
+void ros_tensor_stamped_free(ros_tensor_stamped_t* view);
+
+/** @brief Timestamp seconds. */
+int32_t ros_tensor_stamped_get_stamp_sec(const ros_tensor_stamped_t* view);
+/** @brief Timestamp nanoseconds. */
+uint32_t ros_tensor_stamped_get_stamp_nanosec(const ros_tensor_stamped_t* view);
+/** @brief Coordinate frame id (borrowed, NUL-terminated). */
+const char* ros_tensor_stamped_get_frame_id(const ros_tensor_stamped_t* view);
+/**
+ * @brief Monotonic sequence number, for drop detection.
+ *
+ * Also load-bearing for the wire layout: `seq` is a uint64 that forces the
+ * embedded Tensor to an 8-aligned offset regardless of frame_id length,
+ * which is what makes the nested layout byte-identical across wrappers.
+ */
+uint64_t ros_tensor_stamped_get_seq(const ros_tensor_stamped_t* view);
+
+/**
+ * @brief Borrowed view of the embedded tensor.
+ *
+ * Owned by the parent: do NOT pass it to ros_tensor_free(). It dies with
+ * this handle.
+ * @return Borrowed handle, or NULL if `view` is NULL (errno=EINVAL).
+ */
+const ros_tensor_t* ros_tensor_stamped_get_tensor(const ros_tensor_stamped_t* view);
+
+/**
+ * @brief Borrow the whole CDR buffer backing this TensorStamped.
+ * @param out_len Receives the byte length (may be NULL).
+ */
+const uint8_t* ros_tensor_stamped_get_cdr(const ros_tensor_stamped_t* view, size_t* out_len);
+
+/**
+ * @brief In-place stamp update on a mutable TensorStamped CDR buffer.
+ * @return 0 on success, -1 on error (errno EINVAL or EBADMSG).
+ */
+int32_t ros_tensor_stamped_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief In-place seq update on a mutable TensorStamped CDR buffer.
+ * @return 0 on success, -1 on error (errno EINVAL or EBADMSG).
+ */
+int32_t ros_tensor_stamped_set_seq(uint8_t* buf, size_t len, uint64_t v);
+
+/* ── CameraFrame ─────────────────────────────────────────────── */
+
+/**
+ * @brief Create a CameraFrame view from CDR bytes.
+ * @param data CDR encoded bytes (borrowed; must outlive the handle).
+ * @param len Length of data.
+ * @return Opaque handle, or NULL on error (errno EINVAL or EBADMSG).
+ */
+ros_camera_frame_t* ros_camera_frame_from_cdr(const uint8_t* data, size_t len);
+
+/** @brief Free a CameraFrame handle (also releases its borrowed tensor and planes). */
+void ros_camera_frame_free(ros_camera_frame_t* view);
+
+/** @brief Timestamp seconds. */
+int32_t ros_camera_frame_get_stamp_sec(const ros_camera_frame_t* view);
+/** @brief Timestamp nanoseconds. */
+uint32_t ros_camera_frame_get_stamp_nanosec(const ros_camera_frame_t* view);
+/** @brief Coordinate frame id (borrowed, NUL-terminated). */
+const char* ros_camera_frame_get_frame_id(const ros_camera_frame_t* view);
+/**
+ * @brief Monotonic sequence number, for drop detection.
+ *
+ * Also load-bearing for the wire layout: `seq` is a uint64 that forces the
+ * embedded Tensor to an 8-aligned offset regardless of frame_id length,
+ * which is what makes the nested layout byte-identical across wrappers.
+ */
+uint64_t ros_camera_frame_get_seq(const ros_camera_frame_t* view);
+
+/**
+ * @brief Borrowed view of the embedded tensor.
+ *
+ * Owned by the parent: do NOT pass it to ros_tensor_free(). It dies with
+ * this handle.
+ * @return Borrowed handle, or NULL if `view` is NULL (errno=EINVAL).
+ */
+const ros_tensor_t* ros_camera_frame_get_tensor(const ros_camera_frame_t* view);
+
+/**
+ * @brief Borrow the whole CDR buffer backing this CameraFrame.
+ * @param out_len Receives the byte length (may be NULL).
+ */
+const uint8_t* ros_camera_frame_get_cdr(const ros_camera_frame_t* view, size_t* out_len);
+
+/**
+ * @brief In-place stamp update on a mutable CameraFrame CDR buffer.
+ * @return 0 on success, -1 on error (errno EINVAL or EBADMSG).
+ */
+int32_t ros_camera_frame_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+
+/**
+ * @brief In-place seq update on a mutable CameraFrame CDR buffer.
+ * @return 0 on success, -1 on error (errno EINVAL or EBADMSG).
+ */
+int32_t ros_camera_frame_set_seq(uint8_t* buf, size_t len, uint64_t v);
+
+/* ── TensorBuilder ────────────────────────────────────────────────────── */
+
+/**
+ * @brief C-POD descriptor for a single TensorPlane element.
+ *
+ * `handle_bytes` and `data` are borrowed: both must stay valid until the
+ * consuming builder is finalized (build/encode) or freed.
+ *
+ * The two transport modes are exclusive and checked at build time:
+ *  - handle >= 0 : bytes live behind the handle; `data` must be empty.
+ *  - handle == -1: bytes are inline in `data`; `size` must equal `data_len`,
+ *                  `modifier` must be 0, and `handle_bytes` must be empty.
+ *
+ * A frame must not mix modes: all planes inline, or none.
+ */
+typedef struct {
+    int64_t  handle;
+    uint64_t offset;
+    uint64_t stride;
+    uint64_t size;
+    uint64_t used;
+    uint64_t modifier;
+    const uint8_t* handle_bytes;
+    size_t   handle_bytes_len;
+    const uint8_t* data;
+    size_t   data_len;
+} ros_tensor_plane_elem_t;
+
+/** @brief Opaque builder for Tensor. */
+typedef struct ros_tensor_builder_t ros_tensor_builder_t;
+
+/**
+ * @brief Create a Tensor builder.
+ *
+ * Defaults mirror the Rust `TensorFields::default()` and are NOT all zero:
+ * fence_fd = -1 (no fence) and quant_axis = -2 (unquantized).
+ * Free with ros_tensor_builder_free().
+ */
+ros_tensor_builder_t* ros_tensor_builder_new(void);
+/** @brief Free a Tensor builder. NULL-safe. */
+void ros_tensor_builder_free(ros_tensor_builder_t* b);
+
+/** @brief Set the storage class shared by every plane. */
+void ros_tensor_builder_set_storage_kind(ros_tensor_builder_t* b, uint32_t v);
+/** @brief Set the producer PID. */
+void ros_tensor_builder_set_pid(ros_tensor_builder_t* b, uint32_t v);
+/** @brief Set the ACQUIRE fence fd (-1 for none). */
+void ros_tensor_builder_set_fence_fd(ros_tensor_builder_t* b, int32_t v);
+/** @brief Set the element dtype. */
+void ros_tensor_builder_set_dtype(ros_tensor_builder_t* b, uint32_t v);
+/** @brief Set the quantization axis (-2 when unquantized). */
+void ros_tensor_builder_set_quant_axis(ros_tensor_builder_t* b, int32_t v);
+
+/** @brief Set the format string (copied). @return 0, or -1 (errno=EINVAL). */
+int32_t ros_tensor_builder_set_format(ros_tensor_builder_t* b, const char* s);
+/** @brief Set colour primaries (copied). @return 0, or -1 (errno=EINVAL). */
+int32_t ros_tensor_builder_set_color_space(ros_tensor_builder_t* b, const char* s);
+/** @brief Set transfer characteristics (copied). @return 0, or -1 (errno=EINVAL). */
+int32_t ros_tensor_builder_set_color_transfer(ros_tensor_builder_t* b, const char* s);
+/** @brief Set matrix coefficients (copied). @return 0, or -1 (errno=EINVAL). */
+int32_t ros_tensor_builder_set_color_encoding(ros_tensor_builder_t* b, const char* s);
+/** @brief Set full/limited range (copied). @return 0, or -1 (errno=EINVAL). */
+int32_t ros_tensor_builder_set_color_range(ros_tensor_builder_t* b, const char* s);
+
+/**
+ * @brief Set the addressing grid. BORROWED until build/free.
+ *
+ * @note `shape` is the addressing grid, NOT the byte layout. An NV12 frame
+ * carries shape [h, w] with dtype U8 against an h*w*3/2 allocation. It is
+ * deliberately never validated against any buffer size.
+ * @return 0 on success, -1 on error (errno=EINVAL).
+ */
+int32_t ros_tensor_builder_set_shape(ros_tensor_builder_t* b, const uint64_t* v, size_t len);
+
+/**
+ * @brief Set strides, in BYTES (not elements). BORROWED until build/free.
+ *
+ * Either empty, or exactly as long as `shape`.
+ * @return 0 on success, -1 on error (errno=EINVAL).
+ */
+int32_t ros_tensor_builder_set_strides(ros_tensor_builder_t* b, const int64_t* v, size_t len);
+
+/** @brief Set quantization scales. BORROWED. @return 0, or -1 (errno=EINVAL). */
+int32_t ros_tensor_builder_set_quant_scales(ros_tensor_builder_t* b, const float* v, size_t len);
+/** @brief Set quantization zero points. BORROWED. @return 0, or -1 (errno=EINVAL). */
+int32_t ros_tensor_builder_set_quant_zero_points(ros_tensor_builder_t* b, const int32_t* v, size_t len);
+/** @brief Set the plane array. BORROWED. @return 0, or -1 (errno=EINVAL). */
+int32_t ros_tensor_builder_set_planes(ros_tensor_builder_t* b, const ros_tensor_plane_elem_t* planes, size_t count);
+
+/**
+ * @brief Encode a standalone Tensor message. Allocates; free with
+ *        ros_bytes_free().
+ * @return 0 on success, -1 on error (errno=EINVAL for NULL, EBADMSG when the
+ *         plane set fails validation).
+ */
+int32_t ros_tensor_builder_build(ros_tensor_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+
+/**
+ * @brief Encode a standalone Tensor into a caller-provided buffer.
+ * @param out_written Receives the byte count (may be NULL).
+ * @return 0 on success, -1 on error (errno EINVAL, ENOBUFS or EBADMSG).
+ */
+int32_t ros_tensor_builder_encode_into(ros_tensor_builder_t* b, uint8_t* buf, size_t cap, size_t* out_written);
+
+/* ── TensorStampedBuilder ──────────────────────────────────────── */
+
+/** @brief Opaque builder for TensorStamped. */
+typedef struct ros_tensor_stamped_builder_t ros_tensor_stamped_builder_t;
+
+/** @brief Create a TensorStamped builder. Free with ros_tensor_stamped_builder_free(). */
+ros_tensor_stamped_builder_t* ros_tensor_stamped_builder_new(void);
+/** @brief Free a TensorStamped builder. NULL-safe. */
+void ros_tensor_stamped_builder_free(ros_tensor_stamped_builder_t* b);
+
+/** @brief Set the timestamp. */
+void ros_tensor_stamped_builder_set_stamp(ros_tensor_stamped_builder_t* b, int32_t sec, uint32_t nsec);
+/**
+ * @brief Set the coordinate frame id (copied).
+ * @return 0 on success, -1 on NULL/invalid UTF-8 (errno=EINVAL).
+ */
+int32_t ros_tensor_stamped_builder_set_frame_id(ros_tensor_stamped_builder_t* b, const char* s);
+/** @brief Set the sequence number. */
+void ros_tensor_stamped_builder_set_seq(ros_tensor_stamped_builder_t* b, uint64_t v);
+/**
+ * @brief Attach the tensor payload.
+ *
+ * The tensor builder is BORROWED: it must outlive this builder's build or
+ * encode call, and must not be freed before then.
+ * @return 0 on success, -1 on error (errno=EINVAL).
+ */
+int32_t ros_tensor_stamped_builder_set_tensor(ros_tensor_stamped_builder_t* b, const ros_tensor_builder_t* t);
+
+/**
+ * @brief Encode a TensorStamped message. Allocates; free with ros_bytes_free().
+ * @return 0 on success, -1 on error (errno=EINVAL when no tensor payload was
+ *         attached, EBADMSG on validation failure).
+ */
+int32_t ros_tensor_stamped_builder_build(ros_tensor_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+
+/**
+ * @brief Encode a TensorStamped into a caller-provided buffer.
+ * @param out_written Receives the byte count (may be NULL).
+ * @return 0 on success, -1 on error (errno EINVAL, ENOBUFS or EBADMSG).
+ */
+int32_t ros_tensor_stamped_builder_encode_into(ros_tensor_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_written);
+
+/* ── CameraFrameBuilder ──────────────────────────────────────── */
+
+/** @brief Opaque builder for CameraFrame. */
+typedef struct ros_camera_frame_builder_t ros_camera_frame_builder_t;
+
+/** @brief Create a CameraFrame builder. Free with ros_camera_frame_builder_free(). */
+ros_camera_frame_builder_t* ros_camera_frame_builder_new(void);
+/** @brief Free a CameraFrame builder. NULL-safe. */
+void ros_camera_frame_builder_free(ros_camera_frame_builder_t* b);
+
+/** @brief Set the timestamp. */
+void ros_camera_frame_builder_set_stamp(ros_camera_frame_builder_t* b, int32_t sec, uint32_t nsec);
+/**
+ * @brief Set the coordinate frame id (copied).
+ * @return 0 on success, -1 on NULL/invalid UTF-8 (errno=EINVAL).
+ */
+int32_t ros_camera_frame_builder_set_frame_id(ros_camera_frame_builder_t* b, const char* s);
+/** @brief Set the sequence number. */
+void ros_camera_frame_builder_set_seq(ros_camera_frame_builder_t* b, uint64_t v);
+/**
+ * @brief Attach the tensor payload.
+ *
+ * The tensor builder is BORROWED: it must outlive this builder's build or
+ * encode call, and must not be freed before then.
+ * @return 0 on success, -1 on error (errno=EINVAL).
+ */
+int32_t ros_camera_frame_builder_set_tensor(ros_camera_frame_builder_t* b, const ros_tensor_builder_t* t);
+
+/**
+ * @brief Encode a CameraFrame message. Allocates; free with ros_bytes_free().
+ * @return 0 on success, -1 on error (errno=EINVAL when no tensor payload was
+ *         attached, EBADMSG on validation failure).
+ */
+int32_t ros_camera_frame_builder_build(ros_camera_frame_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+
+/**
+ * @brief Encode a CameraFrame into a caller-provided buffer.
+ * @param out_written Receives the byte count (may be NULL).
+ * @return 0 on success, -1 on error (errno EINVAL, ENOBUFS or EBADMSG).
+ */
+int32_t ros_camera_frame_builder_encode_into(ros_camera_frame_builder_t* b, uint8_t* buf, size_t cap, size_t* out_written);
+
+/** @} */ /* end defgroup tensor */
 
 #ifdef __cplusplus
 }

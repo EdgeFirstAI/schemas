@@ -535,6 +535,34 @@ impl<B: AsRef<[u8]>> Tensor<B> {
     }
 }
 
+/// Accessors for a `Tensor` whose buffer is itself a borrow.
+///
+/// [`Tensor::planes`] ties every `TensorPlaneView` to the borrow of `&self`,
+/// which is correct for iteration but useless to a caller that needs to
+/// *store* the views — the C FFI handle materializes its child planes once at
+/// `from_cdr` time and hands out borrowed pointers to them for the handle's
+/// whole life.
+///
+/// When the buffer is already a borrow, the views can carry the buffer's
+/// lifetime directly. That keeps the FFI free of the `mem::transmute`
+/// lifetime-widening the module preamble in `ffi.rs` explicitly rules out:
+/// the `'static` views it stores come from the `&'static [u8]` input, not
+/// from widening a `&self`-bound return.
+impl<'a> Tensor<&'a [u8]> {
+    /// Plane iterator whose views borrow the backing buffer, not `self`.
+    ///
+    /// Identical to [`planes`](Self::planes) in cost and output — allocation
+    /// free, same elements, same order — differing only in the lifetime the
+    /// yielded views carry.
+    pub fn planes_borrowed(&self) -> TensorPlaneIter<'a> {
+        let b: &'a [u8] = self.buf;
+        TensorPlaneIter {
+            cursor: CdrCursor::resume(b, self.off.planes + 4),
+            remaining: rd_u32(b, self.off.planes) as usize,
+        }
+    }
+}
+
 /// Allocation-free iterator over a 64-bit CDR sequence (`shape`, `strides`).
 ///
 /// These cannot be exposed as `&[u64]` / `&[i64]`. CDR 8-byte alignment is

@@ -88,6 +88,21 @@ macro_rules! stamped_tensor_message {
             }
         }
 
+        impl<'a> $msg<&'a [u8]> {
+            /// Embedded tensor whose views borrow the backing buffer, not
+            /// `self`. Same offset table and same zero rescans as
+            /// [`tensor`](Self::tensor); only the lifetime differs.
+            ///
+            /// Needed by any caller that stores the tensor rather than
+            /// reading through it — the C FFI handle keeps a materialized
+            /// child tensor for its whole life. See `Tensor::planes_borrowed`
+            /// for the same rationale one level down.
+            #[inline]
+            pub fn tensor_borrowed(&self) -> Tensor<&'a [u8]> {
+                Tensor::from_parts(self.buf, self.toff)
+            }
+        }
+
         impl<B: AsRef<[u8]> + AsMut<[u8]>> $msg<B> {
             pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
                 let b = self.buf.as_mut();

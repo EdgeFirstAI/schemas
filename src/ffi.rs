@@ -129,6 +129,15 @@ macro_rules! check_null_ret_null {
     };
 }
 
+/// Tensor message family (`Tensor`, `TensorPlane`, `TensorStamped`,
+/// `CameraFrame`).
+///
+/// Split into its own file rather than appended here: this module is already
+/// ~12k lines, and the tensor family's composition — one payload, two
+/// byte-identical wrappers — reads far better in one piece. Declared after the
+/// helpers above so `macro_rules!` definitions are in scope for it.
+mod tensor;
+
 // =============================================================================
 // Memory management
 // =============================================================================
