@@ -3,11 +3,16 @@
 
 """Tests for `edgefirst.schemas.edgefirst_msgs`.
 
-Exercises the three wrapped types:
-- ``Date`` — CdrFixed (4-byte payload, year/month/day).
-- ``Mask`` — buffer-backed segmentation mask with bulk byte payload.
-- ``RadarCube`` — buffer-backed with multiple typed array fields
-  (layout u8, shape u16, scales f32, cube i16).
+Covers every type the PyO3 bindings wrap — both the CdrFixed value types
+(fixed payload, no backing buffer) and the buffer-backed types carrying bulk
+typed-array payloads, such as ``Mask`` (bytes) and ``RadarCube`` (layout u8,
+shape u16, scales f32, cube i16).
+
+One test class per wrapped type. Add a class when adding a type rather than
+extending a roster here, so this docstring cannot go stale.
+
+The Tensor family (``Tensor``, ``TensorPlane``, ``TensorStamped``,
+``CameraFrame``) has no Python bindings yet and is not exercised here.
 """
 
 import numpy as np

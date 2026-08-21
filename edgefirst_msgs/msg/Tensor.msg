@@ -20,7 +20,15 @@
 uint32 storage_kind      # Backing store for the whole tensor; HAL code
 uint32 pid               # Producer pid, for pidfd_open/pidfd_getfd on both shm
                          # and dma-buf handles; 0 when all planes are inlined
-int32 fence_fd           # DMA-fence sync_file fd; -1 = already signalled / none
+int32 fence_fd           # ACQUIRE fence: a DMA-fence sync_file fd the consumer
+                         # MUST wait on before reading any plane. Per-Tensor,
+                         # never per-plane -- it is a point on the producer's
+                         # submission timeline, not a property of a plane's
+                         # bytes. -1 = already signalled / none, and MUST be -1
+                         # when every plane is inlined or the transport cannot
+                         # pass fds, where an fd is as meaningless as pid and
+                         # handle are off-host. There is no release fence: a
+                         # pub/sub topic has no return path to carry one.
 uint32 dtype             # Element type; HAL code
 int32 quant_axis         # Per-channel quantization axis; -1 = per-tensor, -2 = none
 # ── Variable-length tail ────────────────────────────────────────────

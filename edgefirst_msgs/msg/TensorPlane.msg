@@ -10,7 +10,9 @@
 #                 size describes `data` length, and modifier MUST be 0.
 #
 # All planes of one Tensor share a single storage_kind, pid and fence_fd --
-# multi-plane is not multi-storage. Only the interpretation of the bytes
+# multi-plane is not multi-storage. A field belongs here only if it describes
+# this plane's bytes; one that describes the act which produced them -- the
+# fence -- belongs on the Tensor. Only the interpretation of the bytes
 # (modifier) varies per plane.
 #
 # The six fixed-size scalars below are contiguous and 8-byte aligned so an
