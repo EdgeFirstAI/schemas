@@ -156,6 +156,7 @@
 #include <cerrno>
 #include <iterator>
 #include <string_view>
+#include <vector>   // TensorAccessors::shape()/strides() materialize
 
 #include <edgefirst/schemas.h>
 #include <edgefirst/stdlib/expected.hpp>
@@ -7203,6 +7204,615 @@ public:
     }
     [[nodiscard]] float round_trip_time_ms() const noexcept {
         return ros_mavros_timesync_status_get_round_trip_time_ms(handle());
+    }
+};
+
+// ===========================================================================
+// edgefirst_msgs :: Tensor family
+// ===========================================================================
+//
+// `Tensor` is the payload; `TensorStamped` and `CameraFrame` are
+// byte-identical wrappers around it. These bindings mirror that composition:
+// the tensor accessors are written once, in a CRTP mixin, and shared by the
+// owning `TensorView` and the parent-borrowed `BorrowedTensorView` a wrapper
+// hands out.
+//
+//     auto f = CameraFrameView::from_cdr(bytes);
+//     auto t = f->tensor();                       // borrowed, no copy
+//     for (auto p : t.planes()) { ... }           // borrowed, no allocation
+//
+// Lifetime: `tensor()` and the planes it yields borrow into the parent's CDR
+// buffer. They must not outlive the parent view, and the CDR bytes must stay
+// alive for any `span`/`string_view` taken from them.
+
+namespace detail {
+
+struct TensorTraits {
+    using handle_type = ros_tensor_t;
+    static constexpr auto from_cdr = ros_tensor_from_cdr;
+    static constexpr auto free     = ros_tensor_free;
+    static constexpr std::string_view name = "ros_tensor";
+};
+
+struct TensorStampedTraits {
+    using handle_type = ros_tensor_stamped_t;
+    static constexpr auto from_cdr = ros_tensor_stamped_from_cdr;
+    static constexpr auto free     = ros_tensor_stamped_free;
+    static constexpr auto as_cdr   = ros_tensor_stamped_get_cdr;
+    static constexpr std::string_view name = "ros_tensor_stamped";
+};
+
+struct CameraFrameTraits {
+    using handle_type = ros_camera_frame_t;
+    static constexpr auto from_cdr = ros_camera_frame_from_cdr;
+    static constexpr auto free     = ros_camera_frame_free;
+    static constexpr auto as_cdr   = ros_camera_frame_get_cdr;
+    static constexpr std::string_view name = "ros_camera_frame";
+};
+
+struct TensorBuilderTraits {
+    using builder_type = ros_tensor_builder_t;
+    static constexpr auto new_fn = ros_tensor_builder_new;
+    static constexpr auto free_fn = ros_tensor_builder_free;
+    static constexpr auto build_fn = ros_tensor_builder_build;
+    static constexpr auto encode_into_fn = ros_tensor_builder_encode_into;
+    static constexpr std::string_view name = "ros_tensor_builder";
+    static constexpr std::string_view build_name = "ros_tensor_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_tensor_builder_encode_into";
+};
+
+struct TensorStampedBuilderTraits {
+    using builder_type = ros_tensor_stamped_builder_t;
+    static constexpr auto new_fn = ros_tensor_stamped_builder_new;
+    static constexpr auto free_fn = ros_tensor_stamped_builder_free;
+    static constexpr auto build_fn = ros_tensor_stamped_builder_build;
+    static constexpr auto encode_into_fn = ros_tensor_stamped_builder_encode_into;
+    static constexpr std::string_view name = "ros_tensor_stamped_builder";
+    static constexpr std::string_view build_name = "ros_tensor_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_tensor_stamped_builder_encode_into";
+};
+
+struct CameraFrameBuilderTraits {
+    using builder_type = ros_camera_frame_builder_t;
+    static constexpr auto new_fn = ros_camera_frame_builder_new;
+    static constexpr auto free_fn = ros_camera_frame_builder_free;
+    static constexpr auto build_fn = ros_camera_frame_builder_build;
+    static constexpr auto encode_into_fn = ros_camera_frame_builder_encode_into;
+    static constexpr std::string_view name = "ros_camera_frame_builder";
+    static constexpr std::string_view build_name = "ros_camera_frame_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_camera_frame_builder_encode_into";
+};
+
+} // namespace detail
+
+/**
+ * @brief A single plane of a Tensor, borrowed from its parent.
+ *
+ * Yielded by `TensorView::planes()` / `BorrowedTensorView::planes()`. The
+ * handle is owned by the parent tensor and becomes invalid when the parent
+ * (or the parent's wrapper) is destroyed. Must NOT be freed.
+ *
+ * Two exclusive transport modes:
+ *  - `handle() >= 0` — the bytes live behind the platform handle and
+ *    `data()` is empty.
+ *  - `handle() == -1` — the bytes are inline in `data()`; `is_inline()` is
+ *    true, `size() == data().size()`, and `modifier()` is 0.
+ *
+ * @warning Do not store past the lifetime of the parent view.
+ */
+class BorrowedTensorPlaneView {
+public:
+    BorrowedTensorPlaneView() = delete;                                        ///< @brief Deleted: requires a valid handle.
+    BorrowedTensorPlaneView(const BorrowedTensorPlaneView&) = default;         ///< @brief Trivial copy constructor.
+    BorrowedTensorPlaneView& operator=(const BorrowedTensorPlaneView&) = delete;  ///< @brief Deleted: prevents storing past parent lifetime.
+    BorrowedTensorPlaneView(BorrowedTensorPlaneView&&) = default;              ///< @brief Trivial move constructor.
+    BorrowedTensorPlaneView& operator=(BorrowedTensorPlaneView&&) = delete;    ///< @brief Deleted: prevents reassignment.
+
+    /// @brief Wrap a borrowed child handle.
+    /// @param h Non-null borrowed `ros_tensor_plane_t*` owned by the parent.
+    explicit BorrowedTensorPlaneView(const ros_tensor_plane_t* h) noexcept : handle_(h) {}
+
+    /// @brief Platform handle; -1 means the bytes are inline in `data()`.
+    [[nodiscard]] std::int64_t  handle()   const noexcept { return ros_tensor_plane_get_handle(handle_); }
+    /// @brief Byte offset of this plane within its allocation.
+    [[nodiscard]] std::uint64_t offset()   const noexcept { return ros_tensor_plane_get_offset(handle_); }
+    /// @brief Row stride, in bytes.
+    [[nodiscard]] std::uint64_t stride()   const noexcept { return ros_tensor_plane_get_stride(handle_); }
+    /// @brief Allocated size of the plane, in bytes.
+    [[nodiscard]] std::uint64_t size()     const noexcept { return ros_tensor_plane_get_size(handle_); }
+    /// @brief Bytes actually populated; always <= `size()`.
+    [[nodiscard]] std::uint64_t used()     const noexcept { return ros_tensor_plane_get_used(handle_); }
+    /// @brief Format modifier (tiling/compression); 0 for linear.
+    [[nodiscard]] std::uint64_t modifier() const noexcept { return ros_tensor_plane_get_modifier(handle_); }
+    /// @brief True when this plane's bytes travel inline rather than by handle.
+    [[nodiscard]] bool          is_inline() const noexcept { return ros_tensor_plane_is_inline(handle_); }
+
+    /// @brief Opaque platform handle bytes (empty for an inline plane).
+    /// @warning Borrows the parent's CDR buffer.
+    [[nodiscard]] span<const std::uint8_t> handle_bytes() const noexcept {
+        std::size_t n = 0;
+        const auto* p = ros_tensor_plane_get_handle_bytes(handle_, &n);
+        return {p, n};
+    }
+    /// @brief Inlined plane bytes (populated only when `handle() == -1`).
+    /// @warning Borrows the parent's CDR buffer.
+    [[nodiscard]] span<const std::uint8_t> data() const noexcept {
+        std::size_t n = 0;
+        const auto* p = ros_tensor_plane_get_data(handle_, &n);
+        return {p, n};
+    }
+
+private:
+    const ros_tensor_plane_t* handle_;
+};
+
+namespace detail {
+
+/**
+ * @internal
+ * @brief CRTP mixin providing every Tensor field accessor.
+ *
+ * Shared by the owning `TensorView` and the parent-borrowed
+ * `BorrowedTensorView` so the ~20 accessors exist once. `Derived` supplies
+ * `tensor_handle()` returning `const ros_tensor_t*`.
+ */
+template <typename Derived>
+class TensorAccessors {
+    [[nodiscard]] const ros_tensor_t* h() const noexcept {
+        return static_cast<const Derived*>(this)->tensor_handle();
+    }
+
+public:
+    /// @brief Storage class shared by every plane (HAL storage_kind codes).
+    [[nodiscard]] std::uint32_t storage_kind() const noexcept { return ros_tensor_get_storage_kind(h()); }
+    /// @brief Producer PID, for handle resolution; 0 when not applicable.
+    [[nodiscard]] std::uint32_t pid()          const noexcept { return ros_tensor_get_pid(h()); }
+    /// @brief ACQUIRE fence fd; -1 when there is no fence.
+    [[nodiscard]] std::int32_t  fence_fd()     const noexcept { return ros_tensor_get_fence_fd(h()); }
+    /// @brief Element type (HAL dtype codes).
+    [[nodiscard]] std::uint32_t dtype()        const noexcept { return ros_tensor_get_dtype(h()); }
+    /// @brief Quantization axis; -2 when unquantized, -1 when per-tensor.
+    [[nodiscard]] std::int32_t  quant_axis()   const noexcept { return ros_tensor_get_quant_axis(h()); }
+    /// @brief Number of planes.
+    [[nodiscard]] std::uint32_t num_planes()   const noexcept { return ros_tensor_get_num_planes(h()); }
+
+    /// @brief Pixel/element format string. @warning Borrows the CDR buffer.
+    [[nodiscard]] std::string_view format()         const noexcept { return ros_tensor_get_format(h()); }
+    /// @brief Colour primaries; empty when unset. @warning Borrows the CDR buffer.
+    [[nodiscard]] std::string_view color_space()    const noexcept { return ros_tensor_get_color_space(h()); }
+    /// @brief Transfer characteristics; empty when unset.
+    [[nodiscard]] std::string_view color_transfer() const noexcept { return ros_tensor_get_color_transfer(h()); }
+    /// @brief Matrix coefficients; empty when unset.
+    [[nodiscard]] std::string_view color_encoding() const noexcept { return ros_tensor_get_color_encoding(h()); }
+    /// @brief Full/limited range; empty when unset.
+    [[nodiscard]] std::string_view color_range()    const noexcept { return ros_tensor_get_color_range(h()); }
+
+    /// @brief Number of dimensions in `shape`.
+    [[nodiscard]] std::uint32_t shape_len()   const noexcept { return ros_tensor_get_shape_len(h()); }
+    /// @brief Number of entries in `strides` (0, or equal to `shape_len()`).
+    [[nodiscard]] std::uint32_t strides_len() const noexcept { return ros_tensor_get_strides_len(h()); }
+
+    /// @brief One `shape` element.
+    /// @return The dimension, or an Error if `index` is out of range.
+    ///
+    /// @note `shape` is the addressing grid, NOT the byte layout: an NV12
+    ///       frame carries shape [h, w] with dtype U8 against an h*w*3/2
+    ///       allocation.
+    [[nodiscard]] expected<std::uint64_t, Error> shape_at(std::uint32_t index) const noexcept {
+        std::uint64_t v = 0;
+        if (ros_tensor_get_shape_at(h(), index, &v) != 0)
+            return unexpected<Error>(Error::from_errno("ros_tensor_get_shape_at"));
+        return v;
+    }
+    /// @brief One `strides` element, in BYTES.
+    /// @return The stride, or an Error if `index` is out of range.
+    [[nodiscard]] expected<std::int64_t, Error> strides_at(std::uint32_t index) const noexcept {
+        std::int64_t v = 0;
+        if (ros_tensor_get_strides_at(h(), index, &v) != 0)
+            return unexpected<Error>(Error::from_errno("ros_tensor_get_strides_at"));
+        return v;
+    }
+
+    /// @brief The whole `shape` sequence, materialized.
+    ///
+    /// Copies rather than borrowing, deliberately: CDR 8-byte alignment is
+    /// relative to the data start at absolute offset 4, so these elements sit
+    /// at absolute offset ≡ 4 (mod 8) and can never satisfy
+    /// `alignof(std::uint64_t)`. A borrowed `span<const std::uint64_t>` there
+    /// would be misaligned. The copy is O(n) for the whole sequence.
+    [[nodiscard]] std::vector<std::uint64_t> shape() const noexcept {
+        std::vector<std::uint64_t> out(shape_len());
+        if (!out.empty()) ros_tensor_copy_shape(h(), out.data(), out.size());
+        return out;
+    }
+    /// @brief The whole `strides` sequence (in bytes), materialized.
+    /// @see shape() for why this copies rather than borrows.
+    [[nodiscard]] std::vector<std::int64_t> strides() const noexcept {
+        std::vector<std::int64_t> out(strides_len());
+        if (!out.empty()) ros_tensor_copy_strides(h(), out.data(), out.size());
+        return out;
+    }
+
+    /// @brief Quantization scales, borrowed from the CDR buffer.
+    ///
+    /// Unlike shape/strides these are 4-byte elements whose CDR alignment
+    /// coincides with their natural alignment, so they can be borrowed.
+    [[nodiscard]] span<const float> quant_scales() const noexcept {
+        std::size_t n = 0;
+        const auto* p = ros_tensor_get_quant_scales(h(), &n);
+        return {p, n};
+    }
+    /// @brief Quantization zero points, borrowed from the CDR buffer.
+    [[nodiscard]] span<const std::int32_t> quant_zero_points() const noexcept {
+        std::size_t n = 0;
+        const auto* p = ros_tensor_get_quant_zero_points(h(), &n);
+        return {p, n};
+    }
+
+    /// @brief Range adaptor over the planes.
+    /// @return A `detail::ChildRange` yielding `BorrowedTensorPlaneView`
+    ///         elements, each borrowing into this tensor's CDR buffer and
+    ///         valid only while the owning view is alive.
+    [[nodiscard]] auto planes() const noexcept {
+        return detail::ChildRange<ros_tensor_t,
+                                  BorrowedTensorPlaneView,
+                                  decltype(&ros_tensor_get_plane)>{
+            h(), ros_tensor_get_num_planes(h()), ros_tensor_get_plane
+        };
+    }
+
+    /// @brief This tensor's own bytes, from its base to the end of the buffer.
+    /// @warning Borrows the CDR buffer.
+    [[nodiscard]] span<const std::uint8_t> tensor_bytes() const noexcept {
+        std::size_t n = 0;
+        const auto* p = ros_tensor_get_tensor_bytes(h(), &n);
+        return {p, n};
+    }
+
+    /// @brief Re-head this tensor as a standalone Tensor CDR message.
+    ///
+    /// The republish path — forwarding a camera frame's tensor onto a tensor
+    /// topic. Copies metadata only; plane payloads stay behind their handles.
+    /// Because the layout is position-independent the result is
+    /// byte-identical to encoding the same tensor standalone from scratch.
+    /// @return A `Released` POD the caller frees via `ros_bytes_free`.
+    [[nodiscard]] expected<Released, Error> to_standalone_cdr() const noexcept {
+        std::uint8_t* out = nullptr;
+        std::size_t len = 0;
+        if (ros_tensor_to_standalone_cdr(h(), &out, &len) != 0)
+            return unexpected<Error>(Error::from_errno("ros_tensor_to_standalone_cdr"));
+        return Released{out, len};
+    }
+};
+
+} // namespace detail
+
+/**
+ * @brief A Tensor borrowed from its wrapper message.
+ *
+ * Returned by `TensorStampedView::tensor()` and `CameraFrameView::tensor()`.
+ * The handle is owned by the wrapper; it must NOT be freed and must not
+ * outlive the wrapper.
+ */
+class BorrowedTensorView : public detail::TensorAccessors<BorrowedTensorView> {
+    friend class detail::TensorAccessors<BorrowedTensorView>;
+    [[nodiscard]] const ros_tensor_t* tensor_handle() const noexcept { return handle_; }
+
+public:
+    BorrowedTensorView() = delete;                                    ///< @brief Deleted: requires a valid handle.
+    BorrowedTensorView(const BorrowedTensorView&) = default;          ///< @brief Trivial copy constructor.
+    BorrowedTensorView& operator=(const BorrowedTensorView&) = delete;  ///< @brief Deleted: prevents storing past parent lifetime.
+    BorrowedTensorView(BorrowedTensorView&&) = default;               ///< @brief Trivial move constructor.
+    BorrowedTensorView& operator=(BorrowedTensorView&&) = delete;     ///< @brief Deleted: prevents reassignment.
+
+    /// @brief Wrap a borrowed tensor handle.
+    /// @param h Non-null borrowed `ros_tensor_t*` owned by the wrapper.
+    explicit BorrowedTensorView(const ros_tensor_t* h) noexcept : handle_(h) {}
+
+private:
+    const ros_tensor_t* handle_;
+};
+
+/**
+ * @brief Owning view over a standalone `edgefirst_msgs/Tensor` message.
+ */
+class TensorView : public detail::ViewBaseNoCdr<TensorView, detail::TensorTraits>,
+                   public detail::TensorAccessors<TensorView> {
+    using Base = detail::ViewBaseNoCdr<TensorView, detail::TensorTraits>;
+    friend Base;
+    friend class detail::TensorAccessors<TensorView>;
+    using Base::Base;
+
+    [[nodiscard]] const ros_tensor_t* tensor_handle() const noexcept { return handle(); }
+
+public:
+    using Base::from_cdr;
+};
+
+/**
+ * @brief Builder for `edgefirst_msgs/Tensor`.
+ *
+ * Defaults are NOT all zero: `fence_fd` starts at -1 (no fence) and
+ * `quant_axis` at -2 (unquantized), matching the schema's "absent" values.
+ *
+ * Sequence setters BORROW the caller's storage; it must stay valid until
+ * `build()` / `encode_into()` or destruction.
+ */
+class TensorBuilder
+    : public detail::BuilderBase<TensorBuilder, detail::TensorBuilderTraits> {
+    using Base = detail::BuilderBase<TensorBuilder, detail::TensorBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    /// @brief Set the storage class shared by every plane.
+    TensorBuilder& storage_kind(std::uint32_t v) noexcept {
+        ros_tensor_builder_set_storage_kind(ptr(), v); return *this;
+    }
+    /// @brief Set the producer PID.
+    TensorBuilder& pid(std::uint32_t v) noexcept {
+        ros_tensor_builder_set_pid(ptr(), v); return *this;
+    }
+    /// @brief Set the ACQUIRE fence fd (-1 for none).
+    TensorBuilder& fence_fd(std::int32_t v) noexcept {
+        ros_tensor_builder_set_fence_fd(ptr(), v); return *this;
+    }
+    /// @brief Set the element dtype.
+    TensorBuilder& dtype(std::uint32_t v) noexcept {
+        ros_tensor_builder_set_dtype(ptr(), v); return *this;
+    }
+    /// @brief Set the quantization axis (-2 unquantized, -1 per-tensor, >=0 per-axis).
+    TensorBuilder& quant_axis(std::int32_t v) noexcept {
+        ros_tensor_builder_set_quant_axis(ptr(), v); return *this;
+    }
+
+    /// @brief Set the format string (copied).
+    [[nodiscard]] expected<void, Error> format(const char* s) noexcept {
+        if (ros_tensor_builder_set_format(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_tensor_builder_set_format"));
+        return {};
+    }
+    /// @brief Set colour primaries (copied).
+    [[nodiscard]] expected<void, Error> color_space(const char* s) noexcept {
+        if (ros_tensor_builder_set_color_space(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_tensor_builder_set_color_space"));
+        return {};
+    }
+    /// @brief Set transfer characteristics (copied).
+    [[nodiscard]] expected<void, Error> color_transfer(const char* s) noexcept {
+        if (ros_tensor_builder_set_color_transfer(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_tensor_builder_set_color_transfer"));
+        return {};
+    }
+    /// @brief Set matrix coefficients (copied).
+    [[nodiscard]] expected<void, Error> color_encoding(const char* s) noexcept {
+        if (ros_tensor_builder_set_color_encoding(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_tensor_builder_set_color_encoding"));
+        return {};
+    }
+    /// @brief Set full/limited range (copied).
+    [[nodiscard]] expected<void, Error> color_range(const char* s) noexcept {
+        if (ros_tensor_builder_set_color_range(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_tensor_builder_set_color_range"));
+        return {};
+    }
+
+    /// @brief Set the addressing grid (BORROWED).
+    /// @note `shape` is the addressing grid, NOT the byte layout, and is
+    ///       deliberately never validated against any buffer size.
+    [[nodiscard]] expected<void, Error> shape(span<const std::uint64_t> d) noexcept {
+        if (ros_tensor_builder_set_shape(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_tensor_builder_set_shape"));
+        return {};
+    }
+    /// @brief Set strides in BYTES (BORROWED); empty, or as long as `shape`.
+    [[nodiscard]] expected<void, Error> strides(span<const std::int64_t> d) noexcept {
+        if (ros_tensor_builder_set_strides(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_tensor_builder_set_strides"));
+        return {};
+    }
+    /// @brief Set quantization scales (BORROWED).
+    [[nodiscard]] expected<void, Error> quant_scales(span<const float> d) noexcept {
+        if (ros_tensor_builder_set_quant_scales(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_tensor_builder_set_quant_scales"));
+        return {};
+    }
+    /// @brief Set quantization zero points (BORROWED).
+    [[nodiscard]] expected<void, Error> quant_zero_points(span<const std::int32_t> d) noexcept {
+        if (ros_tensor_builder_set_quant_zero_points(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_tensor_builder_set_quant_zero_points"));
+        return {};
+    }
+    /// @brief Set the plane array (BORROWED).
+    [[nodiscard]] expected<void, Error> planes(span<const ros_tensor_plane_elem_t> d) noexcept {
+        if (ros_tensor_builder_set_planes(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_tensor_builder_set_planes"));
+        return {};
+    }
+
+    /// @internal
+    /// @brief Raw builder pointer, for attaching to a wrapper builder.
+    [[nodiscard]] const ros_tensor_builder_t* raw() const noexcept { return ptr(); }
+};
+
+/**
+ * @brief Owning view over an `edgefirst_msgs/TensorStamped` message.
+ *
+ * A header (`stamp`, `frame_id`), a `seq`, and an embedded Tensor reached
+ * through `tensor()`.
+ */
+class TensorStampedView : public detail::ViewBase<TensorStampedView, detail::TensorStampedTraits> {
+    using Base = detail::ViewBase<TensorStampedView, detail::TensorStampedTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    /// @brief Message timestamp.
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_tensor_stamped_get_stamp_sec(handle()),
+                ros_tensor_stamped_get_stamp_nanosec(handle())};
+    }
+    /// @brief Coordinate frame identifier.
+    /// @warning Borrows the CDR buffer.
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_tensor_stamped_get_frame_id(handle());
+    }
+    /// @brief Monotonic sequence number, for drop detection.
+    ///
+    /// Also load-bearing for the wire layout: `seq` is a uint64 that forces
+    /// the embedded Tensor to an 8-aligned offset regardless of `frame_id`
+    /// length, which is what makes the nested layout byte-identical across
+    /// wrappers.
+    [[nodiscard]] std::uint64_t seq() const noexcept {
+        return ros_tensor_stamped_get_seq(handle());
+    }
+
+    /// @brief The embedded tensor, borrowed.
+    /// @warning The returned view is owned by this one: it must not outlive
+    ///          this TensorStampedView, and must never be freed.
+    [[nodiscard]] BorrowedTensorView tensor() const noexcept {
+        return BorrowedTensorView{ros_tensor_stamped_get_tensor(handle())};
+    }
+};
+
+/**
+ * @brief Owning view over an `edgefirst_msgs/CameraFrame` message.
+ *
+ * A header (`stamp`, `frame_id`), a `seq`, and an embedded Tensor reached
+ * through `tensor()`.
+ */
+class CameraFrameView : public detail::ViewBase<CameraFrameView, detail::CameraFrameTraits> {
+    using Base = detail::ViewBase<CameraFrameView, detail::CameraFrameTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::from_cdr;
+    using Base::as_cdr;
+
+    /// @brief Message timestamp.
+    [[nodiscard]] Time stamp() const noexcept {
+        return {ros_camera_frame_get_stamp_sec(handle()),
+                ros_camera_frame_get_stamp_nanosec(handle())};
+    }
+    /// @brief Coordinate frame identifier.
+    /// @warning Borrows the CDR buffer.
+    [[nodiscard]] std::string_view frame_id() const noexcept {
+        return ros_camera_frame_get_frame_id(handle());
+    }
+    /// @brief Monotonic sequence number, for drop detection.
+    ///
+    /// Also load-bearing for the wire layout: `seq` is a uint64 that forces
+    /// the embedded Tensor to an 8-aligned offset regardless of `frame_id`
+    /// length, which is what makes the nested layout byte-identical across
+    /// wrappers.
+    [[nodiscard]] std::uint64_t seq() const noexcept {
+        return ros_camera_frame_get_seq(handle());
+    }
+
+    /// @brief The embedded tensor, borrowed.
+    /// @warning The returned view is owned by this one: it must not outlive
+    ///          this CameraFrameView, and must never be freed.
+    [[nodiscard]] BorrowedTensorView tensor() const noexcept {
+        return BorrowedTensorView{ros_camera_frame_get_tensor(handle())};
+    }
+};
+
+/**
+ * @brief Builder for `edgefirst_msgs/TensorStamped`.
+ *
+ * Compose with a `TensorBuilder` for the payload:
+ * @code
+ * auto tb = TensorBuilder::create().value();
+ * // ... configure tb ...
+ * auto fb = TensorStampedBuilder::create().value();
+ * fb.seq(1);
+ * (void) fb.tensor(tb);
+ * auto bytes = fb.build().value();
+ * @endcode
+ */
+class TensorStampedBuilder
+    : public detail::BuilderBase<TensorStampedBuilder, detail::TensorStampedBuilderTraits> {
+    using Base = detail::BuilderBase<TensorStampedBuilder, detail::TensorStampedBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    /// @brief Set the timestamp.
+    TensorStampedBuilder& stamp(Time t) noexcept {
+        ros_tensor_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec); return *this;
+    }
+    /// @brief Set the coordinate frame id (copied).
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_tensor_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_tensor_stamped_builder_set_frame_id"));
+        return {};
+    }
+    /// @brief Set the sequence number.
+    TensorStampedBuilder& seq(std::uint64_t v) noexcept {
+        ros_tensor_stamped_builder_set_seq(ptr(), v); return *this;
+    }
+    /// @brief Attach the tensor payload (BORROWED).
+    /// @warning The TensorBuilder must outlive this builder's `build()` /
+    ///          `encode_into()` call.
+    [[nodiscard]] expected<void, Error> tensor(const TensorBuilder& t) noexcept {
+        if (ros_tensor_stamped_builder_set_tensor(ptr(), t.raw()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_tensor_stamped_builder_set_tensor"));
+        return {};
+    }
+};
+
+/**
+ * @brief Builder for `edgefirst_msgs/CameraFrame`.
+ *
+ * Compose with a `TensorBuilder` for the payload:
+ * @code
+ * auto tb = TensorBuilder::create().value();
+ * // ... configure tb ...
+ * auto fb = CameraFrameBuilder::create().value();
+ * fb.seq(1);
+ * (void) fb.tensor(tb);
+ * auto bytes = fb.build().value();
+ * @endcode
+ */
+class CameraFrameBuilder
+    : public detail::BuilderBase<CameraFrameBuilder, detail::CameraFrameBuilderTraits> {
+    using Base = detail::BuilderBase<CameraFrameBuilder, detail::CameraFrameBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    /// @brief Set the timestamp.
+    CameraFrameBuilder& stamp(Time t) noexcept {
+        ros_camera_frame_builder_set_stamp(ptr(), t.sec, t.nanosec); return *this;
+    }
+    /// @brief Set the coordinate frame id (copied).
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_camera_frame_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_camera_frame_builder_set_frame_id"));
+        return {};
+    }
+    /// @brief Set the sequence number.
+    CameraFrameBuilder& seq(std::uint64_t v) noexcept {
+        ros_camera_frame_builder_set_seq(ptr(), v); return *this;
+    }
+    /// @brief Attach the tensor payload (BORROWED).
+    /// @warning The TensorBuilder must outlive this builder's `build()` /
+    ///          `encode_into()` call.
+    [[nodiscard]] expected<void, Error> tensor(const TensorBuilder& t) noexcept {
+        if (ros_camera_frame_builder_set_tensor(ptr(), t.raw()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_camera_frame_builder_set_tensor"));
+        return {};
     }
 };
 
