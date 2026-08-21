@@ -35,8 +35,8 @@ use std::os::raw::c_char;
 use edgefirst_schemas::builtin_interfaces::{Duration, Time};
 use edgefirst_schemas::cdr::{decode_fixed, encode_fixed};
 use edgefirst_schemas::edgefirst_msgs::{
-    Date, Detect, DetectBoxView, LocalTime, Mask, MaskView, Model, ModelInfo, RadarCube, RadarInfo,
-    Track, Vibration,
+    CameraFrame, Date, Detect, DetectBoxView, LocalTime, Mask, MaskView, Model, ModelInfo,
+    RadarCube, RadarInfo, TensorStamped, Track, Vibration,
 };
 use edgefirst_schemas::foxglove_msgs::{
     FoxgloveCircleAnnotations, FoxgloveColor, FoxgloveCompressedImage, FoxgloveCompressedVideo,
@@ -62,6 +62,7 @@ use edgefirst_schemas::sensor_msgs::{
     TimeReference,
 };
 use edgefirst_schemas::std_msgs::{ColorRGBA, Header};
+use edgefirst_schemas::tensor::{Tensor, TensorFields, TensorPlaneView};
 
 #[cfg(any(not(Py_LIMITED_API), Py_3_11))]
 use pyo3::exceptions::PyBufferError;
@@ -7062,6 +7063,714 @@ impl PyMavrosTimesyncStatus {
     }
 }
 
+// ── edgefirst_msgs Tensor family (Tensor / TensorPlane / TensorStamped /
+//    CameraFrame) ───────────────────────────────────────────────────────
+//
+// `Tensor` is the payload; `TensorStamped` and `CameraFrame` are
+// byte-identical wrappers around it. These bindings mirror that composition:
+// a wrapper exposes `.tensor`, which shares the parent's buffer rather than
+// re-encoding it.
+
+/// Duplicate a `PyBuf` so two views can share one set of bytes.
+///
+/// `Borrowed` duplicates as a refcount bump on the same Python `bytes`
+/// object — genuinely free, and it is the variant every `from_cdr` on a
+/// `bytes` input produces, so the consumer path never copies. `Owned` has to
+/// clone its `Vec`, but that variant only arises from a message just built
+/// in-process, and plane payloads travel behind handles rather than inline,
+/// so the copy is metadata-sized rather than frame-sized.
+fn dup_pybuf(b: &PyBuf, py: Python<'_>) -> PyBuf {
+    match b {
+        PyBuf::Owned(v) => PyBuf::Owned(v.clone()),
+        PyBuf::Borrowed { obj, ptr, len } => PyBuf::Borrowed {
+            obj: obj.clone_ref(py),
+            ptr: *ptr,
+            len: *len,
+        },
+    }
+}
+
+/// `edgefirst_msgs.TensorPlane` — one plane of a `Tensor`.
+///
+/// Two exclusive transport modes:
+///
+/// - ``handle >= 0`` — the bytes live behind the platform handle and
+///   ``data`` is empty. This is the dma-buf / shared-memory path.
+/// - ``handle == -1`` — the bytes are inline in ``data``; ``is_inline`` is
+///   True, ``size == len(data)``, ``modifier == 0`` and ``handle_bytes`` is
+///   empty.
+///
+/// A frame must not mix modes: all planes inline, or none.
+///
+/// Read from a `Tensor` this is a value copy, including ``data``. For a
+/// large inline payload prefer :meth:`Tensor.plane_data`, which returns a
+/// zero-copy view instead.
+#[pyclass(
+    name = "TensorPlane",
+    module = "edgefirst.schemas.edgefirst_msgs",
+    frozen,
+    from_py_object
+)]
+#[derive(Clone)]
+pub struct PyTensorPlane {
+    pub handle: i64,
+    pub offset: u64,
+    pub stride: u64,
+    pub size: u64,
+    pub used: u64,
+    pub modifier: u64,
+    pub handle_bytes: Vec<u8>,
+    pub data: Vec<u8>,
+}
+
+impl PyTensorPlane {
+    fn from_view(v: &TensorPlaneView<'_>) -> Self {
+        Self {
+            handle: v.handle,
+            offset: v.offset,
+            stride: v.stride,
+            size: v.size,
+            used: v.used,
+            modifier: v.modifier,
+            handle_bytes: v.handle_bytes.to_vec(),
+            data: v.data.to_vec(),
+        }
+    }
+
+    fn to_view(&self) -> TensorPlaneView<'_> {
+        TensorPlaneView {
+            handle: self.handle,
+            offset: self.offset,
+            stride: self.stride,
+            size: self.size,
+            used: self.used,
+            modifier: self.modifier,
+            handle_bytes: &self.handle_bytes,
+            data: &self.data,
+        }
+    }
+}
+
+#[pymethods]
+impl PyTensorPlane {
+    #[new]
+    #[pyo3(signature = (
+        handle=-1, offset=0, stride=0, size=0, used=0, modifier=0,
+        handle_bytes=None, data=None,
+    ))]
+    fn new(
+        handle: i64,
+        offset: u64,
+        stride: u64,
+        size: u64,
+        used: u64,
+        modifier: u64,
+        handle_bytes: Option<Vec<u8>>,
+        data: Option<Vec<u8>>,
+    ) -> Self {
+        Self {
+            handle,
+            offset,
+            stride,
+            size,
+            used,
+            modifier,
+            handle_bytes: handle_bytes.unwrap_or_default(),
+            data: data.unwrap_or_default(),
+        }
+    }
+
+    #[getter]
+    fn handle(&self) -> i64 {
+        self.handle
+    }
+    #[getter]
+    fn offset(&self) -> u64 {
+        self.offset
+    }
+    #[getter]
+    fn stride(&self) -> u64 {
+        self.stride
+    }
+    #[getter]
+    fn size(&self) -> u64 {
+        self.size
+    }
+    #[getter]
+    fn used(&self) -> u64 {
+        self.used
+    }
+    #[getter]
+    fn modifier(&self) -> u64 {
+        self.modifier
+    }
+    #[getter]
+    fn handle_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, &self.handle_bytes)
+    }
+    #[getter]
+    fn data<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, &self.data)
+    }
+    /// True when this plane's bytes travel inline rather than by handle.
+    #[getter]
+    fn is_inline(&self) -> bool {
+        self.handle == -1
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "TensorPlane(handle={}, offset={}, stride={}, size={}, used={}, modifier={})",
+            self.handle, self.offset, self.stride, self.size, self.used, self.modifier
+        )
+    }
+}
+
+/// Owned materialization of every `TensorFields` component.
+///
+/// `TensorFields` borrows, so both the `Tensor` constructor and the wrapper
+/// constructors need somewhere to keep the pieces alive across the build
+/// call. Holding that in one place also means the Python-supplied path and
+/// the re-encode-an-existing-tensor path share exactly one conversion.
+struct OwnedTensorParts {
+    storage_kind: u32,
+    pid: u32,
+    fence_fd: i32,
+    dtype: u32,
+    quant_axis: i32,
+    shape: Vec<u64>,
+    strides: Vec<i64>,
+    quant_scales: Vec<f32>,
+    quant_zero_points: Vec<i32>,
+    format: String,
+    color_space: String,
+    color_transfer: String,
+    color_encoding: String,
+    color_range: String,
+    planes: Vec<PyTensorPlane>,
+}
+
+impl OwnedTensorParts {
+    #[allow(clippy::too_many_arguments)]
+    fn from_py(
+        storage_kind: u32,
+        pid: u32,
+        fence_fd: i32,
+        dtype: u32,
+        quant_axis: i32,
+        shape: Option<Vec<u64>>,
+        strides: Option<Vec<i64>>,
+        quant_scales: Option<Vec<f32>>,
+        quant_zero_points: Option<Vec<i32>>,
+        format: &str,
+        color_space: &str,
+        color_transfer: &str,
+        color_encoding: &str,
+        color_range: &str,
+        planes: Option<Vec<PyTensorPlane>>,
+    ) -> Self {
+        Self {
+            storage_kind,
+            pid,
+            fence_fd,
+            dtype,
+            quant_axis,
+            shape: shape.unwrap_or_default(),
+            strides: strides.unwrap_or_default(),
+            quant_scales: quant_scales.unwrap_or_default(),
+            quant_zero_points: quant_zero_points.unwrap_or_default(),
+            format: format.to_string(),
+            color_space: color_space.to_string(),
+            color_transfer: color_transfer.to_string(),
+            color_encoding: color_encoding.to_string(),
+            color_range: color_range.to_string(),
+            planes: planes.unwrap_or_default(),
+        }
+    }
+
+    /// Materialize from an already-parsed tensor, so a wrapper can re-encode
+    /// a `Tensor` handed to its constructor.
+    fn from_tensor(t: &Tensor<PyBuf>) -> Self {
+        Self {
+            storage_kind: t.storage_kind(),
+            pid: t.pid(),
+            fence_fd: t.fence_fd(),
+            dtype: t.dtype(),
+            quant_axis: t.quant_axis(),
+            shape: t.shape().collect(),
+            strides: t.strides().collect(),
+            quant_scales: t.quant_scales().to_vec(),
+            quant_zero_points: t.quant_zero_points().to_vec(),
+            format: t.format().to_string(),
+            color_space: t.color_space().to_string(),
+            color_transfer: t.color_transfer().to_string(),
+            color_encoding: t.color_encoding().to_string(),
+            color_range: t.color_range().to_string(),
+            planes: t.planes().map(|p| PyTensorPlane::from_view(&p)).collect(),
+        }
+    }
+
+    fn plane_views(&self) -> Vec<TensorPlaneView<'_>> {
+        self.planes.iter().map(|p| p.to_view()).collect()
+    }
+
+    fn fields<'a>(&'a self, planes: &'a [TensorPlaneView<'a>]) -> TensorFields<'a> {
+        TensorFields {
+            storage_kind: self.storage_kind,
+            pid: self.pid,
+            fence_fd: self.fence_fd,
+            dtype: self.dtype,
+            quant_axis: self.quant_axis,
+            shape: &self.shape,
+            strides: &self.strides,
+            quant_scales: &self.quant_scales,
+            quant_zero_points: &self.quant_zero_points,
+            format: self.format.as_str().into(),
+            color_space: self.color_space.as_str().into(),
+            color_transfer: self.color_transfer.as_str().into(),
+            color_encoding: self.color_encoding.as_str().into(),
+            color_range: self.color_range.as_str().into(),
+            planes,
+        }
+    }
+}
+
+/// `edgefirst_msgs.Tensor` — the unstamped tensor payload.
+///
+/// Carries the element type, the addressing grid, optional quantization
+/// parameters, optional colorimetry, and one or more planes.
+///
+/// ``shape`` is the addressing grid, NOT the byte layout: an NV12 frame
+/// carries ``shape == [h, w]`` with a U8 dtype against an ``h*w*3/2``
+/// allocation. It is deliberately never validated against any buffer size.
+/// ``strides`` is in BYTES, and is either empty or exactly as long as
+/// ``shape``.
+///
+/// ``quant_axis`` selects which shape the quantization parameters take, and
+/// the encoder enforces the match:
+///
+/// - ``-2`` unquantized — ``quant_scales`` must be empty
+/// - ``-1`` per-tensor — exactly one scale
+/// - ``>= 0`` per-axis — exactly ``shape[quant_axis]`` scales
+#[pyclass(name = "Tensor", module = "edgefirst.schemas.edgefirst_msgs", frozen)]
+pub struct PyTensor {
+    inner: Tensor<PyBuf>,
+}
+
+#[pymethods]
+impl PyTensor {
+    #[new]
+    #[pyo3(signature = (
+        storage_kind=0, pid=0, fence_fd=-1, dtype=0, quant_axis=-2,
+        shape=None, strides=None, quant_scales=None, quant_zero_points=None,
+        format="", color_space="", color_transfer="", color_encoding="",
+        color_range="", planes=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        storage_kind: u32,
+        pid: u32,
+        fence_fd: i32,
+        dtype: u32,
+        quant_axis: i32,
+        shape: Option<Vec<u64>>,
+        strides: Option<Vec<i64>>,
+        quant_scales: Option<Vec<f32>>,
+        quant_zero_points: Option<Vec<i32>>,
+        format: &str,
+        color_space: &str,
+        color_transfer: &str,
+        color_encoding: &str,
+        color_range: &str,
+        planes: Option<Vec<PyTensorPlane>>,
+    ) -> PyResult<Self> {
+        let parts = OwnedTensorParts::from_py(
+            storage_kind,
+            pid,
+            fence_fd,
+            dtype,
+            quant_axis,
+            shape,
+            strides,
+            quant_scales,
+            quant_zero_points,
+            format,
+            color_space,
+            color_transfer,
+            color_encoding,
+            color_range,
+            planes,
+        );
+        let views = parts.plane_views();
+        let fields = parts.fields(&views);
+        let mut b = Tensor::builder();
+        apply_tensor_fields(&mut b, &fields);
+        let inner = b.build().map_err(map_cdr_err)?;
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        _py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let pybuf = smart_buffer(buf)?;
+        let inner = Tensor::from_cdr(pybuf).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn storage_kind(&self) -> u32 {
+        self.inner.storage_kind()
+    }
+    #[getter]
+    fn pid(&self) -> u32 {
+        self.inner.pid()
+    }
+    #[getter]
+    fn fence_fd(&self) -> i32 {
+        self.inner.fence_fd()
+    }
+    #[getter]
+    fn dtype(&self) -> u32 {
+        self.inner.dtype()
+    }
+    #[getter]
+    fn quant_axis(&self) -> i32 {
+        self.inner.quant_axis()
+    }
+    #[getter]
+    fn shape(&self) -> Vec<u64> {
+        self.inner.shape().collect()
+    }
+    #[getter]
+    fn strides(&self) -> Vec<i64> {
+        self.inner.strides().collect()
+    }
+    #[getter]
+    fn quant_scales(&self) -> Vec<f32> {
+        self.inner.quant_scales().to_vec()
+    }
+    #[getter]
+    fn quant_zero_points(&self) -> Vec<i32> {
+        self.inner.quant_zero_points().to_vec()
+    }
+    #[getter]
+    fn format(&self) -> &str {
+        self.inner.format()
+    }
+    #[getter]
+    fn color_space(&self) -> &str {
+        self.inner.color_space()
+    }
+    #[getter]
+    fn color_transfer(&self) -> &str {
+        self.inner.color_transfer()
+    }
+    #[getter]
+    fn color_encoding(&self) -> &str {
+        self.inner.color_encoding()
+    }
+    #[getter]
+    fn color_range(&self) -> &str {
+        self.inner.color_range()
+    }
+    #[getter]
+    fn num_planes(&self) -> u32 {
+        self.inner.num_planes()
+    }
+    #[getter]
+    fn planes(&self) -> Vec<PyTensorPlane> {
+        self.inner
+            .planes()
+            .map(|p| PyTensorPlane::from_view(&p))
+            .collect()
+    }
+
+    /// Zero-copy view of one plane's inline bytes.
+    ///
+    /// ``planes`` copies each plane's ``data``; this does not. Use it when a
+    /// plane carries a large inline payload::
+    ///
+    ///     np.frombuffer(t.plane_data(0), dtype=np.uint8)
+    ///
+    /// Returns an empty view for a plane whose bytes travel behind a handle.
+    fn plane_data(slf: Bound<'_, Self>, index: usize) -> PyResult<Py<BorrowedBuf>> {
+        let py = slf.py();
+        let (ptr, len) = {
+            let s = slf.borrow();
+            let p = s
+                .inner
+                .plane_at(index)
+                .ok_or_else(|| PyValueError::new_err("plane index out of range"))?;
+            (p.data.as_ptr(), p.data.len())
+        };
+        let parent: Py<PyAny> = slf.into_any().unbind();
+        let view = unsafe { BorrowedBuf::new(parent, ptr, len) };
+        Py::new(py, view)
+    }
+
+    /// Re-head this tensor as a standalone `Tensor` CDR message.
+    ///
+    /// The republish path — forwarding a camera frame's tensor onto a tensor
+    /// topic. Copies metadata only; plane payloads stay behind their handles.
+    /// Because the layout is position-independent the result is
+    /// byte-identical to encoding the same tensor standalone from scratch.
+    fn to_standalone_cdr<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, &self.inner.to_standalone_cdr())
+    }
+
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "Tensor(dtype={}, shape={:?}, format='{}', num_planes={})",
+            self.inner.dtype(),
+            self.inner.shape().collect::<Vec<_>>(),
+            self.inner.format(),
+            self.inner.num_planes()
+        )
+    }
+}
+
+/// Copy a borrowed `TensorFields` into a `TensorBuilder`.
+fn apply_tensor_fields<'a>(
+    b: &mut edgefirst_schemas::tensor::TensorBuilder<'a>,
+    f: &TensorFields<'a>,
+) {
+    b.storage_kind(f.storage_kind)
+        .pid(f.pid)
+        .fence_fd(f.fence_fd)
+        .dtype(f.dtype)
+        .quant_axis(f.quant_axis)
+        .shape(f.shape)
+        .strides(f.strides)
+        .quant_scales(f.quant_scales)
+        .quant_zero_points(f.quant_zero_points)
+        .format(f.format.clone())
+        .color_space(f.color_space.clone())
+        .color_transfer(f.color_transfer.clone())
+        .color_encoding(f.color_encoding.clone())
+        .color_range(f.color_range.clone())
+        .planes(f.planes);
+}
+
+/// `edgefirst_msgs.TensorStamped` — a timestamped tensor, for model input and output topics.
+///
+/// A header (``stamp``, ``frame_id``), a ``seq``, and an embedded
+/// :class:`Tensor` reached through ``.tensor``.
+///
+/// ``seq`` is more than drop detection: it is a uint64 that forces the
+/// embedded tensor to an 8-aligned offset regardless of ``frame_id`` length,
+/// which is what makes the nested layout byte-identical across wrappers.
+#[pyclass(
+    name = "TensorStamped",
+    module = "edgefirst.schemas.edgefirst_msgs",
+    frozen
+)]
+pub struct PyTensorStamped {
+    inner: TensorStamped<PyBuf>,
+}
+
+#[pymethods]
+impl PyTensorStamped {
+    #[new]
+    #[pyo3(signature = (stamp=None, frame_id="", seq=0, tensor=None))]
+    fn new(
+        stamp: Option<PyTime>,
+        frame_id: &str,
+        seq: u64,
+        tensor: Option<&PyTensor>,
+    ) -> PyResult<Self> {
+        let parts = match tensor {
+            Some(t) => OwnedTensorParts::from_tensor(&t.inner),
+            None => OwnedTensorParts::from_py(
+                0, 0, -1, 0, -2, None, None, None, None, "", "", "", "", "", None,
+            ),
+        };
+        let views = parts.plane_views();
+        let fields = parts.fields(&views);
+        let inner = TensorStamped::builder()
+            .stamp(stamp.map(|t| t.0).unwrap_or(Time { sec: 0, nanosec: 0 }))
+            .frame_id(frame_id)
+            .seq(seq)
+            .tensor(&fields)
+            .build()
+            .map_err(map_cdr_err)?;
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        _py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let pybuf = smart_buffer(buf)?;
+        let inner = TensorStamped::from_cdr(pybuf).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn seq(&self) -> u64 {
+        self.inner.seq()
+    }
+
+    /// The embedded tensor, sharing this message's buffer.
+    ///
+    /// For a message decoded from ``bytes`` this shares the underlying
+    /// object outright — no copy. For one just constructed in-process the
+    /// metadata is duplicated; plane payloads travel behind handles either
+    /// way, so nothing frame-sized is copied.
+    #[getter]
+    fn tensor(&self, py: Python<'_>) -> PyResult<PyTensor> {
+        let buf = dup_pybuf(self.inner.buffer(), py);
+        let inner = Tensor::from_cdr_at(buf, self.inner.tensor_base()).map_err(map_cdr_err)?;
+        Ok(PyTensor { inner })
+    }
+
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "TensorStamped(frame_id='{}', seq={}, num_planes={})",
+            self.inner.frame_id(),
+            self.inner.seq(),
+            self.inner.tensor().num_planes()
+        )
+    }
+}
+
+/// `edgefirst_msgs.CameraFrame` — a timestamped camera frame, carried as a tensor.
+///
+/// A header (``stamp``, ``frame_id``), a ``seq``, and an embedded
+/// :class:`Tensor` reached through ``.tensor``.
+///
+/// ``seq`` is more than drop detection: it is a uint64 that forces the
+/// embedded tensor to an 8-aligned offset regardless of ``frame_id`` length,
+/// which is what makes the nested layout byte-identical across wrappers.
+#[pyclass(
+    name = "CameraFrame",
+    module = "edgefirst.schemas.edgefirst_msgs",
+    frozen
+)]
+pub struct PyCameraFrame {
+    inner: CameraFrame<PyBuf>,
+}
+
+#[pymethods]
+impl PyCameraFrame {
+    #[new]
+    #[pyo3(signature = (stamp=None, frame_id="", seq=0, tensor=None))]
+    fn new(
+        stamp: Option<PyTime>,
+        frame_id: &str,
+        seq: u64,
+        tensor: Option<&PyTensor>,
+    ) -> PyResult<Self> {
+        let parts = match tensor {
+            Some(t) => OwnedTensorParts::from_tensor(&t.inner),
+            None => OwnedTensorParts::from_py(
+                0, 0, -1, 0, -2, None, None, None, None, "", "", "", "", "", None,
+            ),
+        };
+        let views = parts.plane_views();
+        let fields = parts.fields(&views);
+        let inner = CameraFrame::builder()
+            .stamp(stamp.map(|t| t.0).unwrap_or(Time { sec: 0, nanosec: 0 }))
+            .frame_id(frame_id)
+            .seq(seq)
+            .tensor(&fields)
+            .build()
+            .map_err(map_cdr_err)?;
+        Ok(Self {
+            inner: inner.map_buffer(PyBuf::Owned),
+        })
+    }
+
+    #[classmethod]
+    fn from_cdr(
+        _cls: &Bound<'_, PyType>,
+        _py: Python<'_>,
+        buf: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let pybuf = smart_buffer(buf)?;
+        let inner = CameraFrame::from_cdr(pybuf).map_err(map_cdr_err)?;
+        Ok(Self { inner })
+    }
+
+    #[getter]
+    fn stamp(&self) -> PyTime {
+        PyTime(self.inner.stamp())
+    }
+    #[getter]
+    fn frame_id(&self) -> &str {
+        self.inner.frame_id()
+    }
+    #[getter]
+    fn seq(&self) -> u64 {
+        self.inner.seq()
+    }
+
+    /// The embedded tensor, sharing this message's buffer.
+    ///
+    /// For a message decoded from ``bytes`` this shares the underlying
+    /// object outright — no copy. For one just constructed in-process the
+    /// metadata is duplicated; plane payloads travel behind handles either
+    /// way, so nothing frame-sized is copied.
+    #[getter]
+    fn tensor(&self, py: Python<'_>) -> PyResult<PyTensor> {
+        let buf = dup_pybuf(self.inner.buffer(), py);
+        let inner = Tensor::from_cdr_at(buf, self.inner.tensor_base()).map_err(map_cdr_err)?;
+        Ok(PyTensor { inner })
+    }
+
+    #[getter]
+    fn cdr_size(&self) -> usize {
+        self.inner.as_cdr().len()
+    }
+
+    fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_cdr())
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CameraFrame(frame_id='{}', seq={}, num_planes={})",
+            self.inner.frame_id(),
+            self.inner.seq(),
+            self.inner.tensor().num_planes()
+        )
+    }
+}
+
 // ── Module setup ────────────────────────────────────────────────────
 
 #[pymodule]
@@ -7169,6 +7878,10 @@ fn schemas(m: &Bound<'_, PyModule>) -> PyResult<()> {
     edgef.add_class::<PyDetect>()?;
     edgef.add_class::<PyMaskBox>()?;
     edgef.add_class::<PyModel>()?;
+    edgef.add_class::<PyTensorPlane>()?;
+    edgef.add_class::<PyTensor>()?;
+    edgef.add_class::<PyTensorStamped>()?;
+    edgef.add_class::<PyCameraFrame>()?;
     m.add_submodule(&edgef)?;
     register_submodule(py, m, "edgefirst_msgs", &edgef)?;
 

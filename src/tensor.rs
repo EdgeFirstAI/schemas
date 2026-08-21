@@ -312,6 +312,18 @@ impl<B> Tensor<B> {
     pub fn base(&self) -> usize {
         self.off.base
     }
+
+    /// The backing buffer container itself, not its bytes.
+    ///
+    /// [`as_cdr`](Self::as_cdr) yields `&[u8]`, which is what almost every
+    /// caller wants. This returns `&B` so a binding that owns a shareable
+    /// container — a refcounted Python `bytes`, say — can duplicate the
+    /// container to hand out a second view over the same bytes rather than
+    /// copying them.
+    #[inline]
+    pub fn buffer(&self) -> &B {
+        &self.buf
+    }
 }
 
 impl<B: AsRef<[u8]>> Tensor<B> {

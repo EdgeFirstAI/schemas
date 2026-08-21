@@ -88,6 +88,24 @@ macro_rules! stamped_tensor_message {
             }
         }
 
+        impl<B> $msg<B> {
+            /// The backing buffer container itself, not its bytes.
+            ///
+            /// See `Tensor::buffer` — this exists so a binding can duplicate a
+            /// shareable container and hand out a second view over the same
+            /// bytes instead of copying them.
+            #[inline]
+            pub fn buffer(&self) -> &B {
+                &self.buf
+            }
+
+            /// Absolute buffer position where the embedded tensor begins.
+            #[inline]
+            pub fn tensor_base(&self) -> usize {
+                self.toff.base
+            }
+        }
+
         impl<'a> $msg<&'a [u8]> {
             /// Embedded tensor whose views borrow the backing buffer, not
             /// `self`. Same offset table and same zero rescans as

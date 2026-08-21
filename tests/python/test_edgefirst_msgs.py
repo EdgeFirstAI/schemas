@@ -12,7 +12,8 @@ One test class per wrapped type. Add a class when adding a type rather than
 extending a roster here, so this docstring cannot go stale.
 
 The Tensor family (``Tensor``, ``TensorPlane``, ``TensorStamped``,
-``CameraFrame``) has no Python bindings yet and is not exercised here.
+``CameraFrame``) has its own suite in ``test_tensor.py``, because what
+matters there is the composition contract rather than per-field coverage.
 """
 
 import numpy as np
