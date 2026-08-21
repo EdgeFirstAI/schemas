@@ -278,7 +278,15 @@ TEST_CASE("quant_axis selects the required scale shape", "[tensor][validation]")
         tb->quant_axis(0);
         REQUIRE(tb->shape({shape.data(), shape.size()}).has_value());
         REQUIRE(tb->quant_scales({scales.data(), scales.size()}).has_value());
-        CHECK(tb->build().has_value());
+
+        // Bind the result: `Released` is a raw {data, size} POD the caller
+        // owns, so discarding a successful build leaks the buffer. Asserting
+        // that the build succeeded is not the same as taking ownership of
+        // what it produced.
+        auto built = tb->build();
+        REQUIRE(built.has_value());
+        Bytes bytes{*built};
+        CHECK(bytes.span().size() > 0);
     }
 
     SECTION("per-axis with the wrong count is rejected") {
