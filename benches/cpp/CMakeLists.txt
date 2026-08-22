@@ -165,7 +165,7 @@ if(DEFINED ENV{EF_LIB_DIR_OVERRIDE})
     set(EF_LIB_DIR "$ENV{EF_LIB_DIR_OVERRIDE}")
 endif()
 find_library(EF_SCHEMAS_LIB
-    NAMES edgefirst_schemas edgefirst_schemas_capi
+    NAMES edgefirst_schemas
     PATHS "${EF_LIB_DIR}"
     NO_DEFAULT_PATH
     REQUIRED)

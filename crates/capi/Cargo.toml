@@ -11,18 +11,28 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 publish = false  # C library — distributed via GitHub Releases, not crates.io
+# The capi crate emits no rlib (see [lib] below), so `tests/*.rs` cannot
+# `extern crate` it to pull in the #[no_mangle] exports. The two Rust FFI smoke
+# tests are compiled as in-crate unit tests instead (the #[cfg(test)] modules at
+# the bottom of src/lib.rs). They stay under tests/ so the C, C++ and Rust FFI
+# suites live together and the Sonar test paths are unchanged. Auto-discovery
+# must be off, or cargo would also build them as integration tests and fail to
+# link. New Rust tests for this crate go in that same #[cfg(test)] block.
+autotests = false
 
 [lib]
-# Cargo `[lib] name` must be unique across the workspace to avoid output
-# filename collisions with the schemas crate (which produces libedgefirst_schemas.rlib).
-# The public C library shipped to users is libedgefirst_schemas.{a,so} — the
-# Makefile renames the cargo output for distribution. The SONAME baked into
-# the cdylib is libedgefirst_schemas.so.MAJOR (see build.rs), independent of
-# the file basename.
-name = "edgefirst_schemas_capi"
-# rlib is required so the Rust integration test under tests/ can link
-# against the FFI exports. staticlib + cdylib are the C-distribution outputs.
-crate-type = ["lib", "staticlib", "cdylib"]
+# The cargo output IS the shipped artifact name: libedgefirst_schemas.{a,so},
+# libedgefirst_schemas.{a,dylib} on macOS, edgefirst_schemas.{lib,dll} on
+# Windows. No renaming step, so nothing downstream has to know a second name.
+#
+# This requires omitting "lib" (rlib) from crate-type. An rlib here would be
+# emitted as libedgefirst_schemas.rlib and collide with the schemas crate's
+# rlib of the same name — cargo warns "output filename collision" and says it
+# may become a hard error (rust-lang/cargo#6313). staticlib and cdylib have no
+# counterpart in the schemas crate, so they are free to take the public name.
+name = "edgefirst_schemas"
+crate-type = ["staticlib", "cdylib"]
+
 
 [dependencies]
 edgefirst-schemas = { path = "../schemas" }

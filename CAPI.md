@@ -49,8 +49,7 @@ sudo cp crates/capi/include/edgefirst/schemas.h /usr/local/include/edgefirst/
 
 # Install library (Linux) — install the versioned real file and create the
 # symlink chain expected by the GNU/Linux dynamic linker. Replace 2.2.1 with
-# the version you built. (`make lib` creates the libedgefirst_schemas.so
-# symlink over cargo's libedgefirst_schemas_capi.so; `install` follows it.)
+# the version you built. (`make install` does all of this for you.)
 VERSION=2.2.1; MAJOR=${VERSION%%.*}; MM=${VERSION%.*}
 sudo install -m 644 target/release/libedgefirst_schemas.so \
     /usr/local/lib/libedgefirst_schemas.so.${VERSION}
@@ -58,11 +57,13 @@ sudo ln -sf libedgefirst_schemas.so.${VERSION} /usr/local/lib/libedgefirst_schem
 sudo ln -sf libedgefirst_schemas.so.${MM}      /usr/local/lib/libedgefirst_schemas.so.${MAJOR}
 sudo ln -sf libedgefirst_schemas.so.${MAJOR}   /usr/local/lib/libedgefirst_schemas.so
 
-# Install library (macOS) — dylib versioning is handled differently; a plain
-# copy is sufficient for development installs. `make lib` builds the Linux
-# SONAME chain only, so copy cargo's output under the public name.
-sudo cp target/release/libedgefirst_schemas_capi.dylib \
-    /usr/local/lib/libedgefirst_schemas.dylib
+# Install library (macOS) — the version goes before the extension, and the
+# install name is retargeted to the absolute path. `make install` handles both.
+sudo cp target/release/libedgefirst_schemas.dylib \
+    /usr/local/lib/libedgefirst_schemas.${VERSION}.dylib
+sudo ln -sf libedgefirst_schemas.${VERSION}.dylib /usr/local/lib/libedgefirst_schemas.${MM}.dylib
+sudo ln -sf libedgefirst_schemas.${MM}.dylib      /usr/local/lib/libedgefirst_schemas.${MAJOR}.dylib
+sudo ln -sf libedgefirst_schemas.${MAJOR}.dylib   /usr/local/lib/libedgefirst_schemas.dylib
 
 # Update library cache (Linux only)
 sudo ldconfig
@@ -1680,7 +1681,7 @@ otool -L myapp | grep edgefirst
 
 ```bash
 # Verify the library exports the expected symbols
-nm -D target/release/libedgefirst_schemas_capi.so | grep ros_header
+nm -D target/release/libedgefirst_schemas.so | grep ros_header
 # If empty, rebuild: make lib
 ```
 
@@ -1758,15 +1759,16 @@ field accessors, encode/decode signatures) is documented inline in
 ## Building from Source
 
 ```bash
-# Build the shared library. Use `make lib`, not a bare `cargo build`: the
-# capi crate's [lib] name is `edgefirst_schemas_capi` (so its rlib does not
-# collide with the schemas crate), and `make lib` lays the public
-# libedgefirst_schemas.{a,so} names over the cargo output.
+# Build the shared library. `cargo build --release` writes the shipped names
+# directly; `make lib` additionally drops the soversion hop that the runtime
+# loader needs (libedgefirst_schemas.so.MAJOR / libedgefirst_schemas.MAJOR.dylib),
+# so prefer it when you intend to run anything linked against the library.
 make lib
 
 # The library is at:
-#   target/release/libedgefirst_schemas.so      (Linux, symlink -> ...so.MAJOR)
-#   target/release/libedgefirst_schemas_capi.so (the cargo output itself)
+#   target/release/libedgefirst_schemas.so      (Linux)
+#   target/release/libedgefirst_schemas.dylib   (macOS)
+#   target/release/edgefirst_schemas.dll        (Windows)
 #
 # The header is at:
 #   crates/capi/include/edgefirst/schemas.h
@@ -1790,12 +1792,12 @@ For ARM64 targets (e.g., NXP i.MX 8M Plus):
 
 ```bash
 cargo zigbuild --release --target aarch64-unknown-linux-gnu
-# Library at: target/aarch64-unknown-linux-gnu/release/libedgefirst_schemas_capi.so
+# Library at: target/aarch64-unknown-linux-gnu/release/libedgefirst_schemas.so
 #
-# A cross-target build does not run `make lib`, so the public-name symlink is
-# not created. Link against the cargo basename, or symlink it yourself:
-#   ln -sf libedgefirst_schemas_capi.so \
-#          target/aarch64-unknown-linux-gnu/release/libedgefirst_schemas.so
+# A cross-target build does not run `make lib`, so the soversion hop is absent.
+# Create it if you intend to run the result on the target:
+#   ln -sf libedgefirst_schemas.so \
+#          target/aarch64-unknown-linux-gnu/release/libedgefirst_schemas.so.3
 ```
 
 See [Zig cross-compilation](https://github.com/nickel-lang/topiary/wiki/Cross-compilation-with-Zig)

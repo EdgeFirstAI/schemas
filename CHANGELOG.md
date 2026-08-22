@@ -52,12 +52,14 @@ gone. See the Migration section below.
   `PyCFunction::new_closure` (moderate). `numpy` (rust-numpy) moves in lockstep.
 - **Build layout: split workspace into `crates/{schemas,capi,python}`.** The
   pure-Rust API now lives in `crates/schemas/` (package `edgefirst-schemas`);
-  the C/C++ library in `crates/capi/` (package `edgefirst-schemas-capi`,
-  produces `libedgefirst_schemas.{a,so}` unchanged); the Python wheel stays at
-  `crates/python/`. Public Rust, C, and Python APIs are unchanged. The
-  `edgefirst-schemas` crate name on crates.io and the Python module name
-  `edgefirst.schemas` on PyPI are preserved. Downstream consumers do not need
-  to change any imports or link flags.
+  the C/C++ library in `crates/capi/` (package `edgefirst-schemas-capi`); the
+  Python wheel stays at `crates/python/`. Public Rust, C, and Python APIs are
+  unchanged. The `edgefirst-schemas` crate name on crates.io and the Python
+  module name `edgefirst.schemas` on PyPI are preserved. Downstream consumers
+  do not need to change any imports or link flags. Cargo writes the shipped
+  library name directly on every platform — `libedgefirst_schemas.{a,so}`,
+  `libedgefirst_schemas.{a,dylib}`, `edgefirst_schemas.{lib,dll}` — with no
+  intermediate basename to rename around.
 
 ### Removed
 
@@ -66,6 +68,18 @@ gone. See the Migration section below.
 - **`edgefirst_msgs/CameraPlane`** — superseded by `TensorPlane`.
 - The corresponding Rust types, C entry points, C++ wrappers, PyO3 classes,
   golden fixtures and benchmark cases for both.
+
+- **`make lib` and `make install` are platform-aware.** They previously
+  hardcoded the GNU/Linux `.so` naming, so both failed outright on macOS even
+  though the rest of the Makefile supported it, and Windows was unsupported.
+  Each platform now gets its own convention: the `libedgefirst_schemas.so.X.Y.Z`
+  SOVERSION chain on Linux, `libedgefirst_schemas.X.Y.Z.dylib` with the version
+  ahead of the extension and the install name retargeted on macOS, and
+  `edgefirst_schemas.dll` to `bin/` with the import and static libraries to
+  `lib/` on Windows. `crates/capi/build.rs` stamps the matching versioned
+  identity (`DT_SONAME` on Linux, `LC_ID_DYLIB` on macOS). `make install` now
+  also installs the static library, which it previously skipped. As a result
+  `make test-c` and `make test-cpp` run natively on macOS.
 
 ### Fixed
 

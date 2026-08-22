@@ -56,15 +56,12 @@ jobs:
           #   .so.${MAJOR}                      symlink -> .so.${MAJOR}.${MINOR}
           #   .so.${MAJOR}.${MINOR}             symlink -> .so.${MAJOR}.${MINOR}.${PATCH}
           #   .so.${MAJOR}.${MINOR}.${PATCH}    real file
-          # Cargo's output basename is libedgefirst_schemas_capi.{so,a} (the
-          # capi crate's `[lib] name`); the public-facing name installed for
-          # consumers is libedgefirst_schemas.{so,a}.
-          cp target/release/libedgefirst_schemas_capi.so "${PKG_NAME}/lib/libedgefirst_schemas.so.${MAJOR}.${MINOR}.${PATCH}"
+          cp target/release/libedgefirst_schemas.so "${PKG_NAME}/lib/libedgefirst_schemas.so.${MAJOR}.${MINOR}.${PATCH}"
           ln -s "libedgefirst_schemas.so.${MAJOR}.${MINOR}.${PATCH}" "${PKG_NAME}/lib/libedgefirst_schemas.so.${MAJOR}.${MINOR}"
           ln -s "libedgefirst_schemas.so.${MAJOR}.${MINOR}"          "${PKG_NAME}/lib/libedgefirst_schemas.so.${MAJOR}"
           ln -s "libedgefirst_schemas.so.${MAJOR}"                   "${PKG_NAME}/lib/libedgefirst_schemas.so"
 
-          cp target/release/libedgefirst_schemas_capi.a "${PKG_NAME}/lib/libedgefirst_schemas.a"
+          cp target/release/libedgefirst_schemas.a "${PKG_NAME}/lib/libedgefirst_schemas.a"
           sed "s/@VERSION@/${VERSION}/" \
             crates/capi/edgefirst-schemas.pc.in > "${PKG_NAME}/lib/pkgconfig/edgefirst-schemas.pc"
           zip -r --symlinks "${PKG_NAME}.zip" "${PKG_NAME}"

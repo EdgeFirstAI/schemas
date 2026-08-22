@@ -23,12 +23,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-# Cargo's output basename for the C library. `crates/capi` sets
-# `[lib] name = "edgefirst_schemas_capi"` so its rlib does not collide with the
-# schemas crate's; the public name libedgefirst_schemas.so is produced by
-# `make lib`, which a cross-target `cargo build` does not run. Stage from the
-# cargo basename and let the SONAME (read below) supply the deployed name.
-EF_CARGO_SO="libedgefirst_schemas_capi.so"
+# Cargo writes the shipped name directly (crates/capi sets
+# `[lib] name = "edgefirst_schemas"`). A cross-target build does not run
+# `make lib`, so the soversion hop is absent here — the deploy step below reads
+# DT_SONAME from the binary and stages the file under that name instead.
+EF_CARGO_SO="libedgefirst_schemas.so"
 
 # ---------------------------------------------------------------------------
 # Defaults (can be overridden by env vars or flags)
@@ -246,7 +245,7 @@ if [[ $RUN_ONLY -eq 0 ]]; then
         exit 1
     fi
 
-    # Shared library. Cargo emits the file as libedgefirst_schemas_capi.so but
+    # Shared library. Cargo emits the unversioned libedgefirst_schemas.so but
     # the binaries link against it via the SONAME (e.g. libedgefirst_schemas.so.3).
     # Read the SONAME and stage the .so under that name so the dynamic linker
     # finds it at runtime on the target.

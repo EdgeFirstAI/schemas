@@ -124,14 +124,17 @@ EdgeFirst Perception Schemas
 
 The repository is a Cargo workspace with three member crates. The split exists
 to keep each binding's build artifacts isolated — most importantly, the C
-library's `build.rs` (which emits `DT_SONAME = libedgefirst_schemas.so.MAJOR`)
-runs only inside the capi crate, so it never leaks into the PyO3 wheel.
+library's `build.rs` (which stamps the versioned library identity —
+`DT_SONAME` on Linux, `LC_ID_DYLIB` on macOS) runs only inside the capi crate,
+so it never leaks into the PyO3 wheel.
 
 ```
 crates/
 ├── schemas/   pure-Rust rlib  (`edgefirst-schemas`)
-├── capi/      C lib            (`edgefirst-schemas-capi` package,
-│                                produces `libedgefirst_schemas.{a,so}`)
+├── capi/      C lib            (`edgefirst-schemas-capi` package, produces
+│                                `libedgefirst_schemas.{a,so}` on Linux,
+│                                `libedgefirst_schemas.{a,dylib}` on macOS,
+│                                `edgefirst_schemas.{lib,dll}` on Windows)
 └── python/    PyO3 wheel       (`edgefirst-schemas-python` package,
                                  importable as `edgefirst.schemas`)
 ```
@@ -161,7 +164,7 @@ crates/schemas/src/
 crates/capi/
 ├── src/lib.rs              # #[no_mangle] ros_* / cdr_* FFI surface (was src/ffi.rs)
 ├── src/tensor.rs           # Tensor-family C bindings (was src/ffi/tensor.rs)
-├── build.rs                # cargo:rustc-cdylib-link-arg=-Wl,-soname,...
+├── build.rs                # stamps SONAME (Linux) / install_name (macOS)
 ├── include/edgefirst/
 │   ├── schemas.h           # Hand-maintained C header
 │   ├── schemas.hpp         # C++ wrapper

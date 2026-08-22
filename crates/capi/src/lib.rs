@@ -17504,3 +17504,17 @@ pub extern "C" fn ros_foxglove_point_annotation_set_thickness(
         }
     }
 }
+
+// ── Rust FFI smoke tests ────────────────────────────────────────────
+//
+// These live under tests/ alongside the C and C++ suites but compile as unit
+// tests: the crate emits no rlib (see [lib] in Cargo.toml), so an integration
+// test could not link the `ros_*` symbols. Declared last so they cannot affect
+// the textual scoping of the `macro_rules!` helpers defined above.
+#[cfg(test)]
+#[path = "../tests/builder_ffi_smoke.rs"]
+mod builder_ffi_smoke;
+
+#[cfg(test)]
+#[path = "../tests/in_place_setters_smoke.rs"]
+mod in_place_setters_smoke;
