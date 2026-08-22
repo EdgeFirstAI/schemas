@@ -58,6 +58,3 @@ pub mod tensor;
 
 /// Schema registry for runtime schema name lookup.
 pub mod schema_registry;
-
-/// C FFI bindings.
-mod ffi;

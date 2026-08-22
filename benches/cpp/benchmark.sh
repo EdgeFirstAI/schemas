@@ -4,7 +4,7 @@
 # Drives the full local-dev workflow:
 #   1. cargo cross-compile the Rust shared library (aarch64)
 #   2. CMake cross-build the C++ benchmark targets
-#   3. rsync binaries + libedgefirst_schemas.so to the target
+#   3. rsync binaries + the C library (staged under its SONAME) to the target
 #   4. Run each bench on target with JSON output
 #   5. Pull results back into a local results/ directory
 #   6. Optionally invoke render_benchmarks.py for a local Markdown report
@@ -22,6 +22,12 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
+# Cargo writes the shipped name directly (crates/capi sets
+# `[lib] name = "edgefirst_schemas"`). A cross-target build does not run
+# `make lib`, so the soversion hop is absent here — the deploy step below reads
+# DT_SONAME from the binary and stages the file under that name instead.
+EF_CARGO_SO="libedgefirst_schemas.so"
 
 # ---------------------------------------------------------------------------
 # Defaults (can be overridden by env vars or flags)
@@ -196,7 +202,7 @@ if [[ $RUN_ONLY -eq 0 ]]; then
     cmake -S "${SCRIPT_DIR}" -B "${BUILD_DIR}" \
         -DCMAKE_TOOLCHAIN_FILE="${SCRIPT_DIR}/cmake/aarch64-${TOOLCHAIN}.cmake" \
         -DCMAKE_BUILD_TYPE=Release \
-        "-DEF_SCHEMAS_LIB=${EF_LIB_DIR}/libedgefirst_schemas.so"
+        "-DEF_SCHEMAS_LIB=${EF_LIB_DIR}/${EF_CARGO_SO}"
 
     cmake --build "${BUILD_DIR}" --parallel
 
@@ -239,11 +245,11 @@ if [[ $RUN_ONLY -eq 0 ]]; then
         exit 1
     fi
 
-    # Shared library. Cargo emits the file as libedgefirst_schemas.so but the
-    # binaries link against it via the SONAME (e.g. libedgefirst_schemas.so.3).
+    # Shared library. Cargo emits the unversioned libedgefirst_schemas.so but
+    # the binaries link against it via the SONAME (e.g. libedgefirst_schemas.so.3).
     # Read the SONAME and stage the .so under that name so the dynamic linker
     # finds it at runtime on the target.
-    EF_SO="${EF_LIB_DIR}/libedgefirst_schemas.so"
+    EF_SO="${EF_LIB_DIR}/${EF_CARGO_SO}"
     if [[ ! -f "$EF_SO" ]]; then
         echo "error: shared library not found: ${EF_SO}" >&2
         exit 1

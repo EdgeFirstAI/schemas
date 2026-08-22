@@ -24,7 +24,8 @@ use edgefirst_schemas::geometry_msgs;
 use edgefirst_schemas::sensor_msgs;
 
 /// Path to test data directory relative to crate root
-const TESTDATA_DIR: &str = "testdata/mcap";
+/// (CARGO_MANIFEST_DIR is crates/schemas/; testdata/ lives at the workspace root)
+const TESTDATA_DIR: &str = "../../testdata/mcap";
 
 /// Schemas present in historical recordings that 4.0.0 intentionally no longer
 /// decodes. `DmaBuffer` was removed in 4.0.0; a 4.x library genuinely cannot
@@ -205,7 +206,7 @@ fn test_all_schemas_supported() {
             unsupported.iter().map(String::as_str).collect::<Vec<_>>(),
             retired,
             "Unsupported schemas in {} must equal RETIRED_SCHEMAS exactly.\n\
-             Add newly-unsupported schemas to validate_message() in tests/mcap_test.rs, \
+             Add newly-unsupported schemas to validate_message() in crates/schemas/tests/mcap_test.rs, \
              or if the removal is intentional, add them to RETIRED_SCHEMAS instead.",
             mcap_path.display(),
         );

@@ -45,8 +45,9 @@ use edgefirst_schemas::tensor::{TensorFields, TensorPlaneView};
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 fn read_golden(namespace: &str, type_name: &str) -> Vec<u8> {
+    // CARGO_MANIFEST_DIR is crates/schemas/; testdata/ lives at the workspace root.
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("testdata/cdr")
+        .join("../../testdata/cdr")
         .join(namespace)
         .join(format!("{type_name}.cdr"));
     std::fs::read(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()))

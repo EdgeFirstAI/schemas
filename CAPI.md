@@ -45,11 +45,11 @@ gcc $(pkg-config --cflags edgefirst-schemas) -o myapp myapp.c \
 ```bash
 # Install header
 sudo mkdir -p /usr/local/include/edgefirst
-sudo cp include/edgefirst/schemas.h /usr/local/include/edgefirst/
+sudo cp crates/capi/include/edgefirst/schemas.h /usr/local/include/edgefirst/
 
 # Install library (Linux) — install the versioned real file and create the
 # symlink chain expected by the GNU/Linux dynamic linker. Replace 2.2.1 with
-# the version you built.
+# the version you built. (`make install` does all of this for you.)
 VERSION=2.2.1; MAJOR=${VERSION%%.*}; MM=${VERSION%.*}
 sudo install -m 644 target/release/libedgefirst_schemas.so \
     /usr/local/lib/libedgefirst_schemas.so.${VERSION}
@@ -57,9 +57,13 @@ sudo ln -sf libedgefirst_schemas.so.${VERSION} /usr/local/lib/libedgefirst_schem
 sudo ln -sf libedgefirst_schemas.so.${MM}      /usr/local/lib/libedgefirst_schemas.so.${MAJOR}
 sudo ln -sf libedgefirst_schemas.so.${MAJOR}   /usr/local/lib/libedgefirst_schemas.so
 
-# Install library (macOS) — dylib versioning is handled differently; a plain
-# copy is sufficient for development installs.
-sudo cp target/release/libedgefirst_schemas.dylib /usr/local/lib/
+# Install library (macOS) — the version goes before the extension, and the
+# install name is retargeted to the absolute path. `make install` handles both.
+sudo cp target/release/libedgefirst_schemas.dylib \
+    /usr/local/lib/libedgefirst_schemas.${VERSION}.dylib
+sudo ln -sf libedgefirst_schemas.${VERSION}.dylib /usr/local/lib/libedgefirst_schemas.${MM}.dylib
+sudo ln -sf libedgefirst_schemas.${MM}.dylib      /usr/local/lib/libedgefirst_schemas.${MAJOR}.dylib
+sudo ln -sf libedgefirst_schemas.${MAJOR}.dylib   /usr/local/lib/libedgefirst_schemas.dylib
 
 # Update library cache (Linux only)
 sudo ldconfig
@@ -1678,7 +1682,7 @@ otool -L myapp | grep edgefirst
 ```bash
 # Verify the library exports the expected symbols
 nm -D target/release/libedgefirst_schemas.so | grep ros_header
-# If empty, rebuild: cargo build --release
+# If empty, rebuild: make lib
 ```
 
 ### SONAME Versioning
@@ -1720,7 +1724,7 @@ Common causes:
 ## C++ Wrapper
 
 A header-only C++17 wrapper is available at
-`include/edgefirst/schemas.hpp`. It provides RAII-managed view and owning
+`crates/capi/include/edgefirst/schemas.hpp`. It provides RAII-managed view and owning
 types for every C handle type — `ImageView`/`Image`, `HeaderView`/`Header`,
 `DetectView`, `ModelView`, `MaskView`/`Mask`, and so on — together with
 `expected<T, Error>` error handling (no exceptions) and range-based iteration
@@ -1750,27 +1754,31 @@ the C++ header and link with `-ledgefirst_schemas` exactly as you would for C.
 See [README.md § C++ Usage](README.md#c-usage) for the full introduction,
 installation notes, and working examples. The per-type API surface (constructors,
 field accessors, encode/decode signatures) is documented inline in
-`include/edgefirst/schemas.hpp`.
+`crates/capi/include/edgefirst/schemas.hpp`.
 
 ## Building from Source
 
 ```bash
-# Build the shared library
-cargo build --release
+# Build the shared library. `cargo build --release` writes the shipped names
+# directly; `make lib` additionally drops the soversion hop that the runtime
+# loader needs (libedgefirst_schemas.so.MAJOR / libedgefirst_schemas.MAJOR.dylib),
+# so prefer it when you intend to run anything linked against the library.
+make lib
 
 # The library is at:
 #   target/release/libedgefirst_schemas.so      (Linux)
 #   target/release/libedgefirst_schemas.dylib   (macOS)
+#   target/release/edgefirst_schemas.dll        (Windows)
 #
 # The header is at:
-#   include/edgefirst/schemas.h
+#   crates/capi/include/edgefirst/schemas.h
 
 # Run the C API test suite (requires libcriterion-dev)
 sudo apt-get install -y libcriterion-dev
 mkdir -p build
-for src in tests/c/test_*.c; do
+for src in crates/capi/tests/c/test_*.c; do
     name=$(basename $src .c)
-    gcc -Wall -Wextra -Werror -std=c11 -I./include \
+    gcc -Wall -Wextra -Werror -std=c11 -I./crates/capi/include \
         -o build/$name $src \
         -L./target/release -ledgefirst_schemas -lcriterion -lm \
         -Wl,-rpath,./target/release
@@ -1785,6 +1793,11 @@ For ARM64 targets (e.g., NXP i.MX 8M Plus):
 ```bash
 cargo zigbuild --release --target aarch64-unknown-linux-gnu
 # Library at: target/aarch64-unknown-linux-gnu/release/libedgefirst_schemas.so
+#
+# A cross-target build does not run `make lib`, so the soversion hop is absent.
+# Create it if you intend to run the result on the target:
+#   ln -sf libedgefirst_schemas.so \
+#          target/aarch64-unknown-linux-gnu/release/libedgefirst_schemas.so.3
 ```
 
 See [Zig cross-compilation](https://github.com/nickel-lang/topiary/wiki/Cross-compilation-with-Zig)

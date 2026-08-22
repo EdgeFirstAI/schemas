@@ -107,7 +107,7 @@ fakeroot debian/rules build
 
 ### C++ Standards
 
-The C++ wrapper (`include/edgefirst/schemas.hpp`) is tested in CI on the
+The C++ wrapper (`crates/capi/include/edgefirst/schemas.hpp`) is tested in CI on the
 following configurations:
 
 | Compiler | C++ standard | Status |

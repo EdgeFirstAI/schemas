@@ -19,25 +19,62 @@ else
   LIB_DIR = target/debug
   CARGO_FLAGS =
 endif
-LIB_NAME = libedgefirst_schemas
+# Shared-library naming is platform-specific. crates/capi sets
+# `[lib] name = "edgefirst_schemas"`, so cargo writes the shipped artifact name
+# directly on every platform — there is no second basename to rename around.
+#
+#   Linux    libedgefirst_schemas.so     libedgefirst_schemas.a
+#   macOS    libedgefirst_schemas.dylib  libedgefirst_schemas.a
+#   Windows  edgefirst_schemas.dll       edgefirst_schemas.lib (+ .dll.lib import)
+UNAME_S   := $(shell uname -s)
+WIN_HOST  := $(filter MINGW% MSYS% CYGWIN% Windows%,$(UNAME_S))
+ifeq ($(UNAME_S),Darwin)
+  HOST_OS = macos
+else ifneq (,$(WIN_HOST))
+  HOST_OS = windows
+else
+  HOST_OS = linux
+endif
+
+ifeq ($(HOST_OS),windows)
+  LIB_NAME  = edgefirst_schemas
+  SHLIB     = $(LIB_NAME).dll
+  STATICLIB = $(LIB_NAME).lib
+  IMPLIB    = $(LIB_NAME).dll.lib
+else
+  LIB_NAME  = libedgefirst_schemas
+  STATICLIB = $(LIB_NAME).a
+ifeq ($(HOST_OS),macos)
+  SHLIB      = $(LIB_NAME).dylib
+  # macOS puts the compatibility version before the extension.
+  SOVER_FULL  = $(LIB_NAME).$(VERSION_FULL).dylib
+  SOVER_MM    = $(LIB_NAME).$(VERSION_MAJOR).$(VERSION_MINOR).dylib
+  SOVER_MAJOR = $(LIB_NAME).$(VERSION_MAJOR).dylib
+else
+  SHLIB      = $(LIB_NAME).so
+  SOVER_FULL  = $(LIB_NAME).so.$(VERSION_FULL)
+  SOVER_MM    = $(LIB_NAME).so.$(VERSION_MAJOR).$(VERSION_MINOR)
+  SOVER_MAJOR = $(LIB_NAME).so.$(VERSION_MAJOR)
+endif
+endif
 
 # C test configuration
 CC = gcc
 CRITERION_PREFIX = $(shell brew --prefix criterion 2>/dev/null || echo /usr/local)
-CFLAGS = -Wall -Wextra -Werror -std=c11 -I./include -I$(CRITERION_PREFIX)/include
+CFLAGS = -Wall -Wextra -Werror -std=c11 -I./crates/capi/include -I$(CRITERION_PREFIX)/include
 LDFLAGS = -L$(LIB_DIR) -ledgefirst_schemas -L$(CRITERION_PREFIX)/lib -lcriterion -lm -Wl,-rpath,$(LIB_DIR)
 
 # C++ test configuration
 CXX ?= g++
 CXXSTD ?= c++17
-CXXFLAGS_BASE = -std=$(CXXSTD) -Wall -Wextra -Werror -I./include -Itests/cpp
+CXXFLAGS_BASE = -std=$(CXXSTD) -Wall -Wextra -Werror -I./crates/capi/include -Icrates/capi/tests/cpp
 CXXFLAGS = $(CXXFLAGS_BASE) -O2
 CXXFLAGS_ASAN = $(CXXFLAGS_BASE) -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Wno-maybe-uninitialized
 CXXLDFLAGS = -L$(LIB_DIR) -ledgefirst_schemas -Wl,-rpath,$(LIB_DIR)
 CXXLDFLAGS_ASAN = $(CXXLDFLAGS) -fsanitize=address,undefined
 
 # C++ test sources and binaries
-CPP_TEST_DIR = tests/cpp
+CPP_TEST_DIR = crates/capi/tests/cpp
 CPP_TEST_SOURCES = $(wildcard $(CPP_TEST_DIR)/test_*.cpp)
 CPP_TEST_BINARIES = $(patsubst $(CPP_TEST_DIR)/%.cpp,$(BUILD_DIR)/%,$(CPP_TEST_SOURCES))
 CPP_TEST_BINARIES_ASAN = $(patsubst $(CPP_TEST_DIR)/%.cpp,$(BUILD_DIR)/%_asan,$(CPP_TEST_SOURCES))
@@ -47,12 +84,13 @@ DESTDIR ?=
 PREFIX  ?= /usr/local
 INCDIR  = $(DESTDIR)$(PREFIX)/include
 LIBDIR  = $(DESTDIR)$(PREFIX)/lib
+BINDIR  = $(DESTDIR)$(PREFIX)/bin
 
 # Build output directory
 BUILD_DIR = build
 
 # C test sources
-TEST_DIR = tests/c
+TEST_DIR = crates/capi/tests/c
 TEST_SOURCES = $(wildcard $(TEST_DIR)/test_*.c)
 TEST_BINARIES = $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/%,$(TEST_SOURCES))
 
@@ -67,43 +105,33 @@ VERSION_FULL  := $(shell grep '^version = ' Cargo.toml | head -1 | sed 's/versio
 VERSION_MAJOR := $(word 1,$(subst ., ,$(VERSION_FULL)))
 VERSION_MINOR := $(word 2,$(subst ., ,$(VERSION_FULL)))
 
-# Build the Rust library and arrange the GNU/Linux SOVERSION symlink chain:
+# Build the Rust library and, on Linux/macOS, drop the soversion link that the
+# freshly built test binaries need at run time.
 #
-#   libedgefirst_schemas.so                      symlink -> .so.MAJOR
-#   libedgefirst_schemas.so.MAJOR                symlink -> .so.MAJOR.MINOR
-#   libedgefirst_schemas.so.MAJOR.MINOR          symlink -> .so.MAJOR.MINOR.PATCH
-#   libedgefirst_schemas.so.MAJOR.MINOR.PATCH    real file (renamed from cargo output)
+# crates/capi/build.rs stamps a versioned identity into the shared library:
+#   Linux    DT_SONAME     libedgefirst_schemas.so.MAJOR
+#   macOS    LC_ID_DYLIB   @rpath/libedgefirst_schemas.MAJOR.dylib
+# That is the name the loader opens, but cargo writes the file under the
+# unversioned name, so the build tree needs SOVER_MAJOR -> SHLIB for anything
+# linked with -rpath $(LIB_DIR) (the C and C++ suites) to start. The full
+# release chain is laid down by `install`, not here — the build tree only needs
+# the one hop, and keeping cargo's file as the real one means incremental
+# rebuilds cannot leave a stale real file behind a live symlink.
 #
-# build.rs embeds DT_SONAME = libedgefirst_schemas.so.MAJOR; that is the name
-# the runtime loader actually opens, and it resolves through the chain above
-# to the real file. Rationale: rustc writes the cdylib to `libedgefirst_schemas.so`; on first build
-# we rename that file to the fully-qualified name and create the chain of symlinks
-# up from it. Incremental rebuilds write through the `.so` symlink (open() follows
-# symlinks on O_TRUNC|O_WRONLY), so the real file at .so.MAJOR.MINOR.PATCH is
-# updated in place and the chain stays intact. On a version bump, stale versioned
-# files/symlinks from prior versions are removed before the chain is rebuilt.
+# Windows has no soversion-in-filename convention, so there is nothing to link.
 lib:
-	@echo "Building Rust library..."
+	@echo "Building Rust library ($(HOST_OS))..."
 	@cargo build $(CARGO_FLAGS)
 	@set -e; \
-	LIB_DIR='$(LIB_DIR)'; LIB='$(LIB_NAME)'; \
-	VERSION='$(VERSION_FULL)'; MAJOR='$(VERSION_MAJOR)'; MINOR='$(VERSION_MINOR)'; \
-	REAL="$$LIB_DIR/$$LIB.so.$$VERSION"; \
-	if [ -f "$$LIB_DIR/$$LIB.so" ] && [ ! -L "$$LIB_DIR/$$LIB.so" ]; then \
-	    find "$$LIB_DIR" -maxdepth 1 \( -type l -o -type f \) -name "$$LIB.so.*" \
-	        ! -name "$$LIB.so.$$VERSION" -exec rm -f {} +; \
-	    mv -f "$$LIB_DIR/$$LIB.so" "$$REAL"; \
-	elif [ ! -e "$$REAL" ]; then \
-	    echo "error: cargo output missing and no prior $$LIB.so.$$VERSION found" >&2; \
-	    echo "hint: run 'make clean' then retry (version bump without clean build)" >&2; \
+	if [ ! -f "$(LIB_DIR)/$(SHLIB)" ]; then \
+	    echo "error: expected cargo output $(LIB_DIR)/$(SHLIB) not found" >&2; \
 	    exit 1; \
-	fi; \
-	rm -f "$$LIB_DIR/$$LIB.so" \
-	      "$$LIB_DIR/$$LIB.so.$$MAJOR" \
-	      "$$LIB_DIR/$$LIB.so.$$MAJOR.$$MINOR"; \
-	ln -s "$$LIB.so.$$VERSION"        "$$LIB_DIR/$$LIB.so.$$MAJOR.$$MINOR"; \
-	ln -s "$$LIB.so.$$MAJOR.$$MINOR"  "$$LIB_DIR/$$LIB.so.$$MAJOR"; \
-	ln -s "$$LIB.so.$$MAJOR"          "$$LIB_DIR/$$LIB.so"
+	fi
+ifneq ($(HOST_OS),windows)
+	@set -e; \
+	find "$(LIB_DIR)" -maxdepth 1 -type l -name "$(LIB_NAME)*" -exec rm -f {} +; \
+	ln -s "$(SHLIB)" "$(LIB_DIR)/$(SOVER_MAJOR)"
+endif
 
 # Ensure build directory exists
 $(BUILD_DIR):
@@ -288,24 +316,41 @@ example-cpp: lib | $(BUILD_DIR)
 install: lib
 	@echo "Installing headers to $(INCDIR)/edgefirst/..."
 	@install -d $(INCDIR)/edgefirst/stdlib
-	@install -m 644 include/edgefirst/schemas.h             $(INCDIR)/edgefirst/schemas.h
-	@install -m 644 include/edgefirst/schemas.hpp           $(INCDIR)/edgefirst/schemas.hpp
-	@install -m 644 include/edgefirst/stdlib/expected.hpp   $(INCDIR)/edgefirst/stdlib/expected.hpp
-	@install -m 644 include/edgefirst/stdlib/span.hpp       $(INCDIR)/edgefirst/stdlib/span.hpp
+	@install -m 644 crates/capi/include/edgefirst/schemas.h             $(INCDIR)/edgefirst/schemas.h
+	@install -m 644 crates/capi/include/edgefirst/schemas.hpp           $(INCDIR)/edgefirst/schemas.hpp
+	@install -m 644 crates/capi/include/edgefirst/stdlib/expected.hpp   $(INCDIR)/edgefirst/stdlib/expected.hpp
+	@install -m 644 crates/capi/include/edgefirst/stdlib/span.hpp       $(INCDIR)/edgefirst/stdlib/span.hpp
 	@echo "Installing library to $(LIBDIR)/..."
 	@install -d $(LIBDIR)
+ifeq ($(HOST_OS),windows)
+	@install -d $(BINDIR)
+	@install -m 755 $(LIB_DIR)/$(SHLIB) $(BINDIR)/$(SHLIB)
+	@install -m 644 $(LIB_DIR)/$(STATICLIB) $(LIBDIR)/$(STATICLIB)
+	@if [ -f "$(LIB_DIR)/$(IMPLIB)" ]; then \
+	    install -m 644 $(LIB_DIR)/$(IMPLIB) $(LIBDIR)/$(IMPLIB); \
+	fi
+else
 	@set -e; \
-	LIB='$(LIB_NAME)'; VERSION='$(VERSION_FULL)'; \
-	MAJOR='$(VERSION_MAJOR)'; MINOR='$(VERSION_MINOR)'; \
-	install -m 755 $(LIB_DIR)/$$LIB.so.$$VERSION $(LIBDIR)/$$LIB.so.$$VERSION; \
-	ln -sf $$LIB.so.$$VERSION        $(LIBDIR)/$$LIB.so.$$MAJOR.$$MINOR; \
-	ln -sf $$LIB.so.$$MAJOR.$$MINOR  $(LIBDIR)/$$LIB.so.$$MAJOR; \
-	ln -sf $$LIB.so.$$MAJOR          $(LIBDIR)/$$LIB.so
+	install -m 755 $(LIB_DIR)/$(SHLIB) $(LIBDIR)/$(SOVER_FULL); \
+	ln -sf $(SOVER_FULL)  $(LIBDIR)/$(SOVER_MM); \
+	ln -sf $(SOVER_MM)    $(LIBDIR)/$(SOVER_MAJOR); \
+	ln -sf $(SOVER_MAJOR) $(LIBDIR)/$(SHLIB); \
+	install -m 644 $(LIB_DIR)/$(STATICLIB) $(LIBDIR)/$(STATICLIB)
+endif
+ifeq ($(HOST_OS),macos)
+	@# The build stamps LC_ID_DYLIB as @rpath/... so the test binaries resolve it
+	@# from the build tree. An installed library is found by absolute path, so
+	@# retarget the id; consumers that do use an rpath are unaffected.
+	@set -e; \
+	if command -v install_name_tool >/dev/null 2>&1; then \
+	    install_name_tool -id "$(PREFIX)/lib/$(SOVER_MAJOR)" "$(LIBDIR)/$(SOVER_FULL)"; \
+	fi
+endif
 	@echo "Installing pkg-config file to $(LIBDIR)/pkgconfig/..."
 	@install -d $(LIBDIR)/pkgconfig
 	@sed \
 		-e 's|@VERSION@|$(VERSION_FULL)|g' \
-		edgefirst-schemas.pc.in > $(BUILD_DIR)/edgefirst-schemas.pc
+		crates/capi/edgefirst-schemas.pc.in > $(BUILD_DIR)/edgefirst-schemas.pc
 	@install -m 644 $(BUILD_DIR)/edgefirst-schemas.pc \
 		$(LIBDIR)/pkgconfig/edgefirst-schemas.pc
 	@echo "Installed edgefirst-schemas $(VERSION_FULL) to $(DESTDIR)$(PREFIX)"

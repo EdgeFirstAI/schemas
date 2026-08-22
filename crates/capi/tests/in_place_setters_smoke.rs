@@ -11,6 +11,11 @@
 
 #![allow(non_camel_case_types)]
 
+// Compiled as an in-crate unit test module (see src/lib.rs), so the crate's
+// `#[no_mangle]` FFI exports are defined in this same test binary and the
+// `extern "C"` declarations below bind to them directly. No `extern crate`
+// pull-in is needed — and none is possible, since the capi crate emits no rlib.
+
 use edgefirst_schemas::builtin_interfaces::{Duration, Time};
 use edgefirst_schemas::edgefirst_msgs;
 use edgefirst_schemas::foxglove_msgs;

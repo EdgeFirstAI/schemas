@@ -159,7 +159,7 @@ endfunction()
 # Rust shared library. Built by the parent crate; run `cargo build --release`
 # from the repo root before configuring this CMake project.
 set(EF_REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../..")
-set(EF_INCLUDE   "${EF_REPO_ROOT}/include")
+set(EF_INCLUDE   "${EF_REPO_ROOT}/crates/capi/include")
 set(EF_LIB_DIR   "${EF_REPO_ROOT}/target/release")
 if(DEFINED ENV{EF_LIB_DIR_OVERRIDE})
     set(EF_LIB_DIR "$ENV{EF_LIB_DIR_OVERRIDE}")

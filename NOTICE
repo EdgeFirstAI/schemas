@@ -61,7 +61,7 @@ This software also includes the following vendored C++ dependencies:
 Catch2 (v2.13.10, BSL-1.0)
   Copyright (c) 2010-2022 Two Blue Cubes Ltd.
   https://github.com/catchorg/Catch2
-  Vendored at tests/cpp/catch.hpp for C++ unit testing.
+  Vendored at crates/capi/tests/cpp/catch.hpp for C++ unit testing.
 
 tl::expected (CC0-1.0)
   Copyright (c) 2017 Sy Brand

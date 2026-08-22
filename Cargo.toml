@@ -1,42 +1,26 @@
 [workspace]
-members = [".", "crates/python"]
+resolver = "2"
+members = ["crates/*"]
+# crates/python is intentionally NOT in default-members: it is built via
+# maturin, not `cargo build`. `cargo build` at the workspace root will only
+# produce the rlib + the C library, which matches user expectations.
+default-members = ["crates/schemas", "crates/capi"]
 
-[package]
-name = "edgefirst-schemas"
-description = "Message schemas for EdgeFirst Perception - ROS2 Common Interfaces, Foxglove, and custom types"
+[workspace.package]
+version = "3.5.0"
 authors = ["Au-Zone Technologies <support@au-zone.com>"]
 edition = "2021"
 license = "Apache-2.0"
-readme = "README.md"
-version = "3.5.0"
 homepage = "https://doc.edgefirst.ai"
 repository = "https://github.com/EdgeFirstAI/schemas"
-documentation = "https://docs.rs/edgefirst-schemas/"
-keywords = ["ros2", "perception", "schemas", "edge-ai", "zenoh"]
-categories = ["encoding", "data-structures"]
 
-[lib]
-crate-type = ["lib", "staticlib", "cdylib"]
-
-[dependencies]
+[workspace.dependencies]
 errno = "0.3"
 libc = "0.2.180"
-
-[dev-dependencies]
 criterion = { version = "0.8.1", features = ["html_reports"] }
 mcap = "0.25"
 memmap2 = "0.9"
 rand = "0.9.2"
-
-[[bench]]
-name = "serialization"
-harness = false
-
-[build-dependencies]
-# cbindgen is declared as a build-dependency for future header auto-generation,
-# but is NOT currently invoked by build.rs. include/edgefirst/schemas.h is
-# maintained by hand. Do not edit build.rs to invoke cbindgen without also
-# regenerating schemas.h from Rust doc comments and verifying the output.
 cbindgen = "0.29.2"
 
 # Release profile: optimized, stripped, no debug info

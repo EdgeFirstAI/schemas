@@ -25,20 +25,24 @@
 #![allow(non_camel_case_types)]
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 #![allow(clippy::needless_borrow)]
+// FFI safety contract is documented at the module level above and per-function
+// in the C API reference. We do not repeat it as `# Safety` markdown on every
+// `pub unsafe extern "C" fn` — the contract is uniform across the surface.
+#![allow(clippy::missing_safety_doc)]
 
 use std::os::raw::c_char;
 use std::ptr;
 use std::slice;
 
-use crate::builtin_interfaces::{Duration, Time};
-use crate::cdr::{self, CdrFixed};
-use crate::edgefirst_msgs;
-use crate::foxglove_msgs;
-use crate::geometry_msgs::{self, *};
-use crate::mavros_msgs;
-use crate::nav_msgs;
-use crate::sensor_msgs::{self, NavSatStatus, PointFieldView, RegionOfInterest};
-use crate::std_msgs;
+use edgefirst_schemas::builtin_interfaces::{Duration, Time};
+use edgefirst_schemas::cdr::{self, CdrFixed};
+use edgefirst_schemas::edgefirst_msgs;
+use edgefirst_schemas::foxglove_msgs;
+use edgefirst_schemas::geometry_msgs::{self, *};
+use edgefirst_schemas::mavros_msgs;
+use edgefirst_schemas::nav_msgs;
+use edgefirst_schemas::sensor_msgs::{self, NavSatStatus, PointFieldView, RegionOfInterest};
+use edgefirst_schemas::std_msgs;
 
 // =============================================================================
 // Helpers
@@ -7189,7 +7193,7 @@ pub extern "C" fn ros_header_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -7422,7 +7426,7 @@ pub extern "C" fn ros_image_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -7579,7 +7583,7 @@ pub extern "C" fn ros_fluid_pressure_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -7762,7 +7766,7 @@ pub extern "C" fn ros_compressed_image_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -8009,7 +8013,7 @@ pub extern "C" fn ros_imu_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -8230,7 +8234,7 @@ pub extern "C" fn ros_nav_sat_fix_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -8375,7 +8379,7 @@ pub extern "C" fn ros_point_field_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -8711,7 +8715,7 @@ pub extern "C" fn ros_point_cloud2_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -9049,7 +9053,7 @@ pub extern "C" fn ros_camera_info_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -9215,7 +9219,7 @@ pub extern "C" fn ros_magnetic_field_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -9652,7 +9656,7 @@ pub extern "C" fn ros_battery_state_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -9806,7 +9810,7 @@ pub extern "C" fn ros_temperature_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -10401,7 +10405,7 @@ pub extern "C" fn ros_mask_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -10588,7 +10592,7 @@ pub extern "C" fn ros_local_time_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -10874,7 +10878,7 @@ pub extern "C" fn ros_radar_cube_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -11101,7 +11105,7 @@ pub extern "C" fn ros_radar_info_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -11233,7 +11237,7 @@ pub extern "C" fn ros_track_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -11561,7 +11565,7 @@ pub extern "C" fn ros_detect_box_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -11780,7 +11784,7 @@ pub extern "C" fn ros_detect_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -12132,7 +12136,7 @@ pub extern "C" fn ros_model_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -12462,7 +12466,7 @@ pub extern "C" fn ros_model_info_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -12655,7 +12659,7 @@ pub extern "C" fn ros_vibration_builder_build(
     let r = edgefirst_msgs::Vibration::builder()
         .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
         .frame_id(inner.frame_id.as_str())
-        .vibration(crate::geometry_msgs::Vector3 {
+        .vibration(edgefirst_schemas::geometry_msgs::Vector3 {
             x: inner.vib_x,
             y: inner.vib_y,
             z: inner.vib_z,
@@ -12691,7 +12695,7 @@ pub extern "C" fn ros_vibration_builder_encode_into(
     let r = edgefirst_msgs::Vibration::builder()
         .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
         .frame_id(inner.frame_id.as_str())
-        .vibration(crate::geometry_msgs::Vector3 {
+        .vibration(edgefirst_schemas::geometry_msgs::Vector3 {
             x: inner.vib_x,
             y: inner.vib_y,
             z: inner.vib_z,
@@ -12709,7 +12713,7 @@ pub extern "C" fn ros_vibration_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -12903,7 +12907,7 @@ pub extern "C" fn ros_foxglove_compressed_video_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -13342,7 +13346,7 @@ pub extern "C" fn ros_foxglove_text_annotation_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -13672,7 +13676,7 @@ pub extern "C" fn ros_foxglove_point_annotation_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -14024,7 +14028,7 @@ pub extern "C" fn ros_foxglove_image_annotation_builder_encode_into(
             }
             0
         }
-        Err(crate::cdr::CdrError::BufferTooShort { .. }) => {
+        Err(edgefirst_schemas::cdr::CdrError::BufferTooShort { .. }) => {
             set_errno(ENOBUFS);
             -1
         }
@@ -17500,3 +17504,17 @@ pub extern "C" fn ros_foxglove_point_annotation_set_thickness(
         }
     }
 }
+
+// ── Rust FFI smoke tests ────────────────────────────────────────────
+//
+// These live under tests/ alongside the C and C++ suites but compile as unit
+// tests: the crate emits no rlib (see [lib] in Cargo.toml), so an integration
+// test could not link the `ros_*` symbols. Declared last so they cannot affect
+// the textual scoping of the `macro_rules!` helpers defined above.
+#[cfg(test)]
+#[path = "../tests/builder_ffi_smoke.rs"]
+mod builder_ffi_smoke;
+
+#[cfg(test)]
+#[path = "../tests/in_place_setters_smoke.rs"]
+mod in_place_setters_smoke;

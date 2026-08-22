@@ -11,8 +11,10 @@ echo
 
 # Step 1: Generate dependency SBOM with cargo-cyclonedx (~1 second)
 echo "[1/6] Generating dependency SBOM with cargo-cyclonedx..."
+# Workspace has three members (schemas, capi, python); --all writes one
+# .cdx.json per member in each member's directory. We merge them in step 5.
 cargo cyclonedx --format json --all
-echo "✓ Generated edgefirst-schemas.cdx.json (Rust dependencies)"
+echo "✓ Generated per-crate .cdx.json files for Rust dependencies"
 echo
 
 # Step 2: Generate source code SBOM with scancode (~5 seconds)
@@ -31,11 +33,17 @@ PROJECT_NAME=$(basename "$ORIGINAL_DIR")
 cd ..
 
 # Scan each source directory separately (each scan takes ~2-3 seconds)
-echo "  Scanning Rust sources..."
+echo "  Scanning Rust schemas crate sources..."
 "$ORIGINAL_DIR/venv/bin/scancode" -clpieu \
-    --cyclonedx "$ORIGINAL_DIR/source-rust-raw.json" \
+    --cyclonedx "$ORIGINAL_DIR/source-rust-schemas-raw.json" \
     --only-findings \
-    "$PROJECT_NAME/src/"
+    "$PROJECT_NAME/crates/schemas/src/"
+
+echo "  Scanning Rust capi crate sources..."
+"$ORIGINAL_DIR/venv/bin/scancode" -clpieu \
+    --cyclonedx "$ORIGINAL_DIR/source-rust-capi-raw.json" \
+    --only-findings \
+    "$PROJECT_NAME/crates/capi/src/"
 
 echo "  Scanning Python sources..."
 "$ORIGINAL_DIR/venv/bin/scancode" -clpieu \
@@ -82,7 +90,8 @@ import sys
 
 # Clean each scancode JSON and convert to CycloneDX
 files_to_convert = [
-    'source-rust-raw.json',
+    'source-rust-schemas-raw.json',
+    'source-rust-capi-raw.json',
     'source-python-raw.json',
     'source-msgs-raw.json',
     'source-cargo-toml-raw.json',
@@ -128,12 +137,14 @@ else
 fi
 
 $CYCLONEDX merge \
-    --input-files source-rust.json source-python.json source-msgs.json \
+    --input-files source-rust-schemas.json source-rust-capi.json \
+                  source-python.json source-msgs.json \
                   source-cargo-toml.json source-cargo-lock.json source-pyproject.json \
     --output-file source-sbom.json
 
 # Clean up individual source SBOMs
-rm -f source-*-raw.json source-rust.json source-python.json source-msgs.json \
+rm -f source-*-raw.json source-rust-schemas.json source-rust-capi.json \
+      source-python.json source-msgs.json \
       source-cargo-toml.json source-cargo-lock.json source-pyproject.json
 
 echo "✓ Merged source SBOMs into source-sbom.json"
@@ -151,8 +162,15 @@ else
     CYCLONEDX=cyclonedx
 fi
 
+# cargo cyclonedx --all writes per-member .cdx.json files in each member's
+# directory. Gather them all (plus any legacy workspace-root file) and merge.
+DEP_CDX_FILES=$(find . crates -maxdepth 2 -name '*.cdx.json' -type f 2>/dev/null | sort -u)
+if [ -z "$DEP_CDX_FILES" ]; then
+    echo "Error: no .cdx.json files found from cargo cyclonedx" >&2
+    exit 1
+fi
 $CYCLONEDX merge \
-    --input-files edgefirst-schemas.cdx.json source-sbom.json \
+    --input-files $DEP_CDX_FILES source-sbom.json \
     --output-file sbom.json
 
 echo "✓ Generated sbom.json (merged: dependencies + source)"
@@ -171,7 +189,8 @@ echo "✓ Generated NOTICE (third-party attributions)"
 echo
 
 # Cleanup temporary files
-rm -f source-sbom.json edgefirst-schemas.cdx.json
+rm -f source-sbom.json
+find . crates -maxdepth 2 -name '*.cdx.json' -type f -delete 2>/dev/null || true
 
 echo "=================================================="
 echo "SBOM Generation Complete"

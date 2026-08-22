@@ -35,7 +35,7 @@ def _build_path_cdr(header_stamp, header_frame, elements):
     the header's stamp/frame_id, so it cannot produce *distinct* per-element
     frame_ids.  This minimal encoder writes them explicitly, letting the tests
     prove that ``__getitem__``/``__iter__`` read each element's own frame_id
-    rather than the header's.  Layout matches ``Path::new`` in src/nav_msgs.rs.
+    rather than the header's.  Layout matches ``Path::new`` in crates/schemas/src/nav_msgs.rs.
 
     ``elements`` is a list of ``(sec, nanosec, frame_id, (x, y, z), (qx, qy, qz, qw))``.
     """

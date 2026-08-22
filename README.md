@@ -185,7 +185,7 @@ g++ -std=c++17 -I/path/to/include -o myapp myapp.cpp \
     -L/path/to/lib -ledgefirst_schemas
 ```
 
-> **Note:** The `<edgefirst/schemas.hpp>` header transitively includes two compatibility shims from `include/edgefirst/stdlib/`: `expected.hpp` (alias for `std::expected` on C++23+, vendored `tl::expected` fallback on older standards) and `span.hpp` (alias for `std::span` on C++20+, hand-written fallback on C++17). If you use `make install`, these are placed automatically under `$(PREFIX)/include/edgefirst/stdlib/`. If you copy headers manually, ensure both files accompany `schemas.hpp`.
+> **Note:** The `<edgefirst/schemas.hpp>` header transitively includes two compatibility shims from `crates/capi/include/edgefirst/stdlib/`: `expected.hpp` (alias for `std::expected` on C++23+, vendored `tl::expected` fallback on older standards) and `span.hpp` (alias for `std::span` on C++20+, hand-written fallback on C++17). If you use `make install`, these are placed automatically under `$(PREFIX)/include/edgefirst/stdlib/`. If you copy headers manually, ensure both files accompany `schemas.hpp`.
 
 **Decode an Image from an incoming Zenoh payload:**
 
@@ -257,7 +257,7 @@ Rule 5 in [CAPI.md](CAPI.md#memory-management)).
 
 A full working example is in [`examples/cpp/example.cpp`](examples/cpp/example.cpp).
 The complete C++ API surface is documented in
-[`include/edgefirst/schemas.hpp`](include/edgefirst/schemas.hpp).
+[`crates/capi/include/edgefirst/schemas.hpp`](crates/capi/include/edgefirst/schemas.hpp).
 
 ### Building from Source
 

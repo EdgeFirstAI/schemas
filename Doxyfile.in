@@ -71,8 +71,8 @@ WARN_FORMAT            = "$file:$line: $text"
 
 # Input — point at the two public headers. Leave the Rust source and internal
 # detail headers out; they're implementation, not API.
-INPUT                  = include/edgefirst/schemas.h \
-                         include/edgefirst/schemas.hpp \
+INPUT                  = crates/capi/include/edgefirst/schemas.h \
+                         crates/capi/include/edgefirst/schemas.hpp \
                          README.md \
                          CAPI.md \
                          CONTRIBUTING.md \
@@ -86,7 +86,7 @@ USE_MDFILE_AS_MAINPAGE = README.md
 # implementation detail, not part of the public API surface users should
 # browse. Similarly, exclude the `edgefirst::schemas::detail` namespace via
 # EXCLUDE_SYMBOLS.
-EXCLUDE                = include/edgefirst/stdlib \
+EXCLUDE                = crates/capi/include/edgefirst/stdlib \
                          tests \
                          examples \
                          target \

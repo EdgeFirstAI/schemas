@@ -566,7 +566,7 @@ impl Mask<&'static [u8]> {
     ///
     /// The parse is a single pass: `scan_mask_element` consumes the fields
     /// and produces the view directly, so there is no double-validation cost.
-    pub(crate) fn from_cdr_as_view(buf: &'static [u8]) -> Result<MaskView<'static>, CdrError> {
+    pub fn from_cdr_as_view(buf: &'static [u8]) -> Result<MaskView<'static>, CdrError> {
         let mut c = CdrCursor::new(buf)?;
         scan_mask_element(&mut c)
     }
@@ -1767,7 +1767,7 @@ impl DetectBox<&'static [u8]> {
     ///
     /// The parse is a single pass: `scan_box_element` consumes the fields and
     /// produces the view directly, so there is no double-validation cost.
-    pub(crate) fn from_cdr_as_view(buf: &'static [u8]) -> Result<DetectBoxView<'static>, CdrError> {
+    pub fn from_cdr_as_view(buf: &'static [u8]) -> Result<DetectBoxView<'static>, CdrError> {
         let mut c = CdrCursor::new(buf)?;
         scan_box_element(&mut c)
     }
@@ -2192,9 +2192,9 @@ impl Detect<&'static [u8]> {
     /// because they borrow from the `&'static [u8]` buffer. No unsafe
     /// transmute is required.
     ///
-    /// This is a crate-private helper used by the FFI layer to avoid the
-    /// cost of a second walk in `inner.boxes()` after `from_cdr`.
-    pub(crate) fn from_cdr_collect_boxes(
+    /// Helper used by the FFI layer to avoid the cost of a second walk in
+    /// `inner.boxes()` after `from_cdr`.
+    pub fn from_cdr_collect_boxes(
         buf: &'static [u8],
     ) -> Result<(Self, Vec<DetectBoxView<'static>>), CdrError> {
         let header = Header::<&[u8]>::from_cdr(buf)?;
@@ -2546,7 +2546,7 @@ impl Model<&'static [u8]> {
     /// This is a crate-private helper used by the FFI layer to avoid the
     /// cost of a second walk in `inner.boxes()` / `inner.masks()` after
     /// `from_cdr`.
-    pub(crate) fn from_cdr_collect_children(
+    pub fn from_cdr_collect_children(
         buf: &'static [u8],
     ) -> Result<(Self, Vec<DetectBoxView<'static>>, Vec<MaskView<'static>>), CdrError> {
         let header = Header::<&[u8]>::from_cdr(buf)?;
@@ -4155,7 +4155,8 @@ mod tests {
     /// `Detect::from_cdr(…).boxes()` path.
     #[test]
     fn detect_from_cdr_collect_boxes_matches_boxes() {
-        static BYTES: &[u8] = include_bytes!("../testdata/cdr/edgefirst_msgs/Detect_multi.cdr");
+        static BYTES: &[u8] =
+            include_bytes!("../../../testdata/cdr/edgefirst_msgs/Detect_multi.cdr");
 
         // Path 1: legacy two-pass (from_cdr then .boxes()).
         let detect_ref = Detect::from_cdr(BYTES).expect("reference decode");
@@ -4205,7 +4206,7 @@ mod tests {
     /// `Model::from_cdr(…).boxes()` / `.masks()` path.
     #[test]
     fn model_from_cdr_collect_children_matches_boxes_and_masks() {
-        static BYTES: &[u8] = include_bytes!("../testdata/cdr/edgefirst_msgs/Model.cdr");
+        static BYTES: &[u8] = include_bytes!("../../../testdata/cdr/edgefirst_msgs/Model.cdr");
 
         // Path 1: legacy two-pass.
         let model_ref = Model::from_cdr(BYTES).expect("reference decode");
