@@ -478,7 +478,7 @@ Use SECURITY.md process: email `support@au-zone.com` with subject "Security Vuln
 **Schema layers:**
 1. **ROS2 Common Interfaces** (std_msgs, sensor_msgs, geometry_msgs, nav_msgs, builtin_interfaces, rosgraph_msgs) — Apache-2.0
 2. **Foxglove Schemas** (visualization types) — MIT
-3. **EdgeFirst Custom Schemas** (edgefirst_msgs: Detect, Box, Track, DmaBuffer, RadarCube, RadarInfo, Model, ModelInfo) — Apache-2.0
+3. **EdgeFirst Custom Schemas** (edgefirst_msgs: Detect, Box, Track, Tensor, TensorPlane, TensorStamped, CameraFrame, RadarCube, RadarInfo, Model, ModelInfo) — Apache-2.0
 
 **Data flow:**
 - CDR buffer allocation → In-place field writes ("serialization") → Zenoh publish
@@ -619,10 +619,14 @@ Optimized for EdgeFirst hardware platforms:
 - **`include/edgefirst/schemas.h` is hand-maintained**: Despite `cbindgen` being
   listed as a build-dependency in `Cargo.toml`, it is not invoked by `build.rs`.
   The header is edited manually. When adding, removing, or modifying C API
-  functions, update both `src/ffi.rs` (the implementation and its Rust doc
-  comments that establish the source of truth for when cbindgen is eventually
-  wired) AND `include/edgefirst/schemas.h` (the shipped header with Doxygen
-  comments). They must be kept in sync manually.
+  functions, update both the implementation (`src/ffi.rs`, or a submodule under
+  `src/ffi/` — `src/ffi/tensor.rs` holds the tensor family, since `ffi.rs` is
+  already ~12k lines) and its Rust doc comments, which establish the source of
+  truth for when cbindgen is eventually wired, AND
+  `include/edgefirst/schemas.h` (the shipped header with Doxygen comments).
+  They must be kept in sync manually — cross-check by comparing the declared
+  names against `nm` output on the built library, which should agree exactly in
+  both directions.
 - **Verify cross-language consistency**: When adding a message type, it must be added to Rust, C (via FFI), and Python with matching field names and CDR layout.
 - **Test with golden data**: New message types should have golden CDR test data for cross-language validation.
 

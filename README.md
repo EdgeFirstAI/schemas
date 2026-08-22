@@ -331,7 +331,10 @@ Specialized types for edge AI perception workflows:
 - **`Detect`** - Object detection results with bounding boxes and tracks
 - **`Box`** - 2D bounding box with confidence and class
 - **`Track`** - Object tracking information with unique IDs
-- **`DmaBuffer`** - Zero-copy DMA buffer sharing for hardware accelerators
+- **`Tensor`** - Tensor payload: dtype, shape, strides, quantization, colorimetry, and planes
+- **`TensorPlane`** - One plane, carried behind a platform handle (dma-buf, shm) or inline
+- **`TensorStamped`** - A timestamped `Tensor`, for model input and output topics
+- **`CameraFrame`** - A timestamped camera frame, carried as a `Tensor`
 - **`RadarCube`** - Raw radar data cube for processing
 - **`RadarInfo`** - Radar sensor calibration and metadata
 - **`Model`** - Neural network model metadata

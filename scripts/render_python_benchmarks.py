@@ -132,14 +132,6 @@ HEAVY_CATEGORIES = [
         "variants": ["10KB", "100KB", "500KB", "1MB"],
         "labels": {"10KB": "10 KB", "100KB": "100 KB", "500KB": "500 KB", "1MB": "1 MB"},
     },
-    {
-        "msg": "dmabuf",
-        "display": "DmaBuffer",
-        "desc": "DMA-buf reference (metadata only; no payload).",
-        "axis": "fixture",
-        "variants": ["default"],
-        "labels": {"default": "default 1280×720 RGBA"},
-    },
 ]
 
 # Light types: order they appear in the table.

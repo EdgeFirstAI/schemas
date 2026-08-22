@@ -107,7 +107,7 @@ Function and type names follow a consistent prefix scheme based on message origi
 |--------|----------------|-------------|--------|
 | ROS 2 common_interfaces | `ros_` | `ros_<type>_t` | [ros2/common_interfaces](https://github.com/ros2/common_interfaces) |
 | Foxglove schemas | `ros_compressed_video_` | `ros_compressed_video_t` | [foxglove-sdk](https://github.com/foxglove/foxglove-sdk) |
-| EdgeFirst custom | `ros_dmabuffer_`, `ros_detect_`, etc. | `ros_<type>_t` | edgefirst_msgs/msg |
+| EdgeFirst custom | `ros_tensor_`, `ros_detect_`, etc. | `ros_<type>_t` | edgefirst_msgs/msg |
 
 **Snake-case conversion rules:**
 
@@ -115,11 +115,12 @@ Function and type names follow a consistent prefix scheme based on message origi
 |-----------------|-------------------|
 | `PointCloud2` | `ros_point_cloud2_` |
 | `NavSatFix` | `ros_nav_sat_fix_` |
-| `DmaBuffer` | `ros_dmabuffer_` |
+| `CameraFrame` | `ros_camera_frame_` |
+| `TensorPlane` | `ros_tensor_plane_` |
 | `CompressedImage` | `ros_compressed_image_` |
 | `TransformStamped` | `ros_transform_stamped_` |
 
-Acronyms are treated as single words: `Dma` → `dma`, `Sat` → `sat`.
+Acronyms are treated as single words: `Sat` → `sat`, `Nav` → `nav`.
 Numbers stay attached to the preceding word: `Cloud2` → `cloud2`.
 
 ## Architecture
@@ -188,7 +189,10 @@ represented as opaque handles wrapping an internal CDR byte buffer.
 | Path | nav_msgs |
 | CompressedVideo | foxglove_msgs |
 | CompressedImage | foxglove_msgs |
-| DmaBuffer | edgefirst_msgs |
+| Tensor | edgefirst_msgs |
+| TensorPlane | edgefirst_msgs |
+| TensorStamped | edgefirst_msgs |
+| CameraFrame | edgefirst_msgs |
 | Mask | edgefirst_msgs |
 | RadarCube | edgefirst_msgs |
 | RadarInfo | edgefirst_msgs |
@@ -1122,32 +1126,158 @@ int ros_mask_encode(uint8_t** out_bytes, size_t* out_len,
                     bool boxed);
 ```
 
-#### DmaBuffer
+#### Tensor family
+
+`Tensor` is the payload; `TensorStamped` and `CameraFrame` are byte-identical
+wrappers around it. The C API mirrors that composition rather than flattening
+it — a wrapper hands out a borrowed `const ros_tensor_t*`, so the tensor
+accessors are shared rather than duplicated per wrapper.
 
 ```c
-ros_dmabuffer_t* ros_dmabuffer_from_cdr(const uint8_t* data, size_t len);
-void             ros_dmabuffer_free(ros_dmabuffer_t* view);
-
-int32_t     ros_dmabuffer_get_stamp_sec(const ros_dmabuffer_t* view);
-uint32_t    ros_dmabuffer_get_stamp_nanosec(const ros_dmabuffer_t* view);
-const char* ros_dmabuffer_get_frame_id(const ros_dmabuffer_t* view);
-uint32_t    ros_dmabuffer_get_pid(const ros_dmabuffer_t* view);
-int32_t     ros_dmabuffer_get_fd(const ros_dmabuffer_t* view);
-uint32_t    ros_dmabuffer_get_width(const ros_dmabuffer_t* view);
-uint32_t    ros_dmabuffer_get_height(const ros_dmabuffer_t* view);
-uint32_t    ros_dmabuffer_get_stride(const ros_dmabuffer_t* view);
-uint32_t    ros_dmabuffer_get_fourcc(const ros_dmabuffer_t* view);
-uint32_t    ros_dmabuffer_get_length(const ros_dmabuffer_t* view);
-
-const uint8_t* ros_dmabuffer_as_cdr(const ros_dmabuffer_t* view, size_t* out_len);
-
-int ros_dmabuffer_encode(uint8_t** out_bytes, size_t* out_len,
-                         int32_t stamp_sec, uint32_t stamp_nanosec,
-                         const char* frame_id,
-                         uint32_t pid, int32_t fd,
-                         uint32_t width, uint32_t height,
-                         uint32_t stride, uint32_t fourcc, uint32_t length);
+ros_camera_frame_t*       f = ros_camera_frame_from_cdr(buf, len);
+const ros_tensor_t*       t = ros_camera_frame_get_tensor(f);
+const ros_tensor_plane_t* p = ros_tensor_get_plane(t, 0);
+int64_t                   h = ros_tensor_plane_get_handle(p);
+ros_camera_frame_free(f);   /* frees the borrowed tensor and planes too */
 ```
+
+**Ownership.** `ros_<wrapper>_get_tensor()` and `ros_tensor_get_plane()`
+return BORROWED pointers into the parent handle. Do not free them; they die
+with the parent. Freeing one anyway is a no-op that sets `errno = EINVAL`
+rather than a double free (Memory Management Rule 5).
+
+##### Tensor
+
+```c
+ros_tensor_t* ros_tensor_from_cdr(const uint8_t* data, size_t len);
+void          ros_tensor_free(ros_tensor_t* view);
+
+uint32_t    ros_tensor_get_storage_kind(const ros_tensor_t* view);
+uint32_t    ros_tensor_get_pid(const ros_tensor_t* view);
+int32_t     ros_tensor_get_fence_fd(const ros_tensor_t* view);   /* -1 = none */
+uint32_t    ros_tensor_get_dtype(const ros_tensor_t* view);
+int32_t     ros_tensor_get_quant_axis(const ros_tensor_t* view); /* -2 = unquantized */
+uint32_t    ros_tensor_get_num_planes(const ros_tensor_t* view);
+
+const char* ros_tensor_get_format(const ros_tensor_t* view);
+const char* ros_tensor_get_color_space(const ros_tensor_t* view);
+const char* ros_tensor_get_color_transfer(const ros_tensor_t* view);
+const char* ros_tensor_get_color_encoding(const ros_tensor_t* view);
+const char* ros_tensor_get_color_range(const ros_tensor_t* view);
+
+uint32_t  ros_tensor_get_shape_len(const ros_tensor_t* view);
+uint32_t  ros_tensor_get_strides_len(const ros_tensor_t* view);
+int32_t   ros_tensor_get_shape_at(const ros_tensor_t* view, uint32_t i, uint64_t* out);
+int32_t   ros_tensor_get_strides_at(const ros_tensor_t* view, uint32_t i, int64_t* out);
+ptrdiff_t ros_tensor_copy_shape(const ros_tensor_t* view, uint64_t* out, size_t cap);
+ptrdiff_t ros_tensor_copy_strides(const ros_tensor_t* view, int64_t* out, size_t cap);
+
+const float*   ros_tensor_get_quant_scales(const ros_tensor_t* view, size_t* out_len);
+const int32_t* ros_tensor_get_quant_zero_points(const ros_tensor_t* view, size_t* out_len);
+
+const ros_tensor_plane_t* ros_tensor_get_plane(const ros_tensor_t* view, uint32_t index);
+const uint8_t* ros_tensor_get_tensor_bytes(const ros_tensor_t* view, size_t* out_len);
+int32_t ros_tensor_to_standalone_cdr(const ros_tensor_t* view,
+                                     uint8_t** out_bytes, size_t* out_len);
+```
+
+**Why `shape` and `strides` are not borrowed pointers.** CDR 8-byte alignment
+is relative to the data start at absolute offset 4, so their elements land at
+absolute offset ≡ 4 (mod 8) and can never satisfy `alignof(uint64_t)`.
+Returning a `const uint64_t*` into the buffer would invite misaligned loads —
+undefined behaviour on strict-alignment targets. Access is index- or
+bulk-copy based instead. Prefer `ros_tensor_copy_shape()` to a loop of
+`ros_tensor_get_shape_at()`: the former is O(n) for the whole sequence, the
+latter rescans and is O(n²).
+
+`quant_scales` / `quant_zero_points` are 4-byte elements whose CDR alignment
+does coincide with their natural alignment, so those stay borrowed.
+
+**`shape` is the addressing grid, not the byte layout.** An NV12 frame carries
+`shape == [h, w]` with a U8 dtype against an `h*w*3/2` allocation; it is
+deliberately never validated against any buffer size. `strides` is in bytes.
+
+##### TensorPlane
+
+```c
+void ros_tensor_plane_free(ros_tensor_plane_t* view);   /* borrowed: no-op + EINVAL */
+
+int64_t  ros_tensor_plane_get_handle(const ros_tensor_plane_t* view); /* -1 = inline */
+uint64_t ros_tensor_plane_get_offset(const ros_tensor_plane_t* view);
+uint64_t ros_tensor_plane_get_stride(const ros_tensor_plane_t* view);
+uint64_t ros_tensor_plane_get_size(const ros_tensor_plane_t* view);
+uint64_t ros_tensor_plane_get_used(const ros_tensor_plane_t* view);   /* <= size */
+uint64_t ros_tensor_plane_get_modifier(const ros_tensor_plane_t* view);
+bool     ros_tensor_plane_is_inline(const ros_tensor_plane_t* view);
+
+const uint8_t* ros_tensor_plane_get_handle_bytes(const ros_tensor_plane_t* view, size_t* out_len);
+const uint8_t* ros_tensor_plane_get_data(const ros_tensor_plane_t* view, size_t* out_len);
+```
+
+##### TensorStamped and CameraFrame
+
+Identical shapes; substitute `tensor_stamped` for `camera_frame` throughout.
+
+```c
+ros_camera_frame_t* ros_camera_frame_from_cdr(const uint8_t* data, size_t len);
+void                ros_camera_frame_free(ros_camera_frame_t* view);
+
+int32_t     ros_camera_frame_get_stamp_sec(const ros_camera_frame_t* view);
+uint32_t    ros_camera_frame_get_stamp_nanosec(const ros_camera_frame_t* view);
+const char* ros_camera_frame_get_frame_id(const ros_camera_frame_t* view);
+uint64_t    ros_camera_frame_get_seq(const ros_camera_frame_t* view);
+
+const ros_tensor_t* ros_camera_frame_get_tensor(const ros_camera_frame_t* view);
+const uint8_t*      ros_camera_frame_get_cdr(const ros_camera_frame_t* view, size_t* out_len);
+
+/* In-place header edits on a mutable CDR buffer */
+int32_t ros_camera_frame_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t ros_camera_frame_set_seq(uint8_t* buf, size_t len, uint64_t v);
+```
+
+##### Builders
+
+Build the payload with a tensor builder, then attach it to a wrapper builder.
+The tensor builder is BORROWED and must outlive the wrapper's build call.
+
+```c
+ros_tensor_builder_t* tb = ros_tensor_builder_new();
+ros_tensor_builder_set_dtype(tb, 1);
+ros_tensor_builder_set_format(tb, "NV12");
+ros_tensor_builder_set_shape(tb, (const uint64_t[]){480, 640}, 2);
+
+ros_tensor_plane_elem_t planes[2] = {
+    { .handle = fd, .offset = 0,         .stride = 640,
+      .size = 640 * 480,     .used = 640 * 480 },
+    { .handle = fd, .offset = 640 * 480, .stride = 640,
+      .size = 640 * 480 / 2, .used = 640 * 480 / 2 },
+};
+ros_tensor_builder_set_planes(tb, planes, 2);
+
+ros_camera_frame_builder_t* fb = ros_camera_frame_builder_new();
+ros_camera_frame_builder_set_stamp(fb, 42, 0);
+ros_camera_frame_builder_set_frame_id(fb, "camera_0");
+ros_camera_frame_builder_set_seq(fb, 1);
+ros_camera_frame_builder_set_tensor(fb, tb);
+
+uint8_t* bytes = NULL; size_t len = 0;
+if (ros_camera_frame_builder_build(fb, &bytes, &len) == 0) {
+    /* publish bytes[0..len) */
+    ros_bytes_free(bytes, len);
+}
+ros_camera_frame_builder_free(fb);
+ros_tensor_builder_free(tb);
+```
+
+Builder defaults are NOT all zero: `fence_fd` starts at `-1` (no fence) and
+`quant_axis` at `-2` (unquantized), matching the schema's "absent" values.
+Sequence setters BORROW the caller's arrays until build or free.
+
+Validation happens at build time and reports `errno = EBADMSG`: a plane set
+that mixes inline and referenced modes is rejected, as is `used > size`, an
+inline plane whose `size` disagrees with its `data`, a `strides` rank that
+does not match `shape`, a `quant_scales` length that does not match
+`quant_axis`, and colorimetry set without a `format`.
 
 #### RadarCube
 

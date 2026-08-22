@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 
 from edgefirst.schemas.builtin_interfaces import Duration, Time
-from edgefirst.schemas.edgefirst_msgs import DmaBuffer, Mask, RadarCube
+from edgefirst.schemas.edgefirst_msgs import Mask, RadarCube
 from edgefirst.schemas.foxglove_msgs import CompressedVideo as FoxgloveCompressedVideo
 from edgefirst.schemas.geometry_msgs import (
     Point,
@@ -41,7 +41,6 @@ from edgefirst.schemas.std_msgs import ColorRGBA, Header
 
 from shapes import (
     COMPRESSED_VIDEO_VARIANTS,
-    DMA_BUFFER_VARIANTS,
     GRID_CELLS_VARIANTS,
     IMAGE_VARIANTS,
     MASK_VARIANTS,
@@ -114,15 +113,6 @@ def make_compressed_video(v) -> FoxgloveCompressedVideo:
         frame_id="camera",
         data=np.zeros(v.payload_bytes, dtype=np.uint8),
         format="h264",
-    )
-
-
-def make_dmabuf(v) -> DmaBuffer:
-    return DmaBuffer(
-        header=make_header(),
-        pid=12345, fd=7,
-        width=v.width, height=v.height,
-        stride=v.stride, fourcc=v.fourcc, length=v.length,
     )
 
 
@@ -244,18 +234,6 @@ def test_compressed_video_serialize(benchmark, v):
 def test_compressed_video_deserialize(benchmark, v):
     buf = make_compressed_video(v).to_bytes()
     benchmark(FoxgloveCompressedVideo.from_cdr, buf)
-
-
-@pytest.mark.parametrize("v", DMA_BUFFER_VARIANTS, ids=lambda v: v.name)
-def test_dmabuf_serialize(benchmark, v):
-    d = make_dmabuf(v)
-    benchmark(d.to_bytes)
-
-
-@pytest.mark.parametrize("v", DMA_BUFFER_VARIANTS, ids=lambda v: v.name)
-def test_dmabuf_deserialize(benchmark, v):
-    buf = make_dmabuf(v).to_bytes()
-    benchmark(DmaBuffer.from_cdr, buf)
 
 
 # ── nav_msgs sequences: parametrized across variants (DE-2781) ─────

@@ -32,7 +32,6 @@
 #include "geometry_msgs/Point.hpp"
 #include "geometry_msgs/Quaternion.hpp"
 #include "geometry_msgs/Pose.hpp"
-#include "edgefirst_msgs/DmaBuffer.hpp"
 #include "sensor_msgs/Image.hpp"
 #include "sensor_msgs/PointField.hpp"
 #include "sensor_msgs/PointCloud2.hpp"
@@ -194,7 +193,7 @@ static void register_header_benchmarks() {
 }
 
 // ===========================================================================
-// Small types benchmarks (Time, Vector3, Pose, DmaBuffer)
+// Small types benchmarks (Time, Vector3, Pose)
 // ===========================================================================
 
 static void register_small_type_benchmarks() {
@@ -368,84 +367,6 @@ static void register_small_type_benchmarks() {
             }
         });
 
-    // ---- DmaBuffer ----
-    static const std::vector<char> dma_bytes = [] {
-        bench::fixtures::DmaBufferFixture f;
-        edgefirst_msgs::msg::DmaBuffer msg;
-        msg.header().stamp().sec(f.stamp_sec);
-        msg.header().stamp().nanosec(f.stamp_nanos);
-        msg.header().frame_id(f.frame_id);
-        msg.pid(f.pid); msg.fd(f.fd);
-        msg.width(f.width); msg.height(f.height);
-        msg.stride(f.stride); msg.fourcc(f.fourcc); msg.length(f.length);
-        return cyclone_encode_msg(msg);
-    }();
-
-    benchmark::RegisterBenchmark(
-        bench::bench_name("DmaBuffer", bench::op::encode_new, "default").c_str(),
-        [](benchmark::State& state) {
-            bench::fixtures::DmaBufferFixture f;
-            edgefirst_msgs::msg::DmaBuffer msg;
-            msg.header().stamp().sec(f.stamp_sec);
-            msg.header().stamp().nanosec(f.stamp_nanos);
-            msg.header().frame_id(f.frame_id);
-            msg.pid(f.pid); msg.fd(f.fd);
-            msg.width(f.width); msg.height(f.height);
-            msg.stride(f.stride); msg.fourcc(f.fourcc); msg.length(f.length);
-            cyclone_encode_bench(state, msg);
-        });
-    benchmark::RegisterBenchmark(
-        bench::bench_name("DmaBuffer", bench::op::decode_decode, "default").c_str(),
-        [](benchmark::State& state) {
-            for (auto _ : state) {
-                auto msg = cyclone_decode_msg<edgefirst_msgs::msg::DmaBuffer>(dma_bytes);
-                benchmark::DoNotOptimize(msg);
-            }
-        });
-    benchmark::RegisterBenchmark(
-        bench::bench_name("DmaBuffer", bench::op::access_one_field, "default").c_str(),
-        [](benchmark::State& state) {
-            for (auto _ : state) {
-                auto msg = cyclone_decode_msg<edgefirst_msgs::msg::DmaBuffer>(dma_bytes);
-                auto sec = msg.header().stamp().sec();
-                benchmark::DoNotOptimize(sec);
-            }
-        });
-    benchmark::RegisterBenchmark(
-        bench::bench_name("DmaBuffer", bench::op::access_half_fields, "default").c_str(),
-        [](benchmark::State& state) {
-            for (auto _ : state) {
-                auto msg    = cyclone_decode_msg<edgefirst_msgs::msg::DmaBuffer>(dma_bytes);
-                auto sec    = msg.header().stamp().sec();
-                auto width  = msg.width();
-                auto height = msg.height();
-                auto length = msg.length();
-                benchmark::DoNotOptimize(sec);    benchmark::DoNotOptimize(width);
-                benchmark::DoNotOptimize(height); benchmark::DoNotOptimize(length);
-            }
-        });
-    benchmark::RegisterBenchmark(
-        bench::bench_name("DmaBuffer", bench::op::access_all_fields, "default").c_str(),
-        [](benchmark::State& state) {
-            for (auto _ : state) {
-                auto msg    = cyclone_decode_msg<edgefirst_msgs::msg::DmaBuffer>(dma_bytes);
-                auto sec    = msg.header().stamp().sec();
-                auto nanos  = msg.header().stamp().nanosec();
-                auto fid    = msg.header().frame_id();
-                auto pid    = msg.pid();
-                auto fd     = msg.fd();
-                auto width  = msg.width();
-                auto height = msg.height();
-                auto stride = msg.stride();
-                auto fourcc = msg.fourcc();
-                auto length = msg.length();
-                benchmark::DoNotOptimize(sec);    benchmark::DoNotOptimize(nanos);
-                benchmark::DoNotOptimize(fid);    benchmark::DoNotOptimize(pid);
-                benchmark::DoNotOptimize(fd);     benchmark::DoNotOptimize(width);
-                benchmark::DoNotOptimize(height); benchmark::DoNotOptimize(stride);
-                benchmark::DoNotOptimize(fourcc); benchmark::DoNotOptimize(length);
-            }
-        });
 }
 
 // ===========================================================================

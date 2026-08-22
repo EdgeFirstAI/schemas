@@ -15,11 +15,9 @@ from .geometry_msgs import Vector3
 __all__ = [
     "Box",
     "CameraFrame",
-    "CameraPlane",
     "Date",
     "Detect",
     "DetectBox",
-    "DmaBuffer",
     "LocalTime",
     "Mask",
     "MaskBox",
@@ -27,6 +25,9 @@ __all__ = [
     "ModelInfo",
     "RadarCube",
     "RadarInfo",
+    "Tensor",
+    "TensorPlane",
+    "TensorStamped",
     "Track",
     "Vibration",
 ]
@@ -49,61 +50,6 @@ class Date:
     def to_bytes(self) -> bytes: ...
     @classmethod
     def from_cdr(cls, buf: BufferLike) -> Date: ...
-    def __repr__(self) -> str: ...
-
-
-class DmaBuffer:
-    """``edgefirst_msgs.DmaBuffer`` — DMA-buf reference (header + 7 small
-    u32/i32 metadata fields).
-
-    .. deprecated:: 3.1.0
-        Use :class:`CameraFrame` for multi-plane support, colorimetry,
-        GPU fences, and off-device bridging. Kept here for bench parity
-        with pycdr2.
-    """
-
-    def __init__(
-        self,
-        header: Header,
-        pid: int,
-        fd: int,
-        width: int,
-        height: int,
-        stride: int,
-        fourcc: int,
-        length: int,
-    ) -> None: ...
-
-    @property
-    def stamp(self) -> Time: ...
-    @property
-    def frame_id(self) -> str: ...
-    @property
-    def pid(self) -> int: ...
-    @property
-    def fd(self) -> int:
-        """Linux file-descriptor number for the DMA-buf."""
-
-    @property
-    def width(self) -> int: ...
-    @property
-    def height(self) -> int: ...
-    @property
-    def stride(self) -> int: ...
-    @property
-    def fourcc(self) -> int:
-        """Pixel format in V4L2 fourcc encoding (e.g. 0x56595559 = 'YUYV')."""
-
-    @property
-    def length(self) -> int:
-        """Total payload size in bytes."""
-
-    @property
-    def cdr_size(self) -> int: ...
-
-    def to_bytes(self) -> bytes: ...
-    @classmethod
-    def from_cdr(cls, buf: BufferLike) -> DmaBuffer: ...
     def __repr__(self) -> str: ...
 
 
@@ -411,97 +357,6 @@ class MaskBox:
     def boxed(self) -> bool: ...
 
 
-class CameraPlane:
-    """``edgefirst_msgs.CameraPlane`` — single DMA plane within a
-    :class:`CameraFrame`.
-    """
-
-    def __init__(
-        self,
-        fd: int = -1,
-        offset: int = 0,
-        stride: int = 0,
-        size: int = 0,
-        used: int = 0,
-        data: Optional[bytes] = None,
-    ) -> None:
-        """Construct a camera plane.
-
-        ``data`` provides inline pixel bytes (only valid when ``fd == -1``).
-        Raises ``ValueError`` if ``data`` is non-empty and ``fd != -1``.
-        """
-
-    @property
-    def fd(self) -> int: ...
-    @property
-    def offset(self) -> int: ...
-    @property
-    def stride(self) -> int: ...
-    @property
-    def size(self) -> int: ...
-    @property
-    def used(self) -> int: ...
-    @property
-    def data(self) -> bytes: ...
-
-
-class CameraFrame:
-    """``edgefirst_msgs.CameraFrame`` — multi-plane camera frame with
-    colorimetry and GPU fence metadata.
-    """
-
-    def __init__(
-        self,
-        header: Header,
-        seq: int = 0,
-        pid: int = 0,
-        width: int = 0,
-        height: int = 0,
-        format: str = "",
-        color_space: str = "",
-        color_transfer: str = "",
-        color_encoding: str = "",
-        color_range: str = "",
-        fence_fd: int = -1,
-        planes: Optional[Sequence[CameraPlane]] = None,
-    ) -> None: ...
-
-    @property
-    def stamp(self) -> Time: ...
-    @property
-    def frame_id(self) -> str: ...
-    @property
-    def seq(self) -> int: ...
-    @property
-    def pid(self) -> int: ...
-    @property
-    def width(self) -> int: ...
-    @property
-    def height(self) -> int: ...
-    @property
-    def format(self) -> str: ...
-    @property
-    def color_space(self) -> str: ...
-    @property
-    def color_transfer(self) -> str: ...
-    @property
-    def color_encoding(self) -> str: ...
-    @property
-    def color_range(self) -> str: ...
-    @property
-    def fence_fd(self) -> int: ...
-    @property
-    def num_planes(self) -> int: ...
-    @property
-    def planes(self) -> List[CameraPlane]: ...
-    @property
-    def cdr_size(self) -> int: ...
-
-    def to_bytes(self) -> bytes: ...
-    @classmethod
-    def from_cdr(cls, buf: BufferLike) -> CameraFrame: ...
-
-
 class Model:
     """``edgefirst_msgs.Model`` — full model inference result with boxes
     and segmentation masks.
@@ -659,3 +514,296 @@ class Vibration:
     def to_bytes(self) -> bytes: ...
     @classmethod
     def from_cdr(cls, buf: BufferLike) -> Vibration: ...
+
+
+class TensorPlane:
+    """``edgefirst_msgs.TensorPlane`` — one plane of a :class:`Tensor`.
+
+    Two mutually exclusive transport modes:
+
+    - ``handle >= 0`` — the bytes live behind the platform handle and
+      ``data`` is empty. This is the dma-buf / shared-memory path.
+    - ``handle == -1`` — the bytes are inline in ``data``; ``is_inline`` is
+      True, ``size == len(data)``, ``modifier == 0`` and ``handle_bytes`` is
+      empty.
+
+    A frame must not mix modes: all planes inline, or none. The tensor
+    carries a single ``storage_kind``, ``pid`` and ``fence_fd`` covering
+    every plane, so a mixed set has no coherent meaning and is rejected.
+
+    Read back from a :class:`Tensor` this is a value copy, ``data``
+    included. For a large inline payload prefer :meth:`Tensor.plane_data`,
+    which returns a zero-copy view.
+    """
+
+    def __init__(
+        self,
+        handle: int = -1,
+        offset: int = 0,
+        stride: int = 0,
+        size: int = 0,
+        used: int = 0,
+        modifier: int = 0,
+        handle_bytes: Optional[bytes] = None,
+        data: Optional[bytes] = None,
+    ) -> None: ...
+
+    @property
+    def handle(self) -> int: ...
+    @property
+    def offset(self) -> int: ...
+    @property
+    def stride(self) -> int:
+        """Row stride in BYTES."""
+        ...
+    @property
+    def size(self) -> int:
+        """Allocated size of the plane, in bytes."""
+        ...
+    @property
+    def used(self) -> int:
+        """Bytes actually populated; always ``<= size``."""
+        ...
+    @property
+    def modifier(self) -> int:
+        """Format modifier (tiling / compression); 0 for linear."""
+        ...
+    @property
+    def handle_bytes(self) -> bytes: ...
+    @property
+    def data(self) -> bytes: ...
+    @property
+    def is_inline(self) -> bool: ...
+
+    def __repr__(self) -> str: ...
+
+
+class Tensor:
+    """``edgefirst_msgs.Tensor`` — the unstamped tensor payload.
+
+    Carries the element type, the addressing grid, optional quantization
+    parameters, optional colorimetry, and one or more planes.
+
+    ``shape`` is the addressing grid, NOT the byte layout: an NV12 frame
+    carries ``shape == [h, w]`` with a U8 ``dtype`` against an ``h*w*3/2``
+    allocation. It is deliberately never validated against any buffer size.
+    ``strides`` is in BYTES, and is either empty or exactly as long as
+    ``shape``.
+
+    ``quant_axis`` selects which shape the quantization parameters take,
+    and the encoder enforces the match:
+
+    - ``-2`` unquantized — ``quant_scales`` must be empty
+    - ``-1`` per-tensor — exactly one scale
+    - ``>= 0`` per-axis — exactly ``shape[quant_axis]`` scales
+
+    ``quant_zero_points`` is either empty or the same length as
+    ``quant_scales``. Colorimetry may only be set when ``format`` is.
+
+    Note that ``fence_fd`` and ``quant_axis`` default to ``-1`` and ``-2``
+    respectively — the schema's "absent" values, not zero.
+
+    Example
+    -------
+    ::
+
+        t = Tensor(
+            storage_kind=2,
+            pid=os.getpid(),
+            dtype=1,
+            shape=[480, 640],
+            strides=[640, 1],
+            format="NV12",
+            color_space="bt709",
+            color_range="limited",
+            planes=[
+                TensorPlane(handle=fd, offset=0, stride=640,
+                            size=640 * 480, used=640 * 480),
+                TensorPlane(handle=fd, offset=640 * 480, stride=640,
+                            size=640 * 480 // 2, used=640 * 480 // 2),
+            ],
+        )
+    """
+
+    def __init__(
+        self,
+        storage_kind: int = 0,
+        pid: int = 0,
+        fence_fd: int = -1,
+        dtype: int = 0,
+        quant_axis: int = -2,
+        shape: Optional[Sequence[int]] = None,
+        strides: Optional[Sequence[int]] = None,
+        quant_scales: Optional[Sequence[float]] = None,
+        quant_zero_points: Optional[Sequence[int]] = None,
+        format: str = "",
+        color_space: str = "",
+        color_transfer: str = "",
+        color_encoding: str = "",
+        color_range: str = "",
+        planes: Optional[Sequence[TensorPlane]] = None,
+    ) -> None: ...
+
+    @property
+    def storage_kind(self) -> int:
+        """Storage class shared by every plane (HAL ``storage_kind`` codes)."""
+        ...
+    @property
+    def pid(self) -> int:
+        """Producer PID, for handle resolution; 0 when not applicable."""
+        ...
+    @property
+    def fence_fd(self) -> int:
+        """ACQUIRE fence fd; ``-1`` when there is no fence."""
+        ...
+    @property
+    def dtype(self) -> int:
+        """Element type (HAL ``dtype`` codes)."""
+        ...
+    @property
+    def quant_axis(self) -> int: ...
+    @property
+    def shape(self) -> List[int]: ...
+    @property
+    def strides(self) -> List[int]: ...
+    @property
+    def quant_scales(self) -> List[float]: ...
+    @property
+    def quant_zero_points(self) -> List[int]: ...
+    @property
+    def format(self) -> str: ...
+    @property
+    def color_space(self) -> str: ...
+    @property
+    def color_transfer(self) -> str: ...
+    @property
+    def color_encoding(self) -> str: ...
+    @property
+    def color_range(self) -> str: ...
+    @property
+    def num_planes(self) -> int: ...
+    @property
+    def planes(self) -> List[TensorPlane]: ...
+    @property
+    def cdr_size(self) -> int: ...
+
+    def plane_data(self, index: int) -> BorrowedBuf:
+        """Zero-copy view of one plane's inline bytes.
+
+        :attr:`planes` copies each plane's ``data``; this does not::
+
+            arr = np.frombuffer(t.plane_data(0), dtype=np.uint8)
+
+        Returns an empty view for a plane whose bytes travel behind a
+        handle. Raises :class:`ValueError` if ``index`` is out of range.
+        """
+        ...
+
+    def to_standalone_cdr(self) -> bytes:
+        """Re-head this tensor as a standalone ``Tensor`` CDR message.
+
+        The republish path — forwarding a camera frame's tensor onto a
+        tensor topic. Copies metadata only; plane payloads stay behind
+        their handles. Because the layout is position-independent the
+        result is byte-identical to encoding the same tensor standalone
+        from scratch.
+        """
+        ...
+
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> Tensor: ...
+    def __repr__(self) -> str: ...
+
+
+class TensorStamped:
+    """``edgefirst_msgs.TensorStamped`` — a timestamped tensor, for model input and output topics.
+
+    A header (``stamp``, ``frame_id``), a ``seq``, and an embedded
+    :class:`Tensor` reached through :attr:`tensor`.
+
+    ``seq`` is more than drop detection: it is a uint64, so it forces the
+    embedded tensor to an 8-aligned offset regardless of ``frame_id``
+    length. That is what makes the nested tensor byte-identical in every
+    wrapper — and what lets :meth:`Tensor.to_standalone_cdr` re-head an
+    embedded tensor without re-encoding it.
+    """
+
+    def __init__(
+        self,
+        stamp: Optional[Time] = None,
+        frame_id: str = "",
+        seq: int = 0,
+        tensor: Optional[Tensor] = None,
+    ) -> None: ...
+
+    @property
+    def stamp(self) -> Time: ...
+    @property
+    def frame_id(self) -> str: ...
+    @property
+    def seq(self) -> int: ...
+    @property
+    def tensor(self) -> Tensor:
+        """The embedded tensor, sharing this message's buffer.
+
+        For a message decoded from ``bytes`` this shares the underlying
+        object outright — no copy. For one just constructed in-process the
+        metadata is duplicated; plane payloads travel behind handles either
+        way, so nothing frame-sized is copied.
+        """
+        ...
+    @property
+    def cdr_size(self) -> int: ...
+
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> TensorStamped: ...
+    def __repr__(self) -> str: ...
+
+
+class CameraFrame:
+    """``edgefirst_msgs.CameraFrame`` — a timestamped camera frame, carried as a tensor.
+
+    A header (``stamp``, ``frame_id``), a ``seq``, and an embedded
+    :class:`Tensor` reached through :attr:`tensor`.
+
+    ``seq`` is more than drop detection: it is a uint64, so it forces the
+    embedded tensor to an 8-aligned offset regardless of ``frame_id``
+    length. That is what makes the nested tensor byte-identical in every
+    wrapper — and what lets :meth:`Tensor.to_standalone_cdr` re-head an
+    embedded tensor without re-encoding it.
+    """
+
+    def __init__(
+        self,
+        stamp: Optional[Time] = None,
+        frame_id: str = "",
+        seq: int = 0,
+        tensor: Optional[Tensor] = None,
+    ) -> None: ...
+
+    @property
+    def stamp(self) -> Time: ...
+    @property
+    def frame_id(self) -> str: ...
+    @property
+    def seq(self) -> int: ...
+    @property
+    def tensor(self) -> Tensor:
+        """The embedded tensor, sharing this message's buffer.
+
+        For a message decoded from ``bytes`` this shares the underlying
+        object outright — no copy. For one just constructed in-process the
+        metadata is duplicated; plane payloads travel behind handles either
+        way, so nothing frame-sized is copied.
+        """
+        ...
+    @property
+    def cdr_size(self) -> int: ...
+
+    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_cdr(cls, buf: BufferLike) -> CameraFrame: ...
+    def __repr__(self) -> str: ...
+

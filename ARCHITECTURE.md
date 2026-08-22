@@ -110,8 +110,10 @@ EdgeFirst Perception Schemas
     ├── Detect (object detection results)
     ├── Box (2D bounding box)
     ├── Track (object tracking)
-    ├── CameraFrame / CameraPlane (zero-copy multi-plane video)
-    ├── DmaBuffer (deprecated — use CameraFrame)
+    ├── Tensor (dtype, shape, strides, quantization, colorimetry, planes)
+    ├── TensorPlane (one plane; behind a handle, or inline)
+    ├── TensorStamped (Header + seq + Tensor)
+    ├── CameraFrame (Header + seq + Tensor; byte-identical to TensorStamped)
     ├── RadarCube (raw radar FFT data)
     ├── RadarInfo (radar configuration)
     ├── Model (inference metadata)
@@ -160,8 +162,9 @@ edgefirst_msgs/msg/
 ├── Detect.msg
 ├── Track.msg
 ├── CameraFrame.msg
-├── CameraPlane.msg
-├── DmaBuffer.msg       # DEPRECATED — removed in 4.0.0
+├── Tensor.msg
+├── TensorPlane.msg
+├── TensorStamped.msg
 ├── RadarCube.msg
 ├── RadarInfo.msg
 ├── Model.msg
@@ -341,15 +344,17 @@ type as belonging to a single `ros_` namespace.
 
 The correct convention is a per-namespace prefix matching the `.msg` source:
 `sensor_*`, `foxglove_*`, `edgefirst_*`, `geometry_*`, `std_*`. New C symbols
-added during the 3.x line (e.g. the CameraFrame / CameraPlane pair in 3.1.0)
-continue to use `ros_*` for within-release consistency — mixing conventions
-inside 3.x would be worse than retaining the wart.
+added during the 3.x line continue to use `ros_*` for within-release
+consistency — mixing conventions inside 3.x would be worse than retaining the
+wart. The tensor family (`ros_tensor_*`, `ros_camera_frame_*`) follows the
+same `ros_*` convention for the same reason.
 
-A full rename of all ~220 C symbols to their namespace-correct prefixes is
-planned for **4.0.0**, which is already a breaking boundary (DmaBuffer
-removal, SOVERSION bump). Rust, C++, and Python surfaces already use
-per-namespace module paths (`edgefirst_schemas::foxglove_msgs::...`) and are
-unaffected by the C API rename.
+A full rename of all C symbols to their namespace-correct prefixes remains
+planned for **4.0.0**, which is already a breaking boundary (the DmaBuffer and
+CameraPlane removal, the CameraFrame redefinition, and a SOVERSION bump).
+Rust, C++, and Python surfaces already use per-namespace module paths
+(`edgefirst_schemas::foxglove_msgs::...`) and are unaffected by the C API
+rename.
 
 ### Python Implementation
 
@@ -568,69 +573,99 @@ zenoh-bridge-ros2dds -c bridge_config.json
 
 ---
 
-## Zero-Copy DMA Buffers
+## Zero-Copy Buffer Sharing
 
-### CameraFrame / CameraPlane (current)
+### The Tensor family
 
-The `CameraFrame` message (with its `CameraPlane[] planes` array) is the current schema for zero-copy sharing of hardware video frames across processes. It supersedes the single-plane `DmaBuffer` (see *Deprecated: DmaBuffer* below) and supports:
+`Tensor` is the schema for sharing hardware buffers across processes without
+copying. `TensorStamped` and `CameraFrame` are byte-identical wrappers around
+it — a header, a `seq`, and the embedded tensor. It supersedes the
+single-plane `DmaBuffer` and the earlier `CameraFrame`/`CameraPlane` pair,
+both removed in 4.0.0, and supports:
 
-- Multi-plane formats (NV12, I420, planar RGB HWC/NCHW) via one `CameraPlane` per plane, each with its own `fd` / `offset` / `stride` / `size` / `used`.
-- Hardware codec bitstreams (H.264/H.265/MJPEG) where the DMA buffer is oversized relative to the valid payload — consumer reads `[0, used)`, not `[0, size)`.
-- GPU pipeline synchronization via `fence_fd` — a `sync_file` fd that consumers `pidfd_getfd` into their process and `poll(POLLIN)` before touching pixels. `-1` means no fence needed.
-- Frame sequence counter (`seq`) for reliable drop detection.
-- Four-axis colorimetry (`color_space` / `color_transfer` / `color_encoding` / `color_range`) matching V4L2 / libcamera / DRM vocabulary.
-- Off-device bridging: when `fd == -1`, the plane's bytes are inlined in `data[]`, so a sidecar can publish a self-contained `CameraFrame` across host boundaries where `pidfd_getfd` is not usable.
+- Multi-plane formats (NV12, I420, planar RGB HWC/NCHW) via one `TensorPlane`
+  per plane, each with its own `handle` / `offset` / `stride` / `size` /
+  `used` / `modifier`.
+- Tiled and compressed layouts, through the per-plane `modifier` (a DRM format
+  modifier; 0 is linear).
+- Non-fd backends, through the per-plane opaque `handle_bytes`.
+- Hardware codec bitstreams (H.264/H.265/MJPEG) where the buffer is oversized
+  relative to the valid payload — consumers read `[0, used)`, not `[0, size)`.
+- GPU pipeline synchronization via `fence_fd` — a `sync_file` fd consumers
+  `pidfd_getfd` into their process and `poll(POLLIN)` before touching pixels.
+  `-1` means no fence.
+- Quantized model tensors, via `quant_axis` / `quant_scales` /
+  `quant_zero_points`.
+- Four-axis colorimetry (`color_space` / `color_transfer` / `color_encoding` /
+  `color_range`) matching V4L2 / libcamera / DRM vocabulary.
+- Off-device bridging: when `handle == -1` the plane's bytes are inlined in
+  `data[]`, so a sidecar can publish a self-contained message across host
+  boundaries where `pidfd_getfd` is not usable.
 
-**Typical consumer flow (raw NV12 from camera service):**
+**What sits where, and why.** `storage_kind`, `pid` and `fence_fd` are on the
+tensor, not the plane. A frame has one backing store and one acquire point:
+`export_native_fence_fd` fences the command stream and takes no plane
+argument, and planes at different offsets in one dma-buf share a single
+`dma_resv`, so a per-plane fence could only ever be the same fd duplicated.
+A field belongs on the plane only when it describes that plane's bytes —
+which is why `handle`, `offset`, `stride`, `size`, `used`, `modifier` and
+`handle_bytes` are per-plane.
+
+**`shape` is the addressing grid, not the byte layout.** An NV12 frame carries
+`shape == [h, w]` with a U8 `dtype` against an `h*w*3/2` allocation. Nothing
+validates `shape` against any buffer size, deliberately. `strides` is in
+**bytes**.
+
+**Position independence.** `seq` is a `uint64`, which forces the embedded
+tensor to an 8-aligned offset regardless of `frame_id` length. The tensor's
+bytes are therefore identical in every wrapper, and an embedded tensor can be
+re-headed onto a tensor topic without re-encoding — the result is
+byte-identical to encoding that tensor standalone.
+
+**Typical consumer flow (raw NV12 from the camera service):**
 
 ```rust
 let cf = CameraFrame::from_cdr(&payload)?;
+let t = cf.tensor();
+
 // (1) wait for GPU/DMA completion if the producer set a fence
-if cf.fence_fd() >= 0 {
-    let local = pidfd_getfd(cf.pid(), cf.fence_fd())?;
-    poll(local, POLLIN, timeout)?;
+if t.fence_fd() >= 0 {
+    let local = pidfd_getfd(t.pid(), t.fence_fd())?;
+    poll(local, POLLIN, timeout)?;   // always bound the timeout
 }
-// (2) mmap each plane and process its valid payload
-for plane in cf.planes() {
-    if plane.fd >= 0 {
-        let local_fd = pidfd_getfd(cf.pid(), plane.fd)?;
-        let ptr = mmap(plane.size, PROT_READ, MAP_SHARED, local_fd, plane.offset as off_t)?;
+
+// (2) map each plane and process its valid payload
+for plane in t.planes() {
+    if plane.handle >= 0 {
+        let local_fd = pidfd_getfd(t.pid(), plane.handle as RawFd)?;
+        let ptr = mmap(plane.size as usize, PROT_READ, MAP_SHARED,
+                       local_fd, plane.offset as off_t)?;
         process(unsafe { std::slice::from_raw_parts(ptr, plane.used as usize) });
         munmap(ptr, plane.size as usize)?;
     } else {
-        // fd == -1: bytes are inlined (off-device bridge path)
+        // handle == -1: bytes are inlined (off-device bridge path)
         process(plane.data);
     }
 }
 ```
 
-**Producer language.** CameraFrame is **view-only from C and C++**; there is
-no `ros_camera_frame_encode` in the C API and the C++ wrapper mirrors that
-shape. Producers are expected to live in Rust (`CameraFrame::new`) or Python
-(`edgefirst.schemas.edgefirst_msgs.CameraFrame`); consumers are supported in
-all four languages. This is a deliberate simplification — embedded camera
-services already compose via Rust or sidecar processes, and a multi-plane
-C encoder would carry significantly more argument surface than the existing
-DmaBuffer encode function. If a C/C++ producer need emerges, adding
-`ros_camera_frame_encode` is additive.
+**Republishing a camera frame's tensor onto a tensor topic:**
 
-### Deprecated: DmaBuffer
-
-The `DmaBuffer` message is deprecated as of 3.1.0 and will be removed in 4.0.0. It remains fully functional throughout the 3.x series. A single-plane `CameraFrame` with `planes.len() == 1` is semantically equivalent to `DmaBuffer` for raw-frame consumers, plus the additional metadata (sequence, fence, colorimetry) that `DmaBuffer` lacked.
-
-**Message Definition** (`edgefirst_msgs/msg/DmaBuffer.msg`):
-
-```
-std_msgs/Header header
-int32 pid                 # Process ID of camera service
-int32 fd                  # DMA buffer file descriptor
-uint32 width              # Image width in pixels
-uint32 height             # Image height in pixels
-string encoding           # Pixel encoding (e.g., "rgb8", "nv12")
-uint32 size               # Buffer size in bytes
+```rust
+let standalone: Vec<u8> = cf.tensor().to_standalone_cdr();
 ```
 
-### How It Works
+This copies metadata only — plane payloads stay behind their handles.
+
+**Producer language.** Unlike the 3.x `CameraFrame`, the tensor family is
+encodable from all four languages: `ros_tensor_builder_*` and
+`ros_camera_frame_builder_*` in C, `TensorBuilder`/`CameraFrameBuilder` in
+C++, the `Tensor`/`CameraFrame` constructors in Python, and the Rust builders.
+Composing the tensor builder into the wrapper builder keeps the argument
+surface manageable in C, which was the original reason the 3.x multi-plane
+CameraFrame stayed view-only there.
+
+### Acquiring the handle
 
 ```mermaid
 sequenceDiagram
@@ -639,95 +674,96 @@ sequenceDiagram
     participant Consumer as Consumer Service
 
     ISP->>Camera: DMA buffer (fd=42)
-    Camera->>Consumer: DmaBuffer msg (pid, fd=42)
+    Camera->>Consumer: CameraFrame (tensor.pid, plane.handle=42)
     Consumer->>Consumer: pidfd_open(pid, 0)
-    Consumer->>Consumer: pidfd_getfd(pidfd, fd, 0)
-    Consumer->>Consumer: mmap(local_fd)
-    Consumer->>Consumer: Process in-place
+    Consumer->>Consumer: pidfd_getfd(pidfd, handle, 0)
+    Consumer->>Consumer: mmap(local_fd, offset)
+    Consumer->>Consumer: Process [0, used) in-place
     Consumer->>Consumer: munmap(local_fd)
 ```
 
-### Acquiring the File Descriptor
+The camera service publishes its process ID (`tensor.pid`) and each plane's
+file descriptor (`plane.handle`). Consumers acquire a local copy with:
 
-The camera service publishes its process ID (`pid`) and the buffer's file descriptor (`fd`) in the `DmaBuffer` message. Consumer applications must acquire a local copy of the file descriptor using Linux system calls.
+1. **Get process FD**: `pidfd_open(pid, 0)` — a descriptor referencing the
+   camera service process.
+2. **Duplicate**: `pidfd_getfd(pidfd, handle, 0)` — a local duplicate of the
+   plane's descriptor.
 
-**Process:**
-
-1. **Get Process FD**: Call `pidfd_open(pid, 0)` to obtain a file descriptor referencing the camera service process
-2. **Duplicate FD**: Call `pidfd_getfd(pidfd, fd, 0)` to create a local duplicate of the camera buffer's file descriptor
-
-**Consumer Side Implementation:**
+**Consumer-side implementation:**
 
 ```rust
 use nix::sys::mman::{mmap, munmap, ProtFlags, MapFlags};
 use std::os::unix::io::RawFd;
 
-// Acquire local file descriptor from camera service
-// Note: Requires pidfd_open and pidfd_getfd system calls (Linux 5.6+)
-let pidfd = unsafe { libc::syscall(libc::SYS_pidfd_open, dma_buffer.pid, 0) as RawFd };
+let t = frame.tensor();
+let plane = t.plane_at(0).expect("at least one plane");
+
+// Requires pidfd_open / pidfd_getfd (Linux 5.6+)
+let pidfd = unsafe { libc::syscall(libc::SYS_pidfd_open, t.pid(), 0) as RawFd };
 if pidfd < 0 {
     return Err(std::io::Error::last_os_error());
 }
 
 let local_fd = unsafe {
-    libc::syscall(libc::SYS_pidfd_getfd, pidfd, dma_buffer.fd, 0) as RawFd
+    libc::syscall(libc::SYS_pidfd_getfd, pidfd, plane.handle, 0) as RawFd
 };
 if local_fd < 0 {
     return Err(std::io::Error::last_os_error());
 }
 
-// Map DMA buffer into process memory
+// Map the plane at its offset within the allocation
 let ptr = unsafe {
     mmap(
         None,
-        dma_buffer.size as usize,
+        plane.size as usize,
         ProtFlags::PROT_READ,
         MapFlags::MAP_SHARED,
         local_fd,
-        0,
+        plane.offset as i64,
     )?
 };
 
-// Process data (zero-copy!)
-let data = unsafe {
-    std::slice::from_raw_parts(
-        ptr as *const u8,
-        dma_buffer.size as usize
-    )
-};
+// Process the VALID payload only — `used`, not `size`
+let data = unsafe { std::slice::from_raw_parts(ptr as *const u8, plane.used as usize) };
 
 // Cleanup
 unsafe {
-    munmap(ptr, dma_buffer.size as usize)?;
+    munmap(ptr, plane.size as usize)?;
     libc::close(local_fd);
     libc::close(pidfd);
 }
 ```
 
-**Permission Requirements:**
-
-The consumer application will not be able to call `pidfd_getfd` if it runs at a lower permission level than the camera service. Running as `sudo` or as a system service resolves this.
+**Permission requirements:** `pidfd_getfd` fails if the consumer runs at a
+lower permission level than the camera service. Running as a system service
+resolves this.
 
 **Reference:** See the [EdgeFirst Camera Documentation](https://doc.edgefirst.ai/latest/perception/topics/camera/#cameradma) for complete examples.
 
-### Security Considerations
+### Security considerations
 
-- Validate file descriptors before use
-- Implement access control (SELinux, AppArmor)
-- Don't expose DMA buffers to untrusted processes
-- Clear sensitive data after use
+- Validate `handle`, `offset`, `size` and `used` before mapping — a hostile
+  producer controls all of them. See `SECURITY.md`.
+- Always bound the timeout when polling a `fence_fd` from an untrusted
+  producer; an un-signalled fence otherwise hangs the consumer forever.
+- Implement access control (SELinux, AppArmor).
+- Don't expose buffers to untrusted processes.
+- Clear sensitive data after use.
 
 ---
 
 ## Source Code Reference
+
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
 | **CDR infrastructure** | `src/cdr.rs` | Zero-copy CDR1-LE: CdrCursor, CdrWriter, CdrSizer, CdrFixed |
 | **PointCloud2 message** | `src/sensor_msgs/mod.rs` | Buffer-backed PointCloud2 with field iteration |
 | **PointCloud access** | `src/sensor_msgs/pointcloud.rs` | DynPointCloud, PointCloud\<P\>, define_point! |
-| **CameraFrame / CameraPlane** | `src/edgefirst_msgs.rs` | Zero-copy multi-plane video frames |
-| **DmaBuffer** | `src/edgefirst_msgs.rs` | Single-plane DMA buffer (deprecated, removed in 4.0.0) |
+| **Tensor / TensorPlane** | `src/tensor.rs` | Tensor payload, plane codec, builders |
+| **TensorStamped / CameraFrame** | `src/edgefirst_msgs.rs` | Byte-identical stamped wrappers over `Tensor` |
+| **Tensor C API** | `src/ffi/tensor.rs` | C bindings for the tensor family |
 | **Detect message** | `src/edgefirst_msgs.rs` | Object detection results |
 | **C API (FFI)** | `src/ffi.rs` | C bindings, header via cbindgen |
 | **Schema registry** | `src/schema_registry.rs` | Runtime type lookup by ROS2 schema name |

@@ -164,12 +164,18 @@ Message deserialization involves parsing untrusted data. While we implement boun
 
 ### DMA Buffer Sharing
 
-The `DmaBuffer` message type enables zero-copy buffer sharing but requires careful handling:
+The `Tensor` message type carries zero-copy buffer sharing through file descriptors — the same fd-based semantics previously carried by the removed `DmaBuffer` type — and requires careful handling. Two distinct kinds of descriptor are involved, at two different levels:
+
+- **Per-plane buffer handles.** Each `TensorPlane` carries a `handle` (a DMA-BUF or shm fd, an IOSurface id, or `-1` when the plane's bytes are inlined in `data`), plus `handle_bytes` for backends whose handle is not a plain integer.
+- **One per-frame acquire fence.** The `Tensor` itself carries a single `fence_fd` covering every plane. It is a point on the producer's submission timeline rather than a property of any one plane, which is why it is not a `TensorPlane` field.
+
+Guidance:
 
 - Validate buffer file descriptors
 - Implement access controls
 - Clear sensitive data after use
 - Don't expose DMA buffers to untrusted processes
+- Wait on `fence_fd` with a bounded timeout, never indefinitely — a fence from an untrusted producer that never signals will otherwise stall the consumer forever
 
 ### ROS2 Bridge
 

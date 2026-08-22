@@ -564,6 +564,27 @@ impl<'a> CdrWriter<'a> {
             unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * 8) };
         self.write_typed_slice(bytes, 8);
     }
+
+    /// Write a `&[u64]` slice as bulk bytes.
+    pub fn write_slice_u64(&mut self, data: &[u64]) {
+        let bytes =
+            unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * 8) };
+        self.write_typed_slice(bytes, 8);
+    }
+
+    /// Write a `&[i64]` slice as bulk bytes.
+    pub fn write_slice_i64(&mut self, data: &[i64]) {
+        let bytes =
+            unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * 8) };
+        self.write_typed_slice(bytes, 8);
+    }
+
+    /// Write a `&[i32]` slice as bulk bytes.
+    pub fn write_slice_i32(&mut self, data: &[i32]) {
+        let bytes =
+            unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * 4) };
+        self.write_typed_slice(bytes, 4);
+    }
 }
 
 // ── CdrSizer — dry-run for size calculation ──────────────────────────
@@ -1006,6 +1027,23 @@ pub(crate) fn rd_slice_f32(b: &[u8], pos: usize, count: usize) -> &[f32] {
     unsafe { std::slice::from_raw_parts(ptr as *const f32, count) }
 }
 
+// NOTE: there is deliberately no rd_slice_u64/i64/f64. CDR 8-byte alignment
+// is relative to the data start at absolute offset 4, so an 8-aligned CDR
+// position is at absolute offset 4 mod 8 and can never satisfy
+// align_of::<u64>(). Read 64-bit sequence elements with rd_u64/rd_i64, which
+// use from_le_bytes and are alignment-safe.
+
+/// View a region of `b` as `&[i32]` (zero-copy on LE targets).
+#[inline(always)]
+pub(crate) fn rd_slice_i32(b: &[u8], pos: usize, count: usize) -> &[i32] {
+    let ptr = b[pos..].as_ptr();
+    debug_assert!(
+        (ptr as usize).is_multiple_of(std::mem::align_of::<i32>()),
+        "rd_slice_i32: misaligned pointer"
+    );
+    unsafe { std::slice::from_raw_parts(ptr as *const i32, count) }
+}
+
 /// Encode a CdrFixed type to a new CDR buffer (with header).
 ///
 /// The buffer is pre-sized by [`CdrSizer`], so write errors cannot occur
@@ -1446,5 +1484,69 @@ mod tests {
             },
             "foxglove_circle",
         );
+    }
+
+    #[test]
+    fn slice_u64_writes_readable_elements() {
+        let vals: [u64; 3] = [1, 0x0102_0304_0506_0708, u64::MAX];
+        let mut s = CdrSizer::new();
+        s.size_u32();
+        s.size_seq_8(vals.len());
+        let mut buf = vec![0u8; s.size()];
+        let mut w = CdrWriter::new(&mut buf).unwrap();
+        w.write_u32(vals.len() as u32);
+        w.write_slice_u64(&vals);
+        w.finish().unwrap();
+
+        let mut c = CdrCursor::new(&buf).unwrap();
+        let count = c.read_seq_len().unwrap() as usize;
+        assert_eq!(count, 3);
+        c.align(8);
+        let pos = c.offset();
+        // rd_u64 uses from_le_bytes and is alignment-safe; a &[u64] transmute
+        // would be UB because CDR 8-alignment lands at absolute offset 4 mod 8.
+        for (i, want) in vals.iter().enumerate() {
+            assert_eq!(rd_u64(&buf, pos + i * 8), *want);
+        }
+    }
+
+    #[test]
+    fn slice_i64_writes_readable_elements() {
+        let vals: [i64; 3] = [-1, 0, i64::MIN];
+        let mut s = CdrSizer::new();
+        s.size_u32();
+        s.size_seq_8(vals.len());
+        let mut buf = vec![0u8; s.size()];
+        let mut w = CdrWriter::new(&mut buf).unwrap();
+        w.write_u32(vals.len() as u32);
+        w.write_slice_i64(&vals);
+        w.finish().unwrap();
+
+        let mut c = CdrCursor::new(&buf).unwrap();
+        let _ = c.read_seq_len().unwrap() as usize;
+        c.align(8);
+        let pos = c.offset();
+        // rd_i64 uses from_le_bytes and is alignment-safe.
+        for (i, want) in vals.iter().enumerate() {
+            assert_eq!(rd_i64(&buf, pos + i * 8), *want);
+        }
+    }
+
+    #[test]
+    fn slice_i32_roundtrip() {
+        let vals: [i32; 4] = [-128, 0, 127, i32::MIN];
+        let mut s = CdrSizer::new();
+        s.size_u32();
+        s.size_seq_4(vals.len());
+        let mut buf = vec![0u8; s.size()];
+        let mut w = CdrWriter::new(&mut buf).unwrap();
+        w.write_u32(vals.len() as u32);
+        w.write_slice_i32(&vals);
+        w.finish().unwrap();
+
+        let mut c = CdrCursor::new(&buf).unwrap();
+        let count = c.read_seq_len().unwrap() as usize;
+        c.align(4);
+        assert_eq!(rd_slice_i32(&buf, c.offset(), count), &vals[..]);
     }
 }

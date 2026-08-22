@@ -45,7 +45,6 @@ enum ros_radar_info_builder_t {}
 enum ros_track_builder_t {}
 enum ros_detect_box_builder_t {}
 enum ros_detect_builder_t {}
-enum ros_camera_frame_builder_t {}
 enum ros_model_builder_t {}
 enum ros_model_info_builder_t {}
 enum ros_vibration_builder_t {}
@@ -80,18 +79,6 @@ struct ros_detect_box_elem_t {
     track_lifetime: i32,
     track_created_sec: i32,
     track_created_nanosec: u32,
-}
-
-/// C-POD descriptor for `ros_camera_frame_builder_set_planes`.
-#[repr(C)]
-struct ros_camera_plane_elem_t {
-    fd: i32,
-    offset: u32,
-    stride: u32,
-    size: u32,
-    used: u32,
-    data: *const u8,
-    data_len: usize,
 }
 
 /// C-POD descriptor for `ros_model_builder_set_masks`.
@@ -671,51 +658,6 @@ extern "C" {
     ) -> i32;
     fn ros_detect_builder_encode_into(
         b: *mut ros_detect_builder_t,
-        buf: *mut u8,
-        cap: usize,
-        out_len: *mut usize,
-    ) -> i32;
-
-    // CameraFrame
-    fn ros_camera_frame_builder_new() -> *mut ros_camera_frame_builder_t;
-    fn ros_camera_frame_builder_free(b: *mut ros_camera_frame_builder_t);
-    fn ros_camera_frame_builder_set_stamp(b: *mut ros_camera_frame_builder_t, sec: i32, nsec: u32);
-    fn ros_camera_frame_builder_set_frame_id(
-        b: *mut ros_camera_frame_builder_t,
-        s: *const c_char,
-    ) -> i32;
-    fn ros_camera_frame_builder_set_seq(b: *mut ros_camera_frame_builder_t, v: u64);
-    fn ros_camera_frame_builder_set_pid(b: *mut ros_camera_frame_builder_t, v: u32);
-    fn ros_camera_frame_builder_set_width(b: *mut ros_camera_frame_builder_t, v: u32);
-    fn ros_camera_frame_builder_set_height(b: *mut ros_camera_frame_builder_t, v: u32);
-    fn ros_camera_frame_builder_set_format(
-        b: *mut ros_camera_frame_builder_t,
-        s: *const c_char,
-    ) -> i32;
-    fn ros_camera_frame_builder_set_color_space(
-        b: *mut ros_camera_frame_builder_t,
-        s: *const c_char,
-    ) -> i32;
-    fn ros_camera_frame_builder_set_color_transfer(
-        b: *mut ros_camera_frame_builder_t,
-        s: *const c_char,
-    ) -> i32;
-    fn ros_camera_frame_builder_set_color_encoding(
-        b: *mut ros_camera_frame_builder_t,
-        s: *const c_char,
-    ) -> i32;
-    fn ros_camera_frame_builder_set_color_range(
-        b: *mut ros_camera_frame_builder_t,
-        s: *const c_char,
-    ) -> i32;
-    fn ros_camera_frame_builder_set_fence_fd(b: *mut ros_camera_frame_builder_t, v: i32);
-    fn ros_camera_frame_builder_set_planes(
-        b: *mut ros_camera_frame_builder_t,
-        planes: *const ros_camera_plane_elem_t,
-        count: usize,
-    ) -> i32;
-    fn ros_camera_frame_builder_encode_into(
-        b: *mut ros_camera_frame_builder_t,
         buf: *mut u8,
         cap: usize,
         out_len: *mut usize,
@@ -1869,105 +1811,6 @@ fn ros_detect_builder_encode_into_matches_rust_builder() {
         assert_eq!(&buf[..out_len], via_rust.as_cdr());
 
         ros_detect_builder_free(b);
-    }
-}
-
-#[test]
-fn ros_camera_frame_builder_encode_into_matches_rust_builder() {
-    unsafe {
-        let b = ros_camera_frame_builder_new();
-        assert!(!b.is_null());
-        ros_camera_frame_builder_set_stamp(b, 50, 60);
-        let frame = CString::new("cam0").unwrap();
-        assert_eq!(ros_camera_frame_builder_set_frame_id(b, frame.as_ptr()), 0);
-        ros_camera_frame_builder_set_seq(b, 42);
-        ros_camera_frame_builder_set_pid(b, 1234);
-        ros_camera_frame_builder_set_width(b, 640);
-        ros_camera_frame_builder_set_height(b, 480);
-        let fmt = CString::new("NV12").unwrap();
-        assert_eq!(ros_camera_frame_builder_set_format(b, fmt.as_ptr()), 0);
-        let cs = CString::new("bt709").unwrap();
-        assert_eq!(ros_camera_frame_builder_set_color_space(b, cs.as_ptr()), 0);
-        let ct = CString::new("srgb").unwrap();
-        assert_eq!(
-            ros_camera_frame_builder_set_color_transfer(b, ct.as_ptr()),
-            0
-        );
-        let ce = CString::new("bt709").unwrap();
-        assert_eq!(
-            ros_camera_frame_builder_set_color_encoding(b, ce.as_ptr()),
-            0
-        );
-        let cr = CString::new("full").unwrap();
-        assert_eq!(ros_camera_frame_builder_set_color_range(b, cr.as_ptr()), 0);
-        ros_camera_frame_builder_set_fence_fd(b, -1);
-
-        let plane0: Vec<u8> = (0..32u8).collect();
-        let plane1: Vec<u8> = (32..48u8).collect();
-        let planes = [
-            ros_camera_plane_elem_t {
-                fd: -1,
-                offset: 0,
-                stride: 640,
-                size: plane0.len() as u32,
-                used: plane0.len() as u32,
-                data: plane0.as_ptr(),
-                data_len: plane0.len(),
-            },
-            ros_camera_plane_elem_t {
-                fd: -1,
-                offset: 0,
-                stride: 320,
-                size: plane1.len() as u32,
-                used: plane1.len() as u32,
-                data: plane1.as_ptr(),
-                data_len: plane1.len(),
-            },
-        ];
-        ros_camera_frame_builder_set_planes(b, planes.as_ptr(), planes.len());
-
-        let mut buf = [0u8; 2048];
-        let mut out_len: usize = 0;
-        let rc = ros_camera_frame_builder_encode_into(b, buf.as_mut_ptr(), buf.len(), &mut out_len);
-        assert_eq!(rc, 0);
-
-        let rust_planes = [
-            edgefirst_msgs::CameraPlaneView {
-                fd: -1,
-                offset: 0,
-                stride: 640,
-                size: plane0.len() as u32,
-                used: plane0.len() as u32,
-                data: &plane0,
-            },
-            edgefirst_msgs::CameraPlaneView {
-                fd: -1,
-                offset: 0,
-                stride: 320,
-                size: plane1.len() as u32,
-                used: plane1.len() as u32,
-                data: &plane1,
-            },
-        ];
-        let via_rust = edgefirst_msgs::CameraFrame::builder()
-            .stamp(Time::new(50, 60))
-            .frame_id("cam0")
-            .seq(42)
-            .pid(1234)
-            .width(640)
-            .height(480)
-            .format("NV12")
-            .color_space("bt709")
-            .color_transfer("srgb")
-            .color_encoding("bt709")
-            .color_range("full")
-            .fence_fd(-1)
-            .planes(&rust_planes)
-            .build()
-            .expect("rust builder.build()");
-        assert_eq!(&buf[..out_len], via_rust.as_cdr());
-
-        ros_camera_frame_builder_free(b);
     }
 }
 

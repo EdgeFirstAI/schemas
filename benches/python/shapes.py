@@ -148,22 +148,6 @@ COMPRESSED_VIDEO_VARIANTS = [
 ]
 
 
-class DmaBufferVariant(NamedTuple):
-    name: str
-    width: int
-    height: int
-    stride: int
-    fourcc: int
-    length: int
-
-
-# C++ uses a single "default" 1280×720 RGBA fixture (fourcc='RGB2' = 0x32424752,
-# stride = 1280×4, length = 1280×720×4).
-DMA_BUFFER_VARIANTS = [
-    DmaBufferVariant("default", 1280, 720, 1280 * 4, 0x32424752, 1280 * 720 * 4),
-]
-
-
 # ── nav_msgs variants (DE-2781) ────────────────────────────────────
 #
 # NOTE: benches/cpp/common.hpp has no reference fixtures for these six

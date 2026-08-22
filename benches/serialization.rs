@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright © 2025 Au-Zone Technologies. All Rights Reserved.
 
-// DmaBuffer benches kept through the 3.x deprecation window.
+// Benches intentionally exercise the deprecated `::new()` constructors
+// alongside the replacement builder APIs for comparison. They will be
+// migrated to builder-only when the legacy constructors are removed.
 #![allow(deprecated)]
 
 //! Comprehensive performance benchmarks for CDR serialization/deserialization.
@@ -19,7 +21,7 @@ use std::hint::black_box;
 
 use edgefirst_schemas::builtin_interfaces::Time;
 use edgefirst_schemas::cdr;
-use edgefirst_schemas::edgefirst_msgs::{DmaBuffer, Mask, RadarCube};
+use edgefirst_schemas::edgefirst_msgs::{Mask, RadarCube};
 use edgefirst_schemas::foxglove_msgs::FoxgloveCompressedVideo;
 use edgefirst_schemas::geometry_msgs::{Point, Pose, Quaternion, Vector3};
 use edgefirst_schemas::nav_msgs::{GridCells, MapMetaData, OccupancyGrid, Path};
@@ -342,56 +344,6 @@ fn bench_mask(c: &mut Criterion) {
             |b, cdr| b.iter(|| Mask::from_cdr(black_box(cdr.as_slice()))),
         );
     }
-
-    group.finish();
-}
-
-// ============================================================================
-// BENCHMARK: DmaBuffer (buffer-backed, 1 offset, lightweight)
-// ============================================================================
-
-fn bench_dmabuf(c: &mut Criterion) {
-    let mut group = c.benchmark_group("DmaBuffer");
-
-    let stamp = Time {
-        sec: 1234567890,
-        nanosec: 123456789,
-    };
-    let dmabuf = DmaBuffer::new(
-        stamp,
-        "sensor_frame",
-        12345,
-        42,
-        1280,
-        720,
-        2560,
-        0x56595559,
-        1843200,
-    )
-    .unwrap();
-    let bytes = dmabuf.to_cdr();
-    let frame_size = 1280u64 * 720 * 2;
-    group.throughput(Throughput::Bytes(frame_size));
-
-    group.bench_function("new", |b| {
-        b.iter(|| {
-            DmaBuffer::new(
-                black_box(stamp),
-                "sensor_frame",
-                12345,
-                42,
-                1280,
-                720,
-                2560,
-                0x56595559,
-                1843200,
-            )
-            .unwrap()
-        })
-    });
-    group.bench_function("from_cdr_borrow", |b| {
-        b.iter(|| DmaBuffer::from_cdr(black_box(bytes.as_slice())))
-    });
 
     group.finish();
 }
@@ -898,7 +850,6 @@ criterion_group! {
         bench_compressed_video,
         bench_radar_cube,
         bench_mask,
-        bench_dmabuf,
         bench_pointcloud,
         bench_map_meta_data,
         bench_relative_humidity,

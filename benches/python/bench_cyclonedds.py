@@ -33,7 +33,6 @@ from cyclonedds.idl.types import (  # noqa: E402
 
 from shapes import (  # noqa: E402
     COMPRESSED_VIDEO_VARIANTS,
-    DMA_BUFFER_VARIANTS,
     IMAGE_VARIANTS,
     MASK_VARIANTS,
     POINT_CLOUD_VARIANTS,
@@ -128,18 +127,6 @@ class Transform(IdlStruct, typename="geometry_msgs/Transform"):
 class Twist(IdlStruct, typename="geometry_msgs/Twist"):
     linear: Vector3 = field(default_factory=Vector3)
     angular: Vector3 = field(default_factory=Vector3)
-
-
-@dataclass
-class DmaBuffer(IdlStruct, typename="edgefirst_msgs/DmaBuffer"):
-    header: Header = field(default_factory=Header)
-    pid: uint32 = 0
-    fd: int32 = 0
-    width: uint32 = 0
-    height: uint32 = 0
-    stride: uint32 = 0
-    fourcc: uint32 = 0
-    length: uint32 = 0
 
 
 @dataclass
@@ -262,15 +249,6 @@ def make_compressed_video(v) -> CompressedVideo:
     )
 
 
-def make_dmabuf(v) -> DmaBuffer:
-    return DmaBuffer(
-        header=make_header(),
-        pid=12345, fd=7,
-        width=v.width, height=v.height,
-        stride=v.stride, fourcc=v.fourcc, length=v.length,
-    )
-
-
 # ── Heavy types: parametrized across all variants ──────────────────
 
 
@@ -332,18 +310,6 @@ def test_compressed_video_serialize(benchmark, v):
 def test_compressed_video_deserialize(benchmark, v):
     buf = make_compressed_video(v).serialize()
     benchmark(CompressedVideo.deserialize, buf)
-
-
-@pytest.mark.parametrize("v", DMA_BUFFER_VARIANTS, ids=lambda v: v.name)
-def test_dmabuf_serialize(benchmark, v):
-    d = make_dmabuf(v)
-    benchmark(d.serialize)
-
-
-@pytest.mark.parametrize("v", DMA_BUFFER_VARIANTS, ids=lambda v: v.name)
-def test_dmabuf_deserialize(benchmark, v):
-    buf = make_dmabuf(v).serialize()
-    benchmark(DmaBuffer.deserialize, buf)
 
 
 # ── Light CdrFixed types ──────────────────────────────────────────

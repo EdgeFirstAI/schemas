@@ -13,15 +13,17 @@ find_package(rosidl_default_generators REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   msg/Box.msg
   msg/CameraFrame.msg
-  msg/CameraPlane.msg
   msg/Date.msg
   msg/Detect.msg
-  msg/DmaBuffer.msg
   msg/LocalTime.msg
   msg/Mask.msg
   msg/Model.msg
   msg/ModelInfo.msg
   msg/RadarCube.msg
+  msg/RadarInfo.msg
+  msg/Tensor.msg
+  msg/TensorPlane.msg
+  msg/TensorStamped.msg
   msg/Track.msg
   msg/Vibration.msg
   DEPENDENCIES std_msgs geometry_msgs)

@@ -5,13 +5,254 @@
 //!
 //! CdrFixed: `Date`
 //!
-//! Buffer-backed: `Mask` (`MaskView`), `DmaBuffer`, `LocalTime`,
+//! Buffer-backed: `Mask` (`MaskView`), `LocalTime`,
 //! `RadarCube`, `RadarInfo`, `Track`, `DetectBox` (`DetectBoxView`),
-//! `Detect`, `Model`, `ModelInfo`
+//! `Detect`, `Model`, `ModelInfo`, `TensorStamped`, `CameraFrame`
 
 use crate::builtin_interfaces::{Duration, Time};
 use crate::cdr::*;
 use crate::std_msgs::Header;
+// `Tensor` and `TensorFields` are brought into scope by the `pub use` near
+// the bottom of this block, which also re-exports them for downstream
+// consumers; importing them again here would be a duplicate definition.
+use crate::tensor::{scan_tensor, TensorOffsets};
+
+/// Define a stamped tensor wrapper: `std_msgs/Header` + `uint64 seq` + `Tensor`.
+///
+/// `TensorStamped` and `CameraFrame` are byte-identical and exist as separate
+/// types only because the schema name is the contract on the topic. They are
+/// generated from one definition so they cannot drift apart.
+///
+/// `seq` is load-bearing beyond drop detection: as a `uint64` it aligns to 8
+/// and occupies 8 bytes, leaving the embedded `Tensor` at an offset congruent
+/// to 0 mod 8 regardless of `frame_id` length. That is the position-
+/// independence invariant. Do not remove it from either message.
+macro_rules! stamped_tensor_message {
+    ($msg:ident, $builder:ident, $schema:literal, $doc:literal) => {
+        #[doc = $doc]
+        #[derive(Clone, Debug)]
+        pub struct $msg<B> {
+            buf: B,
+            /// Absolute offset one past the header (start of `seq` alignment).
+            o0: usize,
+            toff: TensorOffsets,
+        }
+
+        impl<B> $msg<B> {
+            pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> $msg<C> {
+                $msg {
+                    buf: f(self.buf),
+                    o0: self.o0,
+                    toff: self.toff,
+                }
+            }
+        }
+
+        impl<B: AsRef<[u8]>> $msg<B> {
+            pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
+                let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
+                let o0 = header.end_offset();
+                // seq occupies 8 bytes at the next 8-aligned offset; the
+                // tensor begins immediately after, hence always 8-aligned.
+                let tensor_base = cdr_align(o0, 8) + 8;
+                let toff = scan_tensor(buf.as_ref(), tensor_base)?;
+                Ok($msg { buf, o0, toff })
+            }
+
+            #[inline]
+            pub fn stamp(&self) -> Time {
+                rd_time(self.buf.as_ref(), CDR_HEADER_SIZE)
+            }
+            #[inline]
+            pub fn frame_id(&self) -> &str {
+                rd_string(self.buf.as_ref(), CDR_HEADER_SIZE + 8).0
+            }
+            #[inline]
+            pub fn seq(&self) -> u64 {
+                rd_u64(self.buf.as_ref(), cdr_align(self.o0, 8))
+            }
+
+            /// Zero-copy view of the embedded tensor. Reuses the offset table
+            /// built during `from_cdr` — no rescan, no allocation.
+            #[inline]
+            pub fn tensor(&self) -> Tensor<&[u8]> {
+                Tensor::from_parts(self.buf.as_ref(), self.toff)
+            }
+
+            #[inline]
+            pub fn as_cdr(&self) -> &[u8] {
+                self.buf.as_ref()
+            }
+            pub fn to_cdr(&self) -> Vec<u8> {
+                self.buf.as_ref().to_vec()
+            }
+        }
+
+        impl<B> $msg<B> {
+            /// The backing buffer container itself, not its bytes.
+            ///
+            /// See `Tensor::buffer` — this exists so a binding can duplicate a
+            /// shareable container and hand out a second view over the same
+            /// bytes instead of copying them.
+            #[inline]
+            pub fn buffer(&self) -> &B {
+                &self.buf
+            }
+
+            /// Absolute buffer position where the embedded tensor begins.
+            #[inline]
+            pub fn tensor_base(&self) -> usize {
+                self.toff.base
+            }
+        }
+
+        impl<'a> $msg<&'a [u8]> {
+            /// Embedded tensor whose views borrow the backing buffer, not
+            /// `self`. Same offset table and same zero rescans as
+            /// [`tensor`](Self::tensor); only the lifetime differs.
+            ///
+            /// Needed by any caller that stores the tensor rather than
+            /// reading through it — the C FFI handle keeps a materialized
+            /// child tensor for its whole life. See `Tensor::planes_borrowed`
+            /// for the same rationale one level down.
+            #[inline]
+            pub fn tensor_borrowed(&self) -> Tensor<&'a [u8]> {
+                Tensor::from_parts(self.buf, self.toff)
+            }
+        }
+
+        impl<B: AsRef<[u8]> + AsMut<[u8]>> $msg<B> {
+            pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
+                let b = self.buf.as_mut();
+                wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
+                wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
+            }
+            pub fn set_seq(&mut self, v: u64) -> Result<(), CdrError> {
+                let pos = cdr_align(self.o0, 8);
+                wr_u64(self.buf.as_mut(), pos, v)
+            }
+        }
+
+        impl crate::schema_registry::SchemaType for $msg<Vec<u8>> {
+            const SCHEMA_NAME: &str = $schema;
+        }
+
+        #[doc = concat!("Builder for [`", stringify!($msg), "`].")]
+        #[derive(Clone, Debug)]
+        pub struct $builder<'a> {
+            stamp: Time,
+            frame_id: std::borrow::Cow<'a, str>,
+            seq: u64,
+            tensor: TensorFields<'a>,
+        }
+
+        impl<'a> Default for $builder<'a> {
+            fn default() -> Self {
+                Self {
+                    stamp: Time { sec: 0, nanosec: 0 },
+                    frame_id: std::borrow::Cow::Borrowed(""),
+                    seq: 0,
+                    tensor: TensorFields::default(),
+                }
+            }
+        }
+
+        impl<'a> $builder<'a> {
+            pub fn new() -> Self {
+                Self::default()
+            }
+            pub fn stamp(&mut self, t: Time) -> &mut Self {
+                self.stamp = t;
+                self
+            }
+            pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+                self.frame_id = s.into();
+                self
+            }
+            pub fn seq(&mut self, v: u64) -> &mut Self {
+                self.seq = v;
+                self
+            }
+            pub fn tensor(&mut self, t: &TensorFields<'a>) -> &mut Self {
+                self.tensor = t.clone();
+                self
+            }
+
+            fn size(&self) -> usize {
+                let mut s = CdrSizer::new();
+                Time::size_cdr(&mut s);
+                s.size_string(&self.frame_id);
+                s.size_u64(); // seq
+                self.tensor.size_into(&mut s);
+                s.size()
+            }
+
+            fn write_all(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+                let mut w = CdrWriter::new(buf)?;
+                self.stamp.write_cdr(&mut w);
+                w.write_string(&self.frame_id);
+                w.write_u64(self.seq);
+                self.tensor.write_into(&mut w);
+                w.finish()
+            }
+
+            pub fn build(&self) -> Result<$msg<Vec<u8>>, CdrError> {
+                self.tensor.validate()?;
+                let mut buf = vec![0u8; self.size()];
+                self.write_all(&mut buf)?;
+                $msg::from_cdr(buf)
+            }
+
+            pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+                self.tensor.validate()?;
+                buf.resize(self.size(), 0);
+                self.write_all(buf)
+            }
+
+            pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+                self.tensor.validate()?;
+                let need = self.size();
+                if buf.len() < need {
+                    return Err(CdrError::BufferTooShort {
+                        need,
+                        have: buf.len(),
+                    });
+                }
+                self.write_all(&mut buf[..need])?;
+                Ok(need)
+            }
+        }
+
+        impl $msg<Vec<u8>> {
+            pub fn builder<'a>() -> $builder<'a> {
+                $builder::new()
+            }
+        }
+    };
+}
+
+stamped_tensor_message!(
+    TensorStamped,
+    TensorStampedBuilder,
+    "edgefirst_msgs/msg/TensorStamped",
+    "A `Tensor` with a timestamp and frame of reference — the standalone \
+     tensor IPC message. Byte-identical in layout to [`CameraFrame`]."
+);
+
+stamped_tensor_message!(
+    CameraFrame,
+    CameraFrameBuilder,
+    "edgefirst_msgs/msg/CameraFrame",
+    "A camera frame as a stamped `Tensor`. Byte-identical in layout to \
+     [`TensorStamped`]; a distinct type because the schema name is the \
+     contract on the topic. Replaces the flat 3.x layout and the removed \
+     `DmaBuffer`."
+);
+
+pub use crate::tensor::Tensor;
+/// Re-exported so `edgefirst_msgs::TensorPlaneView` resolves for downstream
+/// code that expects every EdgeFirst message type in this module.
+pub use crate::tensor::{TensorBuilder, TensorFields, TensorPlaneIter, TensorPlaneView};
 
 // ── CdrFixed types ──────────────────────────────────────────────────
 
@@ -393,160 +634,6 @@ pub(crate) fn size_mask_element(s: &mut CdrSizer, encoding: &str, mask_len: usiz
     s.size_string(encoding);
     s.size_bytes(mask_len);
     s.size_bool();
-}
-
-// ── DmaBuffer<B> — edgefirst_msgs/msg/DmaBuffer ────────────────────
-//
-// CDR layout: Header → offsets[0], then:
-//   pid(u32) + fd(i32) + width(u32) + height(u32)
-//   + stride(u32) + fourcc(u32) + length(u32) = 28 bytes
-//
-// DEPRECATED since 3.1.0: use CameraFrame instead. Will be removed in 4.0.0.
-
-#[deprecated(
-    since = "3.1.0",
-    note = "Use CameraFrame / CameraPlane for multi-plane support, colorimetry, \
-            GPU fences, and off-device bridging. DmaBuffer will be removed in 4.0.0."
-)]
-pub struct DmaBuffer<B> {
-    buf: B,
-    offsets: [usize; 1],
-}
-
-#[allow(deprecated)]
-impl<B> DmaBuffer<B> {
-    /// Convert the buffer type without re-parsing the offset table.
-    #[inline]
-    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> DmaBuffer<C> {
-        DmaBuffer {
-            buf: f(self.buf),
-            offsets: self.offsets,
-        }
-    }
-}
-
-// The DmaBuffer impls remain until 4.0.0; allow(deprecated) here so the
-// crate's own use of the deprecated struct (fields, methods) compiles
-// cleanly. User code still gets the deprecation warning.
-#[allow(deprecated)]
-impl<B: AsRef<[u8]>> DmaBuffer<B> {
-    pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
-        let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
-        let o0 = header.end_offset();
-        let mut c = CdrCursor::resume(buf.as_ref(), o0);
-        for _ in 0..7 {
-            c.read_u32()?;
-        }
-        Ok(DmaBuffer { offsets: [o0], buf })
-    }
-
-    /// Returns a `Header` view (re-parses CDR prefix; prefer `stamp()`/`frame_id()`).
-    pub fn header(&self) -> Header<&[u8]> {
-        Header::from_cdr(self.buf.as_ref()).expect("header bytes validated during from_cdr")
-    }
-
-    #[inline]
-    pub fn stamp(&self) -> Time {
-        rd_time(self.buf.as_ref(), CDR_HEADER_SIZE)
-    }
-
-    #[inline]
-    pub fn frame_id(&self) -> &str {
-        rd_string(self.buf.as_ref(), CDR_HEADER_SIZE + 8).0
-    }
-
-    #[inline]
-    pub fn pid(&self) -> u32 {
-        let p = align(self.offsets[0], 4);
-        rd_u32(self.buf.as_ref(), p)
-    }
-
-    #[inline]
-    pub fn fd(&self) -> i32 {
-        let p = align(self.offsets[0], 4) + 4;
-        rd_i32(self.buf.as_ref(), p)
-    }
-
-    #[inline]
-    pub fn width(&self) -> u32 {
-        let p = align(self.offsets[0], 4) + 8;
-        rd_u32(self.buf.as_ref(), p)
-    }
-
-    #[inline]
-    pub fn height(&self) -> u32 {
-        let p = align(self.offsets[0], 4) + 12;
-        rd_u32(self.buf.as_ref(), p)
-    }
-
-    #[inline]
-    pub fn stride(&self) -> u32 {
-        let p = align(self.offsets[0], 4) + 16;
-        rd_u32(self.buf.as_ref(), p)
-    }
-
-    #[inline]
-    pub fn fourcc(&self) -> u32 {
-        let p = align(self.offsets[0], 4) + 20;
-        rd_u32(self.buf.as_ref(), p)
-    }
-
-    #[inline]
-    pub fn length(&self) -> u32 {
-        let p = align(self.offsets[0], 4) + 24;
-        rd_u32(self.buf.as_ref(), p)
-    }
-
-    #[inline]
-    pub fn as_cdr(&self) -> &[u8] {
-        self.buf.as_ref()
-    }
-
-    pub fn to_cdr(&self) -> Vec<u8> {
-        self.buf.as_ref().to_vec()
-    }
-}
-
-#[allow(deprecated)]
-impl DmaBuffer<Vec<u8>> {
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        pid: u32,
-        fd: i32,
-        width: u32,
-        height: u32,
-        stride: u32,
-        fourcc: u32,
-        length: u32,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        for _ in 0..7 {
-            sizer.size_u32();
-        }
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_u32(pid);
-        w.write_i32(fd);
-        w.write_u32(width);
-        w.write_u32(height);
-        w.write_u32(stride);
-        w.write_u32(fourcc);
-        w.write_u32(length);
-        w.finish()?;
-
-        Ok(DmaBuffer { offsets: [o0], buf })
-    }
-
-    pub fn into_cdr(self) -> Vec<u8> {
-        self.buf
-    }
 }
 
 // ── LocalTime<B> — edgefirst_msgs/msg/LocalTime ────────────────────
@@ -2329,649 +2416,6 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Detect<B> {
     }
 }
 
-// ── CameraFrame / CameraPlane — edgefirst_msgs/msg/CameraFrame ──────
-//
-// CameraFrame CDR layout:
-//   Header → offsets[0], then
-//     sequence(u64) + pid(u32) + width(u32) + height(u32)
-//     + format(string) + color_space(string) + color_transfer(string)
-//     + color_encoding(string) + color_range(string)
-//     + fence_fd(i32)
-//     + planes(seq<CameraPlane>) → offsets[1]
-//
-// CameraPlane element layout (variable-sized due to trailing data[]):
-//   fd(i32) + offset(u32) + stride(u32) + size(u32) + used(u32) + data(seq<u8>)
-
-/// Zero-copy view of a single CameraPlane element, borrowed from a CDR buffer.
-///
-/// `fd == -1` signals that the plane's bytes are inlined in `data`; any other
-/// negative fd is invalid. When `fd >= 0`, `data` must be empty.
-#[derive(Copy, Clone, Debug)]
-pub struct CameraPlaneView<'a> {
-    pub fd: i32,
-    pub offset: u32,
-    pub stride: u32,
-    pub size: u32,
-    pub used: u32,
-    pub data: &'a [u8],
-}
-
-pub(crate) fn scan_plane_element<'a>(
-    c: &mut CdrCursor<'a>,
-) -> Result<CameraPlaneView<'a>, CdrError> {
-    let fd = c.read_i32()?;
-    let offset = c.read_u32()?;
-    let stride = c.read_u32()?;
-    let size = c.read_u32()?;
-    let used = c.read_u32()?;
-    let data = c.read_bytes()?;
-    Ok(CameraPlaneView {
-        fd,
-        offset,
-        stride,
-        size,
-        used,
-        data,
-    })
-}
-
-pub(crate) fn write_plane_element(w: &mut CdrWriter<'_>, p: &CameraPlaneView<'_>) {
-    w.write_i32(p.fd);
-    w.write_u32(p.offset);
-    w.write_u32(p.stride);
-    w.write_u32(p.size);
-    w.write_u32(p.used);
-    w.write_bytes(p.data);
-}
-
-pub(crate) fn size_plane_element(s: &mut CdrSizer, data_len: usize) {
-    s.size_i32();
-    s.size_u32();
-    s.size_u32();
-    s.size_u32();
-    s.size_u32();
-    s.size_bytes(data_len);
-}
-
-/// Validate a CameraPlane against the schema contract (see CameraPlane.msg).
-///
-/// Contract:
-///   - `fd >= -1` (only `-1` is a valid negative value; other negatives invalid)
-///   - `used <= size`
-///   - `fd >= 0`  => `data` empty (bytes live in DMA-BUF, not inlined)
-///   - `fd == -1` => `size as usize == data.len()` (inlined: size describes data)
-pub(crate) fn validate_plane(
-    fd: i32,
-    size: u32,
-    used: u32,
-    data_len: usize,
-) -> Result<(), CdrError> {
-    if fd < -1
-        || used > size
-        || (fd >= 0 && data_len != 0)
-        || (fd == -1 && size as usize != data_len)
-    {
-        return Err(CdrError::InvalidHeader);
-    }
-    Ok(())
-}
-
-/// Multi-plane video frame reference message.
-///
-/// Replaces the single-plane `DmaBuffer` with a schema that supports planar
-/// formats (NV12, I420, planar RGB NCHW), hardware codec bitstreams (H.264
-/// with `used` < `size`), GPU fence synchronization, and off-device bridging
-/// via inlined per-plane bytes.
-///
-/// # Example
-///
-/// ```
-/// use edgefirst_schemas::edgefirst_msgs::{CameraFrame, CameraPlaneView};
-/// use edgefirst_schemas::builtin_interfaces::Time;
-///
-/// let y = CameraPlaneView {
-///     fd: 42, offset: 0, stride: 1920,
-///     size: 2_073_600, used: 2_073_600, data: &[],
-/// };
-/// let uv = CameraPlaneView {
-///     fd: 42, offset: 2_073_600, stride: 1920,
-///     size: 1_036_800, used: 1_036_800, data: &[],
-/// };
-/// let cf = CameraFrame::new(
-///     Time::new(1, 0), "cam0",
-///     /*seq*/ 1, /*pid*/ 1234, /*w*/ 1920, /*h*/ 1080,
-///     "NV12", "bt709", "bt709", "bt709", "limited",
-///     /*fence_fd*/ -1, &[y, uv],
-/// ).unwrap();
-/// let view = CameraFrame::<&[u8]>::from_cdr(cf.as_cdr()).unwrap();
-/// assert_eq!(view.format(), "NV12");
-/// assert_eq!(view.planes().len(), 2);
-/// ```
-pub struct CameraFrame<B> {
-    buf: B,
-    // [0]: after Header (start of `seq`).
-    // [1]: position of the `planes` sequence-count u32 prefix (the field
-    // immediately after fence_fd). Caching this avoids rescanning the five
-    // variable-length colorimetry strings on every `planes()`/`num_planes()`
-    // call — important for high-frame-rate consumers.
-    offsets: [usize; 2],
-}
-
-impl<B> CameraFrame<B> {
-    /// Convert the buffer type without re-parsing the offset table.
-    #[inline]
-    pub fn map_buffer<C>(self, f: impl FnOnce(B) -> C) -> CameraFrame<C> {
-        CameraFrame {
-            buf: f(self.buf),
-            offsets: self.offsets,
-        }
-    }
-}
-
-impl<B: AsRef<[u8]>> CameraFrame<B> {
-    pub fn from_cdr(buf: B) -> Result<Self, CdrError> {
-        let header = Header::<&[u8]>::from_cdr(buf.as_ref())?;
-        let o0 = header.end_offset();
-        let mut c = CdrCursor::resume(buf.as_ref(), o0);
-        c.read_u64()?; // seq
-        c.read_u32()?; // pid
-        let width = c.read_u32()?;
-        let height = c.read_u32()?;
-        c.read_string()?; // format
-        c.read_string()?; // color_space
-        c.read_string()?; // color_transfer
-        c.read_string()?; // color_encoding
-        c.read_string()?; // color_range
-        c.read_i32()?; // fence_fd
-        let planes_pos = c.offset();
-        let raw_count = c.read_u32()?;
-        // min plane size: 5×u32 + 4-byte data seq count = 24 bytes
-        let count = c.check_seq_count(raw_count, 24)?;
-        for _ in 0..count {
-            let plane = scan_plane_element(&mut c)?;
-            validate_plane(plane.fd, plane.size, plane.used, plane.data.len())?;
-        }
-
-        if width == 0 || height == 0 {
-            return Err(CdrError::InvalidHeader);
-        }
-
-        Ok(CameraFrame {
-            offsets: [o0, planes_pos],
-            buf,
-        })
-    }
-
-    #[inline]
-    /// Returns a `Header` view by re-parsing the CDR buffer prefix.
-    /// Prefer `stamp()` / `frame_id()` for direct O(1) field access.
-    pub fn header(&self) -> Header<&[u8]> {
-        Header::from_cdr(self.buf.as_ref()).expect("header bytes validated during from_cdr")
-    }
-    #[inline]
-    pub fn stamp(&self) -> Time {
-        rd_time(self.buf.as_ref(), CDR_HEADER_SIZE)
-    }
-    #[inline]
-    pub fn frame_id(&self) -> &str {
-        rd_string(self.buf.as_ref(), CDR_HEADER_SIZE + 8).0
-    }
-
-    #[inline]
-    pub fn seq(&self) -> u64 {
-        // u64 needs 8-byte alignment relative to CDR data start.
-        rd_u64(self.buf.as_ref(), cdr_align(self.offsets[0], 8))
-    }
-    #[inline]
-    pub fn pid(&self) -> u32 {
-        rd_u32(self.buf.as_ref(), cdr_align(self.offsets[0], 8) + 8)
-    }
-    #[inline]
-    pub fn width(&self) -> u32 {
-        rd_u32(self.buf.as_ref(), cdr_align(self.offsets[0], 8) + 12)
-    }
-    #[inline]
-    pub fn height(&self) -> u32 {
-        rd_u32(self.buf.as_ref(), cdr_align(self.offsets[0], 8) + 16)
-    }
-
-    fn strings_start(&self) -> usize {
-        // Position of `format` string length prefix.
-        cdr_align(self.offsets[0], 8) + 20
-    }
-
-    /// Walk format + 4 color strings, returning each string and the fence_fd
-    /// that follows. String accessors unavoidably re-walk preceding strings
-    /// because CDR string lengths are variable; plane access uses the cached
-    /// `offsets[1]` and does not hit this path.
-    fn scan_strings_and_fence(&self) -> (&str, &str, &str, &str, &str, i32) {
-        let b = self.buf.as_ref();
-        let (format, p1) = rd_string(b, self.strings_start());
-        let (cs, p2) = rd_string(b, p1);
-        let (ct, p3) = rd_string(b, p2);
-        let (ce, p4) = rd_string(b, p3);
-        let (cr, p5) = rd_string(b, p4);
-        let fence_fd = rd_i32(b, align(p5, 4));
-        (format, cs, ct, ce, cr, fence_fd)
-    }
-
-    #[inline]
-    pub fn format(&self) -> &str {
-        self.scan_strings_and_fence().0
-    }
-    #[inline]
-    pub fn color_space(&self) -> &str {
-        self.scan_strings_and_fence().1
-    }
-    #[inline]
-    pub fn color_transfer(&self) -> &str {
-        self.scan_strings_and_fence().2
-    }
-    #[inline]
-    pub fn color_encoding(&self) -> &str {
-        self.scan_strings_and_fence().3
-    }
-    #[inline]
-    pub fn color_range(&self) -> &str {
-        self.scan_strings_and_fence().4
-    }
-    #[inline]
-    pub fn fence_fd(&self) -> i32 {
-        self.scan_strings_and_fence().5
-    }
-
-    /// Number of planes in the sequence. O(1) via cached `offsets[1]`.
-    #[inline]
-    pub fn num_planes(&self) -> u32 {
-        rd_u32(self.buf.as_ref(), self.offsets[1])
-    }
-
-    /// Collect all plane views by walking the CDR sequence. O(n_planes) via
-    /// cached `offsets[1]` — does not rescan the colorimetry strings.
-    pub fn planes(&self) -> Vec<CameraPlaneView<'_>> {
-        let b = self.buf.as_ref();
-        let count = rd_u32(b, self.offsets[1]) as usize;
-        let mut c = CdrCursor::resume(b, self.offsets[1] + 4);
-        (0..count)
-            .map(|_| scan_plane_element(&mut c).expect("planes validated during from_cdr"))
-            .collect()
-    }
-
-    #[inline]
-    pub fn as_cdr(&self) -> &[u8] {
-        self.buf.as_ref()
-    }
-    pub fn to_cdr(&self) -> Vec<u8> {
-        self.buf.as_ref().to_vec()
-    }
-}
-
-impl CameraFrame<&'static [u8]> {
-    /// Parse and simultaneously collect plane views for the FFI layer,
-    /// avoiding a second walk after `from_cdr`. Mirrors `Detect::from_cdr_collect_boxes`.
-    pub(crate) fn from_cdr_collect_planes(
-        buf: &'static [u8],
-    ) -> Result<(Self, Vec<CameraPlaneView<'static>>), CdrError> {
-        let header = Header::<&[u8]>::from_cdr(buf)?;
-        let o0 = header.end_offset();
-        let mut c = CdrCursor::resume(buf, o0);
-        c.read_u64()?;
-        c.read_u32()?;
-        let width = c.read_u32()?;
-        let height = c.read_u32()?;
-        c.read_string()?;
-        c.read_string()?;
-        c.read_string()?;
-        c.read_string()?;
-        c.read_string()?;
-        c.read_i32()?;
-        let planes_pos = c.offset();
-        let raw_count = c.read_u32()?;
-        let count = c.check_seq_count(raw_count, 24)?;
-        let mut planes = Vec::with_capacity(count);
-        for _ in 0..count {
-            let plane = scan_plane_element(&mut c)?;
-            validate_plane(plane.fd, plane.size, plane.used, plane.data.len())?;
-            planes.push(plane);
-        }
-
-        if width == 0 || height == 0 {
-            return Err(CdrError::InvalidHeader);
-        }
-
-        Ok((
-            CameraFrame {
-                offsets: [o0, planes_pos],
-                buf,
-            },
-            planes,
-        ))
-    }
-}
-
-impl CameraFrame<Vec<u8>> {
-    /// Build a new CameraFrame, serializing its fields into a fresh CDR buffer.
-    ///
-    /// Enforces the schema contracts:
-    /// - `width > 0` and `height > 0`
-    /// - `plane.used <= plane.size`
-    /// - `plane.fd >= -1` (only -1 is a valid negative sentinel)
-    /// - when `plane.fd >= 0`, `plane.data` must be empty
-    /// - when `plane.fd == -1` (inlined), `plane.size as usize == plane.data.len()`
-    #[deprecated(
-        since = "3.2.0",
-        note = "use CameraFrame::builder() for allocation-free buffer reuse; CameraFrame::new will be removed in 4.0"
-    )]
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        seq: u64,
-        pid: u32,
-        width: u32,
-        height: u32,
-        format: &str,
-        color_space: &str,
-        color_transfer: &str,
-        color_encoding: &str,
-        color_range: &str,
-        fence_fd: i32,
-        planes: &[CameraPlaneView<'_>],
-    ) -> Result<Self, CdrError> {
-        if width == 0 || height == 0 {
-            return Err(CdrError::InvalidHeader);
-        }
-        for p in planes {
-            validate_plane(p.fd, p.size, p.used, p.data.len())?;
-        }
-
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        sizer.size_u64();
-        sizer.size_u32();
-        sizer.size_u32();
-        sizer.size_u32();
-        sizer.size_string(format);
-        sizer.size_string(color_space);
-        sizer.size_string(color_transfer);
-        sizer.size_string(color_encoding);
-        sizer.size_string(color_range);
-        sizer.size_i32();
-        let planes_pos = sizer.offset();
-        sizer.size_u32();
-        for p in planes {
-            size_plane_element(&mut sizer, p.data.len());
-        }
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_u64(seq);
-        w.write_u32(pid);
-        w.write_u32(width);
-        w.write_u32(height);
-        w.write_string(format);
-        w.write_string(color_space);
-        w.write_string(color_transfer);
-        w.write_string(color_encoding);
-        w.write_string(color_range);
-        w.write_i32(fence_fd);
-        w.write_u32(planes.len() as u32);
-        for p in planes {
-            write_plane_element(&mut w, p);
-        }
-        w.finish()?;
-
-        Ok(CameraFrame {
-            offsets: [o0, planes_pos],
-            buf,
-        })
-    }
-
-    pub fn into_cdr(self) -> Vec<u8> {
-        self.buf
-    }
-
-    /// Start a new `CameraFrameBuilder` with zero-valued defaults and
-    /// `fence_fd = -1` (the "no fence" sentinel).
-    ///
-    /// Generic in `'a` so the compiler infers it from subsequent
-    /// `.planes(...)` borrows rather than forcing `'static`.
-    pub fn builder<'a>() -> CameraFrameBuilder<'a> {
-        CameraFrameBuilder::new()
-    }
-}
-
-// ── CameraFrameBuilder<'a> ──────────────────────────────────────────
-
-/// Builder for `CameraFrame<Vec<u8>>` with buffer-reuse finalizers.
-///
-/// `planes` is borrowed from a caller-owned slice for the lifetime of the
-/// builder. Each `CameraPlaneView` in that slice itself borrows its `data`
-/// from caller memory — all borrows must remain valid until `build()`,
-/// `encode_into_vec()`, or `encode_into_slice()` is called.
-pub struct CameraFrameBuilder<'a> {
-    stamp: Time,
-    frame_id: std::borrow::Cow<'a, str>,
-    seq: u64,
-    pid: u32,
-    width: u32,
-    height: u32,
-    format: std::borrow::Cow<'a, str>,
-    color_space: std::borrow::Cow<'a, str>,
-    color_transfer: std::borrow::Cow<'a, str>,
-    color_encoding: std::borrow::Cow<'a, str>,
-    color_range: std::borrow::Cow<'a, str>,
-    fence_fd: i32,
-    planes: &'a [CameraPlaneView<'a>],
-}
-
-impl<'a> Default for CameraFrameBuilder<'a> {
-    fn default() -> Self {
-        Self {
-            stamp: Time { sec: 0, nanosec: 0 },
-            frame_id: std::borrow::Cow::Borrowed(""),
-            seq: 0,
-            pid: 0,
-            width: 0,
-            height: 0,
-            format: std::borrow::Cow::Borrowed(""),
-            color_space: std::borrow::Cow::Borrowed(""),
-            color_transfer: std::borrow::Cow::Borrowed(""),
-            color_encoding: std::borrow::Cow::Borrowed(""),
-            color_range: std::borrow::Cow::Borrowed(""),
-            fence_fd: -1,
-            planes: &[],
-        }
-    }
-}
-
-impl<'a> CameraFrameBuilder<'a> {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn stamp(&mut self, t: Time) -> &mut Self {
-        self.stamp = t;
-        self
-    }
-    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
-        self.frame_id = s.into();
-        self
-    }
-    pub fn seq(&mut self, v: u64) -> &mut Self {
-        self.seq = v;
-        self
-    }
-    pub fn pid(&mut self, v: u32) -> &mut Self {
-        self.pid = v;
-        self
-    }
-    pub fn width(&mut self, v: u32) -> &mut Self {
-        self.width = v;
-        self
-    }
-    pub fn height(&mut self, v: u32) -> &mut Self {
-        self.height = v;
-        self
-    }
-    pub fn format(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
-        self.format = s.into();
-        self
-    }
-    pub fn color_space(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
-        self.color_space = s.into();
-        self
-    }
-    pub fn color_transfer(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
-        self.color_transfer = s.into();
-        self
-    }
-    pub fn color_encoding(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
-        self.color_encoding = s.into();
-        self
-    }
-    pub fn color_range(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
-        self.color_range = s.into();
-        self
-    }
-    pub fn fence_fd(&mut self, v: i32) -> &mut Self {
-        self.fence_fd = v;
-        self
-    }
-    pub fn planes(&mut self, p: &'a [CameraPlaneView<'a>]) -> &mut Self {
-        self.planes = p;
-        self
-    }
-
-    fn validate(&self) -> Result<(), CdrError> {
-        if self.width == 0 || self.height == 0 {
-            return Err(CdrError::InvalidHeader);
-        }
-        for p in self.planes {
-            validate_plane(p.fd, p.size, p.used, p.data.len())?;
-        }
-        Ok(())
-    }
-
-    fn size(&self) -> usize {
-        let mut s = CdrSizer::new();
-        Time::size_cdr(&mut s);
-        s.size_string(&self.frame_id);
-        s.size_u64(); // seq
-        s.size_u32(); // pid
-        s.size_u32(); // width
-        s.size_u32(); // height
-        s.size_string(&self.format);
-        s.size_string(&self.color_space);
-        s.size_string(&self.color_transfer);
-        s.size_string(&self.color_encoding);
-        s.size_string(&self.color_range);
-        s.size_i32(); // fence_fd
-        s.size_u32(); // planes count
-        for p in self.planes {
-            size_plane_element(&mut s, p.data.len());
-        }
-        s.size()
-    }
-
-    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
-        let mut w = CdrWriter::new(buf)?;
-        self.stamp.write_cdr(&mut w);
-        w.write_string(&self.frame_id);
-        w.write_u64(self.seq);
-        w.write_u32(self.pid);
-        w.write_u32(self.width);
-        w.write_u32(self.height);
-        w.write_string(&self.format);
-        w.write_string(&self.color_space);
-        w.write_string(&self.color_transfer);
-        w.write_string(&self.color_encoding);
-        w.write_string(&self.color_range);
-        w.write_i32(self.fence_fd);
-        w.write_u32(self.planes.len() as u32);
-        for p in self.planes {
-            write_plane_element(&mut w, p);
-        }
-        w.finish()
-    }
-
-    pub fn build(&self) -> Result<CameraFrame<Vec<u8>>, CdrError> {
-        self.validate()?;
-        let mut buf = vec![0u8; self.size()];
-        self.write_into(&mut buf)?;
-        CameraFrame::from_cdr(buf)
-    }
-
-    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
-        self.validate()?;
-        buf.resize(self.size(), 0);
-        self.write_into(buf)
-    }
-
-    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
-        self.validate()?;
-        let need = self.size();
-        if buf.len() < need {
-            return Err(CdrError::BufferTooShort {
-                need,
-                have: buf.len(),
-            });
-        }
-        self.write_into(&mut buf[..need])?;
-        Ok(need)
-    }
-}
-
-impl<B: AsRef<[u8]> + AsMut<[u8]>> CameraFrame<B> {
-    pub fn set_stamp(&mut self, t: Time) -> Result<(), CdrError> {
-        let b = self.buf.as_mut();
-        wr_i32(b, CDR_HEADER_SIZE, t.sec)?;
-        wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
-    }
-
-    pub fn set_seq(&mut self, v: u64) -> Result<(), CdrError> {
-        let p = cdr_align(self.offsets[0], 8);
-        wr_u64(self.buf.as_mut(), p, v)
-    }
-
-    pub fn set_pid(&mut self, v: u32) -> Result<(), CdrError> {
-        let p = cdr_align(self.offsets[0], 8) + 8;
-        wr_u32(self.buf.as_mut(), p, v)
-    }
-
-    pub fn set_width(&mut self, v: u32) -> Result<(), CdrError> {
-        let p = cdr_align(self.offsets[0], 8) + 12;
-        wr_u32(self.buf.as_mut(), p, v)
-    }
-
-    pub fn set_height(&mut self, v: u32) -> Result<(), CdrError> {
-        let p = cdr_align(self.offsets[0], 8) + 16;
-        wr_u32(self.buf.as_mut(), p, v)
-    }
-
-    /// Update `fence_fd` in place.
-    ///
-    /// This field follows five variable-length colorimetry strings, so the
-    /// in-place write must re-walk those strings to find the fence position
-    /// (same cost as the getter). Scalar fields before the strings remain
-    /// O(1) writes via constant offsets.
-    pub fn set_fence_fd(&mut self, v: i32) -> Result<(), CdrError> {
-        let strings_start = cdr_align(self.offsets[0], 8) + 20;
-        let b = self.buf.as_ref();
-        let (_, p1) = rd_string(b, strings_start);
-        let (_, p2) = rd_string(b, p1);
-        let (_, p3) = rd_string(b, p2);
-        let (_, p4) = rd_string(b, p3);
-        let (_, p5) = rd_string(b, p4);
-        let pos = align(p5, 4);
-        wr_i32(self.buf.as_mut(), pos, v)
-    }
-}
-
 // ── Model<B> — edgefirst_msgs/msg/Model ─────────────────────────────
 //
 // CDR layout: Header → offsets[0],
@@ -4130,16 +3574,17 @@ pub fn is_type_supported(type_name: &str) -> bool {
         type_name,
         "Box"
             | "CameraFrame"
-            | "CameraPlane"
             | "Date"
             | "Detect"
-            | "DmaBuffer"
             | "LocalTime"
             | "Mask"
             | "Model"
             | "ModelInfo"
             | "RadarCube"
             | "RadarInfo"
+            | "Tensor"
+            | "TensorPlane"
+            | "TensorStamped"
             | "Track"
             | "Vibration"
     )
@@ -4150,16 +3595,17 @@ pub fn list_types() -> &'static [&'static str] {
     &[
         "edgefirst_msgs/msg/Box",
         "edgefirst_msgs/msg/CameraFrame",
-        "edgefirst_msgs/msg/CameraPlane",
         "edgefirst_msgs/msg/Date",
         "edgefirst_msgs/msg/Detect",
-        "edgefirst_msgs/msg/DmaBuffer",
         "edgefirst_msgs/msg/LocalTime",
         "edgefirst_msgs/msg/Mask",
         "edgefirst_msgs/msg/Model",
         "edgefirst_msgs/msg/ModelInfo",
         "edgefirst_msgs/msg/RadarCube",
         "edgefirst_msgs/msg/RadarInfo",
+        "edgefirst_msgs/msg/Tensor",
+        "edgefirst_msgs/msg/TensorPlane",
+        "edgefirst_msgs/msg/TensorStamped",
         "edgefirst_msgs/msg/Track",
         "edgefirst_msgs/msg/Vibration",
     ]
@@ -4169,11 +3615,13 @@ pub fn list_types() -> &'static [&'static str] {
 use crate::schema_registry::SchemaType;
 
 impl SchemaType for Date {
-    const SCHEMA_NAME: &'static str = "edgefirst_msgs/msg/Date";
+    const SCHEMA_NAME: &str = "edgefirst_msgs/msg/Date";
 }
 
 #[cfg(test)]
-#[allow(deprecated)] // Tests exercise CameraFrame::new, which is deprecated in 3.2.0 but still supported until 4.0.
+#[allow(deprecated)] // Tests exercise the deprecated `::new()` constructors (Mask, LocalTime,
+                     // RadarCube, RadarInfo, Track, DetectBox, Model, ModelInfo, Vibration), which
+                     // remain supported until 4.0.
 mod tests {
     use super::*;
     use crate::builtin_interfaces::Time;
@@ -4222,413 +3670,11 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
-    fn dmabuf_roundtrip() {
-        let dmabuf = DmaBuffer::new(
-            Time::new(100, 0),
-            "camera",
-            12345,
-            42,
-            1920,
-            1080,
-            1920 * 3,
-            0x34325247,
-            1920 * 1080 * 3,
-        )
-        .unwrap();
-        assert_eq!(dmabuf.stamp(), Time::new(100, 0));
-        assert_eq!(dmabuf.frame_id(), "camera");
-        assert_eq!(dmabuf.pid(), 12345);
-        assert_eq!(dmabuf.fd(), 42);
-        assert_eq!(dmabuf.width(), 1920);
-        assert_eq!(dmabuf.height(), 1080);
-        assert_eq!(dmabuf.stride(), 1920 * 3);
-        assert_eq!(dmabuf.fourcc(), 0x34325247);
-        assert_eq!(dmabuf.length(), 1920 * 1080 * 3);
-
-        let bytes = dmabuf.to_cdr();
-        let decoded = DmaBuffer::from_cdr(bytes).unwrap();
-        assert_eq!(decoded.pid(), 12345);
-        assert_eq!(decoded.fd(), 42);
-    }
-
-    #[test]
-    fn camera_frame_roundtrip_empty() {
-        let cf = CameraFrame::new(
-            Time::new(1, 0),
-            "cam0",
-            42,
-            1234,
-            1920,
-            1080,
-            "NV12",
-            "bt709",
-            "bt709",
-            "bt709",
-            "limited",
-            -1,
-            &[],
-        )
-        .unwrap();
-        assert_eq!(cf.seq(), 42);
-        assert_eq!(cf.pid(), 1234);
-        assert_eq!(cf.width(), 1920);
-        assert_eq!(cf.height(), 1080);
-        assert_eq!(cf.format(), "NV12");
-        assert_eq!(cf.color_space(), "bt709");
-        assert_eq!(cf.color_range(), "limited");
-        assert_eq!(cf.fence_fd(), -1);
-        assert_eq!(cf.num_planes(), 0);
-
-        let bytes = cf.to_cdr();
-        let decoded = CameraFrame::<&[u8]>::from_cdr(&bytes[..]).unwrap();
-        assert_eq!(decoded.seq(), 42);
-        assert_eq!(decoded.format(), "NV12");
-        assert_eq!(decoded.num_planes(), 0);
-    }
-
-    #[test]
-    fn camera_frame_roundtrip_two_planes() {
-        let y = CameraPlaneView {
-            fd: 42,
-            offset: 0,
-            stride: 1920,
-            size: 2_073_600,
-            used: 2_073_600,
-            data: &[],
-        };
-        let uv = CameraPlaneView {
-            fd: 42,
-            offset: 2_073_600,
-            stride: 1920,
-            size: 1_036_800,
-            used: 1_036_800,
-            data: &[],
-        };
-        let cf = CameraFrame::new(
-            Time::new(2, 0),
-            "cam0",
-            100,
-            1234,
-            1920,
-            1080,
-            "NV12",
-            "bt709",
-            "bt709",
-            "bt709",
-            "limited",
-            77,
-            &[y, uv],
-        )
-        .unwrap();
-
-        let bytes = cf.to_cdr();
-        let decoded = CameraFrame::<&[u8]>::from_cdr(&bytes[..]).unwrap();
-        assert_eq!(decoded.fence_fd(), 77);
-        assert_eq!(decoded.num_planes(), 2);
-        let planes = decoded.planes();
-        assert_eq!(planes.len(), 2);
-        assert_eq!(planes[0].fd, 42);
-        assert_eq!(planes[0].offset, 0);
-        assert_eq!(planes[1].offset, 2_073_600);
-        assert_eq!(planes[0].used, planes[0].size);
-    }
-
-    #[test]
-    fn camera_frame_inlined_data_roundtrip() {
-        let data: Vec<u8> = (0..32u8).collect();
-        let plane = CameraPlaneView {
-            fd: -1,
-            offset: 0,
-            stride: 16,
-            size: 32,
-            used: 32,
-            data: &data,
-        };
-        let cf = CameraFrame::new(
-            Time::new(3, 0),
-            "bridge",
-            1,
-            0,
-            2,
-            16,
-            "rgb8",
-            "srgb",
-            "srgb",
-            "",
-            "full",
-            -1,
-            &[plane],
-        )
-        .unwrap();
-        let decoded = CameraFrame::<&[u8]>::from_cdr(cf.as_cdr()).unwrap();
-        let planes = decoded.planes();
-        assert_eq!(planes[0].fd, -1);
-        assert_eq!(planes[0].data.len(), 32);
-        assert_eq!(planes[0].data[0], 0);
-        assert_eq!(planes[0].data[31], 31);
-    }
-
-    #[test]
-    fn camera_frame_contract_rejections() {
-        let stamp = Time::new(0, 0);
-        // Zero width rejected
-        assert!(CameraFrame::new(stamp, "c", 0, 0, 0, 1, "rgb8", "", "", "", "", -1, &[]).is_err());
-        // Zero height rejected
-        assert!(CameraFrame::new(stamp, "c", 0, 0, 1, 0, "rgb8", "", "", "", "", -1, &[]).is_err());
-        // used > size rejected
-        let bad_plane = CameraPlaneView {
-            fd: 1,
-            offset: 0,
-            stride: 1,
-            size: 1,
-            used: 2,
-            data: &[],
-        };
-        assert!(CameraFrame::new(
-            stamp,
-            "c",
-            0,
-            0,
-            1,
-            1,
-            "rgb8",
-            "",
-            "",
-            "",
-            "",
-            -1,
-            &[bad_plane]
-        )
-        .is_err());
-        // fd < -1 rejected
-        let bad_fd = CameraPlaneView {
-            fd: -5,
-            offset: 0,
-            stride: 1,
-            size: 1,
-            used: 1,
-            data: &[],
-        };
-        assert!(CameraFrame::new(
-            stamp,
-            "c",
-            0,
-            0,
-            1,
-            1,
-            "rgb8",
-            "",
-            "",
-            "",
-            "",
-            -1,
-            &[bad_fd]
-        )
-        .is_err());
-        // fd >= 0 with non-empty data rejected
-        let data = vec![1u8];
-        let both = CameraPlaneView {
-            fd: 5,
-            offset: 0,
-            stride: 1,
-            size: 1,
-            used: 1,
-            data: &data,
-        };
-        assert!(
-            CameraFrame::new(stamp, "c", 0, 0, 1, 1, "rgb8", "", "", "", "", -1, &[both]).is_err()
-        );
-    }
-
-    #[test]
-    fn camera_frame_rejects_wrong_endianness() {
-        // Build a valid single-plane frame, flip the CDR endianness marker
-        // from little-endian (0x0001) to big-endian (0x0100) and confirm
-        // from_cdr rejects it with an error rather than decoding garbage.
-        let stamp = Time::new(1, 0);
-        let plane = CameraPlaneView {
-            fd: 1,
-            offset: 0,
-            stride: 1,
-            size: 1,
-            used: 1,
-            data: &[],
-        };
-        let cf = CameraFrame::new(
-            stamp,
-            "cam",
-            0,
-            0,
-            1,
-            1,
-            "rgb8",
-            "",
-            "",
-            "",
-            "",
-            -1,
-            &[plane],
-        )
-        .unwrap();
-        let mut bytes = cf.to_cdr();
-        // CDR header: [0]=repr-id hi, [1]=repr-id lo, [2..4]=options.
-        // Valid LE payload encoding uses 0x00 0x01; invert to 0x00 0x00 (BE).
-        bytes[1] = 0x00;
-        assert!(CameraFrame::<&[u8]>::from_cdr(&bytes).is_err());
-    }
-
-    #[test]
-    fn camera_frame_decoder_rejects_fd_below_minus_one() {
-        // Build a valid single-plane frame (fd=1, size=1, used=1, data=[]) so
-        // the plane occupies the last 24 bytes of the CDR buffer. Flip `fd`
-        // to -5 and confirm the decoder's new contract check rejects it.
-        let stamp = Time::new(1, 0);
-        let plane = CameraPlaneView {
-            fd: 1,
-            offset: 0,
-            stride: 1,
-            size: 1,
-            used: 1,
-            data: &[],
-        };
-        let cf =
-            CameraFrame::new(stamp, "c", 0, 0, 1, 1, "rgb8", "", "", "", "", -1, &[plane]).unwrap();
-        let mut bytes = cf.to_cdr();
-        let fd_off = bytes.len() - 24;
-        bytes[fd_off..fd_off + 4].copy_from_slice(&(-5i32).to_le_bytes());
-        assert!(CameraFrame::<&[u8]>::from_cdr(&bytes).is_err());
-    }
-
-    #[test]
-    fn camera_frame_decoder_rejects_used_greater_than_size() {
-        // Same base frame; `used` is at [len-8 .. len-4] for the 24-byte
-        // trailing plane block. Overwrite with a value exceeding `size`.
-        let stamp = Time::new(1, 0);
-        let plane = CameraPlaneView {
-            fd: 1,
-            offset: 0,
-            stride: 1,
-            size: 1,
-            used: 1,
-            data: &[],
-        };
-        let cf =
-            CameraFrame::new(stamp, "c", 0, 0, 1, 1, "rgb8", "", "", "", "", -1, &[plane]).unwrap();
-        let mut bytes = cf.to_cdr();
-        let used_off = bytes.len() - 8;
-        bytes[used_off..used_off + 4].copy_from_slice(&99u32.to_le_bytes());
-        assert!(CameraFrame::<&[u8]>::from_cdr(&bytes).is_err());
-    }
-
-    #[test]
-    fn camera_frame_rejects_inlined_size_mismatch() {
-        // fd == -1 requires size as usize == data.len() per CameraPlane.msg.
-        // `new` must reject the mismatch.
-        let data = [0x42u8, 0x43, 0x44, 0x45];
-        let plane = CameraPlaneView {
-            fd: -1,
-            offset: 0,
-            stride: 0,
-            size: 99, // does not match data.len() == 4
-            used: 4,
-            data: &data,
-        };
-        assert!(CameraFrame::new(
-            Time::new(0, 0),
-            "c",
-            0,
-            0,
-            1,
-            1,
-            "rgb8",
-            "",
-            "",
-            "",
-            "",
-            -1,
-            &[plane]
-        )
-        .is_err());
-    }
-
-    #[test]
-    fn camera_frame_decoder_rejects_inlined_size_mismatch() {
-        // Start with a valid inlined-data plane (fd=-1, size==data.len()), then
-        // mutate `size` in the encoded CDR to break the invariant and confirm
-        // from_cdr rejects it.
-        let data = [0x42u8, 0x43, 0x44, 0x45];
-        let plane = CameraPlaneView {
-            fd: -1,
-            offset: 0,
-            stride: 0xDEADBEEF,
-            size: 4,
-            used: 4,
-            data: &data,
-        };
-        let cf = CameraFrame::new(
-            Time::new(1, 0),
-            "c",
-            0,
-            0,
-            1,
-            1,
-            "rgb8",
-            "",
-            "",
-            "",
-            "",
-            -1,
-            &[plane],
-        )
-        .unwrap();
-        let mut bytes = cf.to_cdr();
-        let needle = 0xDEADBEEFu32.to_le_bytes();
-        let stride_off = bytes
-            .windows(4)
-            .position(|w| w == needle)
-            .expect("stride sentinel");
-        // size is the u32 immediately after stride.
-        let size_off = stride_off + 4;
-        bytes[size_off..size_off + 4].copy_from_slice(&99u32.to_le_bytes());
-        assert!(CameraFrame::<&[u8]>::from_cdr(&bytes).is_err());
-    }
-
-    #[test]
-    fn camera_frame_decoder_rejects_positive_fd_with_inline_data() {
-        // Start with a valid inlined-data plane (fd=-1, data non-empty) so
-        // `new` accepts it, then mutate `fd` to a non-negative value to
-        // trigger the decoder's `fd >= 0 && data non-empty` rejection.
-        // Uses a distinctive `stride` sentinel to locate the plane.
-        let stamp = Time::new(1, 0);
-        let data = [0x42u8, 0x43, 0x44, 0x45];
-        let plane = CameraPlaneView {
-            fd: -1,
-            offset: 0,
-            stride: 0xDEADBEEF,
-            size: 4,
-            used: 4,
-            data: &data,
-        };
-        let cf =
-            CameraFrame::new(stamp, "c", 0, 0, 1, 1, "rgb8", "", "", "", "", -1, &[plane]).unwrap();
-        let mut bytes = cf.to_cdr();
-        let needle = 0xDEADBEEFu32.to_le_bytes();
-        let stride_off = bytes
-            .windows(4)
-            .position(|w| w == needle)
-            .expect("stride sentinel");
-        let fd_off = stride_off - 8;
-        bytes[fd_off..fd_off + 4].copy_from_slice(&5i32.to_le_bytes());
-        assert!(CameraFrame::<&[u8]>::from_cdr(&bytes).is_err());
-    }
-
-    #[test]
     fn camera_frame_registered_in_type_list() {
         assert!(is_type_supported("CameraFrame"));
-        assert!(is_type_supported("CameraPlane"));
+        assert!(!is_type_supported("CameraPlane"));
         assert!(list_types().contains(&"edgefirst_msgs/msg/CameraFrame"));
-        assert!(list_types().contains(&"edgefirst_msgs/msg/CameraPlane"));
+        assert!(!list_types().contains(&"edgefirst_msgs/msg/CameraPlane"));
     }
 
     #[test]
@@ -5213,5 +4259,234 @@ mod tests {
             assert_eq!(a.mask, b.mask, "mask[{i}].mask");
             assert_eq!(a.boxed, b.boxed, "mask[{i}].boxed");
         }
+    }
+
+    #[test]
+    fn registry_lists_tensor_message_set() {
+        assert!(is_type_supported("Tensor"));
+        assert!(is_type_supported("TensorPlane"));
+        assert!(is_type_supported("TensorStamped"));
+        assert!(is_type_supported("CameraFrame"));
+        // Removed in 4.0.0.
+        assert!(!is_type_supported("CameraPlane"));
+        assert!(!is_type_supported("DmaBuffer"));
+
+        let types = list_types();
+        for name in [
+            "edgefirst_msgs/msg/Tensor",
+            "edgefirst_msgs/msg/TensorPlane",
+            "edgefirst_msgs/msg/TensorStamped",
+            "edgefirst_msgs/msg/CameraFrame",
+        ] {
+            assert!(types.contains(&name), "missing {name}");
+        }
+        assert!(!types.contains(&"edgefirst_msgs/msg/CameraPlane"));
+        assert!(!types.contains(&"edgefirst_msgs/msg/DmaBuffer"));
+    }
+
+    #[test]
+    fn registry_list_is_sorted_and_unique() {
+        let types = list_types();
+        let mut sorted = types.to_vec();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(
+            sorted.as_slice(),
+            types,
+            "list_types must be sorted and unique"
+        );
+    }
+
+    fn sample_tensor_fields<'a>(
+        shape: &'a [u64],
+        planes: &'a [crate::tensor::TensorPlaneView<'a>],
+    ) -> crate::tensor::TensorFields<'a> {
+        crate::tensor::TensorFields {
+            storage_kind: 2,
+            pid: 4242,
+            dtype: 1,
+            shape,
+            planes,
+            format: std::borrow::Cow::Borrowed("NV12"),
+            color_space: std::borrow::Cow::Borrowed("bt709"),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn camera_frame_roundtrips_with_embedded_tensor() {
+        let shape: [u64; 2] = [1080, 1920];
+        let planes = [crate::tensor::TensorPlaneView {
+            handle: 9,
+            offset: 0,
+            stride: 1920,
+            size: 1920 * 1080,
+            used: 1920 * 1080,
+            modifier: 0,
+            handle_bytes: &[],
+            data: &[],
+        }];
+        let fields = sample_tensor_fields(&shape, &planes);
+
+        let cf = CameraFrame::builder()
+            .stamp(Time { sec: 7, nanosec: 8 })
+            .frame_id("cam0")
+            .seq(42)
+            .tensor(&fields)
+            .build()
+            .unwrap();
+
+        let v = CameraFrame::<&[u8]>::from_cdr(cf.as_cdr()).unwrap();
+        assert_eq!(v.stamp(), Time { sec: 7, nanosec: 8 });
+        assert_eq!(v.frame_id(), "cam0");
+        assert_eq!(v.seq(), 42);
+
+        let t = v.tensor();
+        assert_eq!(t.storage_kind(), 2);
+        assert_eq!(t.pid(), 4242);
+        assert_eq!(t.shape().collect::<Vec<_>>(), vec![1080u64, 1920]);
+        assert_eq!(t.format(), "NV12");
+        assert_eq!(t.num_planes(), 1);
+        assert_eq!(t.plane_at(0).unwrap().handle, 9);
+    }
+
+    #[test]
+    fn tensor_stamped_roundtrips() {
+        let shape: [u64; 1] = [128];
+        let fields = crate::tensor::TensorFields {
+            dtype: 3,
+            shape: &shape,
+            ..Default::default()
+        };
+        let ts = TensorStamped::builder()
+            .stamp(Time { sec: 1, nanosec: 2 })
+            .frame_id("npu0")
+            .seq(5)
+            .tensor(&fields)
+            .build()
+            .unwrap();
+
+        let v = TensorStamped::<&[u8]>::from_cdr(ts.as_cdr()).unwrap();
+        assert_eq!(v.frame_id(), "npu0");
+        assert_eq!(v.seq(), 5);
+        assert_eq!(v.tensor().dtype(), 3);
+        assert_eq!(v.tensor().shape().collect::<Vec<_>>(), vec![128u64]);
+    }
+
+    #[test]
+    fn wrappers_are_byte_identical_for_the_same_content() {
+        // TensorStamped and CameraFrame have the same layout; only the schema
+        // name differs. This is what makes reinterpreting one as the other free.
+        let shape: [u64; 1] = [4];
+        let fields = crate::tensor::TensorFields {
+            dtype: 1,
+            shape: &shape,
+            ..Default::default()
+        };
+        let cf = CameraFrame::builder()
+            .stamp(Time { sec: 3, nanosec: 4 })
+            .frame_id("x")
+            .seq(11)
+            .tensor(&fields)
+            .build()
+            .unwrap();
+        let ts = TensorStamped::builder()
+            .stamp(Time { sec: 3, nanosec: 4 })
+            .frame_id("x")
+            .seq(11)
+            .tensor(&fields)
+            .build()
+            .unwrap();
+        assert_eq!(cf.as_cdr(), ts.as_cdr());
+    }
+
+    #[test]
+    fn in_place_scalar_setters_do_not_resize() {
+        let shape: [u64; 1] = [4];
+        let fields = crate::tensor::TensorFields {
+            dtype: 1,
+            shape: &shape,
+            ..Default::default()
+        };
+        let mut cf = CameraFrame::builder()
+            .frame_id("cam0")
+            .seq(1)
+            .tensor(&fields)
+            .build()
+            .unwrap();
+        let len = cf.as_cdr().len();
+
+        cf.set_seq(99).unwrap();
+        cf.set_stamp(Time { sec: 5, nanosec: 6 }).unwrap();
+        assert_eq!(cf.as_cdr().len(), len);
+
+        let v = CameraFrame::<&[u8]>::from_cdr(cf.as_cdr()).unwrap();
+        assert_eq!(v.seq(), 99);
+        assert_eq!(v.stamp(), Time { sec: 5, nanosec: 6 });
+    }
+
+    #[test]
+    fn camera_frame_builder_encode_into_vec_reuses_the_buffer() {
+        // stamped_tensor_message!'s encode_into_vec/encode_into_slice are only
+        // ever reached through .build() elsewhere in this file; this test
+        // calls them directly, mirroring TensorBuilder's
+        // encode_into_vec_reuses_the_buffer in src/tensor.rs.
+        let shape: [u64; 1] = [4];
+        let fields = crate::tensor::TensorFields {
+            dtype: 1,
+            shape: &shape,
+            ..Default::default()
+        };
+        let mut buf = Vec::new();
+        CameraFrame::builder()
+            .frame_id("cam0")
+            .seq(1)
+            .tensor(&fields)
+            .encode_into_vec(&mut buf)
+            .unwrap();
+        let first_len = buf.len();
+        let cap = buf.capacity();
+
+        CameraFrame::builder()
+            .frame_id("cam0")
+            .seq(2)
+            .tensor(&fields)
+            .encode_into_vec(&mut buf)
+            .unwrap();
+        assert_eq!(buf.len(), first_len);
+        assert_eq!(buf.capacity(), cap, "re-encoding must not reallocate");
+
+        let v = CameraFrame::<&[u8]>::from_cdr(&buf[..]).unwrap();
+        assert_eq!(v.seq(), 2);
+        assert_eq!(v.tensor().shape().collect::<Vec<_>>(), vec![4u64]);
+    }
+
+    #[test]
+    fn camera_frame_builder_encode_into_slice_rejects_too_small_buffer() {
+        let shape: [u64; 1] = [4];
+        let fields = crate::tensor::TensorFields {
+            dtype: 1,
+            shape: &shape,
+            ..Default::default()
+        };
+        let builder = {
+            let mut b = CameraFrame::builder();
+            b.frame_id("cam0").seq(1).tensor(&fields);
+            b
+        };
+
+        let mut too_small = vec![0u8; 4];
+        match builder.encode_into_slice(&mut too_small) {
+            Err(CdrError::BufferTooShort { need, have }) => {
+                assert!(need > have);
+            }
+            other => panic!("expected BufferTooShort, got {other:?}"),
+        }
+
+        let mut big_enough = vec![0u8; 256];
+        let n = builder.encode_into_slice(&mut big_enough).unwrap();
+        let v = CameraFrame::<&[u8]>::from_cdr(&big_enough[..n]).unwrap();
+        assert_eq!(v.seq(), 1);
+        assert_eq!(v.tensor().shape().collect::<Vec<_>>(), vec![4u64]);
     }
 }

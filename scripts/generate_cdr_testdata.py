@@ -466,109 +466,6 @@ def gen_edgefirst_msgs():
                   height=2, width=4, length=0, encoding="",
                   mask=bytes(range(8)), boxed=False))
 
-    # CameraFrame — 8 variants covering raw, compressed, multi-plane, inlined.
-    def _plane(fd=0, offset=0, stride=0, size=0, used=None, data=None):
-        return edgefirst_msgs.CameraPlane(
-            fd=fd, offset=offset, stride=stride, size=size,
-            used=used if used is not None else size,
-            data=data if data is not None else [])
-
-    # Single-plane RGB8 1920x1080
-    write_cdr("edgefirst_msgs", "CameraFrame",
-              edgefirst_msgs.CameraFrame(
-                  header=header, seq=1, pid=1234, width=1920, height=1080,
-                  format="rgb8",
-                  color_space="srgb", color_transfer="srgb",
-                  color_encoding="", color_range="full", fence_fd=-1,
-                  planes=[_plane(fd=42, stride=5760, size=6_220_800)]))
-
-    # NV12 two-plane, shared fd
-    write_cdr("edgefirst_msgs", "CameraFrame_nv12",
-              edgefirst_msgs.CameraFrame(
-                  header=header, seq=2, pid=1234, width=1920, height=1080,
-                  format="NV12",
-                  color_space="bt709", color_transfer="bt709",
-                  color_encoding="bt709", color_range="limited", fence_fd=-1,
-                  planes=[
-                      _plane(fd=42, stride=1920, size=2_073_600),
-                      _plane(fd=42, offset=2_073_600, stride=1920, size=1_036_800),
-                  ]))
-
-    # I420 three-plane, shared fd
-    w, h = 1920, 1080
-    y_sz = w * h
-    uv_sz = (w // 2) * (h // 2)
-    write_cdr("edgefirst_msgs", "CameraFrame_i420",
-              edgefirst_msgs.CameraFrame(
-                  header=header, seq=3, pid=1234, width=w, height=h,
-                  format="I420",
-                  color_space="bt709", color_transfer="bt709",
-                  color_encoding="bt709", color_range="limited", fence_fd=-1,
-                  planes=[
-                      _plane(fd=42, stride=w, size=y_sz),
-                      _plane(fd=42, offset=y_sz, stride=w // 2, size=uv_sz),
-                      _plane(fd=42, offset=y_sz + uv_sz, stride=w // 2, size=uv_sz),
-                  ]))
-
-    # Planar RGB8 NCHW model input
-    n = 640 * 640
-    write_cdr("edgefirst_msgs", "CameraFrame_planar_nchw",
-              edgefirst_msgs.CameraFrame(
-                  header=header, seq=4, pid=1234, width=640, height=640,
-                  format="rgb8_planar_nchw",
-                  color_space="srgb", color_transfer="srgb",
-                  color_encoding="", color_range="full", fence_fd=-1,
-                  planes=[_plane(fd=50, offset=i * n, stride=640, size=n)
-                          for i in range(3)]))
-
-    # True V4L2 MPLANE — distinct fd per plane, plus a GPU fence
-    write_cdr("edgefirst_msgs", "CameraFrame_split_fd",
-              edgefirst_msgs.CameraFrame(
-                  header=header, seq=5, pid=1234, width=1920, height=1080,
-                  format="NV12",
-                  color_space="bt709", color_transfer="bt709",
-                  color_encoding="bt709", color_range="limited", fence_fd=77,
-                  planes=[
-                      _plane(fd=70, stride=1920, size=2_073_600),
-                      _plane(fd=71, stride=1920, size=1_036_800),
-                  ]))
-
-    # H.264 bitstream — oversized buffer, used << size
-    write_cdr("edgefirst_msgs", "CameraFrame_h264",
-              edgefirst_msgs.CameraFrame(
-                  header=header, seq=6, pid=1234, width=1920, height=1080,
-                  format="h264",
-                  color_space="bt709", color_transfer="bt709",
-                  color_encoding="bt709", color_range="limited", fence_fd=-1,
-                  planes=[_plane(fd=90, size=4_194_304, used=187_392)]))
-
-    # Off-device bridge — inlined data, no fd, pid=0
-    write_cdr("edgefirst_msgs", "CameraFrame_inlined",
-              edgefirst_msgs.CameraFrame(
-                  header=header, seq=7, pid=0, width=16, height=16,
-                  format="rgb8",
-                  color_space="srgb", color_transfer="srgb",
-                  color_encoding="", color_range="full", fence_fd=-1,
-                  planes=[_plane(fd=-1, stride=64, size=1024,
-                                 data=[i & 0xFF for i in range(1024)])]))
-
-    # Zero-plane metadata-only frame — exercises planes.len()==0 edge case
-    # which is distinct from the populated-planes path (empty seq-count walk
-    # in CDR, no scan_plane_element calls).
-    write_cdr("edgefirst_msgs", "CameraFrame_empty",
-              edgefirst_msgs.CameraFrame(
-                  header=header, seq=8, pid=0, width=1, height=1,
-                  format="", color_space="", color_transfer="",
-                  color_encoding="", color_range="", fence_fd=-1,
-                  planes=[]))
-
-    # DmaBuffer
-    write_cdr("edgefirst_msgs", "DmaBuffer",
-              edgefirst_msgs.DmaBuffer(
-                  header=header, pid=12345, fd=42,
-                  width=1920, height=1080, stride=5760,
-                  fourcc=0x34325247, length=1920*1080*3))
-
     # LocalTime
     write_cdr("edgefirst_msgs", "LocalTime",
               edgefirst_msgs.LocalTime(
@@ -722,6 +619,77 @@ def gen_edgefirst_msgs():
                   band_upper_hz=1000.0,
                   vibration=geometry_msgs.Vector3(x=0.42, y=0.51, z=0.37),
                   clipping=[3, 1, 0]))
+
+    # ── Tensor family ────────────────────────────────────────────────────
+    #
+    # Generated from the legacy pycdr2 dataclasses, NOT from the PyO3
+    # bindings. That is the whole point: goldens produced by the same code
+    # they validate would only prove self-consistency. pycdr2 is an
+    # independent implementation of the same .msg contract, so a mismatch
+    # means one of the two encoders is wrong.
+    _le = _legacy_edgefirst_msgs
+    _le_hdr = _le.Header(
+        stamp=_le.Time(sec=STAMP.sec, nanosec=STAMP.nanosec), frame_id=FRAME_ID)
+
+    # Referenced NV12: one allocation, Y at 0 and UV at w*h, unquantized.
+    # shape is [h, w] with a U8 dtype against an h*w*3/2 allocation — the
+    # addressing grid, deliberately not the byte layout.
+    nv12_planes = [
+        _le.TensorPlane(handle=7, offset=0, stride=640,
+                        size=640 * 480, used=640 * 480, modifier=0,
+                        handle_bytes=[0xDE, 0xAD, 0xBE, 0xEF], data=[]),
+        _le.TensorPlane(handle=7, offset=640 * 480, stride=640,
+                        size=640 * 480 // 2, used=640 * 480 // 2, modifier=0,
+                        handle_bytes=[], data=[]),
+    ]
+    nv12 = _le.Tensor(
+        storage_kind=2, pid=4242, fence_fd=-1, dtype=1, quant_axis=-2,
+        shape=[480, 640], strides=[640, 1],
+        quant_scales=[], quant_zero_points=[],
+        format="NV12", color_space="bt709", color_transfer="bt709",
+        color_encoding="bt709", color_range="limited",
+        planes=nv12_planes)
+    write_cdr("edgefirst_msgs", "Tensor", nv12)
+
+    # Inline single plane — the off-device bridging path, where bytes travel
+    # in the message instead of behind a handle.
+    write_cdr("edgefirst_msgs", "Tensor_inline",
+              _le.Tensor(
+                  storage_kind=0, pid=0, fence_fd=-1, dtype=1, quant_axis=-2,
+                  shape=[2, 4], strides=[4, 1],
+                  quant_scales=[], quant_zero_points=[],
+                  format="mono8", color_space="", color_transfer="",
+                  color_encoding="", color_range="",
+                  planes=[_le.TensorPlane(
+                      handle=-1, offset=0, stride=4, size=8, used=8,
+                      modifier=0, handle_bytes=[], data=list(range(8)))]))
+
+    # Per-axis quantization: exactly shape[quant_axis] scales.
+    write_cdr("edgefirst_msgs", "Tensor_quantized",
+              _le.Tensor(
+                  storage_kind=0, pid=0, fence_fd=-1, dtype=3, quant_axis=0,
+                  shape=[3, 8], strides=[],
+                  quant_scales=[0.5, 0.25, 0.125],
+                  quant_zero_points=[128, 0, -128],
+                  format="", color_space="", color_transfer="",
+                  color_encoding="", color_range="",
+                  planes=[]))
+
+    # Both wrappers, same tensor and same header — the encoded bytes must be
+    # identical to each other, which tests/cdr_golden.rs asserts.
+    write_cdr("edgefirst_msgs", "TensorStamped",
+              _le.TensorStamped(header=_le_hdr, seq=99, tensor=nv12))
+    write_cdr("edgefirst_msgs", "CameraFrame",
+              _le.CameraFrame(header=_le_hdr, seq=99, tensor=nv12))
+
+    # A long frame_id shifts every header byte but must NOT shift the embedded
+    # tensor: `seq` (uint64) forces it to the same 8-aligned offset either way.
+    write_cdr("edgefirst_msgs", "CameraFrame_long_frame_id",
+              _le.CameraFrame(
+                  header=_le.Header(
+                      stamp=_le.Time(sec=STAMP.sec, nanosec=STAMP.nanosec),
+                      frame_id="a_very_long_frame_identifier_x"),
+                  seq=99, tensor=nv12))
 
 
 def gen_foxglove_msgs():
