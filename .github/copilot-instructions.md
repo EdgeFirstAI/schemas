@@ -220,8 +220,9 @@ Brief summary of what changed and why
 - No `serde` — the project uses its own zero-copy CDR implementation
 
 **C API:**
-- Hand-maintained header (`crates/capi/include/edgefirst/schemas.h`)
-- Never manually edit the generated header
+- Hand-maintained header (`crates/capi/include/edgefirst/schemas.h`) — edit it
+  by hand in lockstep with the FFI implementation; cbindgen is declared as a
+  build-dependency but is not invoked (see Common Pitfalls below)
 - Function naming: `ros_<namespace>_<type>_<method>` (e.g., `ros_sensor_image_width()`)
 - EdgeFirst types: `ros_detect_<type>_<method>`
 - All functions that can fail set `errno` and return an error indicator

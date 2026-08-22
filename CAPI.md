@@ -49,7 +49,8 @@ sudo cp crates/capi/include/edgefirst/schemas.h /usr/local/include/edgefirst/
 
 # Install library (Linux) — install the versioned real file and create the
 # symlink chain expected by the GNU/Linux dynamic linker. Replace 2.2.1 with
-# the version you built.
+# the version you built. (`make lib` creates the libedgefirst_schemas.so
+# symlink over cargo's libedgefirst_schemas_capi.so; `install` follows it.)
 VERSION=2.2.1; MAJOR=${VERSION%%.*}; MM=${VERSION%.*}
 sudo install -m 644 target/release/libedgefirst_schemas.so \
     /usr/local/lib/libedgefirst_schemas.so.${VERSION}
@@ -58,8 +59,10 @@ sudo ln -sf libedgefirst_schemas.so.${MM}      /usr/local/lib/libedgefirst_schem
 sudo ln -sf libedgefirst_schemas.so.${MAJOR}   /usr/local/lib/libedgefirst_schemas.so
 
 # Install library (macOS) — dylib versioning is handled differently; a plain
-# copy is sufficient for development installs.
-sudo cp target/release/libedgefirst_schemas.dylib /usr/local/lib/
+# copy is sufficient for development installs. `make lib` builds the Linux
+# SONAME chain only, so copy cargo's output under the public name.
+sudo cp target/release/libedgefirst_schemas_capi.dylib \
+    /usr/local/lib/libedgefirst_schemas.dylib
 
 # Update library cache (Linux only)
 sudo ldconfig
@@ -1677,8 +1680,8 @@ otool -L myapp | grep edgefirst
 
 ```bash
 # Verify the library exports the expected symbols
-nm -D target/release/libedgefirst_schemas.so | grep ros_header
-# If empty, rebuild: cargo build --release
+nm -D target/release/libedgefirst_schemas_capi.so | grep ros_header
+# If empty, rebuild: make lib
 ```
 
 ### SONAME Versioning
@@ -1755,12 +1758,15 @@ field accessors, encode/decode signatures) is documented inline in
 ## Building from Source
 
 ```bash
-# Build the shared library
-cargo build --release
+# Build the shared library. Use `make lib`, not a bare `cargo build`: the
+# capi crate's [lib] name is `edgefirst_schemas_capi` (so its rlib does not
+# collide with the schemas crate), and `make lib` lays the public
+# libedgefirst_schemas.{a,so} names over the cargo output.
+make lib
 
 # The library is at:
-#   target/release/libedgefirst_schemas.so      (Linux)
-#   target/release/libedgefirst_schemas.dylib   (macOS)
+#   target/release/libedgefirst_schemas.so      (Linux, symlink -> ...so.MAJOR)
+#   target/release/libedgefirst_schemas_capi.so (the cargo output itself)
 #
 # The header is at:
 #   crates/capi/include/edgefirst/schemas.h
@@ -1784,7 +1790,12 @@ For ARM64 targets (e.g., NXP i.MX 8M Plus):
 
 ```bash
 cargo zigbuild --release --target aarch64-unknown-linux-gnu
-# Library at: target/aarch64-unknown-linux-gnu/release/libedgefirst_schemas.so
+# Library at: target/aarch64-unknown-linux-gnu/release/libedgefirst_schemas_capi.so
+#
+# A cross-target build does not run `make lib`, so the public-name symlink is
+# not created. Link against the cargo basename, or symlink it yourself:
+#   ln -sf libedgefirst_schemas_capi.so \
+#          target/aarch64-unknown-linux-gnu/release/libedgefirst_schemas.so
 ```
 
 See [Zig cross-compilation](https://github.com/nickel-lang/topiary/wiki/Cross-compilation-with-Zig)
