@@ -109,12 +109,33 @@ jobs:
 
       - name: Run C API tests
         run: |
-          # Copy the instrumented library to where the Makefile/gcc expect it.
-          # cargo writes the shipped name directly (crates/capi sets
-          # `[lib] name = "edgefirst_schemas"`), so this is a plain copy.
+          # Build the C library, instrumented, into the coverage target dir.
+          # `cargo llvm-cov nextest` above builds test binaries only: the capi
+          # crate's cdylib/staticlib are not in that graph, because its Rust FFI
+          # smoke tests are in-crate unit tests and nothing else depends on the
+          # lib target. This used to fall out of the integration tests linking
+          # capi's rlib, which no longer exists.
+          #
+          # Run in a subshell: show-env exports its own LLVM_PROFILE_FILE, and
+          # the C tests below must keep the one set in the previous step.
+          (
+            source <(cargo llvm-cov show-env --export-prefix)
+            CARGO_TARGET_DIR="${PWD}/target/llvm-cov-target" \
+              cargo build -p edgefirst-schemas-capi --all-features
+          )
+
+          # Copy to where the gcc invocation below expects it. cargo writes the
+          # shipped name directly (crates/capi sets `[lib] name =
+          # "edgefirst_schemas"`), so this is a plain copy.
+          COV_DEPS=target/llvm-cov-target/debug/deps
+          if [ ! -f "${COV_DEPS}/libedgefirst_schemas.so" ]; then
+            echo "::error::instrumented libedgefirst_schemas.so not found in ${COV_DEPS}"
+            ls -l "${COV_DEPS}" | grep edgefirst_schemas || echo "(no edgefirst_schemas artifacts at all)"
+            exit 1
+          fi
           mkdir -p target/debug/deps
-          cp -f target/llvm-cov-target/debug/deps/libedgefirst_schemas.* target/debug/deps/ 2>/dev/null || true
-          cp -f target/llvm-cov-target/debug/deps/libedgefirst_schemas.* target/debug/ 2>/dev/null || true
+          cp -f "${COV_DEPS}"/libedgefirst_schemas.* target/debug/deps/
+          cp -f "${COV_DEPS}"/libedgefirst_schemas.* target/debug/
 
           # Create the SONAME hop so the runtime loader resolves the library:
           # crates/capi/build.rs sets DT_SONAME to libedgefirst_schemas.so.<major>.
