@@ -127,6 +127,10 @@ Function and type names follow a consistent prefix scheme based on message origi
 Acronyms are treated as single words: `Sat` → `sat`, `Nav` → `nav`.
 Numbers stay attached to the preceding word: `Cloud2` → `cloud2`.
 
+> **Pre-4.0 follow-up:** All symbols currently share the historical `ros_*`
+> prefix regardless of namespace. A per-namespace rename (`sensor_*`,
+> `edgefirst_*`, …) is required before the 4.0 tag (~1,200 symbols).
+
 ## Architecture
 
 The API splits message types into two categories based on their wire layout.
@@ -270,23 +274,6 @@ ros_image_builder_build(b, &bytes, &len);
 ros_bytes_free(bytes, len);
 ```
 
-**Encode: legacy one-shot (deprecated, will be removed in 4.0).**
-
-```c
-uint8_t* bytes = NULL;
-size_t len = 0;
-ros_image_encode(&bytes, &len,
-    stamp_sec, stamp_nanosec, "camera",
-    480, 640, "rgb8", 0, 1920,
-    pixel_data, pixel_data_len);
-// ... use bytes ...
-ros_bytes_free(bytes, len);
-```
-
-The one-shot `ros_<type>_encode(...)` functions still work in 3.2.0
-but delegate to the builder internally. Migrate to `ros_<type>_builder_*`
-before 4.0.
-
 Every buffer-backed type provides these entry points:
 
 | Function | Purpose |
@@ -301,7 +288,6 @@ Every buffer-backed type provides these entry points:
 | `ros_<type>_builder_build(b, &bytes, &len)` | Allocate a fresh CDR buffer and encode |
 | `ros_<type>_builder_encode_into(b, buf, cap, &out_len)` | Encode into caller-owned buffer; errors if too small |
 | `ros_<type>_builder_free(b)` | Release the builder handle |
-| `ros_<type>_encode(...)` | **Deprecated** — one-shot encoder, removed in 4.0 |
 
 **When to use in-place setters vs. the builder.** Fixed-size fields
 (scalars, fixed-size arrays, CdrFixed struct fields like `Vector3`)
@@ -375,7 +361,7 @@ valid for as long as the child pointers are used.
 | Source | Who owns it | How to free |
 |--------|-------------|-------------|
 | `ros_<type>_from_cdr(...)` | Caller (handle + source data) | `ros_<type>_free(handle)`, then free source data |
-| `ros_<type>_encode(&bytes, ...)` | Caller | `ros_bytes_free(bytes, len)` |
+| `ros_<type>_builder_build(b, &bytes, ...)` | Caller | `ros_bytes_free(bytes, len)` |
 | `ros_<type>_get_<field>(handle)` | Source data (via handle) | Do not free |
 | `ros_<type>_as_cdr(handle, ...)` | Source data (via handle) | Do not free |
 | `ros_detect_get_box(handle, i)` | Parent handle | Do NOT free; owned by parent |
@@ -597,9 +583,7 @@ const char*  ros_header_get_frame_id(const ros_header_t* view);     // borrowed
 
 const uint8_t* ros_header_as_cdr(const ros_header_t* view, size_t* out_len);
 
-int ros_header_encode(uint8_t** out_bytes, size_t* out_len,
-                      int32_t stamp_sec, uint32_t stamp_nanosec,
-                      const char* frame_id);
+// Builder API: ros_header_builder_new / _set_* / _build / _encode_into
 ```
 
 ---
@@ -624,12 +608,7 @@ const uint8_t* ros_image_get_data(const ros_image_t* view, size_t* out_len); // 
 
 const uint8_t* ros_image_as_cdr(const ros_image_t* view, size_t* out_len);
 
-int ros_image_encode(uint8_t** out_bytes, size_t* out_len,
-                     int32_t stamp_sec, uint32_t stamp_nanosec,
-                     const char* frame_id,
-                     uint32_t height, uint32_t width,
-                     const char* encoding, uint8_t is_bigendian,
-                     uint32_t step, const uint8_t* data, size_t data_len);
+// Builder API: ros_image_builder_new / _set_* / _build / _encode_into
 ```
 
 #### CompressedImage
@@ -648,10 +627,7 @@ const uint8_t* ros_compressed_image_get_data(const ros_compressed_image_t* view,
 const uint8_t* ros_compressed_image_as_cdr(const ros_compressed_image_t* view,
                                             size_t* out_len);
 
-int ros_compressed_image_encode(uint8_t** out_bytes, size_t* out_len,
-                                int32_t stamp_sec, uint32_t stamp_nanosec,
-                                const char* frame_id, const char* format,
-                                const uint8_t* data, size_t data_len);
+// Builder API: ros_compressed_image_builder_new / _set_* / _build
 ```
 
 #### Imu
@@ -1062,11 +1038,7 @@ const char* ros_compressed_video_get_format(const ros_compressed_video_t* view);
 const uint8_t* ros_compressed_video_as_cdr(const ros_compressed_video_t* view,
                                             size_t* out_len);
 
-int ros_compressed_video_encode(uint8_t** out_bytes, size_t* out_len,
-                                int32_t stamp_sec, uint32_t stamp_nanosec,
-                                const char* frame_id,
-                                const uint8_t* data, size_t data_len,
-                                const char* format);
+// Builder API: ros_foxglove_compressed_video_builder_new / _set_* / _build
 ```
 
 #### CompressedImage
@@ -1092,11 +1064,7 @@ const char* ros_foxglove_compressed_image_get_format(const ros_foxglove_compress
 const uint8_t* ros_foxglove_compressed_image_as_cdr(const ros_foxglove_compressed_image_t* view,
                                                     size_t* out_len);
 
-int ros_foxglove_compressed_image_encode(uint8_t** out_bytes, size_t* out_len,
-                                         int32_t stamp_sec, uint32_t stamp_nanosec,
-                                         const char* frame_id,
-                                         const uint8_t* data, size_t data_len,
-                                         const char* format);
+// Builder API: ros_foxglove_compressed_image_builder_new / _set_* / _build
 ```
 
 ---
@@ -1122,12 +1090,7 @@ bool        ros_mask_get_boxed(const ros_mask_t* view);
 > contract. Child masks accessed via `ros_model_get_mask` are embedded in the
 > parent buffer and do not have an independent CDR form.
 
-```c
-int ros_mask_encode(uint8_t** out_bytes, size_t* out_len,
-                    uint32_t height, uint32_t width, uint32_t length,
-                    const char* encoding,
-                    const uint8_t* data, size_t data_len,
-                    bool boxed);
+// Builder API: ros_mask_builder_new / _set_* / _build / _encode_into
 ```
 
 #### Tensor family
@@ -1529,10 +1492,15 @@ int main(void) {
     uint8_t* bytes = NULL;
     size_t len = 0;
 
-    if (ros_header_encode(&bytes, &len, 42, 0, "camera_frame") != 0) {
-        perror("ros_header_encode");
+    ros_header_builder_t* b = ros_header_builder_new();
+    ros_header_builder_set_stamp(b, 42, 0);
+    if (ros_header_builder_set_frame_id(b, "camera_frame") != 0 ||
+        ros_header_builder_build(b, &bytes, &len) != 0) {
+        perror("ros_header_builder");
+        ros_header_builder_free(b);
         return 1;
     }
+    ros_header_builder_free(b);
     printf("Encoded Header: %zu CDR bytes\n", len);
 
     // Verify round-trip
@@ -1655,8 +1623,14 @@ void publish_header(z_loaned_publisher_t* pub) {
     uint8_t* bytes = NULL;
     size_t len = 0;
 
-    if (ros_header_encode(&bytes, &len, 42, 0, "camera_frame") != 0)
+    ros_header_builder_t* b = ros_header_builder_new();
+    ros_header_builder_set_stamp(b, 42, 0);
+    if (ros_header_builder_set_frame_id(b, "camera_frame") != 0 ||
+        ros_header_builder_build(b, &bytes, &len) != 0) {
+        ros_header_builder_free(b);
         return;
+    }
+    ros_header_builder_free(b);
 
     z_publisher_put(pub, bytes, len, NULL);
     ros_bytes_free(bytes, len);  // NOT free(bytes)

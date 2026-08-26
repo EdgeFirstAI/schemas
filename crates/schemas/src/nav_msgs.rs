@@ -137,39 +137,6 @@ impl<B: AsRef<[u8]>> Odometry<B> {
 }
 
 impl Odometry<Vec<u8>> {
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        child_frame_id: &str,
-        pose: PoseWithCovariance,
-        twist: TwistWithCovariance,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        sizer.size_string(child_frame_id);
-        sizer.align(8);
-        let o1 = sizer.offset();
-        PoseWithCovariance::size_cdr(&mut sizer);
-        let o2 = sizer.offset();
-        TwistWithCovariance::size_cdr(&mut sizer);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_string(child_frame_id);
-        pose.write_cdr(&mut w);
-        twist.write_cdr(&mut w);
-        w.finish()?;
-
-        Ok(Odometry {
-            offsets: [o0, o1, o2],
-            buf,
-        })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -459,46 +426,6 @@ impl<B: AsRef<[u8]>> GridCells<B> {
 }
 
 impl GridCells<Vec<u8>> {
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        cell_width: f32,
-        cell_height: f32,
-        cells: &[Point],
-    ) -> Result<Self, CdrError> {
-        let count = cells.len();
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        sizer.align(4);
-        let o0 = sizer.offset();
-        sizer.size_f32(); // cell_width
-        sizer.size_f32(); // cell_height
-        sizer.size_u32(); // seq_len
-        let o1 = sizer.offset();
-        for _ in 0..count {
-            Point::size_cdr(&mut sizer);
-        }
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_f32(cell_width);
-        w.write_f32(cell_height);
-        w.write_u32(count as u32);
-        for p in cells {
-            p.write_cdr(&mut w);
-        }
-        w.finish()?;
-
-        Ok(GridCells {
-            offsets: [o0, o1],
-            count,
-            buf,
-        })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -718,41 +645,6 @@ impl<B: AsRef<[u8]>> OccupancyGrid<B> {
 }
 
 impl OccupancyGrid<Vec<u8>> {
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        info: MapMetaData,
-        data: &[i8],
-    ) -> Result<Self, CdrError> {
-        let count = data.len();
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        MapMetaData::size_cdr(&mut sizer);
-        let o1 = sizer.offset();
-        sizer.size_u32(); // seq_len
-        let o2 = sizer.offset();
-        sizer.size_raw(count); // i8[] — no alignment needed (1-byte elements)
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        info.write_cdr(&mut w);
-        w.write_u32(count as u32);
-        for &v in data {
-            w.write_i8(v);
-        }
-        w.finish()?;
-
-        Ok(OccupancyGrid {
-            offsets: [o0, o1, o2],
-            count,
-            buf,
-        })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -1014,40 +906,6 @@ impl<'a> Iterator for PoseStampedIter<'a> {
 impl ExactSizeIterator for PoseStampedIter<'_> {}
 
 impl Path<Vec<u8>> {
-    /// Construct a Path from a slice of `(stamp, frame_id, pose)` tuples.
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        poses: &[(Time, &str, Pose)],
-    ) -> Result<Self, CdrError> {
-        let count = poses.len();
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        sizer.size_u32(); // seq_len
-        let o1 = sizer.offset();
-        for &(_, fid, _) in poses {
-            size_pose_stamped(&mut sizer, fid);
-        }
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_u32(count as u32);
-        for &(ps, fid, pose) in poses {
-            write_pose_stamped(&mut w, ps, fid, pose);
-        }
-        w.finish()?;
-
-        Ok(Path {
-            offsets: [o0, o1],
-            count,
-            buf,
-        })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -1264,7 +1122,14 @@ mod tests {
                 z: 0.0,
             },
         ];
-        let gc = GridCells::new(Time::new(1, 0), "map", 0.5, 0.5, &cells).unwrap();
+        let gc = GridCells::builder()
+            .stamp(Time::new(1, 0))
+            .frame_id("map")
+            .cell_width(0.5)
+            .cell_height(0.5)
+            .cells(&cells)
+            .build()
+            .unwrap();
         assert_eq!(gc.len(), 3);
         assert!((gc.cell_width() - 0.5_f32).abs() < 1e-6);
         assert!((gc.cell_height() - 0.5_f32).abs() < 1e-6);
@@ -1280,7 +1145,14 @@ mod tests {
 
     #[test]
     fn grid_cells_empty() {
-        let gc = GridCells::new(Time::new(0, 0), "map", 1.0, 1.0, &[]).unwrap();
+        let gc = GridCells::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("map")
+            .cell_width(1.0)
+            .cell_height(1.0)
+            .cells(&[])
+            .build()
+            .unwrap();
         assert!(gc.is_empty());
         assert_eq!(gc.cells(), vec![]);
         let bytes = gc.to_cdr();
@@ -1310,7 +1182,13 @@ mod tests {
             },
         };
         let data: Vec<i8> = vec![0, 50, 100, -1, 0, 0, 0, 0];
-        let og = OccupancyGrid::new(Time::new(1, 0), "map", info, &data).unwrap();
+        let og = OccupancyGrid::builder()
+            .stamp(Time::new(1, 0))
+            .frame_id("map")
+            .info(info)
+            .data(&data)
+            .build()
+            .unwrap();
         assert_eq!(og.len(), 8);
         assert_eq!(og.data(), data.as_slice());
 
@@ -1348,7 +1226,13 @@ mod tests {
                 },
             },
         };
-        let og = OccupancyGrid::new(Time::new(0, 0), "map", info, &[]).unwrap();
+        let og = OccupancyGrid::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("map")
+            .info(info)
+            .data(&[])
+            .build()
+            .unwrap();
         assert!(og.is_empty());
         let bytes = og.to_cdr();
         let decoded = OccupancyGrid::from_cdr(bytes).unwrap();
@@ -1388,7 +1272,12 @@ mod tests {
             (Time::new(1, 0), "map", pose1),
             (Time::new(2, 0), "map", pose2),
         ];
-        let path = Path::new(Time::new(0, 0), "map", &poses).unwrap();
+        let path = Path::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("map")
+            .poses(&poses)
+            .build()
+            .unwrap();
         assert_eq!(path.len(), 2);
 
         let bytes = path.to_cdr();
@@ -1429,7 +1318,12 @@ mod tests {
             (Time::new(1, 0), "base_link", pose),
             (Time::new(2, 0), "odom", pose),
         ];
-        let path = Path::new(Time::new(0, 0), "map", &poses).unwrap();
+        let path = Path::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("map")
+            .poses(&poses)
+            .build()
+            .unwrap();
         let (_, fid0, _) = path.pose_at(0).unwrap();
         let (_, fid1, _) = path.pose_at(1).unwrap();
         assert_eq!(fid0, "base_link");
@@ -1438,7 +1332,12 @@ mod tests {
 
     #[test]
     fn path_empty() {
-        let path = Path::new(Time::new(0, 0), "map", &[]).unwrap();
+        let path = Path::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("map")
+            .poses(&[])
+            .build()
+            .unwrap();
         assert!(path.is_empty());
         assert_eq!(path.poses(), vec![]);
         let bytes = path.to_cdr();
@@ -1466,7 +1365,12 @@ mod tests {
             (Time::new(2, 0), "a_longer_frame_id", pose),
             (Time::new(3, 0), "x", pose),
         ];
-        let path = Path::new(Time::new(10, 0), "world", &poses).unwrap();
+        let path = Path::builder()
+            .stamp(Time::new(10, 0))
+            .frame_id("world")
+            .poses(&poses)
+            .build()
+            .unwrap();
         let bytes = path.to_cdr();
         let decoded = Path::from_cdr(bytes).unwrap();
         assert_eq!(decoded.len(), 3);
@@ -1502,7 +1406,14 @@ mod tests {
                 z: 0.0,
             },
         ];
-        let direct = GridCells::new(Time::new(1, 0), "map", 0.5, 0.25, &cells).unwrap();
+        let direct = GridCells::builder()
+            .stamp(Time::new(1, 0))
+            .frame_id("map")
+            .cell_width(0.5)
+            .cell_height(0.25)
+            .cells(&cells)
+            .build()
+            .unwrap();
         let built = GridCells::builder()
             .stamp(Time::new(1, 0))
             .frame_id("map")
@@ -1534,7 +1445,13 @@ mod tests {
             origin: sample_pose(0.0),
         };
         let data: [i8; 8] = [0, 50, 100, -1, 0, 50, 100, -1];
-        let direct = OccupancyGrid::new(Time::new(1, 0), "map", info, &data).unwrap();
+        let direct = OccupancyGrid::builder()
+            .stamp(Time::new(1, 0))
+            .frame_id("map")
+            .info(info)
+            .data(&data)
+            .build()
+            .unwrap();
         let built = OccupancyGrid::builder()
             .stamp(Time::new(1, 0))
             .frame_id("map")
@@ -1557,7 +1474,12 @@ mod tests {
             (Time::new(1, 0), "a", sample_pose(1.0)),
             (Time::new(2, 0), "longer_frame", sample_pose(2.0)),
         ];
-        let direct = Path::new(Time::new(10, 0), "world", &poses).unwrap();
+        let direct = Path::builder()
+            .stamp(Time::new(10, 0))
+            .frame_id("world")
+            .poses(&poses)
+            .build()
+            .unwrap();
         let built = Path::builder()
             .stamp(Time::new(10, 0))
             .frame_id("world")
@@ -1588,7 +1510,14 @@ mod tests {
             },
             covariance: [0.2; 36],
         };
-        let direct = Odometry::new(Time::new(1, 0), "odom", "base_link", pose, twist).unwrap();
+        let direct = Odometry::builder()
+            .stamp(Time::new(1, 0))
+            .frame_id("odom")
+            .child_frame_id("base_link")
+            .pose(pose)
+            .twist(twist)
+            .build()
+            .unwrap();
         let built = Odometry::builder()
             .stamp(Time::new(1, 0))
             .frame_id("odom")
@@ -1609,7 +1538,12 @@ mod tests {
             (Time::new(2, 0), "bb", sample_pose(2.0)),
             (Time::new(3, 0), "ccc", sample_pose(3.0)),
         ];
-        let path = Path::new(Time::new(0, 0), "world", &poses).unwrap();
+        let path = Path::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("world")
+            .poses(&poses)
+            .build()
+            .unwrap();
         let decoded = Path::from_cdr(path.to_cdr()).unwrap();
 
         // ExactSizeIterator reports the right length.

@@ -452,6 +452,11 @@ Regenerate via `./benches/cpp/benchmark.sh --target <ssh-host> --render`.
 
 ### DmaBuffer
 
+> **Historical (pre-4.0):** `DmaBuffer` was removed in favor of the `Tensor` /
+> `CameraFrame` family. Current Rust criterion benches live under the `Tensor`
+> and `CameraFrame` groups in `crates/schemas/benches/serialization.rs`.
+> The charts below are retained from the 3.x benchmark run for comparison only.
+
 #### access
 
 ![DmaBuffer/access Chart](https://quickchart.io/chart?c=%7B%22type%22%3A%22horizontalBar%22%2C%22data%22%3A%7B%22labels%22%3A%5B%22all_fields%22%2C%22half_fields%22%2C%22one_field%22%5D%2C%22datasets%22%3A%5B%7B%22label%22%3A%22cyclonedds%22%2C%22data%22%3A%5B403.9463%2C398.5133%2C406.9796%5D%2C%22backgroundColor%22%3A%22rgba%2816%2C185%2C129%2C0.85%29%22%2C%22borderColor%22%3A%22rgba%2816%2C185%2C129%2C1%29%22%2C%22borderWidth%22%3A1%7D%2C%7B%22label%22%3A%22edgefirst%22%2C%22data%22%3A%5B145.3557%2C84.6149%2C62.6233%5D%2C%22backgroundColor%22%3A%22rgba%2859%2C130%2C246%2C0.85%29%22%2C%22borderColor%22%3A%22rgba%2859%2C130%2C246%2C1%29%22%2C%22borderWidth%22%3A1%7D%2C%7B%22label%22%3A%22fastcdr%22%2C%22data%22%3A%5B206.9908%2C202.7204%2C200.4965%5D%2C%22backgroundColor%22%3A%22rgba%28245%2C158%2C11%2C0.85%29%22%2C%22borderColor%22%3A%22rgba%28245%2C158%2C11%2C1%29%22%2C%22borderWidth%22%3A1%7D%5D%7D%2C%22options%22%3A%7B%22title%22%3A%7B%22display%22%3Atrue%2C%22text%22%3A%22DmaBuffer/access%20Latency%20%28ns%29%22%2C%22fontSize%22%3A11%7D%2C%22legend%22%3A%7B%22labels%22%3A%7B%22fontSize%22%3A9%2C%22boxWidth%22%3A12%7D%7D%2C%22scales%22%3A%7B%22xAxes%22%3A%5B%7B%22scaleLabel%22%3A%7B%22display%22%3Atrue%2C%22labelString%22%3A%22Time%20%28ns%29%22%2C%22fontSize%22%3A9%7D%2C%22ticks%22%3A%7B%22beginAtZero%22%3Atrue%2C%22fontSize%22%3A8%7D%7D%5D%2C%22yAxes%22%3A%5B%7B%22ticks%22%3A%7B%22fontSize%22%3A8%7D%7D%5D%7D%2C%22plugins%22%3A%7B%22datalabels%22%3A%7B%22display%22%3Afalse%7D%7D%7D%7D&w=600&h=200)

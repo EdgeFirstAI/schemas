@@ -14,7 +14,7 @@ EdgeFirst Perception Schemas provides the foundational message types used throug
 
 - **🔄 ROS2 Common Interfaces** - Full compatibility with standard [ROS2](https://www.ros.org/) message types (`geometry_msgs`, `sensor_msgs`, `std_msgs`, `nav_msgs`)
 - **📊 Foxglove Schema Support** - Native visualization with [Foxglove Studio](https://foxglove.dev/)
-- **⚡ Custom EdgeFirst Messages** - Specialized types for edge AI (detection, tracking, DMA buffers, radar)
+- **⚡ Custom EdgeFirst Messages** - Specialized types for edge AI (detection, tracking, tensor/camera frames, radar)
 - **🦀 High-Performance Rust Bindings** - Zero-copy serialization with CDR encoding, including typed and dynamic point cloud access
 - **🐍 Python Bindings** - Efficient point cloud decoding and message handling
 - **📡 Zenoh-Based Communication** - Modern pub/sub over [Zenoh](https://zenoh.io/) middleware
@@ -378,6 +378,7 @@ EdgeFirst Perception Schemas enables:
 
 ## Documentation
 
+- **[CHANGELOG [Unreleased] Migration](CHANGELOG.md#migration)** — 4.0 breaking changes, wire format, and API migration summary
 - **[EdgeFirst Perception Documentation](https://doc.edgefirst.ai/latest/perception/)** - Main documentation hub
 - **[Developer Guide](https://doc.edgefirst.ai/latest/perception/dev/)** - In-depth development guide
 - **[EdgeFirst Samples](https://github.com/EdgeFirstAI/samples)** - Working code examples

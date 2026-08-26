@@ -284,34 +284,6 @@ impl<B: AsRef<[u8]>> CompressedImage<B> {
 }
 
 impl CompressedImage<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use CompressedImage::builder() for allocation-free buffer reuse; CompressedImage::new will be removed in 4.0"
-    )]
-    pub fn new(stamp: Time, frame_id: &str, format: &str, data: &[u8]) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        sizer.size_string(format);
-        let o1 = sizer.offset();
-        sizer.size_bytes(data.len());
-        let o2 = sizer.offset();
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_string(format);
-        w.write_bytes(data);
-        w.finish()?;
-
-        Ok(CompressedImage {
-            offsets: [o0, o1, o2],
-            buf,
-        })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -520,51 +492,6 @@ impl<B: AsRef<[u8]>> Image<B> {
 }
 
 impl Image<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use Image::builder() for allocation-free buffer reuse; Image::new will be removed in 4.0"
-    )]
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        height: u32,
-        width: u32,
-        encoding: &str,
-        is_bigendian: u8,
-        step: u32,
-        data: &[u8],
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        sizer.size_u32(); // height
-        sizer.size_u32(); // width
-        sizer.size_string(encoding);
-        let o1 = sizer.offset();
-        sizer.size_u8(); // is_bigendian
-        sizer.size_u32(); // step
-        sizer.size_bytes(data.len());
-        let o2 = sizer.offset();
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_u32(height);
-        w.write_u32(width);
-        w.write_string(encoding);
-        w.write_u8(is_bigendian);
-        w.write_u32(step);
-        w.write_bytes(data);
-        w.finish()?;
-
-        Ok(Image {
-            offsets: [o0, o1, o2],
-            buf,
-        })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -828,46 +755,6 @@ impl<B: AsRef<[u8]>> Imu<B> {
 }
 
 impl Imu<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use Imu::builder() for allocation-free buffer reuse; Imu::new will be removed in 4.0"
-    )]
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        orientation: Quaternion,
-        orientation_covariance: [f64; 9],
-        angular_velocity: Vector3,
-        angular_velocity_covariance: [f64; 9],
-        linear_acceleration: Vector3,
-        linear_acceleration_covariance: [f64; 9],
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        Quaternion::size_cdr(&mut sizer);
-        size_f64_array9(&mut sizer);
-        Vector3::size_cdr(&mut sizer);
-        size_f64_array9(&mut sizer);
-        Vector3::size_cdr(&mut sizer);
-        size_f64_array9(&mut sizer);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        orientation.write_cdr(&mut w);
-        write_f64_array9(&mut w, &orientation_covariance);
-        angular_velocity.write_cdr(&mut w);
-        write_f64_array9(&mut w, &angular_velocity_covariance);
-        linear_acceleration.write_cdr(&mut w);
-        write_f64_array9(&mut w, &linear_acceleration_covariance);
-        w.finish()?;
-
-        Ok(Imu { offsets: [o0], buf })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -1168,51 +1055,6 @@ impl<B: AsRef<[u8]>> NavSatFix<B> {
 }
 
 impl NavSatFix<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use NavSatFix::builder() for allocation-free buffer reuse; NavSatFix::new will be removed in 4.0"
-    )]
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        status: NavSatStatus,
-        latitude: f64,
-        longitude: f64,
-        altitude: f64,
-        position_covariance: [f64; 9],
-        position_covariance_type: u8,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        NavSatStatus::size_cdr(&mut sizer);
-        sizer.align(8);
-        let o1 = sizer.offset();
-        sizer.size_f64(); // latitude
-        sizer.size_f64(); // longitude
-        sizer.size_f64(); // altitude
-        size_f64_array9(&mut sizer);
-        sizer.size_u8(); // position_covariance_type
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        status.write_cdr(&mut w);
-        w.write_f64(latitude);
-        w.write_f64(longitude);
-        w.write_f64(altitude);
-        write_f64_array9(&mut w, &position_covariance);
-        w.write_u8(position_covariance_type);
-        w.finish()?;
-
-        Ok(NavSatFix {
-            offsets: [o0, o1],
-            buf,
-        })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -1465,29 +1307,6 @@ impl<B: AsRef<[u8]>> PointField<B> {
 }
 
 impl PointField<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use PointField::builder() for allocation-free buffer reuse; PointField::new will be removed in 4.0"
-    )]
-    pub fn new(name: &str, offset: u32, datatype: u8, count: u32) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        sizer.size_string(name);
-        let o0 = sizer.offset();
-        sizer.size_u32();
-        sizer.size_u8();
-        sizer.size_u32();
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        w.write_string(name);
-        w.write_u32(offset);
-        w.write_u8(datatype);
-        w.write_u32(count);
-        w.finish()?;
-
-        Ok(PointField { offsets: [o0], buf })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -1748,63 +1567,6 @@ impl<B: AsRef<[u8]>> PointCloud2<B> {
 }
 
 impl PointCloud2<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use PointCloud2::builder() for allocation-free buffer reuse; PointCloud2::new will be removed in 4.0"
-    )]
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        height: u32,
-        width: u32,
-        fields: &[PointFieldView<'_>],
-        is_bigendian: bool,
-        point_step: u32,
-        row_step: u32,
-        data: &[u8],
-        is_dense: bool,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        sizer.size_u32(); // height
-        sizer.size_u32(); // width
-        sizer.size_u32(); // fields count
-        for f in fields {
-            size_point_field_element(&mut sizer, f.name);
-        }
-        let o1 = sizer.offset();
-        sizer.size_bool(); // is_bigendian
-        sizer.size_u32(); // point_step
-        sizer.size_u32(); // row_step
-        sizer.size_bytes(data.len());
-        let o2 = sizer.offset();
-        sizer.size_bool(); // is_dense
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_u32(height);
-        w.write_u32(width);
-        w.write_u32(fields.len() as u32);
-        for f in fields {
-            write_point_field_element(&mut w, f);
-        }
-        w.write_bool(is_bigendian);
-        w.write_u32(point_step);
-        w.write_u32(row_step);
-        w.write_bytes(data);
-        w.write_bool(is_dense);
-        w.finish()?;
-
-        Ok(PointCloud2 {
-            offsets: [o0, o1, o2],
-            buf,
-        })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -2118,66 +1880,6 @@ impl<B: AsRef<[u8]>> CameraInfo<B> {
 }
 
 impl CameraInfo<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use CameraInfo::builder() for allocation-free buffer reuse; CameraInfo::new will be removed in 4.0"
-    )]
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        height: u32,
-        width: u32,
-        distortion_model: &str,
-        d: &[f64],
-        k: [f64; 9],
-        r: [f64; 9],
-        p: [f64; 12],
-        binning_x: u32,
-        binning_y: u32,
-        roi: RegionOfInterest,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        sizer.size_u32(); // height
-        sizer.size_u32(); // width
-        sizer.size_string(distortion_model);
-        let o1 = sizer.offset();
-        sizer.size_u32();
-        sizer.size_seq_8(d.len());
-        let o2 = sizer.offset();
-        size_f64_array9(&mut sizer);
-        size_f64_array9(&mut sizer);
-        size_f64_array12(&mut sizer);
-        sizer.size_u32(); // binning_x
-        sizer.size_u32(); // binning_y
-        RegionOfInterest::size_cdr(&mut sizer);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_u32(height);
-        w.write_u32(width);
-        w.write_string(distortion_model);
-        w.write_u32(d.len() as u32);
-        w.write_slice_f64(d);
-        write_f64_array9(&mut w, &k);
-        write_f64_array9(&mut w, &r);
-        write_f64_array12(&mut w, &p);
-        w.write_u32(binning_x);
-        w.write_u32(binning_y);
-        roi.write_cdr(&mut w);
-        w.finish()?;
-
-        Ok(CameraInfo {
-            offsets: [o0, o1, o2],
-            buf,
-        })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -2506,35 +2208,6 @@ impl<B: AsRef<[u8]>> MagneticField<B> {
 }
 
 impl MagneticField<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use MagneticField::builder() for allocation-free buffer reuse; MagneticField::new will be removed in 4.0"
-    )]
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        magnetic_field: Vector3,
-        magnetic_field_covariance: [f64; 9],
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        sizer.align(8);
-        let o0 = sizer.offset();
-        Vector3::size_cdr(&mut sizer);
-        size_f64_array9(&mut sizer);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        magnetic_field.write_cdr(&mut w);
-        write_f64_array9(&mut w, &magnetic_field_covariance);
-        w.finish()?;
-
-        Ok(MagneticField { offsets: [o0], buf })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -2717,35 +2390,6 @@ impl<B: AsRef<[u8]>> FluidPressure<B> {
 }
 
 impl FluidPressure<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use FluidPressure::builder() for allocation-free buffer reuse; FluidPressure::new will be removed in 4.0"
-    )]
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        fluid_pressure: f64,
-        variance: f64,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        sizer.align(8);
-        let o0 = sizer.offset();
-        sizer.size_f64();
-        sizer.size_f64();
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_f64(fluid_pressure);
-        w.write_f64(variance);
-        w.finish()?;
-
-        Ok(FluidPressure { offsets: [o0], buf })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -2915,35 +2559,6 @@ impl<B: AsRef<[u8]>> Temperature<B> {
 }
 
 impl Temperature<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use Temperature::builder() for allocation-free buffer reuse; Temperature::new will be removed in 4.0"
-    )]
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        temperature: f64,
-        variance: f64,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        sizer.align(8);
-        let o0 = sizer.offset();
-        sizer.size_f64();
-        sizer.size_f64();
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_f64(temperature);
-        w.write_f64(variance);
-        w.finish()?;
-
-        Ok(Temperature { offsets: [o0], buf })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -3263,90 +2878,6 @@ impl<B: AsRef<[u8]>> BatteryState<B> {
 }
 
 impl BatteryState<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use BatteryState::builder() for allocation-free buffer reuse; BatteryState::new will be removed in 4.0"
-    )]
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        voltage: f32,
-        temperature: f32,
-        current: f32,
-        charge: f32,
-        capacity: f32,
-        design_capacity: f32,
-        percentage: f32,
-        power_supply_status: u8,
-        power_supply_health: u8,
-        power_supply_technology: u8,
-        present: bool,
-        cell_voltage: &[f32],
-        cell_temperature: &[f32],
-        location: &str,
-        serial_number: &str,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        sizer.align(4);
-        let o0 = sizer.offset();
-        for _ in 0..7 {
-            sizer.size_f32();
-        }
-        sizer.size_u8();
-        sizer.size_u8();
-        sizer.size_u8();
-        sizer.size_bool();
-        let o1 = sizer.offset();
-        sizer.size_u32();
-        for _ in cell_voltage {
-            sizer.size_f32();
-        }
-        let o2 = sizer.offset();
-        sizer.size_u32();
-        for _ in cell_temperature {
-            sizer.size_f32();
-        }
-        let o3 = sizer.offset();
-        sizer.size_string(location);
-        let o4 = sizer.offset();
-        sizer.size_string(serial_number);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_f32(voltage);
-        w.write_f32(temperature);
-        w.write_f32(current);
-        w.write_f32(charge);
-        w.write_f32(capacity);
-        w.write_f32(design_capacity);
-        w.write_f32(percentage);
-        w.write_u8(power_supply_status);
-        w.write_u8(power_supply_health);
-        w.write_u8(power_supply_technology);
-        w.write_bool(present);
-        w.write_u32(cell_voltage.len() as u32);
-        for v in cell_voltage {
-            w.write_f32(*v);
-        }
-        w.write_u32(cell_temperature.len() as u32);
-        for v in cell_temperature {
-            w.write_f32(*v);
-        }
-        w.write_string(location);
-        w.write_string(serial_number);
-        w.finish()?;
-
-        Ok(BatteryState {
-            offsets: [o0, o1, o2, o3, o4],
-            buf,
-        })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -3667,31 +3198,6 @@ impl<B: AsRef<[u8]>> RelativeHumidity<B> {
 }
 
 impl RelativeHumidity<Vec<u8>> {
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        relative_humidity: f64,
-        variance: f64,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        sizer.align(8);
-        let o0 = sizer.offset();
-        sizer.size_f64();
-        sizer.size_f64();
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_f64(relative_humidity);
-        w.write_f64(variance);
-        w.finish()?;
-
-        Ok(RelativeHumidity { offsets: [o0], buf })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -3865,40 +3371,6 @@ impl<B: AsRef<[u8]>> TimeReference<B> {
 }
 
 impl TimeReference<Vec<u8>> {
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        time_ref: Time,
-        source: &str,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        // time_ref (Time) is 4-aligned; align BEFORE capturing offsets[0] so it
-        // matches the post-alignment position the writer and from_cdr use. The
-        // accessor time_ref() reads at offsets[0] without re-aligning, so a
-        // pre-alignment offset would read into the padding gap (silently wrong
-        // for any frame_id whose length is not ≡ 3 (mod 4)).
-        sizer.align(4);
-        let o0 = sizer.offset();
-        Time::size_cdr(&mut sizer); // time_ref
-        let o1 = sizer.offset();
-        sizer.size_string(source);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        time_ref.write_cdr(&mut w);
-        w.write_string(source);
-        w.finish()?;
-
-        Ok(TimeReference {
-            offsets: [o0, o1],
-            buf,
-        })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -4068,7 +3540,6 @@ impl SchemaType for RegionOfInterest {
 }
 
 #[cfg(test)]
-#[allow(deprecated)] // Tests exercise Image::new / PointCloud2::new, which are deprecated in 3.2.0 but still supported until 4.0.
 mod tests {
     use super::*;
     use crate::builtin_interfaces::Time;
@@ -4077,13 +3548,13 @@ mod tests {
 
     #[test]
     fn compressed_image_roundtrip() {
-        let img = CompressedImage::new(
-            Time::new(100, 500_000_000),
-            "camera",
-            "jpeg",
-            &[0xFF, 0xD8, 0xFF],
-        )
-        .unwrap();
+        let img = CompressedImage::builder()
+            .stamp(Time::new(100, 500_000_000))
+            .frame_id("camera")
+            .format("jpeg")
+            .data(&[0xFF, 0xD8, 0xFF])
+            .build()
+            .unwrap();
         assert_eq!(img.stamp(), Time::new(100, 500_000_000));
         assert_eq!(img.frame_id(), "camera");
         assert_eq!(img.format(), "jpeg");
@@ -4098,17 +3569,17 @@ mod tests {
     #[test]
     fn image_roundtrip() {
         let data = vec![128u8; 1920 * 480];
-        let img = Image::new(
-            Time::new(100, 500_000_000),
-            "camera_optical",
-            480,
-            640,
-            "rgb8",
-            0,
-            1920,
-            &data,
-        )
-        .unwrap();
+        let img = Image::builder()
+            .stamp(Time::new(100, 500_000_000))
+            .frame_id("camera_optical")
+            .height(480)
+            .width(640)
+            .encoding("rgb8")
+            .is_bigendian(0)
+            .step(1920)
+            .data(&data)
+            .build()
+            .unwrap();
         assert_eq!(img.height(), 480);
         assert_eq!(img.width(), 640);
         assert_eq!(img.encoding(), "rgb8");
@@ -4124,30 +3595,30 @@ mod tests {
 
     #[test]
     fn imu_roundtrip() {
-        let imu = Imu::new(
-            Time::new(100, 0),
-            "imu_link",
-            Quaternion {
+        let imu = Imu::builder()
+            .stamp(Time::new(100, 0))
+            .frame_id("imu_link")
+            .orientation(Quaternion {
                 x: 0.0,
                 y: 0.0,
                 z: 0.0,
                 w: 1.0,
-            },
-            [0.0; 9],
-            Vector3 {
+            })
+            .orientation_covariance([0.0; 9])
+            .angular_velocity(Vector3 {
                 x: 0.1,
                 y: 0.2,
                 z: 9.8,
-            },
-            [0.0; 9],
-            Vector3 {
+            })
+            .angular_velocity_covariance([0.0; 9])
+            .linear_acceleration(Vector3 {
                 x: 0.0,
                 y: 0.0,
                 z: 0.0,
-            },
-            [0.0; 9],
-        )
-        .unwrap();
+            })
+            .linear_acceleration_covariance([0.0; 9])
+            .build()
+            .unwrap();
         assert_eq!(imu.stamp(), Time::new(100, 0));
         let bytes = imu.to_cdr();
         let decoded = Imu::from_cdr(bytes).unwrap();
@@ -4157,20 +3628,20 @@ mod tests {
 
     #[test]
     fn nav_sat_fix_roundtrip() {
-        let fix = NavSatFix::new(
-            Time::new(100, 0),
-            "gps",
-            NavSatStatus {
+        let fix = NavSatFix::builder()
+            .stamp(Time::new(100, 0))
+            .frame_id("gps")
+            .status(NavSatStatus {
                 status: 0,
                 service: 1,
-            },
-            45.5017,
-            -73.5673,
-            100.0,
-            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
-            2,
-        )
-        .unwrap();
+            })
+            .latitude(45.5017)
+            .longitude(-73.5673)
+            .altitude(100.0)
+            .position_covariance([1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0])
+            .position_covariance_type(2)
+            .build()
+            .unwrap();
         let bytes = fix.to_cdr();
         let decoded = NavSatFix::from_cdr(bytes).unwrap();
         assert!((decoded.latitude() - 45.5017).abs() < 1e-10);
@@ -4225,19 +3696,19 @@ mod tests {
             },
         ];
         let data = vec![0u8; 12288];
-        let cloud = PointCloud2::new(
-            Time::new(100, 0),
-            "lidar",
-            1,
-            1024,
-            &fields,
-            false,
-            12,
-            12288,
-            &data,
-            true,
-        )
-        .unwrap();
+        let cloud = PointCloud2::builder()
+            .stamp(Time::new(100, 0))
+            .frame_id("lidar")
+            .height(1)
+            .width(1024)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(12)
+            .row_step(12288)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let bytes = cloud.to_cdr();
         let decoded = PointCloud2::from_cdr(bytes).unwrap();
         assert_eq!(decoded.height(), 1);
@@ -4269,19 +3740,19 @@ mod tests {
             },
         ];
         let data = vec![0u8; 36]; // 3 points × 12 bytes
-        let cloud = PointCloud2::new(
-            Time::new(100, 0),
-            "lidar",
-            1,
-            3,
-            &fields,
-            false,
-            12,
-            36,
-            &data,
-            true,
-        )
-        .unwrap();
+        let cloud = PointCloud2::builder()
+            .stamp(Time::new(100, 0))
+            .frame_id("lidar")
+            .height(1)
+            .width(3)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(12)
+            .row_step(36)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = cloud.to_cdr();
         let decoded = PointCloud2::from_cdr(cdr).unwrap();
 
@@ -4305,23 +3776,23 @@ mod tests {
             width: 640,
             do_rectify: false,
         };
-        let cam = CameraInfo::new(
-            Time::new(100, 0),
-            "camera",
-            480,
-            640,
-            "plumb_bob",
-            &[0.1, -0.2, 0.0, 0.0, 0.0],
-            [500.0, 0.0, 320.0, 0.0, 500.0, 240.0, 0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
-            [
+        let cam = CameraInfo::builder()
+            .stamp(Time::new(100, 0))
+            .frame_id("camera")
+            .height(480)
+            .width(640)
+            .distortion_model("plumb_bob")
+            .d(&[0.1, -0.2, 0.0, 0.0, 0.0])
+            .k([500.0, 0.0, 320.0, 0.0, 500.0, 240.0, 0.0, 0.0, 1.0])
+            .r([1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0])
+            .p([
                 500.0, 0.0, 320.0, 0.0, 0.0, 500.0, 240.0, 0.0, 0.0, 0.0, 1.0, 0.0,
-            ],
-            1,
-            1,
-            roi,
-        )
-        .unwrap();
+            ])
+            .binning_x(1)
+            .binning_y(1)
+            .roi(roi)
+            .build()
+            .unwrap();
         let bytes = cam.to_cdr();
         let decoded = CameraInfo::from_cdr(bytes).unwrap();
         assert_eq!(decoded.height(), 480);
@@ -4350,17 +3821,17 @@ mod tests {
         };
         for len in 0..=16_usize {
             let frame_id: String = "x".repeat(len);
-            let fix = NavSatFix::new(
-                Time::new(1, 0),
-                &frame_id,
-                status,
-                lat,
-                lon,
-                alt,
-                cov,
-                cov_type,
-            )
-            .unwrap();
+            let fix = NavSatFix::builder()
+                .stamp(Time::new(1, 0))
+                .frame_id(&frame_id)
+                .status(status)
+                .latitude(lat)
+                .longitude(lon)
+                .altitude(alt)
+                .position_covariance(cov)
+                .position_covariance_type(cov_type)
+                .build()
+                .unwrap();
             let bytes = fix.to_cdr();
             let view = NavSatFix::from_cdr(&bytes[..]).unwrap();
             assert_eq!(view.frame_id(), frame_id, "frame_id at len={len}");
@@ -4393,17 +3864,17 @@ mod tests {
             status: 0,
             service: 1,
         };
-        let fix = NavSatFix::new(
-            Time::new(0, 0),
-            "gps_link",
-            status,
-            43.6532,
-            -79.3832,
-            150.0,
-            [0.0; 9],
-            0,
-        )
-        .unwrap();
+        let fix = NavSatFix::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("gps_link")
+            .status(status)
+            .latitude(43.6532)
+            .longitude(-79.3832)
+            .altitude(150.0)
+            .position_covariance([0.0; 9])
+            .position_covariance_type(0)
+            .build()
+            .unwrap();
         let bytes = fix.to_cdr();
         let rx = NavSatFix::from_cdr(&bytes[..]).unwrap();
         assert_eq!(rx.latitude(), 43.6532);
@@ -4722,8 +4193,13 @@ mod tests {
 
     #[test]
     fn relative_humidity_roundtrip() {
-        let rh =
-            RelativeHumidity::new(Time::new(100, 500_000_000), "hygrometer", 0.72, 0.005).unwrap();
+        let rh = RelativeHumidity::builder()
+            .stamp(Time::new(100, 500_000_000))
+            .frame_id("hygrometer")
+            .relative_humidity(0.72)
+            .variance(0.005)
+            .build()
+            .unwrap();
         assert_eq!(rh.stamp(), Time::new(100, 500_000_000));
         assert_eq!(rh.frame_id(), "hygrometer");
         assert!((rh.relative_humidity() - 0.72).abs() < 1e-10);
@@ -4739,7 +4215,13 @@ mod tests {
     #[test]
     fn time_reference_roundtrip() {
         let time_ref = Time::new(1234567890, 987654321);
-        let tr = TimeReference::new(Time::new(100, 0), "gps", time_ref, "GPS_UTC").unwrap();
+        let tr = TimeReference::builder()
+            .stamp(Time::new(100, 0))
+            .frame_id("gps")
+            .time_ref(time_ref)
+            .source("GPS_UTC")
+            .build()
+            .unwrap();
         assert_eq!(tr.stamp(), Time::new(100, 0));
         assert_eq!(tr.frame_id(), "gps");
         assert_eq!(tr.time_ref(), time_ref);
@@ -4754,7 +4236,13 @@ mod tests {
 
     #[test]
     fn time_reference_empty_source() {
-        let tr = TimeReference::new(Time::new(0, 0), "link", Time::new(999, 0), "").unwrap();
+        let tr = TimeReference::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("link")
+            .time_ref(Time::new(999, 0))
+            .source("")
+            .build()
+            .unwrap();
         let bytes = tr.to_cdr();
         let decoded = TimeReference::from_cdr(bytes).unwrap();
         assert_eq!(decoded.source(), "");
@@ -4770,7 +4258,13 @@ mod tests {
     fn time_reference_new_time_ref_alignment_regression() {
         let time_ref = Time::new(0x1122_3344, 0x5566_7788);
         for frame_id in ["", "a", "ab", "abc", "link", "frame"] {
-            let tr = TimeReference::new(Time::new(7, 8), frame_id, time_ref, "GPS").unwrap();
+            let tr = TimeReference::builder()
+                .stamp(Time::new(7, 8))
+                .frame_id(frame_id)
+                .time_ref(time_ref)
+                .source("GPS")
+                .build()
+                .unwrap();
             // Direct accessor on the constructed instance — the masked path.
             assert_eq!(
                 tr.time_ref(),
@@ -4800,7 +4294,13 @@ mod tests {
             .source("GPS_UTC")
             .build()
             .unwrap();
-        let direct = TimeReference::new(Time::new(100, 0), "gps", time_ref, "GPS_UTC").unwrap();
+        let direct = TimeReference::builder()
+            .stamp(Time::new(100, 0))
+            .frame_id("gps")
+            .time_ref(time_ref)
+            .source("GPS_UTC")
+            .build()
+            .unwrap();
         assert_eq!(built.to_cdr(), direct.to_cdr());
         assert_eq!(built.time_ref(), time_ref);
         assert_eq!(built.source(), "GPS_UTC");
@@ -4819,7 +4319,13 @@ mod tests {
 
     #[test]
     fn time_reference_set_stamp_and_time_ref_in_place() {
-        let mut tr = TimeReference::new(Time::new(1, 2), "gps", Time::new(3, 4), "GPS").unwrap();
+        let mut tr = TimeReference::builder()
+            .stamp(Time::new(1, 2))
+            .frame_id("gps")
+            .time_ref(Time::new(3, 4))
+            .source("GPS")
+            .build()
+            .unwrap();
         tr.set_stamp(Time::new(10, 20)).unwrap();
         tr.set_time_ref(Time::new(30, 40)).unwrap();
         assert_eq!(tr.stamp(), Time::new(10, 20));

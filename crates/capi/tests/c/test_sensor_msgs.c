@@ -14,6 +14,47 @@
 #include <stdint.h>
 #include "edgefirst/schemas.h"
 
+static int build_image(uint8_t **bytes, size_t *len,
+                       int32_t sec, uint32_t nsec, const char *frame_id,
+                       uint32_t height, uint32_t width, const char *encoding,
+                       uint8_t is_bigendian, uint32_t step,
+                       const uint8_t *data, size_t data_len) {
+    ros_image_builder_t *b = ros_image_builder_new();
+    if (!b) return -1;
+    ros_image_builder_set_stamp(b, sec, nsec);
+    ros_image_builder_set_height(b, height);
+    ros_image_builder_set_width(b, width);
+    ros_image_builder_set_is_bigendian(b, is_bigendian);
+    ros_image_builder_set_step(b, step);
+    if (ros_image_builder_set_frame_id(b, frame_id) != 0 ||
+        ros_image_builder_set_encoding(b, encoding) != 0 ||
+        ros_image_builder_set_data(b, data, data_len) != 0) {
+        ros_image_builder_free(b);
+        return -1;
+    }
+    int ret = ros_image_builder_build(b, bytes, len);
+    ros_image_builder_free(b);
+    return ret;
+}
+
+static int build_compressed_image(uint8_t **bytes, size_t *len,
+                                  int32_t sec, uint32_t nsec,
+                                  const char *frame_id, const char *format,
+                                  const uint8_t *data, size_t data_len) {
+    ros_compressed_image_builder_t *b = ros_compressed_image_builder_new();
+    if (!b) return -1;
+    ros_compressed_image_builder_set_stamp(b, sec, nsec);
+    if (ros_compressed_image_builder_set_frame_id(b, frame_id) != 0 ||
+        ros_compressed_image_builder_set_format(b, format) != 0 ||
+        ros_compressed_image_builder_set_data(b, data, data_len) != 0) {
+        ros_compressed_image_builder_free(b);
+        return -1;
+    }
+    int ret = ros_compressed_image_builder_build(b, bytes, len);
+    ros_compressed_image_builder_free(b);
+    return ret;
+}
+
 // ============================================================================
 // NavSatStatus Tests (CdrFixed)
 // ============================================================================
@@ -74,14 +115,10 @@ Test(sensor_msgs, image_encode_from_cdr_roundtrip) {
     uint8_t *bytes = NULL;
     size_t len = 0;
 
-    int ret = ros_image_encode(&bytes, &len,
-                               100, 200,        // stamp
-                               "camera0",       // frame_id
-                               480, 640,        // height, width
-                               "rgb8",          // encoding
-                               0,               // is_bigendian
-                               1920,            // step
-                               pixel_data, sizeof(pixel_data)); // data
+    int ret = build_image(&bytes, &len,
+                          100, 200, "camera0",
+                          480, 640, "rgb8", 0, 1920,
+                          pixel_data, sizeof(pixel_data));
     cr_assert_eq(ret, 0);
     cr_assert_not_null(bytes);
 
@@ -147,11 +184,9 @@ Test(sensor_msgs, compressed_image_encode_from_cdr_roundtrip) {
     uint8_t *bytes = NULL;
     size_t len = 0;
 
-    int ret = ros_compressed_image_encode(&bytes, &len,
-                                          42, 123,           // stamp
-                                          "camera_optical",  // frame_id
-                                          "jpeg",            // format
-                                          jpeg_data, sizeof(jpeg_data)); // data
+    int ret = build_compressed_image(&bytes, &len,
+                                     42, 123, "camera_optical", "jpeg",
+                                     jpeg_data, sizeof(jpeg_data));
     cr_assert_eq(ret, 0);
     cr_assert_not_null(bytes);
 

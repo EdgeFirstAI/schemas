@@ -103,46 +103,130 @@ impl<B: AsRef<[u8]>> Altitude<B> {
 }
 
 impl Altitude<Vec<u8>> {
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        monotonic: f32,
-        amsl: f32,
-        local: f32,
-        relative: f32,
-        terrain: f32,
-        bottom_clearance: f32,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        sizer.align(4);
-        let o0 = sizer.offset();
-        sizer.size_f32(); // monotonic
-        sizer.size_f32(); // amsl
-        sizer.size_f32(); // local
-        sizer.size_f32(); // relative
-        sizer.size_f32(); // terrain
-        sizer.size_f32(); // bottom_clearance
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.align(4);
-        w.write_f32(monotonic);
-        w.write_f32(amsl);
-        w.write_f32(local);
-        w.write_f32(relative);
-        w.write_f32(terrain);
-        w.write_f32(bottom_clearance);
-        w.finish()?;
-
-        Ok(Altitude { offsets: [o0], buf })
+    /// Start a new `AltitudeBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> AltitudeBuilder<'a> {
+        AltitudeBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+}
+
+/// Builder for `Altitude<Vec<u8>>` with buffer-reuse finalizers.
+pub struct AltitudeBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    monotonic: f32,
+    amsl: f32,
+    local: f32,
+    relative: f32,
+    terrain: f32,
+    bottom_clearance: f32,
+}
+
+impl<'a> Default for AltitudeBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            monotonic: 0.0,
+            amsl: 0.0,
+            local: 0.0,
+            relative: 0.0,
+            terrain: 0.0,
+            bottom_clearance: 0.0,
+        }
+    }
+}
+
+impl<'a> AltitudeBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn monotonic(&mut self, v: f32) -> &mut Self {
+        self.monotonic = v;
+        self
+    }
+    pub fn amsl(&mut self, v: f32) -> &mut Self {
+        self.amsl = v;
+        self
+    }
+    pub fn local(&mut self, v: f32) -> &mut Self {
+        self.local = v;
+        self
+    }
+    pub fn relative(&mut self, v: f32) -> &mut Self {
+        self.relative = v;
+        self
+    }
+    pub fn terrain(&mut self, v: f32) -> &mut Self {
+        self.terrain = v;
+        self
+    }
+    pub fn bottom_clearance(&mut self, v: f32) -> &mut Self {
+        self.bottom_clearance = v;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut sizer = CdrSizer::new();
+        Time::size_cdr(&mut sizer);
+        sizer.size_string(&self.frame_id);
+        sizer.align(4);
+        sizer.size_f32();
+        sizer.size_f32();
+        sizer.size_f32();
+        sizer.size_f32();
+        sizer.size_f32();
+        sizer.size_f32();
+        sizer.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.align(4);
+        w.write_f32(self.monotonic);
+        w.write_f32(self.amsl);
+        w.write_f32(self.local);
+        w.write_f32(self.relative);
+        w.write_f32(self.terrain);
+        w.write_f32(self.bottom_clearance);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<Altitude<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        Altitude::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -237,48 +321,130 @@ impl<B: AsRef<[u8]>> VfrHud<B> {
 }
 
 impl VfrHud<Vec<u8>> {
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        airspeed: f32,
-        groundspeed: f32,
-        heading: i16,
-        throttle: f32,
-        altitude: f32,
-        climb: f32,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        sizer.align(4);
-        let o0 = sizer.offset();
-        sizer.size_f32(); // airspeed
-        sizer.size_f32(); // groundspeed
-        sizer.size_i16(); // heading
-        sizer.align(4);
-        sizer.size_f32(); // throttle
-        sizer.size_f32(); // altitude
-        sizer.size_f32(); // climb
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.align(4);
-        w.write_f32(airspeed);
-        w.write_f32(groundspeed);
-        w.write_i16(heading);
-        w.align(4);
-        w.write_f32(throttle);
-        w.write_f32(altitude);
-        w.write_f32(climb);
-        w.finish()?;
-
-        Ok(VfrHud { offsets: [o0], buf })
+    pub fn builder<'a>() -> VfrHudBuilder<'a> {
+        VfrHudBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+}
+
+pub struct VfrHudBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    airspeed: f32,
+    groundspeed: f32,
+    heading: i16,
+    throttle: f32,
+    altitude: f32,
+    climb: f32,
+}
+
+impl<'a> Default for VfrHudBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            airspeed: 0.0,
+            groundspeed: 0.0,
+            heading: 0,
+            throttle: 0.0,
+            altitude: 0.0,
+            climb: 0.0,
+        }
+    }
+}
+
+impl<'a> VfrHudBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn airspeed(&mut self, v: f32) -> &mut Self {
+        self.airspeed = v;
+        self
+    }
+    pub fn groundspeed(&mut self, v: f32) -> &mut Self {
+        self.groundspeed = v;
+        self
+    }
+    pub fn heading(&mut self, v: i16) -> &mut Self {
+        self.heading = v;
+        self
+    }
+    pub fn throttle(&mut self, v: f32) -> &mut Self {
+        self.throttle = v;
+        self
+    }
+    pub fn altitude(&mut self, v: f32) -> &mut Self {
+        self.altitude = v;
+        self
+    }
+    pub fn climb(&mut self, v: f32) -> &mut Self {
+        self.climb = v;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut sizer = CdrSizer::new();
+        Time::size_cdr(&mut sizer);
+        sizer.size_string(&self.frame_id);
+        sizer.align(4);
+        sizer.size_f32();
+        sizer.size_f32();
+        sizer.size_i16();
+        sizer.align(4);
+        sizer.size_f32();
+        sizer.size_f32();
+        sizer.size_f32();
+        sizer.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.align(4);
+        w.write_f32(self.airspeed);
+        w.write_f32(self.groundspeed);
+        w.write_i16(self.heading);
+        w.align(4);
+        w.write_f32(self.throttle);
+        w.write_f32(self.altitude);
+        w.write_f32(self.climb);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<VfrHud<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        VfrHud::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -383,53 +549,165 @@ impl<B: AsRef<[u8]>> EstimatorStatus<B> {
 }
 
 impl EstimatorStatus<Vec<u8>> {
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        attitude_status_flag: bool,
-        velocity_horiz_status_flag: bool,
-        velocity_vert_status_flag: bool,
-        pos_horiz_rel_status_flag: bool,
-        pos_horiz_abs_status_flag: bool,
-        pos_vert_abs_status_flag: bool,
-        pos_vert_agl_status_flag: bool,
-        const_pos_mode_status_flag: bool,
-        pred_pos_horiz_rel_status_flag: bool,
-        pred_pos_horiz_abs_status_flag: bool,
-        gps_glitch_status_flag: bool,
-        accel_error_status_flag: bool,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        for _ in 0..12 {
-            sizer.size_bool();
-        }
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_bool(attitude_status_flag);
-        w.write_bool(velocity_horiz_status_flag);
-        w.write_bool(velocity_vert_status_flag);
-        w.write_bool(pos_horiz_rel_status_flag);
-        w.write_bool(pos_horiz_abs_status_flag);
-        w.write_bool(pos_vert_abs_status_flag);
-        w.write_bool(pos_vert_agl_status_flag);
-        w.write_bool(const_pos_mode_status_flag);
-        w.write_bool(pred_pos_horiz_rel_status_flag);
-        w.write_bool(pred_pos_horiz_abs_status_flag);
-        w.write_bool(gps_glitch_status_flag);
-        w.write_bool(accel_error_status_flag);
-        w.finish()?;
-
-        Ok(EstimatorStatus { offsets: [o0], buf })
+    pub fn builder<'a>() -> EstimatorStatusBuilder<'a> {
+        EstimatorStatusBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+}
+
+pub struct EstimatorStatusBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    attitude_status_flag: bool,
+    velocity_horiz_status_flag: bool,
+    velocity_vert_status_flag: bool,
+    pos_horiz_rel_status_flag: bool,
+    pos_horiz_abs_status_flag: bool,
+    pos_vert_abs_status_flag: bool,
+    pos_vert_agl_status_flag: bool,
+    const_pos_mode_status_flag: bool,
+    pred_pos_horiz_rel_status_flag: bool,
+    pred_pos_horiz_abs_status_flag: bool,
+    gps_glitch_status_flag: bool,
+    accel_error_status_flag: bool,
+}
+
+impl<'a> Default for EstimatorStatusBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            attitude_status_flag: false,
+            velocity_horiz_status_flag: false,
+            velocity_vert_status_flag: false,
+            pos_horiz_rel_status_flag: false,
+            pos_horiz_abs_status_flag: false,
+            pos_vert_abs_status_flag: false,
+            pos_vert_agl_status_flag: false,
+            const_pos_mode_status_flag: false,
+            pred_pos_horiz_rel_status_flag: false,
+            pred_pos_horiz_abs_status_flag: false,
+            gps_glitch_status_flag: false,
+            accel_error_status_flag: false,
+        }
+    }
+}
+
+impl<'a> EstimatorStatusBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn attitude_status_flag(&mut self, v: bool) -> &mut Self {
+        self.attitude_status_flag = v;
+        self
+    }
+    pub fn velocity_horiz_status_flag(&mut self, v: bool) -> &mut Self {
+        self.velocity_horiz_status_flag = v;
+        self
+    }
+    pub fn velocity_vert_status_flag(&mut self, v: bool) -> &mut Self {
+        self.velocity_vert_status_flag = v;
+        self
+    }
+    pub fn pos_horiz_rel_status_flag(&mut self, v: bool) -> &mut Self {
+        self.pos_horiz_rel_status_flag = v;
+        self
+    }
+    pub fn pos_horiz_abs_status_flag(&mut self, v: bool) -> &mut Self {
+        self.pos_horiz_abs_status_flag = v;
+        self
+    }
+    pub fn pos_vert_abs_status_flag(&mut self, v: bool) -> &mut Self {
+        self.pos_vert_abs_status_flag = v;
+        self
+    }
+    pub fn pos_vert_agl_status_flag(&mut self, v: bool) -> &mut Self {
+        self.pos_vert_agl_status_flag = v;
+        self
+    }
+    pub fn const_pos_mode_status_flag(&mut self, v: bool) -> &mut Self {
+        self.const_pos_mode_status_flag = v;
+        self
+    }
+    pub fn pred_pos_horiz_rel_status_flag(&mut self, v: bool) -> &mut Self {
+        self.pred_pos_horiz_rel_status_flag = v;
+        self
+    }
+    pub fn pred_pos_horiz_abs_status_flag(&mut self, v: bool) -> &mut Self {
+        self.pred_pos_horiz_abs_status_flag = v;
+        self
+    }
+    pub fn gps_glitch_status_flag(&mut self, v: bool) -> &mut Self {
+        self.gps_glitch_status_flag = v;
+        self
+    }
+    pub fn accel_error_status_flag(&mut self, v: bool) -> &mut Self {
+        self.accel_error_status_flag = v;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut sizer = CdrSizer::new();
+        Time::size_cdr(&mut sizer);
+        sizer.size_string(&self.frame_id);
+        for _ in 0..12 {
+            sizer.size_bool();
+        }
+        sizer.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.write_bool(self.attitude_status_flag);
+        w.write_bool(self.velocity_horiz_status_flag);
+        w.write_bool(self.velocity_vert_status_flag);
+        w.write_bool(self.pos_horiz_rel_status_flag);
+        w.write_bool(self.pos_horiz_abs_status_flag);
+        w.write_bool(self.pos_vert_abs_status_flag);
+        w.write_bool(self.pos_vert_agl_status_flag);
+        w.write_bool(self.const_pos_mode_status_flag);
+        w.write_bool(self.pred_pos_horiz_rel_status_flag);
+        w.write_bool(self.pred_pos_horiz_abs_status_flag);
+        w.write_bool(self.gps_glitch_status_flag);
+        w.write_bool(self.accel_error_status_flag);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<EstimatorStatus<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        EstimatorStatus::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -514,32 +792,94 @@ impl<B: AsRef<[u8]>> ExtendedState<B> {
 }
 
 impl ExtendedState<Vec<u8>> {
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        vtol_state: u8,
-        landed_state: u8,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        sizer.size_u8();
-        sizer.size_u8();
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_u8(vtol_state);
-        w.write_u8(landed_state);
-        w.finish()?;
-
-        Ok(ExtendedState { offsets: [o0], buf })
+    pub fn builder<'a>() -> ExtendedStateBuilder<'a> {
+        ExtendedStateBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+}
+
+pub struct ExtendedStateBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    vtol_state: u8,
+    landed_state: u8,
+}
+
+impl<'a> Default for ExtendedStateBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            vtol_state: 0,
+            landed_state: 0,
+        }
+    }
+}
+
+impl<'a> ExtendedStateBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn vtol_state(&mut self, v: u8) -> &mut Self {
+        self.vtol_state = v;
+        self
+    }
+    pub fn landed_state(&mut self, v: u8) -> &mut Self {
+        self.landed_state = v;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut sizer = CdrSizer::new();
+        Time::size_cdr(&mut sizer);
+        sizer.size_string(&self.frame_id);
+        sizer.size_u8();
+        sizer.size_u8();
+        sizer.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.write_u8(self.vtol_state);
+        w.write_u8(self.landed_state);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<ExtendedState<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        ExtendedState::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -694,69 +1034,186 @@ impl<B: AsRef<[u8]>> SysStatus<B> {
 }
 
 impl SysStatus<Vec<u8>> {
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        sensors_present: u32,
-        sensors_enabled: u32,
-        sensors_health: u32,
-        load: u16,
-        voltage_battery: u16,
-        current_battery: i16,
-        battery_remaining: i8,
-        drop_rate_comm: u16,
-        errors_comm: u16,
-        errors_count1: u16,
-        errors_count2: u16,
-        errors_count3: u16,
-        errors_count4: u16,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        sizer.align(4);
-        let o0 = sizer.offset();
-        sizer.size_u32(); // sensors_present
-        sizer.size_u32(); // sensors_enabled
-        sizer.size_u32(); // sensors_health
-        sizer.size_u16(); // load
-        sizer.size_u16(); // voltage_battery
-        sizer.size_i16(); // current_battery
-        sizer.size_i8(); // battery_remaining
-        sizer.align(2);
-        sizer.size_u16(); // drop_rate_comm
-        sizer.size_u16(); // errors_comm
-        sizer.size_u16(); // errors_count1
-        sizer.size_u16(); // errors_count2
-        sizer.size_u16(); // errors_count3
-        sizer.size_u16(); // errors_count4
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.align(4);
-        w.write_u32(sensors_present);
-        w.write_u32(sensors_enabled);
-        w.write_u32(sensors_health);
-        w.write_u16(load);
-        w.write_u16(voltage_battery);
-        w.write_i16(current_battery);
-        w.write_i8(battery_remaining);
-        w.align(2);
-        w.write_u16(drop_rate_comm);
-        w.write_u16(errors_comm);
-        w.write_u16(errors_count1);
-        w.write_u16(errors_count2);
-        w.write_u16(errors_count3);
-        w.write_u16(errors_count4);
-        w.finish()?;
-
-        Ok(SysStatus { offsets: [o0], buf })
+    pub fn builder<'a>() -> SysStatusBuilder<'a> {
+        SysStatusBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+}
+
+pub struct SysStatusBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    sensors_present: u32,
+    sensors_enabled: u32,
+    sensors_health: u32,
+    load: u16,
+    voltage_battery: u16,
+    current_battery: i16,
+    battery_remaining: i8,
+    drop_rate_comm: u16,
+    errors_comm: u16,
+    errors_count1: u16,
+    errors_count2: u16,
+    errors_count3: u16,
+    errors_count4: u16,
+}
+
+impl<'a> Default for SysStatusBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            sensors_present: 0,
+            sensors_enabled: 0,
+            sensors_health: 0,
+            load: 0,
+            voltage_battery: 0,
+            current_battery: 0,
+            battery_remaining: 0,
+            drop_rate_comm: 0,
+            errors_comm: 0,
+            errors_count1: 0,
+            errors_count2: 0,
+            errors_count3: 0,
+            errors_count4: 0,
+        }
+    }
+}
+
+impl<'a> SysStatusBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn sensors_present(&mut self, v: u32) -> &mut Self {
+        self.sensors_present = v;
+        self
+    }
+    pub fn sensors_enabled(&mut self, v: u32) -> &mut Self {
+        self.sensors_enabled = v;
+        self
+    }
+    pub fn sensors_health(&mut self, v: u32) -> &mut Self {
+        self.sensors_health = v;
+        self
+    }
+    pub fn load(&mut self, v: u16) -> &mut Self {
+        self.load = v;
+        self
+    }
+    pub fn voltage_battery(&mut self, v: u16) -> &mut Self {
+        self.voltage_battery = v;
+        self
+    }
+    pub fn current_battery(&mut self, v: i16) -> &mut Self {
+        self.current_battery = v;
+        self
+    }
+    pub fn battery_remaining(&mut self, v: i8) -> &mut Self {
+        self.battery_remaining = v;
+        self
+    }
+    pub fn drop_rate_comm(&mut self, v: u16) -> &mut Self {
+        self.drop_rate_comm = v;
+        self
+    }
+    pub fn errors_comm(&mut self, v: u16) -> &mut Self {
+        self.errors_comm = v;
+        self
+    }
+    pub fn errors_count1(&mut self, v: u16) -> &mut Self {
+        self.errors_count1 = v;
+        self
+    }
+    pub fn errors_count2(&mut self, v: u16) -> &mut Self {
+        self.errors_count2 = v;
+        self
+    }
+    pub fn errors_count3(&mut self, v: u16) -> &mut Self {
+        self.errors_count3 = v;
+        self
+    }
+    pub fn errors_count4(&mut self, v: u16) -> &mut Self {
+        self.errors_count4 = v;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut sizer = CdrSizer::new();
+        Time::size_cdr(&mut sizer);
+        sizer.size_string(&self.frame_id);
+        sizer.align(4);
+        sizer.size_u32();
+        sizer.size_u32();
+        sizer.size_u32();
+        sizer.size_u16();
+        sizer.size_u16();
+        sizer.size_i16();
+        sizer.size_i8();
+        sizer.align(2);
+        sizer.size_u16();
+        sizer.size_u16();
+        sizer.size_u16();
+        sizer.size_u16();
+        sizer.size_u16();
+        sizer.size_u16();
+        sizer.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.align(4);
+        w.write_u32(self.sensors_present);
+        w.write_u32(self.sensors_enabled);
+        w.write_u32(self.sensors_health);
+        w.write_u16(self.load);
+        w.write_u16(self.voltage_battery);
+        w.write_i16(self.current_battery);
+        w.write_i8(self.battery_remaining);
+        w.align(2);
+        w.write_u16(self.drop_rate_comm);
+        w.write_u16(self.errors_comm);
+        w.write_u16(self.errors_count1);
+        w.write_u16(self.errors_count2);
+        w.write_u16(self.errors_count3);
+        w.write_u16(self.errors_count4);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<SysStatus<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        SysStatus::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -868,50 +1325,127 @@ impl<B: AsRef<[u8]>> State<B> {
 }
 
 impl State<Vec<u8>> {
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        connected: bool,
-        armed: bool,
-        guided: bool,
-        manual_input: bool,
-        mode: &str,
-        system_status: u8,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        sizer.size_bool(); // connected
-        sizer.size_bool(); // armed
-        sizer.size_bool(); // guided
-        sizer.size_bool(); // manual_input
-        sizer.align(4);
-        let o1 = sizer.offset();
-        sizer.size_string(mode);
-        let o2 = sizer.offset();
-        sizer.size_u8(); // system_status
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_bool(connected);
-        w.write_bool(armed);
-        w.write_bool(guided);
-        w.write_bool(manual_input);
-        w.write_string(mode);
-        w.write_u8(system_status);
-        w.finish()?;
-
-        Ok(State {
-            offsets: [o0, o1, o2],
-            buf,
-        })
+    pub fn builder<'a>() -> StateBuilder<'a> {
+        StateBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+}
+
+pub struct StateBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    connected: bool,
+    armed: bool,
+    guided: bool,
+    manual_input: bool,
+    mode: std::borrow::Cow<'a, str>,
+    system_status: u8,
+}
+
+impl<'a> Default for StateBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            connected: false,
+            armed: false,
+            guided: false,
+            manual_input: false,
+            mode: std::borrow::Cow::Borrowed(""),
+            system_status: 0,
+        }
+    }
+}
+
+impl<'a> StateBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn connected(&mut self, v: bool) -> &mut Self {
+        self.connected = v;
+        self
+    }
+    pub fn armed(&mut self, v: bool) -> &mut Self {
+        self.armed = v;
+        self
+    }
+    pub fn guided(&mut self, v: bool) -> &mut Self {
+        self.guided = v;
+        self
+    }
+    pub fn manual_input(&mut self, v: bool) -> &mut Self {
+        self.manual_input = v;
+        self
+    }
+    pub fn mode(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.mode = s.into();
+        self
+    }
+    pub fn system_status(&mut self, v: u8) -> &mut Self {
+        self.system_status = v;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut sizer = CdrSizer::new();
+        Time::size_cdr(&mut sizer);
+        sizer.size_string(&self.frame_id);
+        sizer.size_bool();
+        sizer.size_bool();
+        sizer.size_bool();
+        sizer.size_bool();
+        sizer.align(4);
+        sizer.size_string(&self.mode);
+        sizer.size_u8();
+        sizer.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.write_bool(self.connected);
+        w.write_bool(self.armed);
+        w.write_bool(self.guided);
+        w.write_bool(self.manual_input);
+        w.write_string(&self.mode);
+        w.write_u8(self.system_status);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<State<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        State::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -996,33 +1530,96 @@ impl<B: AsRef<[u8]>> StatusText<B> {
 }
 
 impl StatusText<Vec<u8>> {
-    pub fn new(stamp: Time, frame_id: &str, severity: u8, text: &str) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        sizer.size_u8(); // severity
-        sizer.align(4);
-        let o1 = sizer.offset();
-        sizer.size_string(text);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_u8(severity);
-        w.align(4);
-        w.write_string(text);
-        w.finish()?;
-
-        Ok(StatusText {
-            offsets: [o0, o1],
-            buf,
-        })
+    pub fn builder<'a>() -> StatusTextBuilder<'a> {
+        StatusTextBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+}
+
+pub struct StatusTextBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    severity: u8,
+    text: std::borrow::Cow<'a, str>,
+}
+
+impl<'a> Default for StatusTextBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            severity: 0,
+            text: std::borrow::Cow::Borrowed(""),
+        }
+    }
+}
+
+impl<'a> StatusTextBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn severity(&mut self, v: u8) -> &mut Self {
+        self.severity = v;
+        self
+    }
+    pub fn text(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.text = s.into();
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut sizer = CdrSizer::new();
+        Time::size_cdr(&mut sizer);
+        sizer.size_string(&self.frame_id);
+        sizer.size_u8();
+        sizer.align(4);
+        sizer.size_string(&self.text);
+        sizer.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.write_u8(self.severity);
+        w.align(4);
+        w.write_string(&self.text);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<StatusText<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        StatusText::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -1223,85 +1820,222 @@ impl<B: AsRef<[u8]>> GpsRaw<B> {
 }
 
 impl GpsRaw<Vec<u8>> {
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        fix_type: u8,
-        lat: i32,
-        lon: i32,
-        alt: i32,
-        eph: u16,
-        epv: u16,
-        vel: u16,
-        cog: u16,
-        satellites_visible: u8,
-        alt_ellipsoid: i32,
-        h_acc: u32,
-        v_acc: u32,
-        vel_acc: u32,
-        hdg_acc: i32,
-        yaw: u16,
-        dgps_numch: u8,
-        dgps_age: u32,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        sizer.align(4);
-        let o0 = sizer.offset();
-        sizer.size_u8(); // fix_type
-        sizer.align(4);
-        sizer.size_i32(); // lat
-        sizer.size_i32(); // lon
-        sizer.size_i32(); // alt
-        sizer.size_u16(); // eph
-        sizer.size_u16(); // epv
-        sizer.size_u16(); // vel
-        sizer.size_u16(); // cog
-        sizer.size_u8(); // satellites_visible
-        sizer.align(4);
-        sizer.size_i32(); // alt_ellipsoid
-        sizer.size_u32(); // h_acc
-        sizer.size_u32(); // v_acc
-        sizer.size_u32(); // vel_acc
-        sizer.size_i32(); // hdg_acc
-        sizer.size_u16(); // yaw
-        sizer.size_u8(); // dgps_numch
-        sizer.align(4);
-        sizer.size_u32(); // dgps_age
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.align(4);
-        w.write_u8(fix_type);
-        w.align(4);
-        w.write_i32(lat);
-        w.write_i32(lon);
-        w.write_i32(alt);
-        w.write_u16(eph);
-        w.write_u16(epv);
-        w.write_u16(vel);
-        w.write_u16(cog);
-        w.write_u8(satellites_visible);
-        w.align(4);
-        w.write_i32(alt_ellipsoid);
-        w.write_u32(h_acc);
-        w.write_u32(v_acc);
-        w.write_u32(vel_acc);
-        w.write_i32(hdg_acc);
-        w.write_u16(yaw);
-        w.write_u8(dgps_numch);
-        w.align(4);
-        w.write_u32(dgps_age);
-        w.finish()?;
-
-        Ok(GpsRaw { offsets: [o0], buf })
+    pub fn builder<'a>() -> GpsRawBuilder<'a> {
+        GpsRawBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+}
+
+pub struct GpsRawBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    fix_type: u8,
+    lat: i32,
+    lon: i32,
+    alt: i32,
+    eph: u16,
+    epv: u16,
+    vel: u16,
+    cog: u16,
+    satellites_visible: u8,
+    alt_ellipsoid: i32,
+    h_acc: u32,
+    v_acc: u32,
+    vel_acc: u32,
+    hdg_acc: i32,
+    yaw: u16,
+    dgps_numch: u8,
+    dgps_age: u32,
+}
+
+impl<'a> Default for GpsRawBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            fix_type: 0,
+            lat: 0,
+            lon: 0,
+            alt: 0,
+            eph: 0,
+            epv: 0,
+            vel: 0,
+            cog: 0,
+            satellites_visible: 0,
+            alt_ellipsoid: 0,
+            h_acc: 0,
+            v_acc: 0,
+            vel_acc: 0,
+            hdg_acc: 0,
+            yaw: 0,
+            dgps_numch: 0,
+            dgps_age: 0,
+        }
+    }
+}
+
+impl<'a> GpsRawBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn fix_type(&mut self, v: u8) -> &mut Self {
+        self.fix_type = v;
+        self
+    }
+    pub fn lat(&mut self, v: i32) -> &mut Self {
+        self.lat = v;
+        self
+    }
+    pub fn lon(&mut self, v: i32) -> &mut Self {
+        self.lon = v;
+        self
+    }
+    pub fn alt(&mut self, v: i32) -> &mut Self {
+        self.alt = v;
+        self
+    }
+    pub fn eph(&mut self, v: u16) -> &mut Self {
+        self.eph = v;
+        self
+    }
+    pub fn epv(&mut self, v: u16) -> &mut Self {
+        self.epv = v;
+        self
+    }
+    pub fn vel(&mut self, v: u16) -> &mut Self {
+        self.vel = v;
+        self
+    }
+    pub fn cog(&mut self, v: u16) -> &mut Self {
+        self.cog = v;
+        self
+    }
+    pub fn satellites_visible(&mut self, v: u8) -> &mut Self {
+        self.satellites_visible = v;
+        self
+    }
+    pub fn alt_ellipsoid(&mut self, v: i32) -> &mut Self {
+        self.alt_ellipsoid = v;
+        self
+    }
+    pub fn h_acc(&mut self, v: u32) -> &mut Self {
+        self.h_acc = v;
+        self
+    }
+    pub fn v_acc(&mut self, v: u32) -> &mut Self {
+        self.v_acc = v;
+        self
+    }
+    pub fn vel_acc(&mut self, v: u32) -> &mut Self {
+        self.vel_acc = v;
+        self
+    }
+    pub fn hdg_acc(&mut self, v: i32) -> &mut Self {
+        self.hdg_acc = v;
+        self
+    }
+    pub fn yaw(&mut self, v: u16) -> &mut Self {
+        self.yaw = v;
+        self
+    }
+    pub fn dgps_numch(&mut self, v: u8) -> &mut Self {
+        self.dgps_numch = v;
+        self
+    }
+    pub fn dgps_age(&mut self, v: u32) -> &mut Self {
+        self.dgps_age = v;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut sizer = CdrSizer::new();
+        Time::size_cdr(&mut sizer);
+        sizer.size_string(&self.frame_id);
+        sizer.align(4);
+        sizer.size_u8();
+        sizer.align(4);
+        sizer.size_i32();
+        sizer.size_i32();
+        sizer.size_i32();
+        sizer.size_u16();
+        sizer.size_u16();
+        sizer.size_u16();
+        sizer.size_u16();
+        sizer.size_u8();
+        sizer.align(4);
+        sizer.size_i32();
+        sizer.size_u32();
+        sizer.size_u32();
+        sizer.size_u32();
+        sizer.size_i32();
+        sizer.size_u16();
+        sizer.size_u8();
+        sizer.align(4);
+        sizer.size_u32();
+        sizer.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.align(4);
+        w.write_u8(self.fix_type);
+        w.align(4);
+        w.write_i32(self.lat);
+        w.write_i32(self.lon);
+        w.write_i32(self.alt);
+        w.write_u16(self.eph);
+        w.write_u16(self.epv);
+        w.write_u16(self.vel);
+        w.write_u16(self.cog);
+        w.write_u8(self.satellites_visible);
+        w.align(4);
+        w.write_i32(self.alt_ellipsoid);
+        w.write_u32(self.h_acc);
+        w.write_u32(self.v_acc);
+        w.write_u32(self.vel_acc);
+        w.write_i32(self.hdg_acc);
+        w.write_u16(self.yaw);
+        w.write_u8(self.dgps_numch);
+        w.align(4);
+        w.write_u32(self.dgps_age);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<GpsRaw<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        GpsRaw::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -1383,40 +2117,112 @@ impl<B: AsRef<[u8]>> TimesyncStatus<B> {
 }
 
 impl TimesyncStatus<Vec<u8>> {
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        remote_timestamp_ns: u64,
-        observed_offset_ns: i64,
-        estimated_offset_ns: i64,
-        round_trip_time_ms: f32,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        sizer.align(8);
-        let o0 = sizer.offset();
-        sizer.size_u64(); // remote_timestamp_ns
-        sizer.size_i64(); // observed_offset_ns
-        sizer.size_i64(); // estimated_offset_ns
-        sizer.size_f32(); // round_trip_time_ms
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.align(8);
-        w.write_u64(remote_timestamp_ns);
-        w.write_i64(observed_offset_ns);
-        w.write_i64(estimated_offset_ns);
-        w.write_f32(round_trip_time_ms);
-        w.finish()?;
-
-        Ok(TimesyncStatus { offsets: [o0], buf })
+    pub fn builder<'a>() -> TimesyncStatusBuilder<'a> {
+        TimesyncStatusBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+}
+
+pub struct TimesyncStatusBuilder<'a> {
+    stamp: Time,
+    frame_id: std::borrow::Cow<'a, str>,
+    remote_timestamp_ns: u64,
+    observed_offset_ns: i64,
+    estimated_offset_ns: i64,
+    round_trip_time_ms: f32,
+}
+
+impl<'a> Default for TimesyncStatusBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: std::borrow::Cow::Borrowed(""),
+            remote_timestamp_ns: 0,
+            observed_offset_ns: 0,
+            estimated_offset_ns: 0,
+            round_trip_time_ms: 0.0,
+        }
+    }
+}
+
+impl<'a> TimesyncStatusBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<std::borrow::Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn remote_timestamp_ns(&mut self, v: u64) -> &mut Self {
+        self.remote_timestamp_ns = v;
+        self
+    }
+    pub fn observed_offset_ns(&mut self, v: i64) -> &mut Self {
+        self.observed_offset_ns = v;
+        self
+    }
+    pub fn estimated_offset_ns(&mut self, v: i64) -> &mut Self {
+        self.estimated_offset_ns = v;
+        self
+    }
+    pub fn round_trip_time_ms(&mut self, v: f32) -> &mut Self {
+        self.round_trip_time_ms = v;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut sizer = CdrSizer::new();
+        Time::size_cdr(&mut sizer);
+        sizer.size_string(&self.frame_id);
+        sizer.align(8);
+        sizer.size_u64();
+        sizer.size_i64();
+        sizer.size_i64();
+        sizer.size_f32();
+        sizer.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.align(8);
+        w.write_u64(self.remote_timestamp_ns);
+        w.write_i64(self.observed_offset_ns);
+        w.write_i64(self.estimated_offset_ns);
+        w.write_f32(self.round_trip_time_ms);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<TimesyncStatus<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        TimesyncStatus::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -1469,8 +2275,17 @@ mod tests {
 
     #[test]
     fn test_altitude_round_trip() {
-        let msg =
-            Altitude::new(test_stamp(), "map", 100.0, 200.0, 50.0, 150.0, 45.0, 10.0).unwrap();
+        let msg = Altitude::builder()
+            .stamp(test_stamp())
+            .frame_id("map")
+            .monotonic(100.0)
+            .amsl(200.0)
+            .local(50.0)
+            .relative(150.0)
+            .terrain(45.0)
+            .bottom_clearance(10.0)
+            .build()
+            .unwrap();
         let parsed = Altitude::from_cdr(msg.as_cdr()).unwrap();
         assert_eq!(parsed.stamp(), test_stamp());
         assert_eq!(parsed.frame_id(), "map");
@@ -1484,8 +2299,17 @@ mod tests {
 
     #[test]
     fn test_vfrhud_round_trip() {
-        let msg =
-            VfrHud::new(test_stamp(), "base_link", 15.5, 12.3, 180, 0.75, 100.0, 2.5).unwrap();
+        let msg = VfrHud::builder()
+            .stamp(test_stamp())
+            .frame_id("base_link")
+            .airspeed(15.5)
+            .groundspeed(12.3)
+            .heading(180)
+            .throttle(0.75)
+            .altitude(100.0)
+            .climb(2.5)
+            .build()
+            .unwrap();
         let parsed = VfrHud::from_cdr(msg.as_cdr()).unwrap();
         assert_eq!(parsed.stamp(), test_stamp());
         assert_eq!(parsed.frame_id(), "base_link");
@@ -1499,23 +2323,23 @@ mod tests {
 
     #[test]
     fn test_estimator_status_round_trip() {
-        let msg = EstimatorStatus::new(
-            test_stamp(),
-            "fcu",
-            true,  // attitude
-            true,  // vel_horiz
-            false, // vel_vert
-            true,  // pos_horiz_rel
-            true,  // pos_horiz_abs
-            false, // pos_vert_abs
-            false, // pos_vert_agl
-            false, // const_pos_mode
-            true,  // pred_pos_horiz_rel
-            true,  // pred_pos_horiz_abs
-            false, // gps_glitch
-            false, // accel_error
-        )
-        .unwrap();
+        let msg = EstimatorStatus::builder()
+            .stamp(test_stamp())
+            .frame_id("fcu")
+            .attitude_status_flag(true)
+            .velocity_horiz_status_flag(true)
+            .velocity_vert_status_flag(false)
+            .pos_horiz_rel_status_flag(true)
+            .pos_horiz_abs_status_flag(true)
+            .pos_vert_abs_status_flag(false)
+            .pos_vert_agl_status_flag(false)
+            .const_pos_mode_status_flag(false)
+            .pred_pos_horiz_rel_status_flag(true)
+            .pred_pos_horiz_abs_status_flag(true)
+            .gps_glitch_status_flag(false)
+            .accel_error_status_flag(false)
+            .build()
+            .unwrap();
         let parsed = EstimatorStatus::from_cdr(msg.as_cdr()).unwrap();
         assert_eq!(parsed.frame_id(), "fcu");
         assert!(parsed.attitude_status_flag());
@@ -1534,8 +2358,13 @@ mod tests {
 
     #[test]
     fn test_extended_state_round_trip() {
-        let msg =
-            ExtendedState::new(test_stamp(), "fcu", vtol_state::MC, landed_state::IN_AIR).unwrap();
+        let msg = ExtendedState::builder()
+            .stamp(test_stamp())
+            .frame_id("fcu")
+            .vtol_state(vtol_state::MC)
+            .landed_state(landed_state::IN_AIR)
+            .build()
+            .unwrap();
         let parsed = ExtendedState::from_cdr(msg.as_cdr()).unwrap();
         assert_eq!(parsed.frame_id(), "fcu");
         assert_eq!(parsed.vtol_state(), vtol_state::MC);
@@ -1544,24 +2373,24 @@ mod tests {
 
     #[test]
     fn test_sys_status_round_trip() {
-        let msg = SysStatus::new(
-            test_stamp(),
-            "fcu",
-            0xFFFF_FFFF, // sensors_present
-            0x0000_FFFF, // sensors_enabled
-            0x0000_00FF, // sensors_health
-            500,         // load (0.1%)
-            12600,       // voltage_battery (mV)
-            -1500,       // current_battery (cA)
-            75,          // battery_remaining (%)
-            10,          // drop_rate_comm
-            2,           // errors_comm
-            0,           // errors_count1
-            0,           // errors_count2
-            1,           // errors_count3
-            0,           // errors_count4
-        )
-        .unwrap();
+        let msg = SysStatus::builder()
+            .stamp(test_stamp())
+            .frame_id("fcu")
+            .sensors_present(0xFFFF_FFFF)
+            .sensors_enabled(0x0000_FFFF)
+            .sensors_health(0x0000_00FF)
+            .load(500)
+            .voltage_battery(12600)
+            .current_battery(-1500)
+            .battery_remaining(75)
+            .drop_rate_comm(10)
+            .errors_comm(2)
+            .errors_count1(0)
+            .errors_count2(0)
+            .errors_count3(1)
+            .errors_count4(0)
+            .build()
+            .unwrap();
         let parsed = SysStatus::from_cdr(msg.as_cdr()).unwrap();
         assert_eq!(parsed.frame_id(), "fcu");
         assert_eq!(parsed.sensors_present(), 0xFFFF_FFFF);
@@ -1581,17 +2410,17 @@ mod tests {
 
     #[test]
     fn test_state_round_trip() {
-        let msg = State::new(
-            test_stamp(),
-            "fcu",
-            true,
-            true,
-            false,
-            false,
-            "GUIDED",
-            mav_state::ACTIVE,
-        )
-        .unwrap();
+        let msg = State::builder()
+            .stamp(test_stamp())
+            .frame_id("fcu")
+            .connected(true)
+            .armed(true)
+            .guided(false)
+            .manual_input(false)
+            .mode("GUIDED")
+            .system_status(mav_state::ACTIVE)
+            .build()
+            .unwrap();
         let parsed = State::from_cdr(msg.as_cdr()).unwrap();
         assert_eq!(parsed.frame_id(), "fcu");
         assert!(parsed.connected());
@@ -1604,17 +2433,17 @@ mod tests {
 
     #[test]
     fn test_state_empty_mode() {
-        let msg = State::new(
-            test_stamp(),
-            "",
-            false,
-            false,
-            false,
-            false,
-            "",
-            mav_state::UNINIT,
-        )
-        .unwrap();
+        let msg = State::builder()
+            .stamp(test_stamp())
+            .frame_id("")
+            .connected(false)
+            .armed(false)
+            .guided(false)
+            .manual_input(false)
+            .mode("")
+            .system_status(mav_state::UNINIT)
+            .build()
+            .unwrap();
         let parsed = State::from_cdr(msg.as_cdr()).unwrap();
         assert_eq!(parsed.mode(), "");
         assert_eq!(parsed.system_status(), mav_state::UNINIT);
@@ -1622,13 +2451,13 @@ mod tests {
 
     #[test]
     fn test_status_text_round_trip() {
-        let msg = StatusText::new(
-            test_stamp(),
-            "fcu",
-            severity::WARNING,
-            "Low battery warning",
-        )
-        .unwrap();
+        let msg = StatusText::builder()
+            .stamp(test_stamp())
+            .frame_id("fcu")
+            .severity(severity::WARNING)
+            .text("Low battery warning")
+            .build()
+            .unwrap();
         let parsed = StatusText::from_cdr(msg.as_cdr()).unwrap();
         assert_eq!(parsed.frame_id(), "fcu");
         assert_eq!(parsed.severity(), severity::WARNING);
@@ -1637,28 +2466,28 @@ mod tests {
 
     #[test]
     fn test_gps_raw_round_trip() {
-        let msg = GpsRaw::new(
-            test_stamp(),
-            "gps",
-            gps_fix_type::FIX_3D,
-            473977070, // lat (47.3977070 degE7)
-            85512540,  // lon (8.5512540 degE7)
-            408000,    // alt (408m in mm)
-            120,       // eph
-            150,       // epv
-            500,       // vel (5 m/s in cm/s)
-            9000,      // cog (90 degrees in cdeg)
-            12,        // satellites_visible
-            408500,    // alt_ellipsoid
-            1000,      // h_acc
-            1500,      // v_acc
-            200,       // vel_acc
-            50000,     // hdg_acc
-            9000,      // yaw (90 deg in cdeg)
-            4,         // dgps_numch
-            1000,      // dgps_age
-        )
-        .unwrap();
+        let msg = GpsRaw::builder()
+            .stamp(test_stamp())
+            .frame_id("gps")
+            .fix_type(gps_fix_type::FIX_3D)
+            .lat(473977070)
+            .lon(85512540)
+            .alt(408000)
+            .eph(120)
+            .epv(150)
+            .vel(500)
+            .cog(9000)
+            .satellites_visible(12)
+            .alt_ellipsoid(408500)
+            .h_acc(1000)
+            .v_acc(1500)
+            .vel_acc(200)
+            .hdg_acc(50000)
+            .yaw(9000)
+            .dgps_numch(4)
+            .dgps_age(1000)
+            .build()
+            .unwrap();
         let parsed = GpsRaw::from_cdr(msg.as_cdr()).unwrap();
         assert_eq!(parsed.frame_id(), "gps");
         assert_eq!(parsed.fix_type(), gps_fix_type::FIX_3D);
@@ -1682,15 +2511,15 @@ mod tests {
 
     #[test]
     fn test_timesync_status_round_trip() {
-        let msg = TimesyncStatus::new(
-            test_stamp(),
-            "fcu",
-            1_000_000_000, // remote_timestamp_ns (1s)
-            -5000,         // observed_offset_ns
-            -4500,         // estimated_offset_ns
-            2.5,           // round_trip_time_ms
-        )
-        .unwrap();
+        let msg = TimesyncStatus::builder()
+            .stamp(test_stamp())
+            .frame_id("fcu")
+            .remote_timestamp_ns(1_000_000_000)
+            .observed_offset_ns(-5000)
+            .estimated_offset_ns(-4500)
+            .round_trip_time_ms(2.5)
+            .build()
+            .unwrap();
         let parsed = TimesyncStatus::from_cdr(msg.as_cdr()).unwrap();
         assert_eq!(parsed.frame_id(), "fcu");
         assert_eq!(parsed.remote_timestamp_ns(), 1_000_000_000);
@@ -1710,9 +2539,21 @@ mod tests {
 
     #[test]
     fn test_owned_into_cdr() {
-        let msg = ExtendedState::new(test_stamp(), "x", 0, 1).unwrap();
+        let msg = ExtendedState::builder()
+            .stamp(test_stamp())
+            .frame_id("x")
+            .vtol_state(0)
+            .landed_state(1)
+            .build()
+            .unwrap();
         let cdr = msg.to_cdr();
-        let owned = ExtendedState::new(test_stamp(), "x", 0, 1).unwrap();
+        let owned = ExtendedState::builder()
+            .stamp(test_stamp())
+            .frame_id("x")
+            .vtol_state(0)
+            .landed_state(1)
+            .build()
+            .unwrap();
         assert_eq!(owned.into_cdr(), cdr);
     }
 }

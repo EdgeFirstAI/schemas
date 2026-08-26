@@ -401,44 +401,6 @@ impl<B: AsRef<[u8]>> Mask<B> {
 }
 
 impl Mask<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use Mask::builder() for allocation-free buffer reuse; Mask::new will be removed in 4.0"
-    )]
-    pub fn new(
-        height: u32,
-        width: u32,
-        length: u32,
-        encoding: &str,
-        mask: &[u8],
-        boxed: bool,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        sizer.size_u32(); // height
-        sizer.size_u32(); // width
-        sizer.size_u32(); // length
-        sizer.size_string(encoding);
-        let o0 = sizer.offset();
-        sizer.size_bytes(mask.len());
-        let o1 = sizer.offset();
-        sizer.size_bool();
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        w.write_u32(height);
-        w.write_u32(width);
-        w.write_u32(length);
-        w.write_string(encoding);
-        w.write_bytes(mask);
-        w.write_bool(boxed);
-        w.finish()?;
-
-        Ok(Mask {
-            offsets: [o0, o1],
-            buf,
-        })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -713,37 +675,6 @@ impl<B: AsRef<[u8]>> LocalTime<B> {
 }
 
 impl LocalTime<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use LocalTime::builder() for allocation-free buffer reuse; LocalTime::new will be removed in 4.0"
-    )]
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        date: Date,
-        time: Time,
-        timezone: i16,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        Date::size_cdr(&mut sizer);
-        Time::size_cdr(&mut sizer);
-        sizer.size_i16();
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        date.write_cdr(&mut w);
-        time.write_cdr(&mut w);
-        w.write_i16(timezone);
-        w.finish()?;
-
-        Ok(LocalTime { offsets: [o0], buf })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -1008,60 +939,6 @@ impl<B: AsRef<[u8]>> RadarCube<B> {
 }
 
 impl RadarCube<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use RadarCube::builder() for allocation-free buffer reuse; RadarCube::new will be removed in 4.0"
-    )]
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        timestamp: u64,
-        layout: &[u8],
-        shape: &[u16],
-        scales: &[f32],
-        cube: &[i16],
-        is_complex: bool,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        sizer.size_u64();
-        sizer.size_bytes(layout.len());
-        let o1 = sizer.offset();
-        sizer.size_u32();
-        sizer.size_seq_2(shape.len());
-        let o2 = sizer.offset();
-        sizer.size_u32();
-        sizer.size_seq_4(scales.len());
-        let o3 = sizer.offset();
-        sizer.size_u32();
-        sizer.size_seq_2(cube.len());
-        let o4 = sizer.offset();
-        sizer.size_bool();
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_u64(timestamp);
-        w.write_bytes(layout);
-        w.write_u32(shape.len() as u32);
-        w.write_slice_u16(shape);
-        w.write_u32(scales.len() as u32);
-        w.write_slice_f32(scales);
-        w.write_u32(cube.len() as u32);
-        w.write_slice_i16(cube);
-        w.write_bool(is_complex);
-        w.finish()?;
-
-        Ok(RadarCube {
-            offsets: [o0, o1, o2, o3, o4],
-            buf,
-        })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -1304,50 +1181,6 @@ impl<B: AsRef<[u8]>> RadarInfo<B> {
 }
 
 impl RadarInfo<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use RadarInfo::builder() for allocation-free buffer reuse; RadarInfo::new will be removed in 4.0"
-    )]
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        center_frequency: &str,
-        frequency_sweep: &str,
-        range_toggle: &str,
-        detection_sensitivity: &str,
-        cube: bool,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        sizer.size_string(center_frequency);
-        let o1 = sizer.offset();
-        sizer.size_string(frequency_sweep);
-        let o2 = sizer.offset();
-        sizer.size_string(range_toggle);
-        let o3 = sizer.offset();
-        sizer.size_string(detection_sensitivity);
-        let o4 = sizer.offset();
-        sizer.size_bool();
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_string(center_frequency);
-        w.write_string(frequency_sweep);
-        w.write_string(range_toggle);
-        w.write_string(detection_sensitivity);
-        w.write_bool(cube);
-        w.finish()?;
-
-        Ok(RadarInfo {
-            offsets: [o0, o1, o2, o3, o4],
-            buf,
-        })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -1532,27 +1365,6 @@ impl<B: AsRef<[u8]>> Track<B> {
 }
 
 impl Track<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use Track::builder() for allocation-free buffer reuse; Track::new will be removed in 4.0"
-    )]
-    pub fn new(id: &str, lifetime: i32, created: Time) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        sizer.size_string(id);
-        let o0 = sizer.offset();
-        sizer.size_i32();
-        Time::size_cdr(&mut sizer);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        w.write_string(id);
-        w.write_i32(lifetime);
-        created.write_cdr(&mut w);
-        w.finish()?;
-
-        Ok(Track { offsets: [o0], buf })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -1848,60 +1660,6 @@ impl<B: AsRef<[u8]>> DetectBox<B> {
 }
 
 impl DetectBox<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use DetectBox::builder() for allocation-free buffer reuse; DetectBox::new will be removed in 4.0"
-    )]
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        center_x: f32,
-        center_y: f32,
-        width: f32,
-        height: f32,
-        label: &str,
-        score: f32,
-        distance: f32,
-        speed: f32,
-        track_id: &str,
-        track_lifetime: i32,
-        track_created: Time,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        sizer.size_f32();
-        sizer.size_f32();
-        sizer.size_f32();
-        sizer.size_f32();
-        sizer.size_string(label);
-        let o0 = sizer.offset();
-        sizer.size_f32();
-        sizer.size_f32();
-        sizer.size_f32();
-        sizer.size_string(track_id);
-        let o1 = sizer.offset();
-        sizer.size_i32();
-        Time::size_cdr(&mut sizer);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        w.write_f32(center_x);
-        w.write_f32(center_y);
-        w.write_f32(width);
-        w.write_f32(height);
-        w.write_string(label);
-        w.write_f32(score);
-        w.write_f32(distance);
-        w.write_f32(speed);
-        w.write_string(track_id);
-        w.write_i32(track_lifetime);
-        track_created.write_cdr(&mut w);
-        w.finish()?;
-
-        Ok(DetectBox {
-            offsets: [o0, o1],
-            buf,
-        })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -2221,50 +1979,6 @@ impl Detect<&'static [u8]> {
 }
 
 impl Detect<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use Detect::builder() for allocation-free buffer reuse; Detect::new will be removed in 4.0"
-    )]
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        input_timestamp: Time,
-        model_time: Time,
-        output_time: Time,
-        boxes: &[DetectBoxView<'_>],
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        Time::size_cdr(&mut sizer);
-        Time::size_cdr(&mut sizer);
-        Time::size_cdr(&mut sizer);
-        sizer.size_u32();
-        for b in boxes {
-            size_box_element(&mut sizer, b.label, b.track_id);
-        }
-        let o1 = sizer.offset();
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        input_timestamp.write_cdr(&mut w);
-        model_time.write_cdr(&mut w);
-        output_time.write_cdr(&mut w);
-        w.write_u32(boxes.len() as u32);
-        for b in boxes {
-            write_box_element(&mut w, b);
-        }
-        w.finish()?;
-
-        Ok(Detect {
-            offsets: [o0, o1],
-            buf,
-        })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -2582,64 +2296,6 @@ impl Model<&'static [u8]> {
 }
 
 impl Model<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use Model::builder() for allocation-free buffer reuse; Model::new will be removed in 4.0"
-    )]
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        input_time: Duration,
-        model_time: Duration,
-        output_time: Duration,
-        decode_time: Duration,
-        boxes: &[DetectBoxView<'_>],
-        masks: &[MaskView<'_>],
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        Duration::size_cdr(&mut sizer);
-        Duration::size_cdr(&mut sizer);
-        Duration::size_cdr(&mut sizer);
-        Duration::size_cdr(&mut sizer);
-        sizer.size_u32();
-        for b in boxes {
-            size_box_element(&mut sizer, b.label, b.track_id);
-        }
-        let o1 = sizer.offset();
-        sizer.size_u32();
-        for m in masks {
-            size_mask_element(&mut sizer, m.encoding, m.mask.len());
-        }
-        let o2 = sizer.offset();
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        input_time.write_cdr(&mut w);
-        model_time.write_cdr(&mut w);
-        output_time.write_cdr(&mut w);
-        decode_time.write_cdr(&mut w);
-        w.write_u32(boxes.len() as u32);
-        for b in boxes {
-            write_box_element(&mut w, b);
-        }
-        w.write_u32(masks.len() as u32);
-        for m in masks {
-            write_mask_element(&mut w, m);
-        }
-        w.finish()?;
-
-        Ok(Model {
-            offsets: [o0, o1, o2],
-            buf,
-        })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -2951,71 +2607,6 @@ impl<B: AsRef<[u8]>> ModelInfo<B> {
 }
 
 impl ModelInfo<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use ModelInfo::builder() for allocation-free buffer reuse; ModelInfo::new will be removed in 4.0"
-    )]
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        input_shape: &[u32],
-        input_type: u8,
-        output_shape: &[u32],
-        output_type: u8,
-        labels: &[&str],
-        model_type: &str,
-        model_format: &str,
-        model_name: &str,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        sizer.size_u32();
-        sizer.size_seq_4(input_shape.len());
-        let o1 = sizer.offset();
-        sizer.size_u8();
-        sizer.size_u32();
-        sizer.size_seq_4(output_shape.len());
-        let o2 = sizer.offset();
-        sizer.size_u8();
-        sizer.size_u32();
-        for l in labels {
-            sizer.size_string(l);
-        }
-        let o3 = sizer.offset();
-        sizer.size_string(model_type);
-        let o4 = sizer.offset();
-        sizer.size_string(model_format);
-        let o5 = sizer.offset();
-        sizer.size_string(model_name);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_u32(input_shape.len() as u32);
-        w.write_slice_u32(input_shape);
-        w.write_u8(input_type);
-        w.write_u32(output_shape.len() as u32);
-        w.write_slice_u32(output_shape);
-        w.write_u8(output_type);
-        w.write_u32(labels.len() as u32);
-        for l in labels {
-            w.write_string(l);
-        }
-        w.write_string(model_type);
-        w.write_string(model_format);
-        w.write_string(model_name);
-        w.finish()?;
-
-        Ok(ModelInfo {
-            offsets: [o0, o1, o2, o3, o4, o5],
-            buf,
-        })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -3338,57 +2929,6 @@ impl<B: AsRef<[u8]>> Vibration<B> {
 }
 
 impl Vibration<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use Vibration::builder() for allocation-free buffer reuse; Vibration::new will be removed in 4.0"
-    )]
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        stamp: crate::builtin_interfaces::Time,
-        frame_id: &str,
-        measurement_type: u8,
-        unit: u8,
-        band_lower_hz: f32,
-        band_upper_hz: f32,
-        vibration: crate::geometry_msgs::Vector3,
-        clipping: &[u32],
-    ) -> Result<Self, CdrError> {
-        use crate::builtin_interfaces::Time;
-        use crate::geometry_msgs::Vector3;
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        sizer.align(8);
-        let o0 = sizer.offset();
-        Vector3::size_cdr(&mut sizer);
-        sizer.size_f32();
-        sizer.size_f32();
-        sizer.size_u8();
-        sizer.size_u8();
-        sizer.align(4);
-        sizer.size_u32();
-        for _ in clipping {
-            sizer.size_u32();
-        }
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        vibration.write_cdr(&mut w);
-        w.write_f32(band_lower_hz);
-        w.write_f32(band_upper_hz);
-        w.write_u8(measurement_type);
-        w.write_u8(unit);
-        w.write_u32(clipping.len() as u32);
-        for v in clipping {
-            w.write_u32(*v);
-        }
-        w.finish()?;
-
-        Ok(Vibration { offsets: [o0], buf })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -3619,9 +3159,6 @@ impl SchemaType for Date {
 }
 
 #[cfg(test)]
-#[allow(deprecated)] // Tests exercise the deprecated `::new()` constructors (Mask, LocalTime,
-                     // RadarCube, RadarInfo, Track, DetectBox, Model, ModelInfo, Vibration), which
-                     // remain supported until 4.0.
 mod tests {
     use super::*;
     use crate::builtin_interfaces::Time;
@@ -3644,7 +3181,15 @@ mod tests {
 
     #[test]
     fn mask_roundtrip() {
-        let mask = Mask::new(480, 640, 0, "", &vec![0u8; 480 * 640], false).unwrap();
+        let mask = Mask::builder()
+            .height(480)
+            .width(640)
+            .length(0)
+            .encoding("")
+            .mask(&vec![0u8; 480 * 640])
+            .boxed(false)
+            .build()
+            .unwrap();
         assert_eq!(mask.height(), 480);
         assert_eq!(mask.width(), 640);
         assert_eq!(mask.length(), 0);
@@ -3658,7 +3203,15 @@ mod tests {
         assert_eq!(decoded.width(), 640);
 
         // Compressed mask
-        let compressed = Mask::new(1080, 1920, 5, "zstd", &[1, 2, 3, 4, 5], true).unwrap();
+        let compressed = Mask::builder()
+            .height(1080)
+            .width(1920)
+            .length(5)
+            .encoding("zstd")
+            .mask(&[1, 2, 3, 4, 5])
+            .boxed(true)
+            .build()
+            .unwrap();
         assert_eq!(compressed.encoding(), "zstd");
         assert_eq!(compressed.mask_data(), &[1, 2, 3, 4, 5]);
         assert!(compressed.boxed());
@@ -3679,18 +3232,18 @@ mod tests {
 
     #[test]
     fn local_time_roundtrip() {
-        let lt = LocalTime::new(
-            Time::new(0, 0),
-            "clock",
-            Date {
+        let lt = LocalTime::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("clock")
+            .date(Date {
                 year: 2025,
                 month: 1,
                 day: 27,
-            },
-            Time::new(43200, 0),
-            -300,
-        )
-        .unwrap();
+            })
+            .time(Time::new(43200, 0))
+            .timezone(-300)
+            .build()
+            .unwrap();
         assert_eq!(lt.frame_id(), "clock");
         assert_eq!(
             lt.date(),
@@ -3718,17 +3271,17 @@ mod tests {
 
     #[test]
     fn radar_cube_roundtrip() {
-        let cube = RadarCube::new(
-            Time::new(1234567890, 123456789),
-            "radar",
-            1234567890123456,
-            &[6, 1, 5, 2],
-            &[16, 256, 4, 64],
-            &[1.0, 2.5, 1.0, 0.5],
-            &[100, 200, -100, -200],
-            true,
-        )
-        .unwrap();
+        let cube = RadarCube::builder()
+            .stamp(Time::new(1234567890, 123456789))
+            .frame_id("radar")
+            .timestamp(1234567890123456)
+            .layout(&[6, 1, 5, 2])
+            .shape(&[16, 256, 4, 64])
+            .scales(&[1.0, 2.5, 1.0, 0.5])
+            .cube(&[100, 200, -100, -200])
+            .is_complex(true)
+            .build()
+            .unwrap();
         assert_eq!(cube.stamp(), Time::new(1234567890, 123456789));
         assert_eq!(cube.frame_id(), "radar");
         assert_eq!(cube.timestamp(), 1234567890123456);
@@ -3746,16 +3299,16 @@ mod tests {
 
     #[test]
     fn radar_info_roundtrip() {
-        let info = RadarInfo::new(
-            Time::new(0, 0),
-            "radar",
-            "77GHz",
-            "short",
-            "off",
-            "high",
-            true,
-        )
-        .unwrap();
+        let info = RadarInfo::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("radar")
+            .center_frequency("77GHz")
+            .frequency_sweep("short")
+            .range_toggle("off")
+            .detection_sensitivity("high")
+            .cube(true)
+            .build()
+            .unwrap();
         assert_eq!(info.center_frequency(), "77GHz");
         assert_eq!(info.frequency_sweep(), "short");
         assert_eq!(info.range_toggle(), "off");
@@ -3771,15 +3324,15 @@ mod tests {
     #[test]
     fn detect_roundtrip() {
         // Empty detections
-        let empty = Detect::new(
-            Time::new(0, 0),
-            "",
-            Time::new(0, 0),
-            Time::new(0, 0),
-            Time::new(0, 0),
-            &[],
-        )
-        .unwrap();
+        let empty = Detect::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("")
+            .input_timestamp(Time::new(0, 0))
+            .model_time(Time::new(0, 0))
+            .output_time(Time::new(0, 0))
+            .boxes(&[])
+            .build()
+            .unwrap();
         assert_eq!(empty.boxes_len(), 0);
 
         let bytes = empty.to_cdr();
@@ -3800,15 +3353,15 @@ mod tests {
             track_lifetime: 5,
             track_created: Time::new(95, 0),
         }];
-        let detect = Detect::new(
-            Time::new(100, 500_000_000),
-            "camera",
-            Time::new(100, 400_000_000),
-            Time::new(0, 50_000_000),
-            Time::new(100, 500_000_000),
-            &boxes,
-        )
-        .unwrap();
+        let detect = Detect::builder()
+            .stamp(Time::new(100, 500_000_000))
+            .frame_id("camera")
+            .input_timestamp(Time::new(100, 400_000_000))
+            .model_time(Time::new(0, 50_000_000))
+            .output_time(Time::new(100, 500_000_000))
+            .boxes(&boxes)
+            .build()
+            .unwrap();
         assert_eq!(detect.boxes_len(), 1);
         let b = detect.boxes();
         assert_eq!(b[0].label, "car");
@@ -3864,15 +3417,15 @@ mod tests {
                 track_created: Time::new(0, 0),
             },
         ];
-        let detect = Detect::new(
-            Time::new(100, 0),
-            "camera",
-            Time::new(99, 0),
-            Time::new(0, 50_000_000),
-            Time::new(100, 0),
-            &boxes,
-        )
-        .unwrap();
+        let detect = Detect::builder()
+            .stamp(Time::new(100, 0))
+            .frame_id("camera")
+            .input_timestamp(Time::new(99, 0))
+            .model_time(Time::new(0, 50_000_000))
+            .output_time(Time::new(100, 0))
+            .boxes(&boxes)
+            .build()
+            .unwrap();
         assert_eq!(detect.boxes_len(), 3);
         let decoded_boxes = detect.boxes();
         assert_eq!(decoded_boxes[0].label, "a");
@@ -3898,17 +3451,17 @@ mod tests {
 
     #[test]
     fn model_roundtrip() {
-        let model = Model::new(
-            Time::new(0, 0),
-            "model",
-            Duration::new(0, 1_000_000),
-            Duration::new(0, 5_000_000),
-            Duration::new(0, 500_000),
-            Duration::new(0, 2_000_000),
-            &[],
-            &[],
-        )
-        .unwrap();
+        let model = Model::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("model")
+            .input_time(Duration::new(0, 1_000_000))
+            .model_time(Duration::new(0, 5_000_000))
+            .output_time(Duration::new(0, 500_000))
+            .decode_time(Duration::new(0, 2_000_000))
+            .boxes(&[])
+            .masks(&[])
+            .build()
+            .unwrap();
         assert_eq!(model.input_time(), Duration::new(0, 1_000_000));
         assert_eq!(model.boxes_len(), 0);
         assert_eq!(model.masks_len(), 0);
@@ -3920,19 +3473,19 @@ mod tests {
 
     #[test]
     fn model_info_roundtrip() {
-        let info = ModelInfo::new(
-            Time::new(0, 0),
-            "",
-            &[1, 3, 640, 640],
-            8,
-            &[1, 25200, 85],
-            8,
-            &["person", "car"],
-            "yolov8",
-            "onnx",
-            "yolov8n",
-        )
-        .unwrap();
+        let info = ModelInfo::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("")
+            .input_shape(&[1, 3, 640, 640])
+            .input_type(8)
+            .output_shape(&[1, 25200, 85])
+            .output_type(8)
+            .labels(&["person", "car"])
+            .model_type("yolov8")
+            .model_format("onnx")
+            .model_name("yolov8n")
+            .build()
+            .unwrap();
         assert_eq!(info.input_shape(), vec![1, 3, 640, 640]);
         assert_eq!(info.input_type(), 8);
         assert_eq!(info.output_shape(), vec![1, 25200, 85]);
@@ -3951,19 +3504,19 @@ mod tests {
 
     #[test]
     fn model_info_empty_labels() {
-        let info = ModelInfo::new(
-            Time::new(1, 0),
-            "cam",
-            &[1, 3, 224, 224],
-            8,
-            &[1, 10],
-            8,
-            &[],
-            "classifier",
-            "onnx",
-            "mobilenet",
-        )
-        .unwrap();
+        let info = ModelInfo::builder()
+            .stamp(Time::new(1, 0))
+            .frame_id("cam")
+            .input_shape(&[1, 3, 224, 224])
+            .input_type(8)
+            .output_shape(&[1, 10])
+            .output_type(8)
+            .labels(&[])
+            .model_type("classifier")
+            .model_format("onnx")
+            .model_name("mobilenet")
+            .build()
+            .unwrap();
         assert_eq!(info.labels(), Vec::<&str>::new());
         assert_eq!(info.input_shape(), &[1, 3, 224, 224]);
         assert_eq!(info.output_shape(), &[1, 10]);
@@ -3980,19 +3533,19 @@ mod tests {
 
     #[test]
     fn model_info_single_empty_label() {
-        let info = ModelInfo::new(
-            Time::new(0, 0),
-            "",
-            &[1],
-            0,
-            &[1],
-            0,
-            &[""],
-            "det",
-            "tflite",
-            "m",
-        )
-        .unwrap();
+        let info = ModelInfo::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("")
+            .input_shape(&[1])
+            .input_type(0)
+            .output_shape(&[1])
+            .output_type(0)
+            .labels(&[""])
+            .model_type("det")
+            .model_format("tflite")
+            .model_name("m")
+            .build()
+            .unwrap();
         assert_eq!(info.labels(), vec![""]);
 
         let bytes = info.to_cdr();
@@ -4003,19 +3556,19 @@ mod tests {
 
     #[test]
     fn model_info_alignment_stressing_labels() {
-        let info = ModelInfo::new(
-            Time::new(0, 0),
-            "f",
-            &[1, 3, 320, 320],
-            8,
-            &[1, 100, 6],
-            8,
-            &["a", "ab", "abc", "abcd", "abcde"],
-            "object_detection",
-            "DeepViewRT",
-            "yolov8n",
-        )
-        .unwrap();
+        let info = ModelInfo::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("f")
+            .input_shape(&[1, 3, 320, 320])
+            .input_type(8)
+            .output_shape(&[1, 100, 6])
+            .output_type(8)
+            .labels(&["a", "ab", "abc", "abcd", "abcde"])
+            .model_type("object_detection")
+            .model_format("DeepViewRT")
+            .model_name("yolov8n")
+            .build()
+            .unwrap();
         assert_eq!(info.labels(), vec!["a", "ab", "abc", "abcd", "abcde"]);
         assert_eq!(info.input_shape(), &[1, 3, 320, 320]);
         assert_eq!(info.model_type(), "object_detection");
@@ -4032,19 +3585,19 @@ mod tests {
     fn model_info_many_labels() {
         let label_strs: Vec<String> = (0..80).map(|i| format!("class_{i}")).collect();
         let labels: Vec<&str> = label_strs.iter().map(|s| s.as_str()).collect();
-        let info = ModelInfo::new(
-            Time::new(0, 0),
-            "cam0",
-            &[1, 3, 640, 640],
-            8,
-            &[1, 84, 8400],
-            8,
-            &labels,
-            "object_detection",
-            "DeepViewRT",
-            "yolov8n",
-        )
-        .unwrap();
+        let info = ModelInfo::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("cam0")
+            .input_shape(&[1, 3, 640, 640])
+            .input_type(8)
+            .output_shape(&[1, 84, 8400])
+            .output_type(8)
+            .labels(&labels)
+            .model_type("object_detection")
+            .model_format("DeepViewRT")
+            .model_name("yolov8n")
+            .build()
+            .unwrap();
         assert_eq!(info.labels().len(), 80);
         assert_eq!(info.labels()[0], "class_0");
         assert_eq!(info.labels()[79], "class_79");
@@ -4059,19 +3612,19 @@ mod tests {
 
     #[test]
     fn model_info_empty_shapes() {
-        let info = ModelInfo::new(
-            Time::new(0, 0),
-            "",
-            &[],
-            0,
-            &[],
-            0,
-            &["label"],
-            "type",
-            "format",
-            "name",
-        )
-        .unwrap();
+        let info = ModelInfo::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("")
+            .input_shape(&[])
+            .input_type(0)
+            .output_shape(&[])
+            .output_type(0)
+            .labels(&["label"])
+            .model_type("type")
+            .model_format("format")
+            .model_name("name")
+            .build()
+            .unwrap();
         assert_eq!(info.input_shape(), &[] as &[u32]);
         assert_eq!(info.output_shape(), &[] as &[u32]);
         assert_eq!(info.labels(), vec!["label"]);
@@ -4085,7 +3638,12 @@ mod tests {
 
     #[test]
     fn track_roundtrip() {
-        let track = Track::new("t1", 5, Time::new(95, 0)).unwrap();
+        let track = Track::builder()
+            .id("t1")
+            .lifetime(5)
+            .created(Time::new(95, 0))
+            .build()
+            .unwrap();
         assert_eq!(track.id(), "t1");
         assert_eq!(track.lifetime(), 5);
         assert_eq!(track.created(), Time::new(95, 0));
@@ -4098,20 +3656,20 @@ mod tests {
 
     #[test]
     fn detect_box_roundtrip() {
-        let b = DetectBox::new(
-            0.5,
-            0.5,
-            0.1,
-            0.2,
-            "car",
-            0.98,
-            10.0,
-            5.0,
-            "t1",
-            5,
-            Time::new(95, 0),
-        )
-        .unwrap();
+        let b = DetectBox::builder()
+            .center_x(0.5)
+            .center_y(0.5)
+            .width(0.1)
+            .height(0.2)
+            .label("car")
+            .score(0.98)
+            .distance(10.0)
+            .speed(5.0)
+            .track_id("t1")
+            .track_lifetime(5)
+            .track_created(Time::new(95, 0))
+            .build()
+            .unwrap();
         assert_eq!(b.center_x(), 0.5);
         assert_eq!(b.label(), "car");
         assert_eq!(b.score(), 0.98);
@@ -4125,20 +3683,20 @@ mod tests {
 
     #[test]
     fn detect_box_empty_strings() {
-        let b = DetectBox::new(
-            0.5,
-            0.5,
-            0.1,
-            0.2,
-            "",
-            0.0,
-            0.0,
-            0.0,
-            "",
-            0,
-            Time::new(0, 0),
-        )
-        .unwrap();
+        let b = DetectBox::builder()
+            .center_x(0.5)
+            .center_y(0.5)
+            .width(0.1)
+            .height(0.2)
+            .label("")
+            .score(0.0)
+            .distance(0.0)
+            .speed(0.0)
+            .track_id("")
+            .track_lifetime(0)
+            .track_created(Time::new(0, 0))
+            .build()
+            .unwrap();
         assert_eq!(b.label(), "");
         assert_eq!(b.track_id(), "");
         assert_eq!(b.center_x(), 0.5);

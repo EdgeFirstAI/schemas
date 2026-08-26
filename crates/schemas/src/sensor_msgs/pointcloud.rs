@@ -1405,7 +1405,6 @@ impl<P: Point> ExactSizeIterator for PointIter<'_, P> {}
 // ── Tests ───────────────────────────────────────────────────────────
 
 #[cfg(test)]
-#[allow(deprecated)] // Tests exercise PointCloud2::new, which is deprecated in 3.2.0 but still supported until 4.0.
 mod tests {
     use super::*;
     use crate::builtin_interfaces::Time;
@@ -1456,19 +1455,19 @@ mod tests {
             data[base + 12..base + 16].copy_from_slice(&intensity.to_le_bytes());
         }
 
-        PointCloud2::new(
-            Time::new(100, 0),
-            "lidar",
-            1,
-            num_points,
-            &fields,
-            false,
-            point_step,
-            point_step * num_points,
-            &data,
-            true,
-        )
-        .unwrap()
+        PointCloud2::builder()
+            .stamp(Time::new(100, 0))
+            .frame_id("lidar")
+            .height(1)
+            .width(num_points)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(point_step)
+            .row_step(point_step * num_points)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap()
     }
 
     // ── DynPointCloud tests ─────────────────────────────────────────
@@ -1587,19 +1586,19 @@ mod tests {
             let val = (i + 1) as f32;
             data[base..base + 4].copy_from_slice(&val.to_le_bytes());
         }
-        let pc = PointCloud2::new(
-            Time::new(0, 0),
-            "cam",
-            2,
-            2,
-            &fields,
-            false,
-            point_step,
-            24,
-            &data,
-            true,
-        )
-        .unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("cam")
+            .height(2)
+            .width(2)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(point_step)
+            .row_step(24)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
         let cloud = DynPointCloud::from_pointcloud2(&decoded).unwrap();
@@ -1622,8 +1621,19 @@ mod tests {
             count: 1,
         }];
         let data = vec![0u8; 4];
-        let pc =
-            PointCloud2::new(Time::new(0, 0), "f", 1, 1, &fields, true, 4, 4, &data, true).unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("f")
+            .height(1)
+            .width(1)
+            .fields(&fields)
+            .is_bigendian(true)
+            .point_step(4)
+            .row_step(4)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
         let err = DynPointCloud::from_pointcloud2(&decoded).unwrap_err();
@@ -1673,19 +1683,19 @@ mod tests {
         data[12..14].copy_from_slice(&42u16.to_le_bytes());
         data[14] = 0xFF;
 
-        let pc = PointCloud2::new(
-            Time::new(0, 0),
-            "f",
-            1,
-            1,
-            &fields,
-            false,
-            point_step,
-            16,
-            &data,
-            true,
-        )
-        .unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("f")
+            .height(1)
+            .width(1)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(point_step)
+            .row_step(16)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
         let cloud = DynPointCloud::from_pointcloud2(&decoded).unwrap();
@@ -1711,8 +1721,19 @@ mod tests {
             datatype: 7,
             count: 1,
         }];
-        let pc =
-            PointCloud2::new(Time::new(0, 0), "f", 0, 0, &fields, false, 4, 0, &[], true).unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("f")
+            .height(0)
+            .width(0)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(4)
+            .row_step(0)
+            .data(&[])
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
         let cloud = DynPointCloud::from_pointcloud2(&decoded).unwrap();
@@ -1774,19 +1795,19 @@ mod tests {
             data[base + 8..base + 12].copy_from_slice(&(i as f32 + 100.0).to_le_bytes());
         }
 
-        let pc = PointCloud2::new(
-            Time::new(0, 0),
-            "lidar",
-            1,
-            3,
-            &fields,
-            false,
-            point_step,
-            36,
-            &data,
-            true,
-        )
-        .unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("lidar")
+            .height(1)
+            .width(3)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(point_step)
+            .row_step(36)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
         let cloud = PointCloud::<TestXyzPoint>::from_pointcloud2(&decoded).unwrap();
@@ -1845,19 +1866,19 @@ mod tests {
         data[12..14].copy_from_slice(&7u16.to_le_bytes());
         data[14..16].copy_from_slice(&42u16.to_le_bytes());
 
-        let pc = PointCloud2::new(
-            Time::new(0, 0),
-            "f",
-            1,
-            1,
-            &fields,
-            false,
-            point_step,
-            16,
-            &data,
-            true,
-        )
-        .unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("f")
+            .height(1)
+            .width(1)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(point_step)
+            .row_step(16)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
         let cloud = PointCloud::<TestXyzClassPoint>::from_pointcloud2(&decoded).unwrap();
@@ -1887,19 +1908,19 @@ mod tests {
             },
         ];
         let data = vec![0u8; 8];
-        let pc = PointCloud2::new(
-            Time::new(0, 0),
-            "f",
-            1,
-            1,
-            &fields,
-            false,
-            8,
-            8,
-            &data,
-            true,
-        )
-        .unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("f")
+            .height(1)
+            .width(1)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(8)
+            .row_step(8)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
         let err = PointCloud::<TestXyzPoint>::from_pointcloud2(&decoded).unwrap_err();
@@ -1929,19 +1950,19 @@ mod tests {
             },
         ];
         let data = vec![0u8; 12];
-        let pc = PointCloud2::new(
-            Time::new(0, 0),
-            "f",
-            1,
-            1,
-            &fields,
-            false,
-            12,
-            12,
-            &data,
-            true,
-        )
-        .unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("f")
+            .height(1)
+            .width(1)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(12)
+            .row_step(12)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
         let err = PointCloud::<TestXyzPoint>::from_pointcloud2(&decoded).unwrap_err();
@@ -1982,19 +2003,19 @@ mod tests {
             },
         ];
         let data = vec![0u8; 16];
-        let pc = PointCloud2::new(
-            Time::new(0, 0),
-            "f",
-            1,
-            1,
-            &fields,
-            false,
-            16,
-            16,
-            &data,
-            true,
-        )
-        .unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("f")
+            .height(1)
+            .width(1)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(16)
+            .row_step(16)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
         let cloud = PointCloud::<TestXyzPoint>::from_pointcloud2(&decoded).unwrap();
@@ -2033,19 +2054,19 @@ mod tests {
             data[base + 8..base + 12].copy_from_slice(&(i as f32 * 3.0).to_le_bytes());
         }
 
-        let pc = PointCloud2::new(
-            Time::new(0, 0),
-            "f",
-            1,
-            n,
-            &fields,
-            false,
-            point_step,
-            point_step * n,
-            &data,
-            true,
-        )
-        .unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("f")
+            .height(1)
+            .width(n)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(point_step)
+            .row_step(point_step * n)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
         let cloud = PointCloud::<TestXyzPoint>::from_pointcloud2(&decoded).unwrap();
@@ -2215,19 +2236,19 @@ mod tests {
         data[14..18].copy_from_slice(&std::f32::consts::PI.to_le_bytes()); // f32
         data[18..26].copy_from_slice(&std::f64::consts::E.to_le_bytes()); // f64
 
-        let pc = PointCloud2::new(
-            Time::new(0, 0),
-            "test",
-            1,
-            1,
-            &fields,
-            false,
-            point_step,
-            point_step,
-            &data,
-            true,
-        )
-        .unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("test")
+            .height(1)
+            .width(1)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(point_step)
+            .row_step(point_step)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
         let cloud = DynPointCloud::from_pointcloud2(&decoded).unwrap();
@@ -2328,19 +2349,19 @@ mod tests {
             },
         ];
         let data = vec![0u8; 16];
-        let pc = PointCloud2::new(
-            Time::new(0, 0),
-            "f",
-            1,
-            1,
-            &fields,
-            false,
-            16,
-            16,
-            &data,
-            true,
-        )
-        .unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("f")
+            .height(1)
+            .width(1)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(16)
+            .row_step(16)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
         let err = PointCloud::<TestXyzPoint>::from_pointcloud2(&decoded).unwrap_err();
@@ -2377,19 +2398,19 @@ mod tests {
         ];
         // point_step=8 < TestXyzPoint::point_size()=12
         let data = vec![0u8; 8];
-        let pc = PointCloud2::new(
-            Time::new(0, 0),
-            "f",
-            1,
-            1,
-            &fields,
-            false,
-            8,
-            8,
-            &data,
-            true,
-        )
-        .unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("f")
+            .height(1)
+            .width(1)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(8)
+            .row_step(8)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
         let err = PointCloud::<TestXyzPoint>::from_pointcloud2(&decoded).unwrap_err();
@@ -2458,19 +2479,19 @@ mod tests {
             data[base + 8..base + 12].copy_from_slice(&(i as f32 * 30.0).to_le_bytes());
         }
 
-        let pc = PointCloud2::new(
-            Time::new(0, 0),
-            "os1",
-            1,
-            n,
-            &fields,
-            false,
-            point_step,
-            point_step * n,
-            &data,
-            true,
-        )
-        .unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("os1")
+            .height(1)
+            .width(n)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(point_step)
+            .row_step(point_step * n)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
 
@@ -2613,19 +2634,19 @@ mod tests {
             data[base..base + 4].copy_from_slice(&(i as f32).to_le_bytes());
         }
 
-        let pc = PointCloud2::new(
-            Time::new(0, 0),
-            "depth",
-            3,
-            2,
-            &fields,
-            false,
-            point_step,
-            point_step * 2,
-            &data,
-            true,
-        )
-        .unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("depth")
+            .height(3)
+            .width(2)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(point_step)
+            .row_step(point_step * 2)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
         let cloud = PointCloud::<TestXyzPoint>::from_pointcloud2(&decoded).unwrap();
@@ -2685,19 +2706,19 @@ mod tests {
             }
         }
 
-        let pc = PointCloud2::new(
-            Time::new(0, 0),
-            "padded",
-            height,
-            width,
-            &fields,
-            false,
-            point_step,
-            row_step,
-            &data,
-            true,
-        )
-        .unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("padded")
+            .height(height)
+            .width(width)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(point_step)
+            .row_step(row_step)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
 
@@ -2836,20 +2857,20 @@ mod tests {
         data[14..18].copy_from_slice(&std::f32::consts::PI.to_le_bytes());
         data[18..26].copy_from_slice(&std::f64::consts::E.to_le_bytes());
 
-        PointCloud2::new(
-            Time::new(0, 0),
-            "test",
-            1,
-            1,
-            &fields,
-            false,
-            point_step,
-            point_step,
-            &data,
-            true,
-        )
-        .unwrap()
-        .to_cdr()
+        PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("test")
+            .height(1)
+            .width(1)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(point_step)
+            .row_step(point_step)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap()
+            .to_cdr()
     }
 
     #[test]
@@ -2983,19 +3004,19 @@ mod tests {
             }
         }
 
-        let pc = PointCloud2::new(
-            Time::new(0, 0),
-            "pad",
-            height,
-            width,
-            &fields,
-            false,
-            point_step,
-            row_step,
-            &data,
-            true,
-        )
-        .unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("pad")
+            .height(height)
+            .width(width)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(point_step)
+            .row_step(row_step)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
         let cloud = DynPointCloud::from_pointcloud2(&decoded).unwrap();
@@ -3017,19 +3038,19 @@ mod tests {
             })
             .collect();
         let data = vec![0u8; 16];
-        let pc = PointCloud2::new(
-            Time::new(0, 0),
-            "max",
-            1,
-            1,
-            &fields_16,
-            false,
-            16,
-            16,
-            &data,
-            true,
-        )
-        .unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("max")
+            .height(1)
+            .width(1)
+            .fields(&fields_16)
+            .is_bigendian(false)
+            .point_step(16)
+            .row_step(16)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
         assert!(DynPointCloud::from_pointcloud2(&decoded).is_ok());
@@ -3044,19 +3065,19 @@ mod tests {
             })
             .collect();
         let data = vec![0u8; 17];
-        let pc = PointCloud2::new(
-            Time::new(0, 0),
-            "max",
-            1,
-            1,
-            &fields_17,
-            false,
-            17,
-            17,
-            &data,
-            true,
-        )
-        .unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("max")
+            .height(1)
+            .width(1)
+            .fields(&fields_17)
+            .is_bigendian(false)
+            .point_step(17)
+            .row_step(17)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
         assert!(matches!(
@@ -3075,19 +3096,19 @@ mod tests {
         }];
         let data = vec![0u8; 48];
         // row_step = 2, but width * point_step = 2 * 4 = 8
-        let pc = PointCloud2::new(
-            Time::new(0, 0),
-            "bad",
-            3,
-            2,
-            &fields,
-            false,
-            4,
-            2,
-            &data,
-            true,
-        )
-        .unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("bad")
+            .height(3)
+            .width(2)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(4)
+            .row_step(2)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
         assert!(matches!(
@@ -3119,19 +3140,19 @@ mod tests {
             },
         ];
         let data = vec![0u8; 48];
-        let pc = PointCloud2::new(
-            Time::new(0, 0),
-            "bad",
-            2,
-            2,
-            &fields,
-            false,
-            12,
-            4,
-            &data,
-            true,
-        )
-        .unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("bad")
+            .height(2)
+            .width(2)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(12)
+            .row_step(4)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
         assert!(matches!(
@@ -3177,19 +3198,19 @@ mod tests {
             }
         }
 
-        let pc = PointCloud2::new(
-            Time::new(0, 0),
-            "pad",
-            height,
-            width,
-            &fields,
-            false,
-            point_step,
-            row_step,
-            &data,
-            true,
-        )
-        .unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("pad")
+            .height(height)
+            .width(width)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(point_step)
+            .row_step(row_step)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
         let cloud = PointCloud::<TestXyzPoint>::from_pointcloud2(&decoded).unwrap();
@@ -3268,20 +3289,20 @@ mod tests {
         data[14..18].copy_from_slice(&1.5f32.to_le_bytes());
         data[18..26].copy_from_slice(&2.5f64.to_le_bytes());
 
-        PointCloud2::new(
-            Time::new(0, 0),
-            "coerce",
-            1,
-            1,
-            &fields,
-            false,
-            point_step,
-            point_step,
-            &data,
-            true,
-        )
-        .unwrap()
-        .to_cdr()
+        PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("coerce")
+            .height(1)
+            .width(1)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(point_step)
+            .row_step(point_step)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap()
+            .to_cdr()
     }
 
     #[test]
@@ -3514,19 +3535,19 @@ mod tests {
             }
         }
 
-        let pc = PointCloud2::new(
-            Time::new(0, 0),
-            "multi",
-            height,
-            width,
-            &fields,
-            false,
-            point_step,
-            row_step,
-            &data,
-            true,
-        )
-        .unwrap();
+        let pc = PointCloud2::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("multi")
+            .height(height)
+            .width(width)
+            .fields(&fields)
+            .is_bigendian(false)
+            .point_step(point_step)
+            .row_step(row_step)
+            .data(&data)
+            .is_dense(true)
+            .build()
+            .unwrap();
         let cdr = pc.to_cdr();
         let decoded = PointCloud2::from_cdr(&cdr).unwrap();
         let cloud = DynPointCloud::from_pointcloud2(&decoded).unwrap();

@@ -691,6 +691,81 @@ def gen_edgefirst_msgs():
                       frame_id="a_very_long_frame_identifier_x"),
                   seq=99, tensor=nv12))
 
+    # I420 three-plane, shared handle (legacy CameraFrame_i420 scenario).
+    w, h = 1920, 1080
+    y_sz = w * h
+    uv_sz = (w // 2) * (h // 2)
+    i420_planes = [
+        _le.TensorPlane(handle=42, offset=0, stride=w,
+                        size=y_sz, used=y_sz, modifier=0,
+                        handle_bytes=[], data=[]),
+        _le.TensorPlane(handle=42, offset=y_sz, stride=w // 2,
+                        size=uv_sz, used=uv_sz, modifier=0,
+                        handle_bytes=[], data=[]),
+        _le.TensorPlane(handle=42, offset=y_sz + uv_sz, stride=w // 2,
+                        size=uv_sz, used=uv_sz, modifier=0,
+                        handle_bytes=[], data=[]),
+    ]
+    i420 = _le.Tensor(
+        storage_kind=2, pid=1234, fence_fd=-1, dtype=1, quant_axis=-2,
+        shape=[h, w], strides=[w, 1],
+        quant_scales=[], quant_zero_points=[],
+        format="I420", color_space="bt709", color_transfer="bt709",
+        color_encoding="bt709", color_range="limited",
+        planes=i420_planes)
+    write_cdr("edgefirst_msgs", "Tensor_i420", i420)
+    write_cdr("edgefirst_msgs", "CameraFrame_i420",
+              _le.CameraFrame(header=_le_hdr, seq=3, tensor=i420))
+
+    # Split-fd MPLANE — distinct handle per plane plus a GPU fence.
+    split_planes = [
+        _le.TensorPlane(handle=70, offset=0, stride=1920,
+                        size=2_073_600, used=2_073_600, modifier=0,
+                        handle_bytes=[], data=[]),
+        _le.TensorPlane(handle=71, offset=0, stride=1920,
+                        size=1_036_800, used=1_036_800, modifier=0,
+                        handle_bytes=[], data=[]),
+    ]
+    split_nv12 = _le.Tensor(
+        storage_kind=2, pid=1234, fence_fd=77, dtype=1, quant_axis=-2,
+        shape=[1080, 1920], strides=[1920, 1],
+        quant_scales=[], quant_zero_points=[],
+        format="NV12", color_space="bt709", color_transfer="bt709",
+        color_encoding="bt709", color_range="limited",
+        planes=split_planes)
+    write_cdr("edgefirst_msgs", "Tensor_split_fd", split_nv12)
+    write_cdr("edgefirst_msgs", "CameraFrame_split_fd",
+              _le.CameraFrame(header=_le_hdr, seq=5, tensor=split_nv12))
+
+    # H264 bitstream — oversized buffer where used << size.
+    h264_planes = [
+        _le.TensorPlane(handle=90, offset=0, stride=0,
+                        size=4_194_304, used=187_392, modifier=0,
+                        handle_bytes=[], data=[]),
+    ]
+    h264 = _le.Tensor(
+        storage_kind=2, pid=1234, fence_fd=-1, dtype=1, quant_axis=-2,
+        shape=[1080, 1920], strides=[1920, 1],
+        quant_scales=[], quant_zero_points=[],
+        format="h264", color_space="bt709", color_transfer="bt709",
+        color_encoding="bt709", color_range="limited",
+        planes=h264_planes)
+    write_cdr("edgefirst_msgs", "Tensor_h264", h264)
+    write_cdr("edgefirst_msgs", "CameraFrame_h264",
+              _le.CameraFrame(header=_le_hdr, seq=6, tensor=h264))
+
+    # Metadata-only frame — zero planes exercises the empty planes path.
+    empty_tensor = _le.Tensor(
+        storage_kind=2, pid=0, fence_fd=-1, dtype=1, quant_axis=-2,
+        shape=[1, 1], strides=[1, 1],
+        quant_scales=[], quant_zero_points=[],
+        format="", color_space="", color_transfer="",
+        color_encoding="", color_range="",
+        planes=[])
+    write_cdr("edgefirst_msgs", "Tensor_empty", empty_tensor)
+    write_cdr("edgefirst_msgs", "CameraFrame_empty",
+              _le.CameraFrame(header=_le_hdr, seq=8, tensor=empty_tensor))
+
 
 def gen_foxglove_msgs():
     # CdrFixed types

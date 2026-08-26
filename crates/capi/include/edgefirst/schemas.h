@@ -31,7 +31,7 @@
  *   - `ros_<type>_get_<field>(handle)` -- O(1) field access
  *   - `ros_<type>_as_cdr(handle, &out_len)` -- borrow the raw CDR bytes
  *   - `ros_<type>_free(handle)` -- release the handle
- *   - `ros_<type>_encode(&out_bytes, &out_len, ...fields)` -- allocate + write CDR
+ *   - `ros_<type>_builder_build(b, &out_bytes, &out_len)` -- allocate + write CDR
  *
  * @section Error Handling
  *
@@ -54,7 +54,7 @@
  *   valid as long as the handle lives). Callers must NOT free these pointers.
  * - Byte blob getters return `const uint8_t*` with an `out_len` parameter,
  *   also borrowing into the CDR buffer.
- * - Encode functions for buffer-backed types allocate output via `uint8_t**` and
+ * - Builder `build()` output is allocated via `uint8_t**` and
  *   `size_t*`; callers must free with `ros_bytes_free()`.
  *
  * **Parent-borrowed child handles.** Functions like ros_detect_get_box() and
@@ -72,13 +72,18 @@
  * #include <stdio.h>
  * #include <string.h>
  *
- * // Encode a Header to CDR
+ * // Build a Header to CDR
+ * ros_header_builder_t* b = ros_header_builder_new();
+ * ros_header_builder_set_stamp(b, 1234, 0);
+ * ros_header_builder_set_frame_id(b, "camera");
  * uint8_t* bytes = NULL;
  * size_t len = 0;
- * if (ros_header_encode(&bytes, &len, 1234, 0, "camera") != 0) {
- *     perror("ros_header_encode");
+ * if (ros_header_builder_build(b, &bytes, &len) != 0) {
+ *     perror("ros_header_builder_build");
+ *     ros_header_builder_free(b);
  *     return 1;
  * }
+ * ros_header_builder_free(b);
  *
  * // Decode from CDR
  * ros_header_t* hdr = ros_header_from_cdr(bytes, len);
@@ -699,19 +704,6 @@ const char* ros_header_get_frame_id(const ros_header_t* view);
  */
 const uint8_t* ros_header_as_cdr(const ros_header_t* view, size_t* out_len);
 
-/**
- * @brief Encode a Header to CDR (allocates output).
- * @param out_bytes Receives allocated byte pointer (free with ros_bytes_free)
- * @param out_len Receives byte count
- * @param stamp_sec Stamp seconds
- * @param stamp_nanosec Stamp nanoseconds
- * @param frame_id Frame ID string (NULL treated as "")
- * @return 0 on success, -1 on error
- */
-int ros_header_encode(uint8_t** out_bytes, size_t* out_len,
-                      int32_t stamp_sec, uint32_t stamp_nanosec,
-                      const char* frame_id);
-
 /* ----------------------------------------------------------------------------
  * std_msgs - Header (builder, 3.2.0+)
  * --------------------------------------------------------------------------*/
@@ -806,29 +798,6 @@ const uint8_t* ros_image_get_data(const ros_image_t* view, size_t* out_len);
 
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_image_as_cdr(const ros_image_t* view, size_t* out_len);
-
-/**
- * @brief Encode an Image to CDR (allocates output).
- * @param out_bytes Receives allocated byte pointer (free with ros_bytes_free)
- * @param out_len Receives byte count
- * @param stamp_sec Stamp seconds
- * @param stamp_nanosec Stamp nanoseconds
- * @param frame_id Frame ID string
- * @param height Image height
- * @param width Image width
- * @param encoding Encoding string
- * @param is_bigendian Big-endian flag
- * @param step Row step in bytes
- * @param data Pixel data
- * @param data_len Length of pixel data
- * @return 0 on success, -1 on error
- */
-int ros_image_encode(uint8_t** out_bytes, size_t* out_len,
-                     int32_t stamp_sec, uint32_t stamp_nanosec,
-                     const char* frame_id,
-                     uint32_t height, uint32_t width,
-                     const char* encoding, uint8_t is_bigendian,
-                     uint32_t step, const uint8_t* data, size_t data_len);
 
 /* ----------------------------------------------------------------------------
  * sensor_msgs - Image (builder, 3.2.0+)
@@ -941,23 +910,6 @@ const uint8_t* ros_compressed_image_get_data(const ros_compressed_image_t* view,
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_compressed_image_as_cdr(const ros_compressed_image_t* view, size_t* out_len);
 
-/**
- * @brief Encode a CompressedImage to CDR (allocates output).
- * @param out_bytes Receives allocated byte pointer (free with ros_bytes_free)
- * @param out_len Receives byte count
- * @param stamp_sec Stamp seconds
- * @param stamp_nanosec Stamp nanoseconds
- * @param frame_id Frame ID string
- * @param format Format string
- * @param data Compressed image data
- * @param data_len Length of compressed data
- * @return 0 on success, -1 on error
- */
-int ros_compressed_image_encode(uint8_t** out_bytes, size_t* out_len,
-                                int32_t stamp_sec, uint32_t stamp_nanosec,
-                                const char* frame_id, const char* format,
-                                const uint8_t* data, size_t data_len);
-
 /* ----------------------------------------------------------------------------
  * sensor_msgs - CompressedImage (builder, 3.2.0+)
  * --------------------------------------------------------------------------*/
@@ -1065,24 +1017,6 @@ const char* ros_compressed_video_get_format(const ros_compressed_video_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_compressed_video_as_cdr(const ros_compressed_video_t* view, size_t* out_len);
 
-/**
- * @brief Encode a CompressedVideo to CDR (allocates output).
- * @param out_bytes Receives allocated byte pointer (free with ros_bytes_free)
- * @param out_len Receives byte count
- * @param stamp_sec Stamp seconds
- * @param stamp_nanosec Stamp nanoseconds
- * @param frame_id Frame ID string
- * @param data Video data
- * @param data_len Length of video data
- * @param format Format string
- * @return 0 on success, -1 on error
- */
-int ros_compressed_video_encode(uint8_t** out_bytes, size_t* out_len,
-                                int32_t stamp_sec, uint32_t stamp_nanosec,
-                                const char* frame_id,
-                                const uint8_t* data, size_t data_len,
-                                const char* format);
-
 /* ============================================================================
  * foxglove_msgs - CompressedImage (buffer-backed)
  * ========================================================================= */
@@ -1132,24 +1066,6 @@ const char* ros_foxglove_compressed_image_get_format(const ros_foxglove_compress
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_foxglove_compressed_image_as_cdr(const ros_foxglove_compressed_image_t* view, size_t* out_len);
 
-/**
- * @brief Encode a Foxglove CompressedImage to CDR (allocates output).
- * @param out_bytes Receives allocated byte pointer (free with ros_bytes_free)
- * @param out_len Receives byte count
- * @param stamp_sec Stamp seconds
- * @param stamp_nanosec Stamp nanoseconds
- * @param frame_id Frame ID string
- * @param data Image data
- * @param data_len Length of image data
- * @param format Format string
- * @return 0 on success, -1 on error
- */
-int ros_foxglove_compressed_image_encode(uint8_t** out_bytes, size_t* out_len,
-                                         int32_t stamp_sec, uint32_t stamp_nanosec,
-                                         const char* frame_id,
-                                         const uint8_t* data, size_t data_len,
-                                         const char* format);
-
 /* ============================================================================
  * edgefirst_msgs - Mask (buffer-backed)
  * ========================================================================= */
@@ -1187,25 +1103,6 @@ const uint8_t* ros_mask_get_data(const ros_mask_t* view, size_t* out_len);
 
 /** @brief Get boxed flag. */
 bool ros_mask_get_boxed(const ros_mask_t* view);
-
-/**
- * @brief Encode a Mask to CDR (allocates output).
- * @param out_bytes Receives allocated byte pointer (free with ros_bytes_free)
- * @param out_len Receives byte count
- * @param height Mask height
- * @param width Mask width
- * @param length Mask length
- * @param encoding Encoding string
- * @param data Mask data
- * @param data_len Length of mask data
- * @param boxed Boxed flag
- * @return 0 on success, -1 on error
- */
-int ros_mask_encode(uint8_t** out_bytes, size_t* out_len,
-                    uint32_t height, uint32_t width, uint32_t length,
-                    const char* encoding,
-                    const uint8_t* data, size_t data_len,
-                    bool boxed);
 
 /* ============================================================================
  * sensor_msgs - Imu (buffer-backed)

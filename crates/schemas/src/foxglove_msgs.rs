@@ -203,34 +203,6 @@ impl<B: AsRef<[u8]>> FoxgloveCompressedVideo<B> {
 }
 
 impl FoxgloveCompressedVideo<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use FoxgloveCompressedVideo::builder() for allocation-free buffer reuse; FoxgloveCompressedVideo::new will be removed in 4.0"
-    )]
-    pub fn new(stamp: Time, frame_id: &str, data: &[u8], format: &str) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        sizer.size_bytes(data.len());
-        let o1 = sizer.offset();
-        sizer.size_string(format);
-        let o2 = sizer.offset();
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_bytes(data);
-        w.write_string(format);
-        w.finish()?;
-
-        Ok(FoxgloveCompressedVideo {
-            offsets: [o0, o1, o2],
-            buf,
-        })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -442,34 +414,6 @@ impl<B: AsRef<[u8]>> FoxgloveCompressedImage<B> {
 }
 
 impl FoxgloveCompressedImage<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use FoxgloveCompressedImage::builder() for allocation-free buffer reuse; FoxgloveCompressedImage::new will be removed in 4.0"
-    )]
-    pub fn new(stamp: Time, frame_id: &str, data: &[u8], format: &str) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        sizer.size_bytes(data.len());
-        let o1 = sizer.offset();
-        sizer.size_string(format);
-        let o2 = sizer.offset();
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_bytes(data);
-        w.write_string(format);
-        w.finish()?;
-
-        Ok(FoxgloveCompressedImage {
-            offsets: [o0, o1, o2],
-            buf,
-        })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -717,40 +661,6 @@ impl<B: AsRef<[u8]>> FoxgloveTextAnnotation<B> {
 }
 
 impl FoxgloveTextAnnotation<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use FoxgloveTextAnnotation::builder() for allocation-free buffer reuse; FoxgloveTextAnnotation::new will be removed in 4.0"
-    )]
-    pub fn new(
-        timestamp: Time,
-        position: FoxglovePoint2,
-        text: &str,
-        font_size: f64,
-        text_color: FoxgloveColor,
-        background_color: FoxgloveColor,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        FoxglovePoint2::size_cdr(&mut sizer);
-        sizer.size_string(text);
-        let o0 = sizer.offset();
-        sizer.size_f64();
-        FoxgloveColor::size_cdr(&mut sizer);
-        FoxgloveColor::size_cdr(&mut sizer);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        timestamp.write_cdr(&mut w);
-        position.write_cdr(&mut w);
-        w.write_string(text);
-        w.write_f64(font_size);
-        text_color.write_cdr(&mut w);
-        background_color.write_cdr(&mut w);
-        w.finish()?;
-
-        Ok(FoxgloveTextAnnotation { offsets: [o0], buf })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -1090,59 +1000,6 @@ impl<B: AsRef<[u8]>> FoxglovePointAnnotation<B> {
 }
 
 impl FoxglovePointAnnotation<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use FoxglovePointAnnotation::builder() for allocation-free buffer reuse; FoxglovePointAnnotation::new will be removed in 4.0"
-    )]
-    pub fn new(
-        timestamp: Time,
-        type_: u8,
-        points: &[FoxglovePoint2],
-        outline_color: FoxgloveColor,
-        outline_colors: &[FoxgloveColor],
-        fill_color: FoxgloveColor,
-        thickness: f64,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_u8();
-        sizer.size_u32();
-        for _ in 0..points.len() {
-            FoxglovePoint2::size_cdr(&mut sizer);
-        }
-        let o0 = sizer.offset();
-        FoxgloveColor::size_cdr(&mut sizer);
-        sizer.size_u32();
-        for _ in 0..outline_colors.len() {
-            FoxgloveColor::size_cdr(&mut sizer);
-        }
-        let o1 = sizer.offset();
-        FoxgloveColor::size_cdr(&mut sizer);
-        sizer.size_f64();
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        timestamp.write_cdr(&mut w);
-        w.write_u8(type_);
-        w.write_u32(points.len() as u32);
-        for pt in points {
-            pt.write_cdr(&mut w);
-        }
-        outline_color.write_cdr(&mut w);
-        w.write_u32(outline_colors.len() as u32);
-        for oc in outline_colors {
-            oc.write_cdr(&mut w);
-        }
-        fill_color.write_cdr(&mut w);
-        w.write_f64(thickness);
-        w.finish()?;
-
-        Ok(FoxglovePointAnnotation {
-            offsets: [o0, o1],
-            buf,
-        })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -1422,53 +1279,6 @@ impl<B: AsRef<[u8]>> FoxgloveImageAnnotation<B> {
 }
 
 impl FoxgloveImageAnnotation<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use FoxgloveImageAnnotation::builder() for allocation-free buffer reuse; FoxgloveImageAnnotation::new will be removed in 4.0"
-    )]
-    pub fn new(
-        circles: &[FoxgloveCircleAnnotations],
-        points: &[FoxglovePointAnnotationView],
-        texts: &[FoxgloveTextAnnotationView<'_>],
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        sizer.size_u32();
-        for _ in 0..circles.len() {
-            FoxgloveCircleAnnotations::size_cdr(&mut sizer);
-        }
-        let o0 = sizer.offset();
-        sizer.size_u32();
-        for p in points {
-            size_point_annotation(&mut sizer, p);
-        }
-        let o1 = sizer.offset();
-        sizer.size_u32();
-        for t in texts {
-            size_text_annotation(&mut sizer, t.text);
-        }
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        w.write_u32(circles.len() as u32);
-        for c in circles {
-            c.write_cdr(&mut w);
-        }
-        w.write_u32(points.len() as u32);
-        for p in points {
-            write_point_annotation(&mut w, p);
-        }
-        w.write_u32(texts.len() as u32);
-        for t in texts {
-            write_text_annotation(&mut w, t);
-        }
-        w.finish()?;
-
-        Ok(FoxgloveImageAnnotation {
-            offsets: [o0, o1],
-            buf,
-        })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -1601,7 +1411,6 @@ impl SchemaType for FoxgloveCircleAnnotations {
     const SCHEMA_NAME: &'static str = "foxglove_msgs/msg/FoxgloveCircleAnnotations";
 }
 
-#[allow(deprecated)]
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1666,13 +1475,13 @@ mod tests {
 
     #[test]
     fn foxglove_compressed_video_roundtrip() {
-        let video = FoxgloveCompressedVideo::new(
-            Time::new(100, 500_000_000),
-            "camera",
-            &[0x00, 0x00, 0x00, 0x01, 0x67, 0x42],
-            "h264",
-        )
-        .unwrap();
+        let video = FoxgloveCompressedVideo::builder()
+            .stamp(Time::new(100, 500_000_000))
+            .frame_id("camera")
+            .data(&[0x00, 0x00, 0x00, 0x01, 0x67, 0x42])
+            .format("h264")
+            .build()
+            .unwrap();
         assert_eq!(video.stamp(), Time::new(100, 500_000_000));
         assert_eq!(video.frame_id(), "camera");
         assert_eq!(video.data(), &[0x00, 0x00, 0x00, 0x01, 0x67, 0x42]);
@@ -1689,13 +1498,13 @@ mod tests {
         // The `timestamp()` accessors are permanent additive aliases for `stamp()`,
         // matching the Foxglove schema field name. Both must agree on the view side,
         // the builder side, and the in-place setter side.
-        let mut video = FoxgloveCompressedVideo::new(
-            Time::new(100, 500_000_000),
-            "camera",
-            &[0xab, 0xcd],
-            "h264",
-        )
-        .unwrap();
+        let mut video = FoxgloveCompressedVideo::builder()
+            .stamp(Time::new(100, 500_000_000))
+            .frame_id("camera")
+            .data(&[0xab, 0xcd])
+            .format("h264")
+            .build()
+            .unwrap();
 
         // View side: stamp() and timestamp() return identical values.
         assert_eq!(video.stamp(), video.timestamp());
@@ -1726,25 +1535,25 @@ mod tests {
 
     #[test]
     fn foxglove_text_annotation_roundtrip() {
-        let text = FoxgloveTextAnnotation::new(
-            Time::new(100, 0),
-            FoxglovePoint2 { x: 50.0, y: 50.0 },
-            "Detection: car (98%)",
-            14.0,
-            FoxgloveColor {
+        let text = FoxgloveTextAnnotation::builder()
+            .timestamp(Time::new(100, 0))
+            .position(FoxglovePoint2 { x: 50.0, y: 50.0 })
+            .text("Detection: car (98%)")
+            .font_size(14.0)
+            .text_color(FoxgloveColor {
                 r: 1.0,
                 g: 1.0,
                 b: 1.0,
                 a: 1.0,
-            },
-            FoxgloveColor {
+            })
+            .background_color(FoxgloveColor {
                 r: 0.0,
                 g: 0.0,
                 b: 0.0,
                 a: 0.7,
-            },
-        )
-        .unwrap();
+            })
+            .build()
+            .unwrap();
         assert_eq!(text.text(), "Detection: car (98%)");
         assert_eq!(text.font_size(), 14.0);
 
@@ -1755,30 +1564,30 @@ mod tests {
 
     #[test]
     fn foxglove_point_annotation_roundtrip() {
-        let pa = FoxglovePointAnnotation::new(
-            Time::new(100, 0),
-            point_annotation_type::LINE_LOOP,
-            &[
+        let pa = FoxglovePointAnnotation::builder()
+            .timestamp(Time::new(100, 0))
+            .type_(point_annotation_type::LINE_LOOP)
+            .points(&[
                 FoxglovePoint2 { x: 0.0, y: 0.0 },
                 FoxglovePoint2 { x: 100.0, y: 0.0 },
                 FoxglovePoint2 { x: 100.0, y: 100.0 },
-            ],
-            FoxgloveColor {
+            ])
+            .outline_color(FoxgloveColor {
                 r: 0.0,
                 g: 1.0,
                 b: 0.0,
                 a: 1.0,
-            },
-            &[],
-            FoxgloveColor {
+            })
+            .outline_colors(&[])
+            .fill_color(FoxgloveColor {
                 r: 0.0,
                 g: 0.5,
                 b: 0.0,
                 a: 0.3,
-            },
-            3.0,
-        )
-        .unwrap();
+            })
+            .thickness(3.0)
+            .build()
+            .unwrap();
         assert_eq!(pa.type_(), point_annotation_type::LINE_LOOP);
         assert_eq!(pa.points().len(), 3);
         assert_eq!(pa.thickness(), 3.0);
@@ -1790,7 +1599,12 @@ mod tests {
 
     #[test]
     fn foxglove_image_annotation_roundtrip() {
-        let ia = FoxgloveImageAnnotation::new(&[], &[], &[]).unwrap();
+        let ia = FoxgloveImageAnnotation::builder()
+            .circles(&[])
+            .points(&[])
+            .texts(&[])
+            .build()
+            .unwrap();
         assert_eq!(ia.circles().len(), 0);
         assert_eq!(ia.points().len(), 0);
         assert_eq!(ia.texts().len(), 0);
@@ -1802,9 +1616,13 @@ mod tests {
 
     #[test]
     fn foxglove_compressed_video_set_stamp() {
-        let mut video =
-            FoxgloveCompressedVideo::new(Time::new(100, 500_000_000), "camera", &[0u8; 4], "h264")
-                .unwrap();
+        let mut video = FoxgloveCompressedVideo::builder()
+            .stamp(Time::new(100, 500_000_000))
+            .frame_id("camera")
+            .data(&[0u8; 4])
+            .format("h264")
+            .build()
+            .unwrap();
         video.set_stamp(Time::new(42, 7)).unwrap();
         assert_eq!(video.stamp(), Time::new(42, 7));
         assert_eq!(video.frame_id(), "camera");
@@ -1813,13 +1631,13 @@ mod tests {
 
     #[test]
     fn foxglove_compressed_image_roundtrip() {
-        let image = FoxgloveCompressedImage::new(
-            Time::new(100, 500_000_000),
-            "camera",
-            &[0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10],
-            "jpeg",
-        )
-        .unwrap();
+        let image = FoxgloveCompressedImage::builder()
+            .stamp(Time::new(100, 500_000_000))
+            .frame_id("camera")
+            .data(&[0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10])
+            .format("jpeg")
+            .build()
+            .unwrap();
         assert_eq!(image.stamp(), Time::new(100, 500_000_000));
         assert_eq!(image.frame_id(), "camera");
         assert_eq!(image.data(), &[0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
@@ -1836,13 +1654,13 @@ mod tests {
         // `timestamp()` accessors are permanent additive aliases for `stamp()`,
         // matching the Foxglove schema field name. Both must agree on the view
         // side, the builder side, and the in-place setter side.
-        let mut image = FoxgloveCompressedImage::new(
-            Time::new(100, 500_000_000),
-            "camera",
-            &[0xab, 0xcd],
-            "png",
-        )
-        .unwrap();
+        let mut image = FoxgloveCompressedImage::builder()
+            .stamp(Time::new(100, 500_000_000))
+            .frame_id("camera")
+            .data(&[0xab, 0xcd])
+            .format("png")
+            .build()
+            .unwrap();
 
         assert_eq!(image.stamp(), image.timestamp());
         assert_eq!(image.timestamp(), Time::new(100, 500_000_000));
@@ -1870,9 +1688,13 @@ mod tests {
 
     #[test]
     fn foxglove_compressed_image_set_stamp() {
-        let mut image =
-            FoxgloveCompressedImage::new(Time::new(100, 500_000_000), "camera", &[0u8; 4], "png")
-                .unwrap();
+        let mut image = FoxgloveCompressedImage::builder()
+            .stamp(Time::new(100, 500_000_000))
+            .frame_id("camera")
+            .data(&[0u8; 4])
+            .format("png")
+            .build()
+            .unwrap();
         image.set_stamp(Time::new(42, 7)).unwrap();
         assert_eq!(image.stamp(), Time::new(42, 7));
         assert_eq!(image.frame_id(), "camera");
@@ -1905,25 +1727,25 @@ mod tests {
 
     #[test]
     fn foxglove_text_annotation_setters() {
-        let mut text = FoxgloveTextAnnotation::new(
-            Time::new(100, 0),
-            FoxglovePoint2 { x: 50.0, y: 50.0 },
-            "Detection: car (98%)",
-            14.0,
-            FoxgloveColor {
+        let mut text = FoxgloveTextAnnotation::builder()
+            .timestamp(Time::new(100, 0))
+            .position(FoxglovePoint2 { x: 50.0, y: 50.0 })
+            .text("Detection: car (98%)")
+            .font_size(14.0)
+            .text_color(FoxgloveColor {
                 r: 1.0,
                 g: 1.0,
                 b: 1.0,
                 a: 1.0,
-            },
-            FoxgloveColor {
+            })
+            .background_color(FoxgloveColor {
                 r: 0.0,
                 g: 0.0,
                 b: 0.0,
                 a: 0.7,
-            },
-        )
-        .unwrap();
+            })
+            .build()
+            .unwrap();
 
         text.set_timestamp(Time::new(200, 123)).unwrap();
         text.set_position(FoxglovePoint2 { x: 12.5, y: -7.25 })
@@ -1976,30 +1798,30 @@ mod tests {
 
     #[test]
     fn foxglove_point_annotation_setters() {
-        let mut pa = FoxglovePointAnnotation::new(
-            Time::new(100, 0),
-            point_annotation_type::LINE_LOOP,
-            &[
+        let mut pa = FoxglovePointAnnotation::builder()
+            .timestamp(Time::new(100, 0))
+            .type_(point_annotation_type::LINE_LOOP)
+            .points(&[
                 FoxglovePoint2 { x: 0.0, y: 0.0 },
                 FoxglovePoint2 { x: 100.0, y: 0.0 },
                 FoxglovePoint2 { x: 100.0, y: 100.0 },
-            ],
-            FoxgloveColor {
+            ])
+            .outline_color(FoxgloveColor {
                 r: 0.0,
                 g: 1.0,
                 b: 0.0,
                 a: 1.0,
-            },
-            &[],
-            FoxgloveColor {
+            })
+            .outline_colors(&[])
+            .fill_color(FoxgloveColor {
                 r: 0.0,
                 g: 0.5,
                 b: 0.0,
                 a: 0.3,
-            },
-            3.0,
-        )
-        .unwrap();
+            })
+            .thickness(3.0)
+            .build()
+            .unwrap();
 
         pa.set_timestamp(Time::new(500, 9)).unwrap();
         pa.set_type_(point_annotation_type::LINE_STRIP).unwrap();

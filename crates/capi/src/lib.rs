@@ -16,7 +16,7 @@
 //!   - `ros_<type>_from_cdr(data, len)` → opaque handle (zero-copy borrow of `data`)
 //!   - `ros_<type>_get_<field>(handle)` → O(1) field access
 //!   - `ros_<type>_free(handle)` → release handle
-//!   - `ros_<type>_encode(&out_bytes, &out_len, ...fields)` → allocate + write CDR
+//!   - `ros_<type>_builder_*` → allocate + write CDR (replaces legacy one-shot encode)
 //!
 //! `from_cdr` borrows the caller's buffer — the returned handle stores a pointer
 //! into `data`, not a copy. The caller must keep `data` alive until `_free()`.
@@ -1002,29 +1002,6 @@ pub extern "C" fn ros_header_get_frame_id(view: *const ros_header_t) -> *const c
     str_as_c(unsafe { (*view).0.frame_id() })
 }
 
-#[no_mangle]
-pub extern "C" fn ros_header_encode(
-    out_bytes: *mut *mut u8,
-    out_len: *mut usize,
-    stamp_sec: i32,
-    stamp_nanosec: u32,
-    frame_id: *const c_char,
-) -> i32 {
-    let fid = unsafe { c_to_str(frame_id) };
-    let v = match std_msgs::Header::builder()
-        .stamp(Time::new(stamp_sec, stamp_nanosec))
-        .frame_id(fid)
-        .build()
-    {
-        Ok(v) => v,
-        Err(_) => {
-            set_errno(EBADMSG);
-            return -1;
-        }
-    };
-    return_cdr_bytes(v.into_cdr(), out_bytes, out_len)
-}
-
 // =============================================================================
 // Image (buffer-backed)
 // =============================================================================
@@ -1140,48 +1117,6 @@ pub extern "C" fn ros_image_get_data(view: *const ros_image_t, out_len: *mut usi
     data.as_ptr()
 }
 
-#[no_mangle]
-pub extern "C" fn ros_image_encode(
-    out_bytes: *mut *mut u8,
-    out_len: *mut usize,
-    stamp_sec: i32,
-    stamp_nanosec: u32,
-    frame_id: *const c_char,
-    height: u32,
-    width: u32,
-    encoding: *const c_char,
-    is_bigendian: u8,
-    step: u32,
-    data: *const u8,
-    data_len: usize,
-) -> i32 {
-    let fid = unsafe { c_to_str(frame_id) };
-    let enc = unsafe { c_to_str(encoding) };
-    let d = if data.is_null() {
-        &[]
-    } else {
-        unsafe { slice::from_raw_parts(data, data_len) }
-    };
-    let v = match sensor_msgs::Image::builder()
-        .stamp(Time::new(stamp_sec, stamp_nanosec))
-        .frame_id(fid)
-        .height(height)
-        .width(width)
-        .encoding(enc)
-        .is_bigendian(is_bigendian)
-        .step(step)
-        .data(d)
-        .build()
-    {
-        Ok(v) => v,
-        Err(_) => {
-            set_errno(EBADMSG);
-            return -1;
-        }
-    };
-    return_cdr_bytes(v.into_cdr(), out_bytes, out_len)
-}
-
 // =============================================================================
 // CompressedImage (buffer-backed)
 // =============================================================================
@@ -1275,40 +1210,6 @@ pub extern "C" fn ros_compressed_image_get_data(
         }
     }
     data.as_ptr()
-}
-
-#[no_mangle]
-pub extern "C" fn ros_compressed_image_encode(
-    out_bytes: *mut *mut u8,
-    out_len: *mut usize,
-    stamp_sec: i32,
-    stamp_nanosec: u32,
-    frame_id: *const c_char,
-    format: *const c_char,
-    data: *const u8,
-    data_len: usize,
-) -> i32 {
-    let fid = unsafe { c_to_str(frame_id) };
-    let fmt = unsafe { c_to_str(format) };
-    let d = if data.is_null() {
-        &[]
-    } else {
-        unsafe { slice::from_raw_parts(data, data_len) }
-    };
-    let v = match sensor_msgs::CompressedImage::builder()
-        .stamp(Time::new(stamp_sec, stamp_nanosec))
-        .frame_id(fid)
-        .format(fmt)
-        .data(d)
-        .build()
-    {
-        Ok(v) => v,
-        Err(_) => {
-            set_errno(EBADMSG);
-            return -1;
-        }
-    };
-    return_cdr_bytes(v.into_cdr(), out_bytes, out_len)
 }
 
 // =============================================================================
@@ -1420,40 +1321,6 @@ pub extern "C" fn ros_compressed_video_get_format(
         return ptr::null();
     }
     str_as_c(unsafe { (*view).0.format() })
-}
-
-#[no_mangle]
-pub extern "C" fn ros_compressed_video_encode(
-    out_bytes: *mut *mut u8,
-    out_len: *mut usize,
-    stamp_sec: i32,
-    stamp_nanosec: u32,
-    frame_id: *const c_char,
-    data: *const u8,
-    data_len: usize,
-    format: *const c_char,
-) -> i32 {
-    let fid = unsafe { c_to_str(frame_id) };
-    let fmt = unsafe { c_to_str(format) };
-    let d = if data.is_null() {
-        &[]
-    } else {
-        unsafe { slice::from_raw_parts(data, data_len) }
-    };
-    let v = match foxglove_msgs::FoxgloveCompressedVideo::builder()
-        .stamp(Time::new(stamp_sec, stamp_nanosec))
-        .frame_id(fid)
-        .data(d)
-        .format(fmt)
-        .build()
-    {
-        Ok(v) => v,
-        Err(_) => {
-            set_errno(EBADMSG);
-            return -1;
-        }
-    };
-    return_cdr_bytes(v.into_cdr(), out_bytes, out_len)
 }
 
 // =============================================================================
@@ -1571,40 +1438,6 @@ pub extern "C" fn ros_foxglove_compressed_image_get_format(
         return ptr::null();
     }
     str_as_c(unsafe { (*view).0.format() })
-}
-
-#[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_image_encode(
-    out_bytes: *mut *mut u8,
-    out_len: *mut usize,
-    stamp_sec: i32,
-    stamp_nanosec: u32,
-    frame_id: *const c_char,
-    data: *const u8,
-    data_len: usize,
-    format: *const c_char,
-) -> i32 {
-    let fid = unsafe { c_to_str(frame_id) };
-    let fmt = unsafe { c_to_str(format) };
-    let d = if data.is_null() {
-        &[]
-    } else {
-        unsafe { slice::from_raw_parts(data, data_len) }
-    };
-    let v = match foxglove_msgs::FoxgloveCompressedImage::builder()
-        .stamp(Time::new(stamp_sec, stamp_nanosec))
-        .frame_id(fid)
-        .data(d)
-        .format(fmt)
-        .build()
-    {
-        Ok(v) => v,
-        Err(_) => {
-            set_errno(EBADMSG);
-            return -1;
-        }
-    };
-    return_cdr_bytes(v.into_cdr(), out_bytes, out_len)
 }
 
 // =============================================================================
@@ -1726,42 +1559,6 @@ pub extern "C" fn ros_mask_get_boxed(view: *const ros_mask_t) -> bool {
         return false;
     }
     unsafe { (*view).view.boxed }
-}
-
-#[no_mangle]
-pub extern "C" fn ros_mask_encode(
-    out_bytes: *mut *mut u8,
-    out_len: *mut usize,
-    height: u32,
-    width: u32,
-    length: u32,
-    encoding: *const c_char,
-    data: *const u8,
-    data_len: usize,
-    boxed: bool,
-) -> i32 {
-    let enc = unsafe { c_to_str(encoding) };
-    let d = if data.is_null() {
-        &[]
-    } else {
-        unsafe { slice::from_raw_parts(data, data_len) }
-    };
-    let v = match edgefirst_msgs::Mask::builder()
-        .height(height)
-        .width(width)
-        .length(length)
-        .encoding(enc)
-        .mask(d)
-        .boxed(boxed)
-        .build()
-    {
-        Ok(v) => v,
-        Err(_) => {
-            set_errno(EBADMSG);
-            return -1;
-        }
-    };
-    return_cdr_bytes(v.into_cdr(), out_bytes, out_len)
 }
 
 // =============================================================================
