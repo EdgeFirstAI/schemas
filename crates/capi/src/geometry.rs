@@ -12,6 +12,20 @@ use edgefirst_schemas::geometry_msgs::*;
 use std::os::raw::c_char;
 use std::slice;
 
+/// Maximum CDR sequence length encoded as `u32` on the wire.
+const MAX_CDR_SEQ_LEN: usize = u32::MAX as usize;
+
+fn validate_elem_sequence(count: usize, elems_per_item: usize) -> Result<(), i32> {
+    if count > MAX_CDR_SEQ_LEN {
+        return Err(EINVAL);
+    }
+    let total = count.checked_mul(elems_per_item).ok_or(EINVAL)?;
+    if total > isize::MAX as usize {
+        return Err(EINVAL);
+    }
+    Ok(())
+}
+
 fn map_build<T>(
     r: Result<T, edgefirst_schemas::cdr::CdrError>,
     into: impl FnOnce(T) -> Vec<u8>,
@@ -1739,6 +1753,12 @@ pub extern "C" fn ros_polygon_builder_set_points(
         set_errno(EINVAL);
         return -1;
     }
+    if count > 0 {
+        if let Err(e) = validate_elem_sequence(count, 3) {
+            set_errno(e);
+            return -1;
+        }
+    }
     unsafe {
         (*b).0.xyz = xyz;
         (*b).0.count = count;
@@ -1748,6 +1768,9 @@ pub extern "C" fn ros_polygon_builder_set_points(
 
 fn polygon_points(xyz: *const f32, count: usize) -> Vec<Point32> {
     if xyz.is_null() || count == 0 {
+        return Vec::new();
+    }
+    if validate_elem_sequence(count, 3).is_err() {
         return Vec::new();
     }
     let src = unsafe { slice::from_raw_parts(xyz, count * 3) };
@@ -1931,6 +1954,12 @@ pub extern "C" fn ros_pose_array_builder_set_poses(
         set_errno(EINVAL);
         return -1;
     }
+    if count > 0 {
+        if let Err(e) = validate_elem_sequence(count, 7) {
+            set_errno(e);
+            return -1;
+        }
+    }
     unsafe {
         (*b).0.poses = poses;
         (*b).0.count = count;
@@ -1940,6 +1969,9 @@ pub extern "C" fn ros_pose_array_builder_set_poses(
 
 fn pose_array_poses(poses: *const f64, count: usize) -> Vec<Pose> {
     if poses.is_null() || count == 0 {
+        return Vec::new();
+    }
+    if validate_elem_sequence(count, 7).is_err() {
         return Vec::new();
     }
     let src = unsafe { slice::from_raw_parts(poses, count * 7) };

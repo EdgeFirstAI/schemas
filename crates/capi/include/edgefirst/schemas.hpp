@@ -4076,7 +4076,9 @@ public:
         ros_pose_with_covariance_stamped_builder_set_orientation(ptr(), x, y, z, w); return *this;
     }
     [[nodiscard]] expected<void, Error> covariance(span<const double> cov) noexcept {
-        if (cov.size() < 36 || ros_pose_with_covariance_stamped_builder_set_covariance(ptr(), cov.data()) != 0)
+        if (cov.size() < 36)
+            return unexpected<Error>({EINVAL, "ros_pose_with_covariance_stamped_builder_set_covariance"});
+        if (ros_pose_with_covariance_stamped_builder_set_covariance(ptr(), cov.data()) != 0)
             return unexpected<Error>(Error::from_errno("ros_pose_with_covariance_stamped_builder_set_covariance"));
         return {};
     }
@@ -4110,7 +4112,9 @@ public:
         ros_twist_with_covariance_stamped_builder_set_angular(ptr(), x, y, z); return *this;
     }
     [[nodiscard]] expected<void, Error> covariance(span<const double> cov) noexcept {
-        if (cov.size() < 36 || ros_twist_with_covariance_stamped_builder_set_covariance(ptr(), cov.data()) != 0)
+        if (cov.size() < 36)
+            return unexpected<Error>({EINVAL, "ros_twist_with_covariance_stamped_builder_set_covariance"});
+        if (ros_twist_with_covariance_stamped_builder_set_covariance(ptr(), cov.data()) != 0)
             return unexpected<Error>(Error::from_errno("ros_twist_with_covariance_stamped_builder_set_covariance"));
         return {};
     }
@@ -4144,7 +4148,9 @@ public:
         ros_accel_with_covariance_stamped_builder_set_angular_acceleration(ptr(), x, y, z); return *this;
     }
     [[nodiscard]] expected<void, Error> covariance(span<const double> cov) noexcept {
-        if (cov.size() < 36 || ros_accel_with_covariance_stamped_builder_set_covariance(ptr(), cov.data()) != 0)
+        if (cov.size() < 36)
+            return unexpected<Error>({EINVAL, "ros_accel_with_covariance_stamped_builder_set_covariance"});
+        if (ros_accel_with_covariance_stamped_builder_set_covariance(ptr(), cov.data()) != 0)
             return unexpected<Error>(Error::from_errno("ros_accel_with_covariance_stamped_builder_set_covariance"));
         return {};
     }
@@ -4265,7 +4271,9 @@ public:
         return *this;
     }
     [[nodiscard]] expected<void, Error> pose_covariance(span<const double> cov) noexcept {
-        if (cov.size() < 36 || ros_odometry_builder_set_pose_covariance(ptr(), cov.data()) != 0)
+        if (cov.size() < 36)
+            return unexpected<Error>({EINVAL, "ros_odometry_builder_set_pose_covariance"});
+        if (ros_odometry_builder_set_pose_covariance(ptr(), cov.data()) != 0)
             return unexpected<Error>(Error::from_errno("ros_odometry_builder_set_pose_covariance"));
         return {};
     }
@@ -4274,7 +4282,9 @@ public:
         return *this;
     }
     [[nodiscard]] expected<void, Error> twist_covariance(span<const double> cov) noexcept {
-        if (cov.size() < 36 || ros_odometry_builder_set_twist_covariance(ptr(), cov.data()) != 0)
+        if (cov.size() < 36)
+            return unexpected<Error>({EINVAL, "ros_odometry_builder_set_twist_covariance"});
+        if (ros_odometry_builder_set_twist_covariance(ptr(), cov.data()) != 0)
             return unexpected<Error>(Error::from_errno("ros_odometry_builder_set_twist_covariance"));
         return {};
     }

@@ -834,7 +834,7 @@ All 15 buffer-backed geometry types expose the same builder stack:
 one-shot `ros_<type>_encode` for these messages. Builder calls return 0 on
 success, -1 on error (`errno`: `EINVAL` for NULL or invalid UTF-8,
 `ENOBUFS` for a short `encode_into` buffer, `EBADMSG` for encoding failure).
-Call `ros_bytes_free(*out_bytes)` after `build`.
+Call `ros_bytes_free(*out_bytes, *out_len)` after `build`.
 
 #### AccelStamped (template for simple stamped types)
 
@@ -879,7 +879,7 @@ int  ros_accel_stamped_builder_encode_into(ros_accel_stamped_builder_t* b,
 
 Covariance stamped types take `ros_*_builder_set_covariance(b, cov)` with a
 36-element `double` array (copied into the builder). `InertiaStamped` uses
-field-wise inertia setters (`set_m`, `set_com`, `set_ixx`, …).
+field-wise inertia setters (`set_mass`, `set_com`, `set_inertia_tensor`).
 
 #### TransformStamped
 

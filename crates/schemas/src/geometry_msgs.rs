@@ -432,7 +432,7 @@ impl CdrFixed for Inertia {
 /// Shared encode path for header + one `CdrFixed` payload (stamped geometry types).
 macro_rules! impl_stamped_cdrfixed_builder {
     ($Type:ident, $Builder:ident, $field:ident, $FieldTy:ty, $zero:expr) => {
-        /// Builder for `$Type<Vec<u8>>` with buffer-reuse finalizers.
+        #[doc = concat!("Builder for `", stringify!($Type), "<Vec<u8>>` with buffer-reuse finalizers.")]
         pub struct $Builder<'a> {
             stamp: Time,
             frame_id: Cow<'a, str>,
