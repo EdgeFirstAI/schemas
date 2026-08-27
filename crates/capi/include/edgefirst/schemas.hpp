@@ -37,12 +37,10 @@
  *   allocates and encodes a CDR buffer (returned as `Released`), while
  *   `encode_into(span<uint8_t>)` writes into a caller-provided buffer
  *   for zero-allocation publishing. Builders are available for all message
- *   types that have a C builder API (27 types).
+ *   types that have a C builder API (60 types).
  *
  * A few types have only a view and no owning `encode()` factory. These
- * can still be constructed via their corresponding builder. The only
- * truly read-only type is `OdometryView`, which has neither an owning
- * type nor a builder in the C API.
+ * can still be constructed via their corresponding builder. Buffer-backed geometry, Odometry, and mavros types are constructed via their builders.
  *
  * @section errors Error handling
  *
@@ -2316,6 +2314,283 @@ struct PathBuilderTraits {
     static constexpr std::string_view build_name = "ros_path_builder_build";
     static constexpr std::string_view encode_into_name = "ros_path_builder_encode_into";
 };
+// Geometry / Odometry / mavros builder traits.
+
+struct AccelStampedBuilderTraits {
+    using builder_type = ros_accel_stamped_builder_t;
+    static constexpr auto new_fn = ros_accel_stamped_builder_new;
+    static constexpr auto free_fn = ros_accel_stamped_builder_free;
+    static constexpr auto build_fn = ros_accel_stamped_builder_build;
+    static constexpr auto encode_into_fn = ros_accel_stamped_builder_encode_into;
+    static constexpr std::string_view name = "ros_accel_stamped_builder";
+    static constexpr std::string_view build_name = "ros_accel_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_accel_stamped_builder_encode_into";
+};
+
+struct TwistStampedBuilderTraits {
+    using builder_type = ros_twist_stamped_builder_t;
+    static constexpr auto new_fn = ros_twist_stamped_builder_new;
+    static constexpr auto free_fn = ros_twist_stamped_builder_free;
+    static constexpr auto build_fn = ros_twist_stamped_builder_build;
+    static constexpr auto encode_into_fn = ros_twist_stamped_builder_encode_into;
+    static constexpr std::string_view name = "ros_twist_stamped_builder";
+    static constexpr std::string_view build_name = "ros_twist_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_twist_stamped_builder_encode_into";
+};
+
+struct InertiaStampedBuilderTraits {
+    using builder_type = ros_inertia_stamped_builder_t;
+    static constexpr auto new_fn = ros_inertia_stamped_builder_new;
+    static constexpr auto free_fn = ros_inertia_stamped_builder_free;
+    static constexpr auto build_fn = ros_inertia_stamped_builder_build;
+    static constexpr auto encode_into_fn = ros_inertia_stamped_builder_encode_into;
+    static constexpr std::string_view name = "ros_inertia_stamped_builder";
+    static constexpr std::string_view build_name = "ros_inertia_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_inertia_stamped_builder_encode_into";
+};
+
+struct PointStampedBuilderTraits {
+    using builder_type = ros_point_stamped_builder_t;
+    static constexpr auto new_fn = ros_point_stamped_builder_new;
+    static constexpr auto free_fn = ros_point_stamped_builder_free;
+    static constexpr auto build_fn = ros_point_stamped_builder_build;
+    static constexpr auto encode_into_fn = ros_point_stamped_builder_encode_into;
+    static constexpr std::string_view name = "ros_point_stamped_builder";
+    static constexpr std::string_view build_name = "ros_point_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_point_stamped_builder_encode_into";
+};
+
+struct Vector3StampedBuilderTraits {
+    using builder_type = ros_vector3_stamped_builder_t;
+    static constexpr auto new_fn = ros_vector3_stamped_builder_new;
+    static constexpr auto free_fn = ros_vector3_stamped_builder_free;
+    static constexpr auto build_fn = ros_vector3_stamped_builder_build;
+    static constexpr auto encode_into_fn = ros_vector3_stamped_builder_encode_into;
+    static constexpr std::string_view name = "ros_vector3_stamped_builder";
+    static constexpr std::string_view build_name = "ros_vector3_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_vector3_stamped_builder_encode_into";
+};
+
+struct PoseStampedBuilderTraits {
+    using builder_type = ros_pose_stamped_builder_t;
+    static constexpr auto new_fn = ros_pose_stamped_builder_new;
+    static constexpr auto free_fn = ros_pose_stamped_builder_free;
+    static constexpr auto build_fn = ros_pose_stamped_builder_build;
+    static constexpr auto encode_into_fn = ros_pose_stamped_builder_encode_into;
+    static constexpr std::string_view name = "ros_pose_stamped_builder";
+    static constexpr std::string_view build_name = "ros_pose_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_pose_stamped_builder_encode_into";
+};
+
+struct QuaternionStampedBuilderTraits {
+    using builder_type = ros_quaternion_stamped_builder_t;
+    static constexpr auto new_fn = ros_quaternion_stamped_builder_new;
+    static constexpr auto free_fn = ros_quaternion_stamped_builder_free;
+    static constexpr auto build_fn = ros_quaternion_stamped_builder_build;
+    static constexpr auto encode_into_fn = ros_quaternion_stamped_builder_encode_into;
+    static constexpr std::string_view name = "ros_quaternion_stamped_builder";
+    static constexpr std::string_view build_name = "ros_quaternion_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_quaternion_stamped_builder_encode_into";
+};
+
+struct WrenchStampedBuilderTraits {
+    using builder_type = ros_wrench_stamped_builder_t;
+    static constexpr auto new_fn = ros_wrench_stamped_builder_new;
+    static constexpr auto free_fn = ros_wrench_stamped_builder_free;
+    static constexpr auto build_fn = ros_wrench_stamped_builder_build;
+    static constexpr auto encode_into_fn = ros_wrench_stamped_builder_encode_into;
+    static constexpr std::string_view name = "ros_wrench_stamped_builder";
+    static constexpr std::string_view build_name = "ros_wrench_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_wrench_stamped_builder_encode_into";
+};
+
+struct PoseWithCovarianceStampedBuilderTraits {
+    using builder_type = ros_pose_with_covariance_stamped_builder_t;
+    static constexpr auto new_fn = ros_pose_with_covariance_stamped_builder_new;
+    static constexpr auto free_fn = ros_pose_with_covariance_stamped_builder_free;
+    static constexpr auto build_fn = ros_pose_with_covariance_stamped_builder_build;
+    static constexpr auto encode_into_fn = ros_pose_with_covariance_stamped_builder_encode_into;
+    static constexpr std::string_view name = "ros_pose_with_covariance_stamped_builder";
+    static constexpr std::string_view build_name = "ros_pose_with_covariance_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_pose_with_covariance_stamped_builder_encode_into";
+};
+
+struct TwistWithCovarianceStampedBuilderTraits {
+    using builder_type = ros_twist_with_covariance_stamped_builder_t;
+    static constexpr auto new_fn = ros_twist_with_covariance_stamped_builder_new;
+    static constexpr auto free_fn = ros_twist_with_covariance_stamped_builder_free;
+    static constexpr auto build_fn = ros_twist_with_covariance_stamped_builder_build;
+    static constexpr auto encode_into_fn = ros_twist_with_covariance_stamped_builder_encode_into;
+    static constexpr std::string_view name = "ros_twist_with_covariance_stamped_builder";
+    static constexpr std::string_view build_name = "ros_twist_with_covariance_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_twist_with_covariance_stamped_builder_encode_into";
+};
+
+struct AccelWithCovarianceStampedBuilderTraits {
+    using builder_type = ros_accel_with_covariance_stamped_builder_t;
+    static constexpr auto new_fn = ros_accel_with_covariance_stamped_builder_new;
+    static constexpr auto free_fn = ros_accel_with_covariance_stamped_builder_free;
+    static constexpr auto build_fn = ros_accel_with_covariance_stamped_builder_build;
+    static constexpr auto encode_into_fn = ros_accel_with_covariance_stamped_builder_encode_into;
+    static constexpr std::string_view name = "ros_accel_with_covariance_stamped_builder";
+    static constexpr std::string_view build_name = "ros_accel_with_covariance_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_accel_with_covariance_stamped_builder_encode_into";
+};
+
+struct TransformStampedBuilderTraits {
+    using builder_type = ros_transform_stamped_builder_t;
+    static constexpr auto new_fn = ros_transform_stamped_builder_new;
+    static constexpr auto free_fn = ros_transform_stamped_builder_free;
+    static constexpr auto build_fn = ros_transform_stamped_builder_build;
+    static constexpr auto encode_into_fn = ros_transform_stamped_builder_encode_into;
+    static constexpr std::string_view name = "ros_transform_stamped_builder";
+    static constexpr std::string_view build_name = "ros_transform_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_transform_stamped_builder_encode_into";
+};
+
+struct PolygonBuilderTraits {
+    using builder_type = ros_polygon_builder_t;
+    static constexpr auto new_fn = ros_polygon_builder_new;
+    static constexpr auto free_fn = ros_polygon_builder_free;
+    static constexpr auto build_fn = ros_polygon_builder_build;
+    static constexpr auto encode_into_fn = ros_polygon_builder_encode_into;
+    static constexpr std::string_view name = "ros_polygon_builder";
+    static constexpr std::string_view build_name = "ros_polygon_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_polygon_builder_encode_into";
+};
+
+struct PolygonStampedBuilderTraits {
+    using builder_type = ros_polygon_stamped_builder_t;
+    static constexpr auto new_fn = ros_polygon_stamped_builder_new;
+    static constexpr auto free_fn = ros_polygon_stamped_builder_free;
+    static constexpr auto build_fn = ros_polygon_stamped_builder_build;
+    static constexpr auto encode_into_fn = ros_polygon_stamped_builder_encode_into;
+    static constexpr std::string_view name = "ros_polygon_stamped_builder";
+    static constexpr std::string_view build_name = "ros_polygon_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_polygon_stamped_builder_encode_into";
+};
+
+struct PoseArrayBuilderTraits {
+    using builder_type = ros_pose_array_builder_t;
+    static constexpr auto new_fn = ros_pose_array_builder_new;
+    static constexpr auto free_fn = ros_pose_array_builder_free;
+    static constexpr auto build_fn = ros_pose_array_builder_build;
+    static constexpr auto encode_into_fn = ros_pose_array_builder_encode_into;
+    static constexpr std::string_view name = "ros_pose_array_builder";
+    static constexpr std::string_view build_name = "ros_pose_array_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_pose_array_builder_encode_into";
+};
+
+struct OdometryBuilderTraits {
+    using builder_type = ros_odometry_builder_t;
+    static constexpr auto new_fn = ros_odometry_builder_new;
+    static constexpr auto free_fn = ros_odometry_builder_free;
+    static constexpr auto build_fn = ros_odometry_builder_build;
+    static constexpr auto encode_into_fn = ros_odometry_builder_encode_into;
+    static constexpr std::string_view name = "ros_odometry_builder";
+    static constexpr std::string_view build_name = "ros_odometry_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_odometry_builder_encode_into";
+};
+
+struct MavrosAltitudeBuilderTraits {
+    using builder_type = ros_mavros_altitude_builder_t;
+    static constexpr auto new_fn = ros_mavros_altitude_builder_new;
+    static constexpr auto free_fn = ros_mavros_altitude_builder_free;
+    static constexpr auto build_fn = ros_mavros_altitude_builder_build;
+    static constexpr auto encode_into_fn = ros_mavros_altitude_builder_encode_into;
+    static constexpr std::string_view name = "ros_mavros_altitude_builder";
+    static constexpr std::string_view build_name = "ros_mavros_altitude_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_mavros_altitude_builder_encode_into";
+};
+
+struct MavrosVfrHudBuilderTraits {
+    using builder_type = ros_mavros_vfrhud_builder_t;
+    static constexpr auto new_fn = ros_mavros_vfrhud_builder_new;
+    static constexpr auto free_fn = ros_mavros_vfrhud_builder_free;
+    static constexpr auto build_fn = ros_mavros_vfrhud_builder_build;
+    static constexpr auto encode_into_fn = ros_mavros_vfrhud_builder_encode_into;
+    static constexpr std::string_view name = "ros_mavros_vfrhud_builder";
+    static constexpr std::string_view build_name = "ros_mavros_vfrhud_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_mavros_vfrhud_builder_encode_into";
+};
+
+struct MavrosEstimatorStatusBuilderTraits {
+    using builder_type = ros_mavros_estimator_status_builder_t;
+    static constexpr auto new_fn = ros_mavros_estimator_status_builder_new;
+    static constexpr auto free_fn = ros_mavros_estimator_status_builder_free;
+    static constexpr auto build_fn = ros_mavros_estimator_status_builder_build;
+    static constexpr auto encode_into_fn = ros_mavros_estimator_status_builder_encode_into;
+    static constexpr std::string_view name = "ros_mavros_estimator_status_builder";
+    static constexpr std::string_view build_name = "ros_mavros_estimator_status_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_mavros_estimator_status_builder_encode_into";
+};
+
+struct MavrosExtendedStateBuilderTraits {
+    using builder_type = ros_mavros_extended_state_builder_t;
+    static constexpr auto new_fn = ros_mavros_extended_state_builder_new;
+    static constexpr auto free_fn = ros_mavros_extended_state_builder_free;
+    static constexpr auto build_fn = ros_mavros_extended_state_builder_build;
+    static constexpr auto encode_into_fn = ros_mavros_extended_state_builder_encode_into;
+    static constexpr std::string_view name = "ros_mavros_extended_state_builder";
+    static constexpr std::string_view build_name = "ros_mavros_extended_state_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_mavros_extended_state_builder_encode_into";
+};
+
+struct MavrosSysStatusBuilderTraits {
+    using builder_type = ros_mavros_sys_status_builder_t;
+    static constexpr auto new_fn = ros_mavros_sys_status_builder_new;
+    static constexpr auto free_fn = ros_mavros_sys_status_builder_free;
+    static constexpr auto build_fn = ros_mavros_sys_status_builder_build;
+    static constexpr auto encode_into_fn = ros_mavros_sys_status_builder_encode_into;
+    static constexpr std::string_view name = "ros_mavros_sys_status_builder";
+    static constexpr std::string_view build_name = "ros_mavros_sys_status_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_mavros_sys_status_builder_encode_into";
+};
+
+struct MavrosStateBuilderTraits {
+    using builder_type = ros_mavros_state_builder_t;
+    static constexpr auto new_fn = ros_mavros_state_builder_new;
+    static constexpr auto free_fn = ros_mavros_state_builder_free;
+    static constexpr auto build_fn = ros_mavros_state_builder_build;
+    static constexpr auto encode_into_fn = ros_mavros_state_builder_encode_into;
+    static constexpr std::string_view name = "ros_mavros_state_builder";
+    static constexpr std::string_view build_name = "ros_mavros_state_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_mavros_state_builder_encode_into";
+};
+
+struct MavrosStatusTextBuilderTraits {
+    using builder_type = ros_mavros_status_text_builder_t;
+    static constexpr auto new_fn = ros_mavros_status_text_builder_new;
+    static constexpr auto free_fn = ros_mavros_status_text_builder_free;
+    static constexpr auto build_fn = ros_mavros_status_text_builder_build;
+    static constexpr auto encode_into_fn = ros_mavros_status_text_builder_encode_into;
+    static constexpr std::string_view name = "ros_mavros_status_text_builder";
+    static constexpr std::string_view build_name = "ros_mavros_status_text_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_mavros_status_text_builder_encode_into";
+};
+
+struct MavrosGpsRawBuilderTraits {
+    using builder_type = ros_mavros_gps_raw_builder_t;
+    static constexpr auto new_fn = ros_mavros_gps_raw_builder_new;
+    static constexpr auto free_fn = ros_mavros_gps_raw_builder_free;
+    static constexpr auto build_fn = ros_mavros_gps_raw_builder_build;
+    static constexpr auto encode_into_fn = ros_mavros_gps_raw_builder_encode_into;
+    static constexpr std::string_view name = "ros_mavros_gps_raw_builder";
+    static constexpr std::string_view build_name = "ros_mavros_gps_raw_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_mavros_gps_raw_builder_encode_into";
+};
+
+struct MavrosTimesyncStatusBuilderTraits {
+    using builder_type = ros_mavros_timesync_status_builder_t;
+    static constexpr auto new_fn = ros_mavros_timesync_status_builder_new;
+    static constexpr auto free_fn = ros_mavros_timesync_status_builder_free;
+    static constexpr auto build_fn = ros_mavros_timesync_status_builder_build;
+    static constexpr auto encode_into_fn = ros_mavros_timesync_status_builder_encode_into;
+    static constexpr std::string_view name = "ros_mavros_timesync_status_builder";
+    static constexpr std::string_view build_name = "ros_mavros_timesync_status_builder_build";
+    static constexpr std::string_view encode_into_name = "ros_mavros_timesync_status_builder_encode_into";
+};
+
 
 /**
  * @internal
@@ -3013,7 +3288,7 @@ public:
 };
 
 // ---------------------------------------------------------------------------
-// geometry_msgs - TransformStamped (view-only: no encode in the C API)
+// geometry_msgs - TransformStamped
 // ---------------------------------------------------------------------------
 
 /**
@@ -3057,7 +3332,7 @@ public:
 };
 
 // ---------------------------------------------------------------------------
-// geometry_msgs - TwistStamped (view-only)
+// geometry_msgs - TwistStamped
 // ---------------------------------------------------------------------------
 
 /**
@@ -3087,7 +3362,7 @@ public:
 };
 
 // ---------------------------------------------------------------------------
-// geometry_msgs - AccelStamped (view-only)
+// geometry_msgs - AccelStamped
 // ---------------------------------------------------------------------------
 
 /**
@@ -3117,7 +3392,7 @@ public:
 };
 
 // ---------------------------------------------------------------------------
-// geometry_msgs - PointStamped (view-only)
+// geometry_msgs - PointStamped
 // ---------------------------------------------------------------------------
 
 /**
@@ -3147,7 +3422,7 @@ public:
 };
 
 // ---------------------------------------------------------------------------
-// geometry_msgs - InertiaStamped (view-only)
+// geometry_msgs - InertiaStamped
 // ---------------------------------------------------------------------------
 
 /**
@@ -3177,7 +3452,7 @@ public:
 };
 
 // ---------------------------------------------------------------------------
-// geometry_msgs - Vector3Stamped (view-only)
+// geometry_msgs - Vector3Stamped
 // ---------------------------------------------------------------------------
 
 /**
@@ -3207,7 +3482,7 @@ public:
 };
 
 // ---------------------------------------------------------------------------
-// geometry_msgs - PoseStamped (view-only)
+// geometry_msgs - PoseStamped
 // ---------------------------------------------------------------------------
 
 /**
@@ -3237,7 +3512,7 @@ public:
 };
 
 // ---------------------------------------------------------------------------
-// geometry_msgs - QuaternionStamped (view-only)
+// geometry_msgs - QuaternionStamped
 // ---------------------------------------------------------------------------
 
 /**
@@ -3267,7 +3542,7 @@ public:
 };
 
 // ---------------------------------------------------------------------------
-// geometry_msgs - WrenchStamped (view-only)
+// geometry_msgs - WrenchStamped
 // ---------------------------------------------------------------------------
 
 /**
@@ -3297,7 +3572,7 @@ public:
 };
 
 // ---------------------------------------------------------------------------
-// geometry_msgs - PoseWithCovarianceStamped (view-only)
+// geometry_msgs - PoseWithCovarianceStamped
 // ---------------------------------------------------------------------------
 
 /**
@@ -3327,7 +3602,7 @@ public:
 };
 
 // ---------------------------------------------------------------------------
-// geometry_msgs - TwistWithCovarianceStamped (view-only)
+// geometry_msgs - TwistWithCovarianceStamped
 // ---------------------------------------------------------------------------
 
 /**
@@ -3357,7 +3632,7 @@ public:
 };
 
 // ---------------------------------------------------------------------------
-// geometry_msgs - AccelWithCovarianceStamped (view-only)
+// geometry_msgs - AccelWithCovarianceStamped
 // ---------------------------------------------------------------------------
 
 /**
@@ -3387,7 +3662,7 @@ public:
 };
 
 // ---------------------------------------------------------------------------
-// geometry_msgs - Polygon (view-only, sequence type)
+// geometry_msgs - Polygon
 // ---------------------------------------------------------------------------
 
 /**
@@ -3421,7 +3696,7 @@ public:
 };
 
 // ---------------------------------------------------------------------------
-// geometry_msgs - PolygonStamped (view-only)
+// geometry_msgs - PolygonStamped
 // ---------------------------------------------------------------------------
 
 /**
@@ -3464,7 +3739,7 @@ public:
 };
 
 // ---------------------------------------------------------------------------
-// geometry_msgs - PoseArray (view-only)
+// geometry_msgs - PoseArray
 // ---------------------------------------------------------------------------
 
 /**
@@ -3509,7 +3784,919 @@ public:
 };
 
 // ---------------------------------------------------------------------------
-// foxglove_msgs - CompressedVideo
+// geometry / odometry / mavros builders
+
+/// @brief Fluent builder for `AccelStamped` messages.
+class AccelStampedBuilder
+    : public detail::BuilderBase<AccelStampedBuilder, detail::AccelStampedBuilderTraits> {
+    using Base = detail::BuilderBase<AccelStampedBuilder, detail::AccelStampedBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    AccelStampedBuilder& stamp(Time t) noexcept {
+        ros_accel_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_accel_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_accel_stamped_builder_set_frame_id"));
+        return {};
+    }
+
+    AccelStampedBuilder& linear_acceleration(double x, double y, double z) noexcept {
+        ros_accel_stamped_builder_set_linear_acceleration(ptr(), x, y, z); return *this;
+    }
+    AccelStampedBuilder& angular_acceleration(double x, double y, double z) noexcept {
+        ros_accel_stamped_builder_set_angular_acceleration(ptr(), x, y, z); return *this;
+    }
+};
+
+/// @brief Fluent builder for `TwistStamped` messages.
+class TwistStampedBuilder
+    : public detail::BuilderBase<TwistStampedBuilder, detail::TwistStampedBuilderTraits> {
+    using Base = detail::BuilderBase<TwistStampedBuilder, detail::TwistStampedBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    TwistStampedBuilder& stamp(Time t) noexcept {
+        ros_twist_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_twist_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_twist_stamped_builder_set_frame_id"));
+        return {};
+    }
+
+    TwistStampedBuilder& linear(double x, double y, double z) noexcept {
+        ros_twist_stamped_builder_set_linear(ptr(), x, y, z); return *this;
+    }
+    TwistStampedBuilder& angular(double x, double y, double z) noexcept {
+        ros_twist_stamped_builder_set_angular(ptr(), x, y, z); return *this;
+    }
+};
+
+/// @brief Fluent builder for `PointStamped` messages.
+class PointStampedBuilder
+    : public detail::BuilderBase<PointStampedBuilder, detail::PointStampedBuilderTraits> {
+    using Base = detail::BuilderBase<PointStampedBuilder, detail::PointStampedBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    PointStampedBuilder& stamp(Time t) noexcept {
+        ros_point_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_point_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_point_stamped_builder_set_frame_id"));
+        return {};
+    }
+
+    PointStampedBuilder& point(double x, double y, double z) noexcept {
+        ros_point_stamped_builder_set_point(ptr(), x, y, z); return *this;
+    }
+};
+
+/// @brief Fluent builder for `Vector3Stamped` messages.
+class Vector3StampedBuilder
+    : public detail::BuilderBase<Vector3StampedBuilder, detail::Vector3StampedBuilderTraits> {
+    using Base = detail::BuilderBase<Vector3StampedBuilder, detail::Vector3StampedBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    Vector3StampedBuilder& stamp(Time t) noexcept {
+        ros_vector3_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_vector3_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_vector3_stamped_builder_set_frame_id"));
+        return {};
+    }
+
+    Vector3StampedBuilder& vector(double x, double y, double z) noexcept {
+        ros_vector3_stamped_builder_set_vector(ptr(), x, y, z); return *this;
+    }
+};
+
+/// @brief Fluent builder for `QuaternionStamped` messages.
+class QuaternionStampedBuilder
+    : public detail::BuilderBase<QuaternionStampedBuilder, detail::QuaternionStampedBuilderTraits> {
+    using Base = detail::BuilderBase<QuaternionStampedBuilder, detail::QuaternionStampedBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    QuaternionStampedBuilder& stamp(Time t) noexcept {
+        ros_quaternion_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_quaternion_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_quaternion_stamped_builder_set_frame_id"));
+        return {};
+    }
+
+    QuaternionStampedBuilder& quaternion(double x, double y, double z, double w) noexcept {
+        ros_quaternion_stamped_builder_set_quaternion(ptr(), x, y, z, w); return *this;
+    }
+};
+
+/// @brief Fluent builder for `PoseStamped` messages.
+class PoseStampedBuilder
+    : public detail::BuilderBase<PoseStampedBuilder, detail::PoseStampedBuilderTraits> {
+    using Base = detail::BuilderBase<PoseStampedBuilder, detail::PoseStampedBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    PoseStampedBuilder& stamp(Time t) noexcept {
+        ros_pose_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_pose_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_pose_stamped_builder_set_frame_id"));
+        return {};
+    }
+
+    PoseStampedBuilder& position(double x, double y, double z) noexcept {
+        ros_pose_stamped_builder_set_position(ptr(), x, y, z); return *this;
+    }
+    PoseStampedBuilder& orientation(double x, double y, double z, double w) noexcept {
+        ros_pose_stamped_builder_set_orientation(ptr(), x, y, z, w); return *this;
+    }
+};
+
+/// @brief Fluent builder for `WrenchStamped` messages.
+class WrenchStampedBuilder
+    : public detail::BuilderBase<WrenchStampedBuilder, detail::WrenchStampedBuilderTraits> {
+    using Base = detail::BuilderBase<WrenchStampedBuilder, detail::WrenchStampedBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    WrenchStampedBuilder& stamp(Time t) noexcept {
+        ros_wrench_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_wrench_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_wrench_stamped_builder_set_frame_id"));
+        return {};
+    }
+
+    WrenchStampedBuilder& force(double x, double y, double z) noexcept {
+        ros_wrench_stamped_builder_set_force(ptr(), x, y, z); return *this;
+    }
+    WrenchStampedBuilder& torque(double x, double y, double z) noexcept {
+        ros_wrench_stamped_builder_set_torque(ptr(), x, y, z); return *this;
+    }
+};
+
+/// @brief Fluent builder for `InertiaStamped` messages.
+class InertiaStampedBuilder
+    : public detail::BuilderBase<InertiaStampedBuilder, detail::InertiaStampedBuilderTraits> {
+    using Base = detail::BuilderBase<InertiaStampedBuilder, detail::InertiaStampedBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    InertiaStampedBuilder& stamp(Time t) noexcept {
+        ros_inertia_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_inertia_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_inertia_stamped_builder_set_frame_id"));
+        return {};
+    }
+
+    InertiaStampedBuilder& mass(double v) noexcept {
+        ros_inertia_stamped_builder_set_mass(ptr(), v); return *this;
+    }
+    InertiaStampedBuilder& com(double x, double y, double z) noexcept {
+        ros_inertia_stamped_builder_set_com(ptr(), x, y, z); return *this;
+    }
+    InertiaStampedBuilder& inertia_tensor(double ixx, double ixy, double ixz,
+                                          double iyy, double iyz, double izz) noexcept {
+        ros_inertia_stamped_builder_set_inertia_tensor(ptr(), ixx, ixy, ixz, iyy, iyz, izz);
+        return *this;
+    }
+};
+
+/// @brief Fluent builder for `TransformStamped` messages.
+class TransformStampedBuilder
+    : public detail::BuilderBase<TransformStampedBuilder, detail::TransformStampedBuilderTraits> {
+    using Base = detail::BuilderBase<TransformStampedBuilder, detail::TransformStampedBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    TransformStampedBuilder& stamp(Time t) noexcept {
+        ros_transform_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_transform_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_transform_stamped_builder_set_frame_id"));
+        return {};
+    }
+
+    [[nodiscard]] expected<void, Error> child_frame_id(const char* s) noexcept {
+        if (ros_transform_stamped_builder_set_child_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_transform_stamped_builder_set_child_frame_id"));
+        return {};
+    }
+    TransformStampedBuilder& translation(double x, double y, double z) noexcept {
+        ros_transform_stamped_builder_set_translation(ptr(), x, y, z); return *this;
+    }
+    TransformStampedBuilder& rotation(double x, double y, double z, double w) noexcept {
+        ros_transform_stamped_builder_set_rotation(ptr(), x, y, z, w); return *this;
+    }
+};
+
+/// @brief Fluent builder for `PoseWithCovarianceStamped` messages.
+class PoseWithCovarianceStampedBuilder
+    : public detail::BuilderBase<PoseWithCovarianceStampedBuilder, detail::PoseWithCovarianceStampedBuilderTraits> {
+    using Base = detail::BuilderBase<PoseWithCovarianceStampedBuilder, detail::PoseWithCovarianceStampedBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    PoseWithCovarianceStampedBuilder& stamp(Time t) noexcept {
+        ros_pose_with_covariance_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_pose_with_covariance_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_pose_with_covariance_stamped_builder_set_frame_id"));
+        return {};
+    }
+
+    PoseWithCovarianceStampedBuilder& position(double x, double y, double z) noexcept {
+        ros_pose_with_covariance_stamped_builder_set_position(ptr(), x, y, z); return *this;
+    }
+    PoseWithCovarianceStampedBuilder& orientation(double x, double y, double z, double w) noexcept {
+        ros_pose_with_covariance_stamped_builder_set_orientation(ptr(), x, y, z, w); return *this;
+    }
+    [[nodiscard]] expected<void, Error> covariance(span<const double> cov) noexcept {
+        if (cov.size() < 36 || ros_pose_with_covariance_stamped_builder_set_covariance(ptr(), cov.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_pose_with_covariance_stamped_builder_set_covariance"));
+        return {};
+    }
+};
+
+/// @brief Fluent builder for `TwistWithCovarianceStamped` messages.
+class TwistWithCovarianceStampedBuilder
+    : public detail::BuilderBase<TwistWithCovarianceStampedBuilder, detail::TwistWithCovarianceStampedBuilderTraits> {
+    using Base = detail::BuilderBase<TwistWithCovarianceStampedBuilder, detail::TwistWithCovarianceStampedBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    TwistWithCovarianceStampedBuilder& stamp(Time t) noexcept {
+        ros_twist_with_covariance_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_twist_with_covariance_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_twist_with_covariance_stamped_builder_set_frame_id"));
+        return {};
+    }
+
+    TwistWithCovarianceStampedBuilder& linear(double x, double y, double z) noexcept {
+        ros_twist_with_covariance_stamped_builder_set_linear(ptr(), x, y, z); return *this;
+    }
+    TwistWithCovarianceStampedBuilder& angular(double x, double y, double z) noexcept {
+        ros_twist_with_covariance_stamped_builder_set_angular(ptr(), x, y, z); return *this;
+    }
+    [[nodiscard]] expected<void, Error> covariance(span<const double> cov) noexcept {
+        if (cov.size() < 36 || ros_twist_with_covariance_stamped_builder_set_covariance(ptr(), cov.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_twist_with_covariance_stamped_builder_set_covariance"));
+        return {};
+    }
+};
+
+/// @brief Fluent builder for `AccelWithCovarianceStamped` messages.
+class AccelWithCovarianceStampedBuilder
+    : public detail::BuilderBase<AccelWithCovarianceStampedBuilder, detail::AccelWithCovarianceStampedBuilderTraits> {
+    using Base = detail::BuilderBase<AccelWithCovarianceStampedBuilder, detail::AccelWithCovarianceStampedBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    AccelWithCovarianceStampedBuilder& stamp(Time t) noexcept {
+        ros_accel_with_covariance_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_accel_with_covariance_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_accel_with_covariance_stamped_builder_set_frame_id"));
+        return {};
+    }
+
+    AccelWithCovarianceStampedBuilder& linear_acceleration(double x, double y, double z) noexcept {
+        ros_accel_with_covariance_stamped_builder_set_linear_acceleration(ptr(), x, y, z); return *this;
+    }
+    AccelWithCovarianceStampedBuilder& angular_acceleration(double x, double y, double z) noexcept {
+        ros_accel_with_covariance_stamped_builder_set_angular_acceleration(ptr(), x, y, z); return *this;
+    }
+    [[nodiscard]] expected<void, Error> covariance(span<const double> cov) noexcept {
+        if (cov.size() < 36 || ros_accel_with_covariance_stamped_builder_set_covariance(ptr(), cov.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_accel_with_covariance_stamped_builder_set_covariance"));
+        return {};
+    }
+};
+
+/// @brief Fluent builder for `Polygon` messages.
+class PolygonBuilder
+    : public detail::BuilderBase<PolygonBuilder, detail::PolygonBuilderTraits> {
+    using Base = detail::BuilderBase<PolygonBuilder, detail::PolygonBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    /// @brief Set polygon vertices from packed Point32 values.
+    /// @param pts Point count; `pts[i].x/y/z` are borrowed until build/encode_into.
+    [[nodiscard]] expected<void, Error> points(span<const Point32> pts) noexcept {
+        const float* xyz = pts.empty() ? nullptr : &pts[0].x;
+        if (ros_polygon_builder_set_points(ptr(), xyz, pts.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_polygon_builder_set_points"));
+        return {};
+    }
+};
+
+/// @brief Fluent builder for `PolygonStamped` messages.
+class PolygonStampedBuilder
+    : public detail::BuilderBase<PolygonStampedBuilder, detail::PolygonStampedBuilderTraits> {
+    using Base = detail::BuilderBase<PolygonStampedBuilder, detail::PolygonStampedBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    PolygonStampedBuilder& stamp(Time t) noexcept {
+        ros_polygon_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_polygon_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_polygon_stamped_builder_set_frame_id"));
+        return {};
+    }
+
+    /// @brief Set polygon vertices from packed Point32 values.
+    /// @param pts Point count; `pts[i].x/y/z` are borrowed until build/encode_into.
+    [[nodiscard]] expected<void, Error> points(span<const Point32> pts) noexcept {
+        const float* xyz = pts.empty() ? nullptr : &pts[0].x;
+        if (ros_polygon_stamped_builder_set_points(ptr(), xyz, pts.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_polygon_stamped_builder_set_points"));
+        return {};
+    }
+};
+
+/// @brief Fluent builder for `PoseArray` messages.
+class PoseArrayBuilder
+    : public detail::BuilderBase<PoseArrayBuilder, detail::PoseArrayBuilderTraits> {
+    using Base = detail::BuilderBase<PoseArrayBuilder, detail::PoseArrayBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    PoseArrayBuilder& stamp(Time t) noexcept {
+        ros_pose_array_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_pose_array_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_pose_array_builder_set_frame_id"));
+        return {};
+    }
+
+    /// @brief Set the pose sequence.
+    /// @param p Pose count; `p[i].px` through `p[i].ow` are borrowed until
+    ///        build/encode_into.
+    [[nodiscard]] expected<void, Error> poses(span<const Pose> p) noexcept {
+        const double* data = p.empty() ? nullptr : &p[0].px;
+        if (ros_pose_array_builder_set_poses(ptr(), data, p.size()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_pose_array_builder_set_poses"));
+        return {};
+    }
+};
+
+/// @brief Fluent builder for `Odometry` messages.
+class OdometryBuilder
+    : public detail::BuilderBase<OdometryBuilder, detail::OdometryBuilderTraits> {
+    using Base = detail::BuilderBase<OdometryBuilder, detail::OdometryBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    OdometryBuilder& stamp(Time t) noexcept {
+        ros_odometry_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_odometry_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_odometry_builder_set_frame_id"));
+        return {};
+    }
+
+    [[nodiscard]] expected<void, Error> child_frame_id(const char* s) noexcept {
+        if (ros_odometry_builder_set_child_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_odometry_builder_set_child_frame_id"));
+        return {};
+    }
+    OdometryBuilder& pose(const Pose& p) noexcept {
+        ros_odometry_builder_set_pose(ptr(), p.px, p.py, p.pz, p.ox, p.oy, p.oz, p.ow);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> pose_covariance(span<const double> cov) noexcept {
+        if (cov.size() < 36 || ros_odometry_builder_set_pose_covariance(ptr(), cov.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_odometry_builder_set_pose_covariance"));
+        return {};
+    }
+    OdometryBuilder& twist(double lx, double ly, double lz, double ax, double ay, double az) noexcept {
+        ros_odometry_builder_set_twist(ptr(), lx, ly, lz, ax, ay, az);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> twist_covariance(span<const double> cov) noexcept {
+        if (cov.size() < 36 || ros_odometry_builder_set_twist_covariance(ptr(), cov.data()) != 0)
+            return unexpected<Error>(Error::from_errno("ros_odometry_builder_set_twist_covariance"));
+        return {};
+    }
+};
+
+/// @brief Fluent builder for `MavrosAltitude` messages.
+class MavrosAltitudeBuilder
+    : public detail::BuilderBase<MavrosAltitudeBuilder, detail::MavrosAltitudeBuilderTraits> {
+    using Base = detail::BuilderBase<MavrosAltitudeBuilder, detail::MavrosAltitudeBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    MavrosAltitudeBuilder& stamp(Time t) noexcept {
+        ros_mavros_altitude_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_mavros_altitude_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_mavros_altitude_builder_set_frame_id"));
+        return {};
+    }
+
+    MavrosAltitudeBuilder& monotonic(float v) noexcept {
+        ros_mavros_altitude_builder_set_monotonic(ptr(), v); return *this;
+    }
+    MavrosAltitudeBuilder& amsl(float v) noexcept {
+        ros_mavros_altitude_builder_set_amsl(ptr(), v); return *this;
+    }
+    MavrosAltitudeBuilder& local(float v) noexcept {
+        ros_mavros_altitude_builder_set_local(ptr(), v); return *this;
+    }
+    MavrosAltitudeBuilder& relative(float v) noexcept {
+        ros_mavros_altitude_builder_set_relative(ptr(), v); return *this;
+    }
+    MavrosAltitudeBuilder& terrain(float v) noexcept {
+        ros_mavros_altitude_builder_set_terrain(ptr(), v); return *this;
+    }
+    MavrosAltitudeBuilder& bottom_clearance(float v) noexcept {
+        ros_mavros_altitude_builder_set_bottom_clearance(ptr(), v); return *this;
+    }
+};
+
+/// @brief Fluent builder for `MavrosVfrHud` messages.
+class MavrosVfrHudBuilder
+    : public detail::BuilderBase<MavrosVfrHudBuilder, detail::MavrosVfrHudBuilderTraits> {
+    using Base = detail::BuilderBase<MavrosVfrHudBuilder, detail::MavrosVfrHudBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    MavrosVfrHudBuilder& stamp(Time t) noexcept {
+        ros_mavros_vfrhud_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_mavros_vfrhud_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_mavros_vfrhud_builder_set_frame_id"));
+        return {};
+    }
+
+    MavrosVfrHudBuilder& airspeed(float v) noexcept {
+        ros_mavros_vfrhud_builder_set_airspeed(ptr(), v); return *this;
+    }
+    MavrosVfrHudBuilder& groundspeed(float v) noexcept {
+        ros_mavros_vfrhud_builder_set_groundspeed(ptr(), v); return *this;
+    }
+    MavrosVfrHudBuilder& heading(std::int16_t v) noexcept {
+        ros_mavros_vfrhud_builder_set_heading(ptr(), v); return *this;
+    }
+    MavrosVfrHudBuilder& throttle(float v) noexcept {
+        ros_mavros_vfrhud_builder_set_throttle(ptr(), v); return *this;
+    }
+    MavrosVfrHudBuilder& altitude(float v) noexcept {
+        ros_mavros_vfrhud_builder_set_altitude(ptr(), v); return *this;
+    }
+    MavrosVfrHudBuilder& climb(float v) noexcept {
+        ros_mavros_vfrhud_builder_set_climb(ptr(), v); return *this;
+    }
+};
+
+/// @brief Fluent builder for `MavrosEstimatorStatus` messages.
+class MavrosEstimatorStatusBuilder
+    : public detail::BuilderBase<MavrosEstimatorStatusBuilder, detail::MavrosEstimatorStatusBuilderTraits> {
+    using Base = detail::BuilderBase<MavrosEstimatorStatusBuilder, detail::MavrosEstimatorStatusBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    MavrosEstimatorStatusBuilder& stamp(Time t) noexcept {
+        ros_mavros_estimator_status_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_mavros_estimator_status_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_mavros_estimator_status_builder_set_frame_id"));
+        return {};
+    }
+
+    MavrosEstimatorStatusBuilder& attitude_status_flag(bool v) noexcept {
+        ros_mavros_estimator_status_builder_set_attitude_status_flag(ptr(), v); return *this;
+    }
+    MavrosEstimatorStatusBuilder& velocity_horiz_status_flag(bool v) noexcept {
+        ros_mavros_estimator_status_builder_set_velocity_horiz_status_flag(ptr(), v); return *this;
+    }
+    MavrosEstimatorStatusBuilder& velocity_vert_status_flag(bool v) noexcept {
+        ros_mavros_estimator_status_builder_set_velocity_vert_status_flag(ptr(), v); return *this;
+    }
+    MavrosEstimatorStatusBuilder& pos_horiz_rel_status_flag(bool v) noexcept {
+        ros_mavros_estimator_status_builder_set_pos_horiz_rel_status_flag(ptr(), v); return *this;
+    }
+    MavrosEstimatorStatusBuilder& pos_horiz_abs_status_flag(bool v) noexcept {
+        ros_mavros_estimator_status_builder_set_pos_horiz_abs_status_flag(ptr(), v); return *this;
+    }
+    MavrosEstimatorStatusBuilder& pos_vert_abs_status_flag(bool v) noexcept {
+        ros_mavros_estimator_status_builder_set_pos_vert_abs_status_flag(ptr(), v); return *this;
+    }
+    MavrosEstimatorStatusBuilder& pos_vert_agl_status_flag(bool v) noexcept {
+        ros_mavros_estimator_status_builder_set_pos_vert_agl_status_flag(ptr(), v); return *this;
+    }
+    MavrosEstimatorStatusBuilder& const_pos_mode_status_flag(bool v) noexcept {
+        ros_mavros_estimator_status_builder_set_const_pos_mode_status_flag(ptr(), v); return *this;
+    }
+    MavrosEstimatorStatusBuilder& pred_pos_horiz_rel_status_flag(bool v) noexcept {
+        ros_mavros_estimator_status_builder_set_pred_pos_horiz_rel_status_flag(ptr(), v); return *this;
+    }
+    MavrosEstimatorStatusBuilder& pred_pos_horiz_abs_status_flag(bool v) noexcept {
+        ros_mavros_estimator_status_builder_set_pred_pos_horiz_abs_status_flag(ptr(), v); return *this;
+    }
+    MavrosEstimatorStatusBuilder& gps_glitch_status_flag(bool v) noexcept {
+        ros_mavros_estimator_status_builder_set_gps_glitch_status_flag(ptr(), v); return *this;
+    }
+    MavrosEstimatorStatusBuilder& accel_error_status_flag(bool v) noexcept {
+        ros_mavros_estimator_status_builder_set_accel_error_status_flag(ptr(), v); return *this;
+    }
+};
+
+/// @brief Fluent builder for `MavrosExtendedState` messages.
+class MavrosExtendedStateBuilder
+    : public detail::BuilderBase<MavrosExtendedStateBuilder, detail::MavrosExtendedStateBuilderTraits> {
+    using Base = detail::BuilderBase<MavrosExtendedStateBuilder, detail::MavrosExtendedStateBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    MavrosExtendedStateBuilder& stamp(Time t) noexcept {
+        ros_mavros_extended_state_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_mavros_extended_state_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_mavros_extended_state_builder_set_frame_id"));
+        return {};
+    }
+
+    MavrosExtendedStateBuilder& vtol_state(std::uint8_t v) noexcept {
+        ros_mavros_extended_state_builder_set_vtol_state(ptr(), v); return *this;
+    }
+    MavrosExtendedStateBuilder& landed_state(std::uint8_t v) noexcept {
+        ros_mavros_extended_state_builder_set_landed_state(ptr(), v); return *this;
+    }
+};
+
+/// @brief Fluent builder for `MavrosSysStatus` messages.
+class MavrosSysStatusBuilder
+    : public detail::BuilderBase<MavrosSysStatusBuilder, detail::MavrosSysStatusBuilderTraits> {
+    using Base = detail::BuilderBase<MavrosSysStatusBuilder, detail::MavrosSysStatusBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    MavrosSysStatusBuilder& stamp(Time t) noexcept {
+        ros_mavros_sys_status_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_mavros_sys_status_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_mavros_sys_status_builder_set_frame_id"));
+        return {};
+    }
+
+    MavrosSysStatusBuilder& sensors_present(std::uint32_t v) noexcept {
+        ros_mavros_sys_status_builder_set_sensors_present(ptr(), v); return *this;
+    }
+    MavrosSysStatusBuilder& sensors_enabled(std::uint32_t v) noexcept {
+        ros_mavros_sys_status_builder_set_sensors_enabled(ptr(), v); return *this;
+    }
+    MavrosSysStatusBuilder& sensors_health(std::uint32_t v) noexcept {
+        ros_mavros_sys_status_builder_set_sensors_health(ptr(), v); return *this;
+    }
+    MavrosSysStatusBuilder& load(std::uint16_t v) noexcept {
+        ros_mavros_sys_status_builder_set_load(ptr(), v); return *this;
+    }
+    MavrosSysStatusBuilder& voltage_battery(std::uint16_t v) noexcept {
+        ros_mavros_sys_status_builder_set_voltage_battery(ptr(), v); return *this;
+    }
+    MavrosSysStatusBuilder& current_battery(std::int16_t v) noexcept {
+        ros_mavros_sys_status_builder_set_current_battery(ptr(), v); return *this;
+    }
+    MavrosSysStatusBuilder& battery_remaining(std::int8_t v) noexcept {
+        ros_mavros_sys_status_builder_set_battery_remaining(ptr(), v); return *this;
+    }
+    MavrosSysStatusBuilder& drop_rate_comm(std::uint16_t v) noexcept {
+        ros_mavros_sys_status_builder_set_drop_rate_comm(ptr(), v); return *this;
+    }
+    MavrosSysStatusBuilder& errors_comm(std::uint16_t v) noexcept {
+        ros_mavros_sys_status_builder_set_errors_comm(ptr(), v); return *this;
+    }
+    MavrosSysStatusBuilder& errors_count1(std::uint16_t v) noexcept {
+        ros_mavros_sys_status_builder_set_errors_count1(ptr(), v); return *this;
+    }
+    MavrosSysStatusBuilder& errors_count2(std::uint16_t v) noexcept {
+        ros_mavros_sys_status_builder_set_errors_count2(ptr(), v); return *this;
+    }
+    MavrosSysStatusBuilder& errors_count3(std::uint16_t v) noexcept {
+        ros_mavros_sys_status_builder_set_errors_count3(ptr(), v); return *this;
+    }
+    MavrosSysStatusBuilder& errors_count4(std::uint16_t v) noexcept {
+        ros_mavros_sys_status_builder_set_errors_count4(ptr(), v); return *this;
+    }
+};
+
+/// @brief Fluent builder for `MavrosState` messages.
+class MavrosStateBuilder
+    : public detail::BuilderBase<MavrosStateBuilder, detail::MavrosStateBuilderTraits> {
+    using Base = detail::BuilderBase<MavrosStateBuilder, detail::MavrosStateBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    MavrosStateBuilder& stamp(Time t) noexcept {
+        ros_mavros_state_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_mavros_state_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_mavros_state_builder_set_frame_id"));
+        return {};
+    }
+
+    MavrosStateBuilder& connected(bool v) noexcept {
+        ros_mavros_state_builder_set_connected(ptr(), v); return *this;
+    }
+    MavrosStateBuilder& armed(bool v) noexcept {
+        ros_mavros_state_builder_set_armed(ptr(), v); return *this;
+    }
+    MavrosStateBuilder& guided(bool v) noexcept {
+        ros_mavros_state_builder_set_guided(ptr(), v); return *this;
+    }
+    MavrosStateBuilder& manual_input(bool v) noexcept {
+        ros_mavros_state_builder_set_manual_input(ptr(), v); return *this;
+    }
+    [[nodiscard]] expected<void, Error> mode(const char* s) noexcept {
+        if (ros_mavros_state_builder_set_mode(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_mavros_state_builder_set_mode"));
+        return {};
+    }
+    MavrosStateBuilder& system_status(std::uint8_t v) noexcept {
+        ros_mavros_state_builder_set_system_status(ptr(), v); return *this;
+    }
+};
+
+/// @brief Fluent builder for `MavrosStatusText` messages.
+class MavrosStatusTextBuilder
+    : public detail::BuilderBase<MavrosStatusTextBuilder, detail::MavrosStatusTextBuilderTraits> {
+    using Base = detail::BuilderBase<MavrosStatusTextBuilder, detail::MavrosStatusTextBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    MavrosStatusTextBuilder& stamp(Time t) noexcept {
+        ros_mavros_status_text_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_mavros_status_text_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_mavros_status_text_builder_set_frame_id"));
+        return {};
+    }
+
+    MavrosStatusTextBuilder& severity(std::uint8_t v) noexcept {
+        ros_mavros_status_text_builder_set_severity(ptr(), v); return *this;
+    }
+    [[nodiscard]] expected<void, Error> text(const char* s) noexcept {
+        if (ros_mavros_status_text_builder_set_text(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_mavros_status_text_builder_set_text"));
+        return {};
+    }
+};
+
+/// @brief Fluent builder for `MavrosGpsRaw` messages.
+class MavrosGpsRawBuilder
+    : public detail::BuilderBase<MavrosGpsRawBuilder, detail::MavrosGpsRawBuilderTraits> {
+    using Base = detail::BuilderBase<MavrosGpsRawBuilder, detail::MavrosGpsRawBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    MavrosGpsRawBuilder& stamp(Time t) noexcept {
+        ros_mavros_gps_raw_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_mavros_gps_raw_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_mavros_gps_raw_builder_set_frame_id"));
+        return {};
+    }
+
+    MavrosGpsRawBuilder& fix_type(std::uint8_t v) noexcept {
+        ros_mavros_gps_raw_builder_set_fix_type(ptr(), v); return *this;
+    }
+    MavrosGpsRawBuilder& lat(std::int32_t v) noexcept {
+        ros_mavros_gps_raw_builder_set_lat(ptr(), v); return *this;
+    }
+    MavrosGpsRawBuilder& lon(std::int32_t v) noexcept {
+        ros_mavros_gps_raw_builder_set_lon(ptr(), v); return *this;
+    }
+    MavrosGpsRawBuilder& alt(std::int32_t v) noexcept {
+        ros_mavros_gps_raw_builder_set_alt(ptr(), v); return *this;
+    }
+    MavrosGpsRawBuilder& eph(std::uint16_t v) noexcept {
+        ros_mavros_gps_raw_builder_set_eph(ptr(), v); return *this;
+    }
+    MavrosGpsRawBuilder& epv(std::uint16_t v) noexcept {
+        ros_mavros_gps_raw_builder_set_epv(ptr(), v); return *this;
+    }
+    MavrosGpsRawBuilder& vel(std::uint16_t v) noexcept {
+        ros_mavros_gps_raw_builder_set_vel(ptr(), v); return *this;
+    }
+    MavrosGpsRawBuilder& cog(std::uint16_t v) noexcept {
+        ros_mavros_gps_raw_builder_set_cog(ptr(), v); return *this;
+    }
+    MavrosGpsRawBuilder& satellites_visible(std::uint8_t v) noexcept {
+        ros_mavros_gps_raw_builder_set_satellites_visible(ptr(), v); return *this;
+    }
+    MavrosGpsRawBuilder& alt_ellipsoid(std::int32_t v) noexcept {
+        ros_mavros_gps_raw_builder_set_alt_ellipsoid(ptr(), v); return *this;
+    }
+    MavrosGpsRawBuilder& h_acc(std::uint32_t v) noexcept {
+        ros_mavros_gps_raw_builder_set_h_acc(ptr(), v); return *this;
+    }
+    MavrosGpsRawBuilder& v_acc(std::uint32_t v) noexcept {
+        ros_mavros_gps_raw_builder_set_v_acc(ptr(), v); return *this;
+    }
+    MavrosGpsRawBuilder& vel_acc(std::uint32_t v) noexcept {
+        ros_mavros_gps_raw_builder_set_vel_acc(ptr(), v); return *this;
+    }
+    MavrosGpsRawBuilder& hdg_acc(std::int32_t v) noexcept {
+        ros_mavros_gps_raw_builder_set_hdg_acc(ptr(), v); return *this;
+    }
+    MavrosGpsRawBuilder& yaw(std::uint16_t v) noexcept {
+        ros_mavros_gps_raw_builder_set_yaw(ptr(), v); return *this;
+    }
+    MavrosGpsRawBuilder& dgps_numch(std::uint8_t v) noexcept {
+        ros_mavros_gps_raw_builder_set_dgps_numch(ptr(), v); return *this;
+    }
+    MavrosGpsRawBuilder& dgps_age(std::uint32_t v) noexcept {
+        ros_mavros_gps_raw_builder_set_dgps_age(ptr(), v); return *this;
+    }
+};
+
+/// @brief Fluent builder for `MavrosTimesyncStatus` messages.
+class MavrosTimesyncStatusBuilder
+    : public detail::BuilderBase<MavrosTimesyncStatusBuilder, detail::MavrosTimesyncStatusBuilderTraits> {
+    using Base = detail::BuilderBase<MavrosTimesyncStatusBuilder, detail::MavrosTimesyncStatusBuilderTraits>;
+    friend Base;
+    using Base::Base;
+public:
+    using Base::create;
+    using Base::build;
+    using Base::encode_into;
+
+    MavrosTimesyncStatusBuilder& stamp(Time t) noexcept {
+        ros_mavros_timesync_status_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        return *this;
+    }
+    [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
+        if (ros_mavros_timesync_status_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("ros_mavros_timesync_status_builder_set_frame_id"));
+        return {};
+    }
+
+    MavrosTimesyncStatusBuilder& remote_timestamp_ns(std::uint64_t v) noexcept {
+        ros_mavros_timesync_status_builder_set_remote_timestamp_ns(ptr(), v); return *this;
+    }
+    MavrosTimesyncStatusBuilder& observed_offset_ns(std::int64_t v) noexcept {
+        ros_mavros_timesync_status_builder_set_observed_offset_ns(ptr(), v); return *this;
+    }
+    MavrosTimesyncStatusBuilder& estimated_offset_ns(std::int64_t v) noexcept {
+        ros_mavros_timesync_status_builder_set_estimated_offset_ns(ptr(), v); return *this;
+    }
+    MavrosTimesyncStatusBuilder& round_trip_time_ms(float v) noexcept {
+        ros_mavros_timesync_status_builder_set_round_trip_time_ms(ptr(), v); return *this;
+    }
+};
+
+// ---------------------------------------------------------------------------
+// // foxglove_msgs - CompressedVideo
 // ---------------------------------------------------------------------------
 
 /**
@@ -4999,7 +6186,7 @@ public:
 };
 
 // ---------------------------------------------------------------------------
-// nav_msgs - Odometry (view-only)
+// nav_msgs - Odometry
 // ---------------------------------------------------------------------------
 
 class OdometryView : public detail::ViewBase<OdometryView, detail::OdometryTraits> {

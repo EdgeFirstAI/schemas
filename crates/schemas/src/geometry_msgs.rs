@@ -8,11 +8,15 @@
 //! `PoseWithCovariance`, `TwistWithCovariance`
 //!
 //! Buffer-backed (stamped wrappers): `AccelStamped`, `TwistStamped`,
-//! `InertiaStamped`, `PointStamped`, `TransformStamped`
+//! `InertiaStamped`, `PointStamped`, `TransformStamped`, `Vector3Stamped`,
+//! `PoseStamped`, `QuaternionStamped`, `WrenchStamped`, covariance-stamped
+//! types, `Polygon`, `PolygonStamped`, `PoseArray`. Construct owned messages
+//! with `Type::builder()`.
 
 use crate::builtin_interfaces::Time;
 use crate::cdr::*;
 use crate::std_msgs::Header;
+use std::borrow::Cow;
 
 // ── CdrFixed types ──────────────────────────────────────────────────
 
@@ -425,6 +429,86 @@ impl CdrFixed for Inertia {
 
 // ── Buffer-backed stamped types ─────────────────────────────────────
 
+/// Shared encode path for header + one `CdrFixed` payload (stamped geometry types).
+macro_rules! impl_stamped_cdrfixed_builder {
+    ($Type:ident, $Builder:ident, $field:ident, $FieldTy:ty, $zero:expr) => {
+        /// Builder for `$Type<Vec<u8>>` with buffer-reuse finalizers.
+        pub struct $Builder<'a> {
+            stamp: Time,
+            frame_id: Cow<'a, str>,
+            $field: $FieldTy,
+        }
+
+        impl<'a> Default for $Builder<'a> {
+            fn default() -> Self {
+                Self {
+                    stamp: Time { sec: 0, nanosec: 0 },
+                    frame_id: Cow::Borrowed(""),
+                    $field: $zero,
+                }
+            }
+        }
+
+        impl<'a> $Builder<'a> {
+            pub fn new() -> Self {
+                Self::default()
+            }
+
+            pub fn stamp(&mut self, t: Time) -> &mut Self {
+                self.stamp = t;
+                self
+            }
+            pub fn frame_id(&mut self, s: impl Into<Cow<'a, str>>) -> &mut Self {
+                self.frame_id = s.into();
+                self
+            }
+            pub fn $field(&mut self, v: $FieldTy) -> &mut Self {
+                self.$field = v;
+                self
+            }
+
+            fn size(&self) -> usize {
+                let mut s = CdrSizer::new();
+                Time::size_cdr(&mut s);
+                s.size_string(&self.frame_id);
+                <$FieldTy>::size_cdr(&mut s);
+                s.size()
+            }
+
+            fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+                let mut w = CdrWriter::new(buf)?;
+                self.stamp.write_cdr(&mut w);
+                w.write_string(&self.frame_id);
+                self.$field.write_cdr(&mut w);
+                w.finish()
+            }
+
+            pub fn build(&self) -> Result<$Type<Vec<u8>>, CdrError> {
+                let mut buf = vec![0u8; self.size()];
+                self.write_into(&mut buf)?;
+                $Type::from_cdr(buf)
+            }
+
+            pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+                buf.resize(self.size(), 0);
+                self.write_into(buf)
+            }
+
+            pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+                let need = self.size();
+                if buf.len() < need {
+                    return Err(CdrError::BufferTooShort {
+                        need,
+                        have: buf.len(),
+                    });
+                }
+                self.write_into(&mut buf[..need])?;
+                Ok(need)
+            }
+        }
+    };
+}
+
 // ── AccelStamped<B> ─────────────────────────────────────────────────
 
 pub struct AccelStamped<B> {
@@ -481,27 +565,34 @@ impl<B: AsRef<[u8]>> AccelStamped<B> {
 }
 
 impl AccelStamped<Vec<u8>> {
-    pub fn new(stamp: Time, frame_id: &str, accel: Accel) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        Accel::size_cdr(&mut sizer);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        accel.write_cdr(&mut w);
-        w.finish()?;
-
-        Ok(AccelStamped { offsets: [o0], buf })
+    /// Start a new `AccelStampedBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> AccelStampedBuilder<'a> {
+        AccelStampedBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
 }
+
+impl_stamped_cdrfixed_builder!(
+    AccelStamped,
+    AccelStampedBuilder,
+    accel,
+    Accel,
+    Accel {
+        linear: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0
+        },
+        angular: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0
+        }
+    }
+);
 
 // ── TwistStamped<B> ─────────────────────────────────────────────────
 
@@ -559,27 +650,34 @@ impl<B: AsRef<[u8]>> TwistStamped<B> {
 }
 
 impl TwistStamped<Vec<u8>> {
-    pub fn new(stamp: Time, frame_id: &str, twist: Twist) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        Twist::size_cdr(&mut sizer);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        twist.write_cdr(&mut w);
-        w.finish()?;
-
-        Ok(TwistStamped { offsets: [o0], buf })
+    /// Start a new `TwistStampedBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> TwistStampedBuilder<'a> {
+        TwistStampedBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
 }
+
+impl_stamped_cdrfixed_builder!(
+    TwistStamped,
+    TwistStampedBuilder,
+    twist,
+    Twist,
+    Twist {
+        linear: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0
+        },
+        angular: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0
+        }
+    }
+);
 
 // ── InertiaStamped<B> ───────────────────────────────────────────────
 
@@ -637,27 +735,36 @@ impl<B: AsRef<[u8]>> InertiaStamped<B> {
 }
 
 impl InertiaStamped<Vec<u8>> {
-    pub fn new(stamp: Time, frame_id: &str, inertia: Inertia) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        Inertia::size_cdr(&mut sizer);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        inertia.write_cdr(&mut w);
-        w.finish()?;
-
-        Ok(InertiaStamped { offsets: [o0], buf })
+    /// Start a new `InertiaStampedBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> InertiaStampedBuilder<'a> {
+        InertiaStampedBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
 }
+
+impl_stamped_cdrfixed_builder!(
+    InertiaStamped,
+    InertiaStampedBuilder,
+    inertia,
+    Inertia,
+    Inertia {
+        m: 0.0,
+        com: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0
+        },
+        ixx: 0.0,
+        ixy: 0.0,
+        ixz: 0.0,
+        iyy: 0.0,
+        iyz: 0.0,
+        izz: 0.0
+    }
+);
 
 // ── PointStamped<B> ─────────────────────────────────────────────────
 
@@ -715,27 +822,27 @@ impl<B: AsRef<[u8]>> PointStamped<B> {
 }
 
 impl PointStamped<Vec<u8>> {
-    pub fn new(stamp: Time, frame_id: &str, point: Point) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        Point::size_cdr(&mut sizer);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        point.write_cdr(&mut w);
-        w.finish()?;
-
-        Ok(PointStamped { offsets: [o0], buf })
+    /// Start a new `PointStampedBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> PointStampedBuilder<'a> {
+        PointStampedBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
 }
+
+impl_stamped_cdrfixed_builder!(
+    PointStamped,
+    PointStampedBuilder,
+    point,
+    Point,
+    Point {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0
+    }
+);
 
 // ── TransformStamped<B> ─────────────────────────────────────────────
 //
@@ -806,36 +913,108 @@ impl<B: AsRef<[u8]>> TransformStamped<B> {
 }
 
 impl TransformStamped<Vec<u8>> {
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        child_frame_id: &str,
-        transform: Transform,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        sizer.size_string(child_frame_id);
-        let o1 = sizer.offset();
-        Transform::size_cdr(&mut sizer);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_string(child_frame_id);
-        transform.write_cdr(&mut w);
-        w.finish()?;
-
-        Ok(TransformStamped {
-            offsets: [o0, o1],
-            buf,
-        })
+    /// Start a new `TransformStampedBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> TransformStampedBuilder<'a> {
+        TransformStampedBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+}
+
+/// Builder for `TransformStamped<Vec<u8>>` with buffer-reuse finalizers.
+pub struct TransformStampedBuilder<'a> {
+    stamp: Time,
+    frame_id: Cow<'a, str>,
+    child_frame_id: Cow<'a, str>,
+    transform: Transform,
+}
+
+impl<'a> Default for TransformStampedBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: Cow::Borrowed(""),
+            child_frame_id: Cow::Borrowed(""),
+            transform: Transform {
+                translation: Vector3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                rotation: Quaternion {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                    w: 1.0,
+                },
+            },
+        }
+    }
+}
+
+impl<'a> TransformStampedBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn child_frame_id(&mut self, s: impl Into<Cow<'a, str>>) -> &mut Self {
+        self.child_frame_id = s.into();
+        self
+    }
+    pub fn transform(&mut self, t: Transform) -> &mut Self {
+        self.transform = t;
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.size_string(&self.child_frame_id);
+        Transform::size_cdr(&mut s);
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.write_string(&self.child_frame_id);
+        self.transform.write_cdr(&mut w);
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<TransformStamped<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        TransformStamped::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -895,27 +1074,27 @@ impl<B: AsRef<[u8]>> Vector3Stamped<B> {
 }
 
 impl Vector3Stamped<Vec<u8>> {
-    pub fn new(stamp: Time, frame_id: &str, vector: Vector3) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        Vector3::size_cdr(&mut sizer);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        vector.write_cdr(&mut w);
-        w.finish()?;
-
-        Ok(Vector3Stamped { offsets: [o0], buf })
+    /// Start a new `Vector3StampedBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> Vector3StampedBuilder<'a> {
+        Vector3StampedBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
 }
+
+impl_stamped_cdrfixed_builder!(
+    Vector3Stamped,
+    Vector3StampedBuilder,
+    vector,
+    Vector3,
+    Vector3 {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0
+    }
+);
 
 // ── PoseStamped<B> ──────────────────────────────────────────────────
 
@@ -973,27 +1152,35 @@ impl<B: AsRef<[u8]>> PoseStamped<B> {
 }
 
 impl PoseStamped<Vec<u8>> {
-    pub fn new(stamp: Time, frame_id: &str, pose: Pose) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        Pose::size_cdr(&mut sizer);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        pose.write_cdr(&mut w);
-        w.finish()?;
-
-        Ok(PoseStamped { offsets: [o0], buf })
+    /// Start a new `PoseStampedBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> PoseStampedBuilder<'a> {
+        PoseStampedBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
 }
+
+impl_stamped_cdrfixed_builder!(
+    PoseStamped,
+    PoseStampedBuilder,
+    pose,
+    Pose,
+    Pose {
+        position: Point {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0
+        },
+        orientation: Quaternion {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            w: 1.0
+        }
+    }
+);
 
 // ── QuaternionStamped<B> ────────────────────────────────────────────
 
@@ -1051,27 +1238,28 @@ impl<B: AsRef<[u8]>> QuaternionStamped<B> {
 }
 
 impl QuaternionStamped<Vec<u8>> {
-    pub fn new(stamp: Time, frame_id: &str, quaternion: Quaternion) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        Quaternion::size_cdr(&mut sizer);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        quaternion.write_cdr(&mut w);
-        w.finish()?;
-
-        Ok(QuaternionStamped { offsets: [o0], buf })
+    /// Start a new `QuaternionStampedBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> QuaternionStampedBuilder<'a> {
+        QuaternionStampedBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
 }
+
+impl_stamped_cdrfixed_builder!(
+    QuaternionStamped,
+    QuaternionStampedBuilder,
+    quaternion,
+    Quaternion,
+    Quaternion {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+        w: 1.0
+    }
+);
 
 // ── WrenchStamped<B> ────────────────────────────────────────────────
 
@@ -1129,27 +1317,34 @@ impl<B: AsRef<[u8]>> WrenchStamped<B> {
 }
 
 impl WrenchStamped<Vec<u8>> {
-    pub fn new(stamp: Time, frame_id: &str, wrench: Wrench) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        Wrench::size_cdr(&mut sizer);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        wrench.write_cdr(&mut w);
-        w.finish()?;
-
-        Ok(WrenchStamped { offsets: [o0], buf })
+    /// Start a new `WrenchStampedBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> WrenchStampedBuilder<'a> {
+        WrenchStampedBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
 }
+
+impl_stamped_cdrfixed_builder!(
+    WrenchStamped,
+    WrenchStampedBuilder,
+    wrench,
+    Wrench,
+    Wrench {
+        force: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0
+        },
+        torque: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0
+        }
+    }
+);
 
 // ── PoseWithCovarianceStamped<B> ────────────────────────────────────
 
@@ -1206,31 +1401,38 @@ impl<B: AsRef<[u8]>> PoseWithCovarianceStamped<B> {
 }
 
 impl PoseWithCovarianceStamped<Vec<u8>> {
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        pose_with_covariance: PoseWithCovariance,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        PoseWithCovariance::size_cdr(&mut sizer);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        pose_with_covariance.write_cdr(&mut w);
-        w.finish()?;
-
-        Ok(PoseWithCovarianceStamped { offsets: [o0], buf })
+    /// Start a new `PoseWithCovarianceStampedBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> PoseWithCovarianceStampedBuilder<'a> {
+        PoseWithCovarianceStampedBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
 }
+
+impl_stamped_cdrfixed_builder!(
+    PoseWithCovarianceStamped,
+    PoseWithCovarianceStampedBuilder,
+    pose_with_covariance,
+    PoseWithCovariance,
+    PoseWithCovariance {
+        pose: Pose {
+            position: Point {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0
+            },
+            orientation: Quaternion {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                w: 1.0
+            }
+        },
+        covariance: [0.0; 36]
+    }
+);
 
 // ── TwistWithCovarianceStamped<B> ───────────────────────────────────
 
@@ -1287,31 +1489,37 @@ impl<B: AsRef<[u8]>> TwistWithCovarianceStamped<B> {
 }
 
 impl TwistWithCovarianceStamped<Vec<u8>> {
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        twist_with_covariance: TwistWithCovariance,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        TwistWithCovariance::size_cdr(&mut sizer);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        twist_with_covariance.write_cdr(&mut w);
-        w.finish()?;
-
-        Ok(TwistWithCovarianceStamped { offsets: [o0], buf })
+    /// Start a new `TwistWithCovarianceStampedBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> TwistWithCovarianceStampedBuilder<'a> {
+        TwistWithCovarianceStampedBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
 }
+
+impl_stamped_cdrfixed_builder!(
+    TwistWithCovarianceStamped,
+    TwistWithCovarianceStampedBuilder,
+    twist_with_covariance,
+    TwistWithCovariance,
+    TwistWithCovariance {
+        twist: Twist {
+            linear: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0
+            },
+            angular: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0
+            }
+        },
+        covariance: [0.0; 36]
+    }
+);
 
 // ── AccelWithCovarianceStamped<B> ───────────────────────────────────
 
@@ -1368,31 +1576,37 @@ impl<B: AsRef<[u8]>> AccelWithCovarianceStamped<B> {
 }
 
 impl AccelWithCovarianceStamped<Vec<u8>> {
-    pub fn new(
-        stamp: Time,
-        frame_id: &str,
-        accel_with_covariance: AccelWithCovariance,
-    ) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        AccelWithCovariance::size_cdr(&mut sizer);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        accel_with_covariance.write_cdr(&mut w);
-        w.finish()?;
-
-        Ok(AccelWithCovarianceStamped { offsets: [o0], buf })
+    /// Start a new `AccelWithCovarianceStampedBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> AccelWithCovarianceStampedBuilder<'a> {
+        AccelWithCovarianceStampedBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
 }
+
+impl_stamped_cdrfixed_builder!(
+    AccelWithCovarianceStamped,
+    AccelWithCovarianceStampedBuilder,
+    accel_with_covariance,
+    AccelWithCovariance,
+    AccelWithCovariance {
+        accel: Accel {
+            linear: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0
+            },
+            angular: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0
+            }
+        },
+        covariance: [0.0; 36]
+    }
+);
 
 // ── Polygon<B> ──────────────────────────────────────────────────────
 //
@@ -1474,32 +1688,78 @@ impl<B: AsRef<[u8]>> Polygon<B> {
 }
 
 impl Polygon<Vec<u8>> {
-    pub fn new(points: &[Point32]) -> Result<Self, CdrError> {
-        let count = points.len();
-        let mut sizer = CdrSizer::new();
-        sizer.size_u32(); // seq_len
-        let o0 = sizer.offset();
-        for _ in 0..count {
-            Point32::size_cdr(&mut sizer);
-        }
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        w.write_u32(count as u32);
-        for p in points {
-            p.write_cdr(&mut w);
-        }
-        w.finish()?;
-
-        Ok(Polygon {
-            offsets: [o0],
-            count,
-            buf,
-        })
+    /// Start a new `PolygonBuilder` with an empty point list.
+    pub fn builder<'a>() -> PolygonBuilder<'a> {
+        PolygonBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+}
+
+/// Builder for `Polygon<Vec<u8>>` with buffer-reuse finalizers.
+pub struct PolygonBuilder<'a> {
+    points: Cow<'a, [Point32]>,
+}
+
+impl<'a> Default for PolygonBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            points: Cow::Borrowed(&[]),
+        }
+    }
+}
+
+impl<'a> PolygonBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn points(&mut self, p: &'a [Point32]) -> &mut Self {
+        self.points = Cow::Borrowed(p);
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        s.size_u32();
+        for _ in 0..self.points.len() {
+            Point32::size_cdr(&mut s);
+        }
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        w.write_u32(self.points.len() as u32);
+        for p in self.points.iter() {
+            p.write_cdr(&mut w);
+        }
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<Polygon<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        Polygon::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -1597,37 +1857,94 @@ impl<B: AsRef<[u8]>> PolygonStamped<B> {
 }
 
 impl PolygonStamped<Vec<u8>> {
-    pub fn new(stamp: Time, frame_id: &str, points: &[Point32]) -> Result<Self, CdrError> {
-        let count = points.len();
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        sizer.size_u32(); // seq_len
-        let o1 = sizer.offset();
-        for _ in 0..count {
-            Point32::size_cdr(&mut sizer);
-        }
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_u32(count as u32);
-        for p in points {
-            p.write_cdr(&mut w);
-        }
-        w.finish()?;
-
-        Ok(PolygonStamped {
-            offsets: [o0, o1],
-            count,
-            buf,
-        })
+    /// Start a new `PolygonStampedBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> PolygonStampedBuilder<'a> {
+        PolygonStampedBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+}
+
+/// Builder for `PolygonStamped<Vec<u8>>` with buffer-reuse finalizers.
+pub struct PolygonStampedBuilder<'a> {
+    stamp: Time,
+    frame_id: Cow<'a, str>,
+    points: Cow<'a, [Point32]>,
+}
+
+impl<'a> Default for PolygonStampedBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: Cow::Borrowed(""),
+            points: Cow::Borrowed(&[]),
+        }
+    }
+}
+
+impl<'a> PolygonStampedBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn points(&mut self, p: &'a [Point32]) -> &mut Self {
+        self.points = Cow::Borrowed(p);
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.size_u32();
+        for _ in 0..self.points.len() {
+            Point32::size_cdr(&mut s);
+        }
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.write_u32(self.points.len() as u32);
+        for p in self.points.iter() {
+            p.write_cdr(&mut w);
+        }
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<PolygonStamped<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        PolygonStamped::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -1725,37 +2042,94 @@ impl<B: AsRef<[u8]>> PoseArray<B> {
 }
 
 impl PoseArray<Vec<u8>> {
-    pub fn new(stamp: Time, frame_id: &str, poses: &[Pose]) -> Result<Self, CdrError> {
-        let count = poses.len();
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-        let o0 = sizer.offset();
-        sizer.size_u32(); // seq_len
-        let o1 = sizer.offset();
-        for _ in 0..count {
-            Pose::size_cdr(&mut sizer);
-        }
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        w.write_u32(count as u32);
-        for p in poses {
-            p.write_cdr(&mut w);
-        }
-        w.finish()?;
-
-        Ok(PoseArray {
-            offsets: [o0, o1],
-            count,
-            buf,
-        })
+    /// Start a new `PoseArrayBuilder` with zero-valued defaults.
+    pub fn builder<'a>() -> PoseArrayBuilder<'a> {
+        PoseArrayBuilder::new()
     }
 
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
+    }
+}
+
+/// Builder for `PoseArray<Vec<u8>>` with buffer-reuse finalizers.
+pub struct PoseArrayBuilder<'a> {
+    stamp: Time,
+    frame_id: Cow<'a, str>,
+    poses: Cow<'a, [Pose]>,
+}
+
+impl<'a> Default for PoseArrayBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            stamp: Time { sec: 0, nanosec: 0 },
+            frame_id: Cow::Borrowed(""),
+            poses: Cow::Borrowed(&[]),
+        }
+    }
+}
+
+impl<'a> PoseArrayBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stamp(&mut self, t: Time) -> &mut Self {
+        self.stamp = t;
+        self
+    }
+    pub fn frame_id(&mut self, s: impl Into<Cow<'a, str>>) -> &mut Self {
+        self.frame_id = s.into();
+        self
+    }
+    pub fn poses(&mut self, p: &'a [Pose]) -> &mut Self {
+        self.poses = Cow::Borrowed(p);
+        self
+    }
+
+    fn size(&self) -> usize {
+        let mut s = CdrSizer::new();
+        Time::size_cdr(&mut s);
+        s.size_string(&self.frame_id);
+        s.size_u32();
+        for _ in 0..self.poses.len() {
+            Pose::size_cdr(&mut s);
+        }
+        s.size()
+    }
+
+    fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let mut w = CdrWriter::new(buf)?;
+        self.stamp.write_cdr(&mut w);
+        w.write_string(&self.frame_id);
+        w.write_u32(self.poses.len() as u32);
+        for p in self.poses.iter() {
+            p.write_cdr(&mut w);
+        }
+        w.finish()
+    }
+
+    pub fn build(&self) -> Result<PoseArray<Vec<u8>>, CdrError> {
+        let mut buf = vec![0u8; self.size()];
+        self.write_into(&mut buf)?;
+        PoseArray::from_cdr(buf)
+    }
+
+    pub fn encode_into_vec(&self, buf: &mut Vec<u8>) -> Result<(), CdrError> {
+        buf.resize(self.size(), 0);
+        self.write_into(buf)
+    }
+
+    pub fn encode_into_slice(&self, buf: &mut [u8]) -> Result<usize, CdrError> {
+        let need = self.size();
+        if buf.len() < need {
+            return Err(CdrError::BufferTooShort {
+                need,
+                have: buf.len(),
+            });
+        }
+        self.write_into(&mut buf[..need])?;
+        Ok(need)
     }
 }
 
@@ -2020,11 +2394,11 @@ mod tests {
 
     #[test]
     fn transform_stamped_roundtrip() {
-        let ts = TransformStamped::new(
-            Time::new(100, 0),
-            "map",
-            "base_link",
-            Transform {
+        let ts = TransformStamped::builder()
+            .stamp(Time::new(100, 0))
+            .frame_id("map")
+            .child_frame_id("base_link")
+            .transform(Transform {
                 translation: Vector3 {
                     x: 1.0,
                     y: 2.0,
@@ -2036,9 +2410,9 @@ mod tests {
                     z: 0.0,
                     w: 1.0,
                 },
-            },
-        )
-        .unwrap();
+            })
+            .build()
+            .unwrap();
         assert_eq!(ts.frame_id(), "map");
         assert_eq!(ts.child_frame_id(), "base_link");
         let bytes = ts.to_cdr();
@@ -2048,10 +2422,10 @@ mod tests {
 
     #[test]
     fn accel_stamped_roundtrip() {
-        let a = AccelStamped::new(
-            Time::new(1, 0),
-            "base",
-            Accel {
+        let a = AccelStamped::builder()
+            .stamp(Time::new(1, 0))
+            .frame_id("base")
+            .accel(Accel {
                 linear: Vector3 {
                     x: 1.0,
                     y: 2.0,
@@ -2062,9 +2436,9 @@ mod tests {
                     y: 0.0,
                     z: 0.5,
                 },
-            },
-        )
-        .unwrap();
+            })
+            .build()
+            .unwrap();
         let bytes = a.to_cdr();
         let decoded = AccelStamped::from_cdr(bytes).unwrap();
         assert!((decoded.accel().linear.x - 1.0).abs() < 1e-10);
@@ -2072,10 +2446,10 @@ mod tests {
 
     #[test]
     fn twist_stamped_roundtrip() {
-        let t = TwistStamped::new(
-            Time::new(1, 0),
-            "base",
-            Twist {
+        let t = TwistStamped::builder()
+            .stamp(Time::new(1, 0))
+            .frame_id("base")
+            .twist(Twist {
                 linear: Vector3 {
                     x: 1.0,
                     y: 0.0,
@@ -2086,9 +2460,9 @@ mod tests {
                     y: 0.0,
                     z: 0.5,
                 },
-            },
-        )
-        .unwrap();
+            })
+            .build()
+            .unwrap();
         let bytes = t.to_cdr();
         let decoded = TwistStamped::from_cdr(bytes).unwrap();
         assert!((decoded.twist().angular.z - 0.5).abs() < 1e-10);
@@ -2096,16 +2470,16 @@ mod tests {
 
     #[test]
     fn point_stamped_roundtrip() {
-        let p = PointStamped::new(
-            Time::new(1, 0),
-            "map",
-            Point {
+        let p = PointStamped::builder()
+            .stamp(Time::new(1, 0))
+            .frame_id("map")
+            .point(Point {
                 x: 10.0,
                 y: 20.0,
                 z: 30.0,
-            },
-        )
-        .unwrap();
+            })
+            .build()
+            .unwrap();
         let bytes = p.to_cdr();
         let decoded = PointStamped::from_cdr(bytes).unwrap();
         assert!((decoded.point().x - 10.0).abs() < 1e-10);
@@ -2113,10 +2487,10 @@ mod tests {
 
     #[test]
     fn inertia_stamped_roundtrip() {
-        let i = InertiaStamped::new(
-            Time::new(1, 0),
-            "body",
-            Inertia {
+        let i = InertiaStamped::builder()
+            .stamp(Time::new(1, 0))
+            .frame_id("body")
+            .inertia(Inertia {
                 m: 10.0,
                 com: Vector3 {
                     x: 0.0,
@@ -2129,9 +2503,9 @@ mod tests {
                 iyy: 1.0,
                 iyz: 0.0,
                 izz: 1.0,
-            },
-        )
-        .unwrap();
+            })
+            .build()
+            .unwrap();
         let bytes = i.to_cdr();
         let decoded = InertiaStamped::from_cdr(bytes).unwrap();
         assert!((decoded.inertia().m - 10.0).abs() < 1e-10);
@@ -2185,16 +2559,16 @@ mod tests {
 
     #[test]
     fn vector3_stamped_roundtrip() {
-        let v = Vector3Stamped::new(
-            Time::new(1, 0),
-            "sensor",
-            Vector3 {
+        let v = Vector3Stamped::builder()
+            .stamp(Time::new(1, 0))
+            .frame_id("sensor")
+            .vector(Vector3 {
                 x: 1.0,
                 y: 2.0,
                 z: 3.0,
-            },
-        )
-        .unwrap();
+            })
+            .build()
+            .unwrap();
         let bytes = v.to_cdr();
         let decoded = Vector3Stamped::from_cdr(bytes).unwrap();
         assert_eq!(decoded.frame_id(), "sensor");
@@ -2204,10 +2578,10 @@ mod tests {
 
     #[test]
     fn pose_stamped_roundtrip() {
-        let p = PoseStamped::new(
-            Time::new(1, 0),
-            "map",
-            Pose {
+        let p = PoseStamped::builder()
+            .stamp(Time::new(1, 0))
+            .frame_id("map")
+            .pose(Pose {
                 position: Point {
                     x: 1.0,
                     y: 2.0,
@@ -2219,9 +2593,9 @@ mod tests {
                     z: 0.0,
                     w: 1.0,
                 },
-            },
-        )
-        .unwrap();
+            })
+            .build()
+            .unwrap();
         let bytes = p.to_cdr();
         let decoded = PoseStamped::from_cdr(bytes).unwrap();
         assert_eq!(decoded.frame_id(), "map");
@@ -2231,17 +2605,17 @@ mod tests {
 
     #[test]
     fn quaternion_stamped_roundtrip() {
-        let q = QuaternionStamped::new(
-            Time::new(1, 0),
-            "imu",
-            Quaternion {
+        let q = QuaternionStamped::builder()
+            .stamp(Time::new(1, 0))
+            .frame_id("imu")
+            .quaternion(Quaternion {
                 x: 0.0,
                 y: 0.0,
                 z: 0.707,
                 w: 0.707,
-            },
-        )
-        .unwrap();
+            })
+            .build()
+            .unwrap();
         let bytes = q.to_cdr();
         let decoded = QuaternionStamped::from_cdr(bytes).unwrap();
         assert_eq!(decoded.frame_id(), "imu");
@@ -2250,10 +2624,10 @@ mod tests {
 
     #[test]
     fn wrench_stamped_roundtrip() {
-        let w = WrenchStamped::new(
-            Time::new(1, 0),
-            "tool",
-            Wrench {
+        let w = WrenchStamped::builder()
+            .stamp(Time::new(1, 0))
+            .frame_id("tool")
+            .wrench(Wrench {
                 force: Vector3 {
                     x: 10.0,
                     y: 0.0,
@@ -2264,9 +2638,9 @@ mod tests {
                     y: 0.5,
                     z: 0.0,
                 },
-            },
-        )
-        .unwrap();
+            })
+            .build()
+            .unwrap();
         let bytes = w.to_cdr();
         let decoded = WrenchStamped::from_cdr(bytes).unwrap();
         assert_eq!(decoded.frame_id(), "tool");
@@ -2277,10 +2651,10 @@ mod tests {
     fn pose_with_covariance_stamped_roundtrip() {
         let mut cov = [0.0_f64; 36];
         cov[0] = 0.1;
-        let p = PoseWithCovarianceStamped::new(
-            Time::new(1, 0),
-            "odom",
-            PoseWithCovariance {
+        let p = PoseWithCovarianceStamped::builder()
+            .stamp(Time::new(1, 0))
+            .frame_id("odom")
+            .pose_with_covariance(PoseWithCovariance {
                 pose: Pose {
                     position: Point {
                         x: 1.0,
@@ -2295,9 +2669,9 @@ mod tests {
                     },
                 },
                 covariance: cov,
-            },
-        )
-        .unwrap();
+            })
+            .build()
+            .unwrap();
         let bytes = p.to_cdr();
         let decoded = PoseWithCovarianceStamped::from_cdr(bytes).unwrap();
         assert_eq!(decoded.frame_id(), "odom");
@@ -2308,10 +2682,10 @@ mod tests {
     fn twist_with_covariance_stamped_roundtrip() {
         let mut cov = [0.0_f64; 36];
         cov[0] = 0.5;
-        let t = TwistWithCovarianceStamped::new(
-            Time::new(1, 0),
-            "base",
-            TwistWithCovariance {
+        let t = TwistWithCovarianceStamped::builder()
+            .stamp(Time::new(1, 0))
+            .frame_id("base")
+            .twist_with_covariance(TwistWithCovariance {
                 twist: Twist {
                     linear: Vector3 {
                         x: 1.0,
@@ -2325,9 +2699,9 @@ mod tests {
                     },
                 },
                 covariance: cov,
-            },
-        )
-        .unwrap();
+            })
+            .build()
+            .unwrap();
         let bytes = t.to_cdr();
         let decoded = TwistWithCovarianceStamped::from_cdr(bytes).unwrap();
         assert_eq!(decoded.frame_id(), "base");
@@ -2338,10 +2712,10 @@ mod tests {
     fn accel_with_covariance_stamped_roundtrip() {
         let mut cov = [0.0_f64; 36];
         cov[0] = 0.2;
-        let a = AccelWithCovarianceStamped::new(
-            Time::new(1, 0),
-            "imu",
-            AccelWithCovariance {
+        let a = AccelWithCovarianceStamped::builder()
+            .stamp(Time::new(1, 0))
+            .frame_id("imu")
+            .accel_with_covariance(AccelWithCovariance {
                 accel: Accel {
                     linear: Vector3 {
                         x: 0.0,
@@ -2355,9 +2729,9 @@ mod tests {
                     },
                 },
                 covariance: cov,
-            },
-        )
-        .unwrap();
+            })
+            .build()
+            .unwrap();
         let bytes = a.to_cdr();
         let decoded = AccelWithCovarianceStamped::from_cdr(bytes).unwrap();
         assert_eq!(decoded.frame_id(), "imu");
@@ -2383,7 +2757,7 @@ mod tests {
                 z: 0.0,
             },
         ];
-        let poly = Polygon::new(&pts).unwrap();
+        let poly = Polygon::builder().points(&pts).build().unwrap();
         assert_eq!(poly.len(), 3);
         let bytes = poly.to_cdr();
         let decoded = Polygon::from_cdr(bytes).unwrap();
@@ -2396,7 +2770,7 @@ mod tests {
 
     #[test]
     fn polygon_empty() {
-        let poly = Polygon::new(&[]).unwrap();
+        let poly = Polygon::builder().points(&[]).build().unwrap();
         assert!(poly.is_empty());
         assert_eq!(poly.points(), vec![]);
     }
@@ -2415,7 +2789,12 @@ mod tests {
                 z: 0.0,
             },
         ];
-        let ps = PolygonStamped::new(Time::new(1, 0), "map", &pts).unwrap();
+        let ps = PolygonStamped::builder()
+            .stamp(Time::new(1, 0))
+            .frame_id("map")
+            .points(&pts)
+            .build()
+            .unwrap();
         assert_eq!(ps.len(), 2);
         let bytes = ps.to_cdr();
         let decoded = PolygonStamped::from_cdr(bytes).unwrap();
@@ -2454,7 +2833,12 @@ mod tests {
                 },
             },
         ];
-        let pa = PoseArray::new(Time::new(1, 0), "map", &poses).unwrap();
+        let pa = PoseArray::builder()
+            .stamp(Time::new(1, 0))
+            .frame_id("map")
+            .poses(&poses)
+            .build()
+            .unwrap();
         assert_eq!(pa.len(), 2);
         let bytes = pa.to_cdr();
         let decoded = PoseArray::from_cdr(bytes).unwrap();
@@ -2466,7 +2850,12 @@ mod tests {
 
     #[test]
     fn pose_array_empty() {
-        let pa = PoseArray::new(Time::new(1, 0), "empty", &[]).unwrap();
+        let pa = PoseArray::builder()
+            .stamp(Time::new(1, 0))
+            .frame_id("empty")
+            .poses(&[])
+            .build()
+            .unwrap();
         assert!(pa.is_empty());
         assert_eq!(pa.poses(), vec![]);
         assert_eq!(pa.frame_id(), "empty");

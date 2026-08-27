@@ -133,6 +133,9 @@ macro_rules! check_null_ret_null {
     };
 }
 
+mod geometry;
+mod mavros;
+mod nav;
 /// Tensor message family (`Tensor`, `TensorPlane`, `TensorStamped`,
 /// `CameraFrame`).
 ///

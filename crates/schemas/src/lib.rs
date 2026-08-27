@@ -14,7 +14,7 @@
 //!
 //! **Buffer-backed types** — generic `Type<B: AsRef<[u8]>>` wrappers that hold
 //! a CDR byte buffer and a small offset table. Construction scans the buffer
-//! once; field accessors are O(1). Use `Type::new(...)` to serialize and
+//! once; field accessors are O(1). Use `Type::builder()` to serialize and
 //! `Type::from_cdr(buf)` to deserialize (zero-copy when `B = &[u8]`).
 //!
 //! ## Message sources

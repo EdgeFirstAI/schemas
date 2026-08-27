@@ -11,9 +11,26 @@
 
 #include <criterion/criterion.h>
 #include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 #include "edgefirst/schemas.h"
+
+static uint8_t *_load_fixture_mav(const char *relpath, size_t *out_len) {
+    FILE *f = fopen(relpath, "rb");
+    if (!f) return NULL;
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (sz <= 0) { fclose(f); return NULL; }
+    uint8_t *buf = (uint8_t *) malloc((size_t) sz);
+    size_t got = fread(buf, 1, (size_t) sz, f);
+    fclose(f);
+    if (got != (size_t) sz) { free(buf); return NULL; }
+    *out_len = got;
+    return buf;
+}
 
 // ============================================================================
 // Altitude
@@ -243,4 +260,38 @@ Test(mavros_msgs, timesync_status_from_cdr_invalid) {
 
 Test(mavros_msgs, timesync_status_free_null) {
     ros_mavros_timesync_status_free(NULL);
+}
+
+Test(mavros_msgs, altitude_builder_null) {
+    errno = 0;
+    cr_assert_eq(ros_mavros_altitude_builder_set_frame_id(NULL, "x"), -1);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(mavros_msgs, altitude_builder_matches_golden) {
+    size_t golden_len = 0;
+    uint8_t *golden = _load_fixture_mav("testdata/cdr/mavros_msgs/Altitude.cdr",
+                                       &golden_len);
+    cr_assert_not_null(golden, "failed to load Altitude fixture");
+
+    ros_mavros_altitude_builder_t *b = ros_mavros_altitude_builder_new();
+    cr_assert_not_null(b);
+    ros_mavros_altitude_builder_set_stamp(b, 1234567890, 123456789u);
+    cr_assert_eq(ros_mavros_altitude_builder_set_frame_id(b, "test_frame"), 0);
+    ros_mavros_altitude_builder_set_monotonic(b, 100.0f);
+    ros_mavros_altitude_builder_set_amsl(b, 50.0f);
+    ros_mavros_altitude_builder_set_local(b, 10.0f);
+    ros_mavros_altitude_builder_set_relative(b, 5.0f);
+    ros_mavros_altitude_builder_set_terrain(b, 2.0f);
+    ros_mavros_altitude_builder_set_bottom_clearance(b, 1.5f);
+
+    uint8_t *out = NULL;
+    size_t out_len = 0;
+    cr_assert_eq(ros_mavros_altitude_builder_build(b, &out, &out_len), 0);
+    cr_assert_eq(out_len, golden_len);
+    cr_assert_eq(memcmp(out, golden, golden_len), 0);
+
+    ros_bytes_free(out, out_len);
+    ros_mavros_altitude_builder_free(b);
+    free(golden);
 }

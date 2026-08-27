@@ -1404,6 +1404,18 @@ const char* ros_transform_stamped_get_child_frame_id(const ros_transform_stamped
 
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_transform_stamped_as_cdr(const ros_transform_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for ros_transform_stamped_t messages. */
+typedef struct ros_transform_stamped_builder_s ros_transform_stamped_builder_t;
+ros_transform_stamped_builder_t* ros_transform_stamped_builder_new(void);
+void ros_transform_stamped_builder_free(ros_transform_stamped_builder_t* b);
+void ros_transform_stamped_builder_set_stamp(ros_transform_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_transform_stamped_builder_set_frame_id(ros_transform_stamped_builder_t* b, const char* s);
+int  ros_transform_stamped_builder_set_child_frame_id(ros_transform_stamped_builder_t* b, const char* s);
+void ros_transform_stamped_builder_set_translation(ros_transform_stamped_builder_t* b, double x, double y, double z);
+void ros_transform_stamped_builder_set_rotation(ros_transform_stamped_builder_t* b, double x, double y, double z, double w);
+int  ros_transform_stamped_builder_build(ros_transform_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_transform_stamped_builder_encode_into(ros_transform_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ============================================================================
  * geometry_msgs - TwistStamped (buffer-backed)
@@ -1421,6 +1433,17 @@ uint32_t ros_twist_stamped_get_stamp_nanosec(const ros_twist_stamped_t* view);
 const char* ros_twist_stamped_get_frame_id(const ros_twist_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_twist_stamped_as_cdr(const ros_twist_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for ros_twist_stamped_t messages. */
+typedef struct ros_twist_stamped_builder_s ros_twist_stamped_builder_t;
+ros_twist_stamped_builder_t* ros_twist_stamped_builder_new(void);
+void ros_twist_stamped_builder_free(ros_twist_stamped_builder_t* b);
+void ros_twist_stamped_builder_set_stamp(ros_twist_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_twist_stamped_builder_set_frame_id(ros_twist_stamped_builder_t* b, const char* s);
+void ros_twist_stamped_builder_set_linear(ros_twist_stamped_builder_t* b, double x, double y, double z);
+void ros_twist_stamped_builder_set_angular(ros_twist_stamped_builder_t* b, double x, double y, double z);
+int  ros_twist_stamped_builder_build(ros_twist_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_twist_stamped_builder_encode_into(ros_twist_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ============================================================================
  * geometry_msgs - AccelStamped (buffer-backed)
@@ -1438,6 +1461,17 @@ uint32_t ros_accel_stamped_get_stamp_nanosec(const ros_accel_stamped_t* view);
 const char* ros_accel_stamped_get_frame_id(const ros_accel_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_accel_stamped_as_cdr(const ros_accel_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for ros_accel_stamped_t messages. */
+typedef struct ros_accel_stamped_builder_s ros_accel_stamped_builder_t;
+ros_accel_stamped_builder_t* ros_accel_stamped_builder_new(void);
+void ros_accel_stamped_builder_free(ros_accel_stamped_builder_t* b);
+void ros_accel_stamped_builder_set_stamp(ros_accel_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_accel_stamped_builder_set_frame_id(ros_accel_stamped_builder_t* b, const char* s);
+void ros_accel_stamped_builder_set_linear_acceleration(ros_accel_stamped_builder_t* b, double x, double y, double z);
+void ros_accel_stamped_builder_set_angular_acceleration(ros_accel_stamped_builder_t* b, double x, double y, double z);
+int  ros_accel_stamped_builder_build(ros_accel_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_accel_stamped_builder_encode_into(ros_accel_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ============================================================================
  * geometry_msgs - PointStamped (buffer-backed)
@@ -1455,6 +1489,16 @@ uint32_t ros_point_stamped_get_stamp_nanosec(const ros_point_stamped_t* view);
 const char* ros_point_stamped_get_frame_id(const ros_point_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_point_stamped_as_cdr(const ros_point_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for ros_point_stamped_t messages. */
+typedef struct ros_point_stamped_builder_s ros_point_stamped_builder_t;
+ros_point_stamped_builder_t* ros_point_stamped_builder_new(void);
+void ros_point_stamped_builder_free(ros_point_stamped_builder_t* b);
+void ros_point_stamped_builder_set_stamp(ros_point_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_point_stamped_builder_set_frame_id(ros_point_stamped_builder_t* b, const char* s);
+void ros_point_stamped_builder_set_point(ros_point_stamped_builder_t* b, double x, double y, double z);
+int  ros_point_stamped_builder_build(ros_point_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_point_stamped_builder_encode_into(ros_point_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ============================================================================
  * geometry_msgs - InertiaStamped (buffer-backed)
@@ -1472,6 +1516,18 @@ uint32_t ros_inertia_stamped_get_stamp_nanosec(const ros_inertia_stamped_t* view
 const char* ros_inertia_stamped_get_frame_id(const ros_inertia_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_inertia_stamped_as_cdr(const ros_inertia_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for ros_inertia_stamped_t messages. */
+typedef struct ros_inertia_stamped_builder_s ros_inertia_stamped_builder_t;
+ros_inertia_stamped_builder_t* ros_inertia_stamped_builder_new(void);
+void ros_inertia_stamped_builder_free(ros_inertia_stamped_builder_t* b);
+void ros_inertia_stamped_builder_set_stamp(ros_inertia_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_inertia_stamped_builder_set_frame_id(ros_inertia_stamped_builder_t* b, const char* s);
+void ros_inertia_stamped_builder_set_mass(ros_inertia_stamped_builder_t* b, double m);
+void ros_inertia_stamped_builder_set_com(ros_inertia_stamped_builder_t* b, double x, double y, double z);
+void ros_inertia_stamped_builder_set_inertia_tensor(ros_inertia_stamped_builder_t* b, double ixx, double ixy, double ixz, double iyy, double iyz, double izz);
+int  ros_inertia_stamped_builder_build(ros_inertia_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_inertia_stamped_builder_encode_into(ros_inertia_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ============================================================================
  * geometry_msgs - Vector3Stamped (buffer-backed)
@@ -1489,6 +1545,16 @@ uint32_t ros_vector3_stamped_get_stamp_nanosec(const ros_vector3_stamped_t* view
 const char* ros_vector3_stamped_get_frame_id(const ros_vector3_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_vector3_stamped_as_cdr(const ros_vector3_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for ros_vector3_stamped_t messages. */
+typedef struct ros_vector3_stamped_builder_s ros_vector3_stamped_builder_t;
+ros_vector3_stamped_builder_t* ros_vector3_stamped_builder_new(void);
+void ros_vector3_stamped_builder_free(ros_vector3_stamped_builder_t* b);
+void ros_vector3_stamped_builder_set_stamp(ros_vector3_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_vector3_stamped_builder_set_frame_id(ros_vector3_stamped_builder_t* b, const char* s);
+void ros_vector3_stamped_builder_set_vector(ros_vector3_stamped_builder_t* b, double x, double y, double z);
+int  ros_vector3_stamped_builder_build(ros_vector3_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_vector3_stamped_builder_encode_into(ros_vector3_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ============================================================================
  * geometry_msgs - PoseStamped (buffer-backed)
@@ -1506,6 +1572,17 @@ uint32_t ros_pose_stamped_get_stamp_nanosec(const ros_pose_stamped_t* view);
 const char* ros_pose_stamped_get_frame_id(const ros_pose_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_pose_stamped_as_cdr(const ros_pose_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for ros_pose_stamped_t messages. */
+typedef struct ros_pose_stamped_builder_s ros_pose_stamped_builder_t;
+ros_pose_stamped_builder_t* ros_pose_stamped_builder_new(void);
+void ros_pose_stamped_builder_free(ros_pose_stamped_builder_t* b);
+void ros_pose_stamped_builder_set_stamp(ros_pose_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_pose_stamped_builder_set_frame_id(ros_pose_stamped_builder_t* b, const char* s);
+void ros_pose_stamped_builder_set_position(ros_pose_stamped_builder_t* b, double x, double y, double z);
+void ros_pose_stamped_builder_set_orientation(ros_pose_stamped_builder_t* b, double x, double y, double z, double w);
+int  ros_pose_stamped_builder_build(ros_pose_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_pose_stamped_builder_encode_into(ros_pose_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ============================================================================
  * geometry_msgs - QuaternionStamped (buffer-backed)
@@ -1523,6 +1600,16 @@ uint32_t ros_quaternion_stamped_get_stamp_nanosec(const ros_quaternion_stamped_t
 const char* ros_quaternion_stamped_get_frame_id(const ros_quaternion_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_quaternion_stamped_as_cdr(const ros_quaternion_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for ros_quaternion_stamped_t messages. */
+typedef struct ros_quaternion_stamped_builder_s ros_quaternion_stamped_builder_t;
+ros_quaternion_stamped_builder_t* ros_quaternion_stamped_builder_new(void);
+void ros_quaternion_stamped_builder_free(ros_quaternion_stamped_builder_t* b);
+void ros_quaternion_stamped_builder_set_stamp(ros_quaternion_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_quaternion_stamped_builder_set_frame_id(ros_quaternion_stamped_builder_t* b, const char* s);
+void ros_quaternion_stamped_builder_set_quaternion(ros_quaternion_stamped_builder_t* b, double x, double y, double z, double w);
+int  ros_quaternion_stamped_builder_build(ros_quaternion_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_quaternion_stamped_builder_encode_into(ros_quaternion_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ============================================================================
  * geometry_msgs - WrenchStamped (buffer-backed)
@@ -1540,6 +1627,17 @@ uint32_t ros_wrench_stamped_get_stamp_nanosec(const ros_wrench_stamped_t* view);
 const char* ros_wrench_stamped_get_frame_id(const ros_wrench_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_wrench_stamped_as_cdr(const ros_wrench_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for ros_wrench_stamped_t messages. */
+typedef struct ros_wrench_stamped_builder_s ros_wrench_stamped_builder_t;
+ros_wrench_stamped_builder_t* ros_wrench_stamped_builder_new(void);
+void ros_wrench_stamped_builder_free(ros_wrench_stamped_builder_t* b);
+void ros_wrench_stamped_builder_set_stamp(ros_wrench_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_wrench_stamped_builder_set_frame_id(ros_wrench_stamped_builder_t* b, const char* s);
+void ros_wrench_stamped_builder_set_force(ros_wrench_stamped_builder_t* b, double x, double y, double z);
+void ros_wrench_stamped_builder_set_torque(ros_wrench_stamped_builder_t* b, double x, double y, double z);
+int  ros_wrench_stamped_builder_build(ros_wrench_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_wrench_stamped_builder_encode_into(ros_wrench_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ============================================================================
  * geometry_msgs - PoseWithCovarianceStamped (buffer-backed)
@@ -1557,6 +1655,18 @@ uint32_t ros_pose_with_covariance_stamped_get_stamp_nanosec(const ros_pose_with_
 const char* ros_pose_with_covariance_stamped_get_frame_id(const ros_pose_with_covariance_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_pose_with_covariance_stamped_as_cdr(const ros_pose_with_covariance_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for ros_pose_with_covariance_stamped_t messages. */
+typedef struct ros_pose_with_covariance_stamped_builder_s ros_pose_with_covariance_stamped_builder_t;
+ros_pose_with_covariance_stamped_builder_t* ros_pose_with_covariance_stamped_builder_new(void);
+void ros_pose_with_covariance_stamped_builder_free(ros_pose_with_covariance_stamped_builder_t* b);
+void ros_pose_with_covariance_stamped_builder_set_stamp(ros_pose_with_covariance_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_pose_with_covariance_stamped_builder_set_frame_id(ros_pose_with_covariance_stamped_builder_t* b, const char* s);
+void ros_pose_with_covariance_stamped_builder_set_position(ros_pose_with_covariance_stamped_builder_t* b, double x, double y, double z);
+void ros_pose_with_covariance_stamped_builder_set_orientation(ros_pose_with_covariance_stamped_builder_t* b, double x, double y, double z, double w);
+int  ros_pose_with_covariance_stamped_builder_set_covariance(ros_pose_with_covariance_stamped_builder_t* b, const double* cov);
+int  ros_pose_with_covariance_stamped_builder_build(ros_pose_with_covariance_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_pose_with_covariance_stamped_builder_encode_into(ros_pose_with_covariance_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ============================================================================
  * geometry_msgs - TwistWithCovarianceStamped (buffer-backed)
@@ -1574,6 +1684,18 @@ uint32_t ros_twist_with_covariance_stamped_get_stamp_nanosec(const ros_twist_wit
 const char* ros_twist_with_covariance_stamped_get_frame_id(const ros_twist_with_covariance_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_twist_with_covariance_stamped_as_cdr(const ros_twist_with_covariance_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for ros_twist_with_covariance_stamped_t messages. */
+typedef struct ros_twist_with_covariance_stamped_builder_s ros_twist_with_covariance_stamped_builder_t;
+ros_twist_with_covariance_stamped_builder_t* ros_twist_with_covariance_stamped_builder_new(void);
+void ros_twist_with_covariance_stamped_builder_free(ros_twist_with_covariance_stamped_builder_t* b);
+void ros_twist_with_covariance_stamped_builder_set_stamp(ros_twist_with_covariance_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_twist_with_covariance_stamped_builder_set_frame_id(ros_twist_with_covariance_stamped_builder_t* b, const char* s);
+void ros_twist_with_covariance_stamped_builder_set_linear(ros_twist_with_covariance_stamped_builder_t* b, double x, double y, double z);
+void ros_twist_with_covariance_stamped_builder_set_angular(ros_twist_with_covariance_stamped_builder_t* b, double x, double y, double z);
+int  ros_twist_with_covariance_stamped_builder_set_covariance(ros_twist_with_covariance_stamped_builder_t* b, const double* cov);
+int  ros_twist_with_covariance_stamped_builder_build(ros_twist_with_covariance_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_twist_with_covariance_stamped_builder_encode_into(ros_twist_with_covariance_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ============================================================================
  * geometry_msgs - AccelWithCovarianceStamped (buffer-backed)
@@ -1591,6 +1713,18 @@ uint32_t ros_accel_with_covariance_stamped_get_stamp_nanosec(const ros_accel_wit
 const char* ros_accel_with_covariance_stamped_get_frame_id(const ros_accel_with_covariance_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_accel_with_covariance_stamped_as_cdr(const ros_accel_with_covariance_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for ros_accel_with_covariance_stamped_t messages. */
+typedef struct ros_accel_with_covariance_stamped_builder_s ros_accel_with_covariance_stamped_builder_t;
+ros_accel_with_covariance_stamped_builder_t* ros_accel_with_covariance_stamped_builder_new(void);
+void ros_accel_with_covariance_stamped_builder_free(ros_accel_with_covariance_stamped_builder_t* b);
+void ros_accel_with_covariance_stamped_builder_set_stamp(ros_accel_with_covariance_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_accel_with_covariance_stamped_builder_set_frame_id(ros_accel_with_covariance_stamped_builder_t* b, const char* s);
+void ros_accel_with_covariance_stamped_builder_set_linear_acceleration(ros_accel_with_covariance_stamped_builder_t* b, double x, double y, double z);
+void ros_accel_with_covariance_stamped_builder_set_angular_acceleration(ros_accel_with_covariance_stamped_builder_t* b, double x, double y, double z);
+int  ros_accel_with_covariance_stamped_builder_set_covariance(ros_accel_with_covariance_stamped_builder_t* b, const double* cov);
+int  ros_accel_with_covariance_stamped_builder_build(ros_accel_with_covariance_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_accel_with_covariance_stamped_builder_encode_into(ros_accel_with_covariance_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ============================================================================
  * geometry_msgs - Polygon (buffer-backed, sequence type)
@@ -1610,6 +1744,22 @@ int ros_polygon_get_point(const ros_polygon_t* view, size_t index,
                           float* x, float* y, float* z);
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_polygon_as_cdr(const ros_polygon_t* view, size_t* out_len);
+/** @brief Opaque builder handle for ros_polygon_t messages. */
+typedef struct ros_polygon_builder_s ros_polygon_builder_t;
+ros_polygon_builder_t* ros_polygon_builder_new(void);
+void ros_polygon_builder_free(ros_polygon_builder_t* b);
+/**
+ * @brief Set the polygon vertices.
+ *
+ *  @p xyz points at @p count contiguous Point32 values (x, y, z per point;
+ *  @p count * 3 floats). The pointer is borrowed and must stay valid until
+ *  build/encode_into. Passing NULL with count == 0 clears the points; NULL
+ *  with count > 0 returns -1 (errno: EINVAL). Returns 0 on success.
+ */
+int  ros_polygon_builder_set_points(ros_polygon_builder_t* b, const float* xyz, size_t count);
+int  ros_polygon_builder_build(ros_polygon_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_polygon_builder_encode_into(ros_polygon_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ============================================================================
  * geometry_msgs - PolygonStamped (buffer-backed)
@@ -1635,6 +1785,24 @@ int ros_polygon_stamped_get_point(const ros_polygon_stamped_t* view, size_t inde
                                   float* x, float* y, float* z);
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_polygon_stamped_as_cdr(const ros_polygon_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for ros_polygon_stamped_t messages. */
+typedef struct ros_polygon_stamped_builder_s ros_polygon_stamped_builder_t;
+ros_polygon_stamped_builder_t* ros_polygon_stamped_builder_new(void);
+void ros_polygon_stamped_builder_free(ros_polygon_stamped_builder_t* b);
+void ros_polygon_stamped_builder_set_stamp(ros_polygon_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_polygon_stamped_builder_set_frame_id(ros_polygon_stamped_builder_t* b, const char* s);
+/**
+ * @brief Set the polygon vertices.
+ *
+ *  @p xyz points at @p count contiguous Point32 values (x, y, z per point;
+ *  @p count * 3 floats). The pointer is borrowed and must stay valid until
+ *  build/encode_into. Passing NULL with count == 0 clears the points; NULL
+ *  with count > 0 returns -1 (errno: EINVAL). Returns 0 on success.
+ */
+int  ros_polygon_stamped_builder_set_points(ros_polygon_stamped_builder_t* b, const float* xyz, size_t count);
+int  ros_polygon_stamped_builder_build(ros_polygon_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_polygon_stamped_builder_encode_into(ros_polygon_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ============================================================================
  * geometry_msgs - PoseArray (buffer-backed)
@@ -1661,6 +1829,24 @@ int ros_pose_array_get_pose(const ros_pose_array_t* view, size_t index,
                             double* ox, double* oy, double* oz, double* ow);
 /** @brief Borrow raw CDR bytes from the handle. */
 const uint8_t* ros_pose_array_as_cdr(const ros_pose_array_t* view, size_t* out_len);
+/** @brief Opaque builder handle for ros_pose_array_t messages. */
+typedef struct ros_pose_array_builder_s ros_pose_array_builder_t;
+ros_pose_array_builder_t* ros_pose_array_builder_new(void);
+void ros_pose_array_builder_free(ros_pose_array_builder_t* b);
+void ros_pose_array_builder_set_stamp(ros_pose_array_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_pose_array_builder_set_frame_id(ros_pose_array_builder_t* b, const char* s);
+/**
+ * @brief Set the pose sequence.
+ *
+ *  @p poses points at @p count contiguous Pose values (7 doubles per pose:
+ *  px, py, pz, ox, oy, oz, ow). The pointer is borrowed and must stay valid
+ *  until build/encode_into. Passing NULL with count == 0 clears the poses;
+ *  NULL with count > 0 returns -1 (errno: EINVAL). Returns 0 on success.
+ */
+int  ros_pose_array_builder_set_poses(ros_pose_array_builder_t* b, const double* poses, size_t count);
+int  ros_pose_array_builder_build(ros_pose_array_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_pose_array_builder_encode_into(ros_pose_array_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ============================================================================
  * edgefirst_msgs - RadarCube (buffer-backed)
@@ -2967,7 +3153,7 @@ int  ros_time_reference_builder_encode_into(ros_time_reference_builder_t* b,
                                             size_t* out_len);
 
 /* =========================================================================
- * nav_msgs/Odometry  (buffer-backed, decode-only)
+ * nav_msgs/Odometry  (buffer-backed)
  * =========================================================================
  */
 typedef struct ros_odometry_t ros_odometry_t;
@@ -2987,6 +3173,24 @@ void ros_odometry_get_twist(const ros_odometry_t* view,
                             double* ax, double* ay, double* az);
 void ros_odometry_get_twist_covariance(const ros_odometry_t* view, double* out);
 const uint8_t* ros_odometry_as_cdr(const ros_odometry_t* view, size_t* out_len);
+/** @brief Opaque builder handle for ros_odometry_t messages. */
+typedef struct ros_odometry_builder_s ros_odometry_builder_t;
+ros_odometry_builder_t* ros_odometry_builder_new(void);
+void ros_odometry_builder_free(ros_odometry_builder_t* b);
+void ros_odometry_builder_set_stamp(ros_odometry_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_odometry_builder_set_frame_id(ros_odometry_builder_t* b, const char* s);
+int  ros_odometry_builder_set_child_frame_id(ros_odometry_builder_t* b, const char* s);
+void ros_odometry_builder_set_pose(ros_odometry_builder_t* b,
+                                   double px, double py, double pz,
+                                   double ox, double oy, double oz, double ow);
+int  ros_odometry_builder_set_pose_covariance(ros_odometry_builder_t* b, const double* cov);
+void ros_odometry_builder_set_twist(ros_odometry_builder_t* b,
+                                    double lx, double ly, double lz,
+                                    double ax, double ay, double az);
+int  ros_odometry_builder_set_twist_covariance(ros_odometry_builder_t* b, const double* cov);
+int  ros_odometry_builder_build(ros_odometry_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_odometry_builder_encode_into(ros_odometry_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* =========================================================================
  * nav_msgs/MapMetaData  (CdrFixed — encode/decode)
@@ -5709,6 +5913,21 @@ float ros_mavros_altitude_get_local(const ros_mavros_altitude_t* view);
 float ros_mavros_altitude_get_relative(const ros_mavros_altitude_t* view);
 float ros_mavros_altitude_get_terrain(const ros_mavros_altitude_t* view);
 float ros_mavros_altitude_get_bottom_clearance(const ros_mavros_altitude_t* view);
+/** @brief Opaque builder handle for ros_mavros_altitude_t messages. */
+typedef struct ros_mavros_altitude_builder_s ros_mavros_altitude_builder_t;
+ros_mavros_altitude_builder_t* ros_mavros_altitude_builder_new(void);
+void ros_mavros_altitude_builder_free(ros_mavros_altitude_builder_t* b);
+void ros_mavros_altitude_builder_set_stamp(ros_mavros_altitude_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_mavros_altitude_builder_set_frame_id(ros_mavros_altitude_builder_t* b, const char* s);
+void ros_mavros_altitude_builder_set_monotonic(ros_mavros_altitude_builder_t* b, float v);
+void ros_mavros_altitude_builder_set_amsl(ros_mavros_altitude_builder_t* b, float v);
+void ros_mavros_altitude_builder_set_local(ros_mavros_altitude_builder_t* b, float v);
+void ros_mavros_altitude_builder_set_relative(ros_mavros_altitude_builder_t* b, float v);
+void ros_mavros_altitude_builder_set_terrain(ros_mavros_altitude_builder_t* b, float v);
+void ros_mavros_altitude_builder_set_bottom_clearance(ros_mavros_altitude_builder_t* b, float v);
+int  ros_mavros_altitude_builder_build(ros_mavros_altitude_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_mavros_altitude_builder_encode_into(ros_mavros_altitude_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ── VfrHud ───────────────────────────────────────────────────────────── */
 
@@ -5727,6 +5946,21 @@ int16_t ros_mavros_vfrhud_get_heading(const ros_mavros_vfrhud_t* view);
 float ros_mavros_vfrhud_get_throttle(const ros_mavros_vfrhud_t* view);
 float ros_mavros_vfrhud_get_altitude(const ros_mavros_vfrhud_t* view);
 float ros_mavros_vfrhud_get_climb(const ros_mavros_vfrhud_t* view);
+/** @brief Opaque builder handle for ros_mavros_vfrhud_t messages. */
+typedef struct ros_mavros_vfrhud_builder_s ros_mavros_vfrhud_builder_t;
+ros_mavros_vfrhud_builder_t* ros_mavros_vfrhud_builder_new(void);
+void ros_mavros_vfrhud_builder_free(ros_mavros_vfrhud_builder_t* b);
+void ros_mavros_vfrhud_builder_set_stamp(ros_mavros_vfrhud_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_mavros_vfrhud_builder_set_frame_id(ros_mavros_vfrhud_builder_t* b, const char* s);
+void ros_mavros_vfrhud_builder_set_airspeed(ros_mavros_vfrhud_builder_t* b, float v);
+void ros_mavros_vfrhud_builder_set_groundspeed(ros_mavros_vfrhud_builder_t* b, float v);
+void ros_mavros_vfrhud_builder_set_heading(ros_mavros_vfrhud_builder_t* b, int16_t v);
+void ros_mavros_vfrhud_builder_set_throttle(ros_mavros_vfrhud_builder_t* b, float v);
+void ros_mavros_vfrhud_builder_set_altitude(ros_mavros_vfrhud_builder_t* b, float v);
+void ros_mavros_vfrhud_builder_set_climb(ros_mavros_vfrhud_builder_t* b, float v);
+int  ros_mavros_vfrhud_builder_build(ros_mavros_vfrhud_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_mavros_vfrhud_builder_encode_into(ros_mavros_vfrhud_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ── EstimatorStatus ──────────────────────────────────────────────────── */
 
@@ -5751,6 +5985,27 @@ bool ros_mavros_estimator_status_get_pred_pos_horiz_rel_status_flag(const ros_ma
 bool ros_mavros_estimator_status_get_pred_pos_horiz_abs_status_flag(const ros_mavros_estimator_status_t* view);
 bool ros_mavros_estimator_status_get_gps_glitch_status_flag(const ros_mavros_estimator_status_t* view);
 bool ros_mavros_estimator_status_get_accel_error_status_flag(const ros_mavros_estimator_status_t* view);
+/** @brief Opaque builder handle for ros_mavros_estimator_status_t messages. */
+typedef struct ros_mavros_estimator_status_builder_s ros_mavros_estimator_status_builder_t;
+ros_mavros_estimator_status_builder_t* ros_mavros_estimator_status_builder_new(void);
+void ros_mavros_estimator_status_builder_free(ros_mavros_estimator_status_builder_t* b);
+void ros_mavros_estimator_status_builder_set_stamp(ros_mavros_estimator_status_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_mavros_estimator_status_builder_set_frame_id(ros_mavros_estimator_status_builder_t* b, const char* s);
+void ros_mavros_estimator_status_builder_set_attitude_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
+void ros_mavros_estimator_status_builder_set_velocity_horiz_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
+void ros_mavros_estimator_status_builder_set_velocity_vert_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
+void ros_mavros_estimator_status_builder_set_pos_horiz_rel_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
+void ros_mavros_estimator_status_builder_set_pos_horiz_abs_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
+void ros_mavros_estimator_status_builder_set_pos_vert_abs_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
+void ros_mavros_estimator_status_builder_set_pos_vert_agl_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
+int  ros_mavros_estimator_status_builder_set_const_pos_mode_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
+void ros_mavros_estimator_status_builder_set_pred_pos_horiz_rel_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
+void ros_mavros_estimator_status_builder_set_pred_pos_horiz_abs_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
+void ros_mavros_estimator_status_builder_set_gps_glitch_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
+void ros_mavros_estimator_status_builder_set_accel_error_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
+int  ros_mavros_estimator_status_builder_build(ros_mavros_estimator_status_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_mavros_estimator_status_builder_encode_into(ros_mavros_estimator_status_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ── ExtendedState ────────────────────────────────────────────────────── */
 
@@ -5779,6 +6034,17 @@ uint32_t ros_mavros_extended_state_get_stamp_nanosec(const ros_mavros_extended_s
 const char* ros_mavros_extended_state_get_frame_id(const ros_mavros_extended_state_t* view);
 uint8_t ros_mavros_extended_state_get_vtol_state(const ros_mavros_extended_state_t* view);
 uint8_t ros_mavros_extended_state_get_landed_state(const ros_mavros_extended_state_t* view);
+/** @brief Opaque builder handle for ros_mavros_extended_state_t messages. */
+typedef struct ros_mavros_extended_state_builder_s ros_mavros_extended_state_builder_t;
+ros_mavros_extended_state_builder_t* ros_mavros_extended_state_builder_new(void);
+void ros_mavros_extended_state_builder_free(ros_mavros_extended_state_builder_t* b);
+void ros_mavros_extended_state_builder_set_stamp(ros_mavros_extended_state_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_mavros_extended_state_builder_set_frame_id(ros_mavros_extended_state_builder_t* b, const char* s);
+void ros_mavros_extended_state_builder_set_vtol_state(ros_mavros_extended_state_builder_t* b, uint8_t v);
+void ros_mavros_extended_state_builder_set_landed_state(ros_mavros_extended_state_builder_t* b, uint8_t v);
+int  ros_mavros_extended_state_builder_build(ros_mavros_extended_state_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_mavros_extended_state_builder_encode_into(ros_mavros_extended_state_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ── SysStatus ────────────────────────────────────────────────────────── */
 
@@ -5823,6 +6089,28 @@ uint16_t ros_mavros_sys_status_get_errors_count2(const ros_mavros_sys_status_t* 
 uint16_t ros_mavros_sys_status_get_errors_count3(const ros_mavros_sys_status_t* view);
 /** @brief Autopilot-specific error count 4. */
 uint16_t ros_mavros_sys_status_get_errors_count4(const ros_mavros_sys_status_t* view);
+/** @brief Opaque builder handle for ros_mavros_sys_status_t messages. */
+typedef struct ros_mavros_sys_status_builder_s ros_mavros_sys_status_builder_t;
+ros_mavros_sys_status_builder_t* ros_mavros_sys_status_builder_new(void);
+void ros_mavros_sys_status_builder_free(ros_mavros_sys_status_builder_t* b);
+void ros_mavros_sys_status_builder_set_stamp(ros_mavros_sys_status_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_mavros_sys_status_builder_set_frame_id(ros_mavros_sys_status_builder_t* b, const char* s);
+void ros_mavros_sys_status_builder_set_sensors_present(ros_mavros_sys_status_builder_t* b, uint32_t v);
+void ros_mavros_sys_status_builder_set_sensors_enabled(ros_mavros_sys_status_builder_t* b, uint32_t v);
+void ros_mavros_sys_status_builder_set_sensors_health(ros_mavros_sys_status_builder_t* b, uint32_t v);
+void ros_mavros_sys_status_builder_set_load(ros_mavros_sys_status_builder_t* b, uint16_t v);
+void ros_mavros_sys_status_builder_set_voltage_battery(ros_mavros_sys_status_builder_t* b, uint16_t v);
+void ros_mavros_sys_status_builder_set_current_battery(ros_mavros_sys_status_builder_t* b, int16_t v);
+void ros_mavros_sys_status_builder_set_battery_remaining(ros_mavros_sys_status_builder_t* b, int8_t v);
+void ros_mavros_sys_status_builder_set_drop_rate_comm(ros_mavros_sys_status_builder_t* b, uint16_t v);
+void ros_mavros_sys_status_builder_set_errors_comm(ros_mavros_sys_status_builder_t* b, uint16_t v);
+void ros_mavros_sys_status_builder_set_errors_count1(ros_mavros_sys_status_builder_t* b, uint16_t v);
+void ros_mavros_sys_status_builder_set_errors_count2(ros_mavros_sys_status_builder_t* b, uint16_t v);
+void ros_mavros_sys_status_builder_set_errors_count3(ros_mavros_sys_status_builder_t* b, uint16_t v);
+void ros_mavros_sys_status_builder_set_errors_count4(ros_mavros_sys_status_builder_t* b, uint16_t v);
+int  ros_mavros_sys_status_builder_build(ros_mavros_sys_status_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_mavros_sys_status_builder_encode_into(ros_mavros_sys_status_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ── State ────────────────────────────────────────────────────────────── */
 
@@ -5852,6 +6140,21 @@ bool ros_mavros_state_get_guided(const ros_mavros_state_t* view);
 bool ros_mavros_state_get_manual_input(const ros_mavros_state_t* view);
 const char* ros_mavros_state_get_mode(const ros_mavros_state_t* view);
 uint8_t ros_mavros_state_get_system_status(const ros_mavros_state_t* view);
+/** @brief Opaque builder handle for ros_mavros_state_t messages. */
+typedef struct ros_mavros_state_builder_s ros_mavros_state_builder_t;
+ros_mavros_state_builder_t* ros_mavros_state_builder_new(void);
+void ros_mavros_state_builder_free(ros_mavros_state_builder_t* b);
+void ros_mavros_state_builder_set_stamp(ros_mavros_state_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_mavros_state_builder_set_frame_id(ros_mavros_state_builder_t* b, const char* s);
+void ros_mavros_state_builder_set_connected(ros_mavros_state_builder_t* b, bool v);
+void ros_mavros_state_builder_set_armed(ros_mavros_state_builder_t* b, bool v);
+void ros_mavros_state_builder_set_guided(ros_mavros_state_builder_t* b, bool v);
+void ros_mavros_state_builder_set_manual_input(ros_mavros_state_builder_t* b, bool v);
+int  ros_mavros_state_builder_set_mode(ros_mavros_state_builder_t* b, const char* s);
+void ros_mavros_state_builder_set_system_status(ros_mavros_state_builder_t* b, uint8_t v);
+int  ros_mavros_state_builder_build(ros_mavros_state_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_mavros_state_builder_encode_into(ros_mavros_state_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ── StatusText ───────────────────────────────────────────────────────── */
 
@@ -5876,6 +6179,17 @@ uint32_t ros_mavros_status_text_get_stamp_nanosec(const ros_mavros_status_text_t
 const char* ros_mavros_status_text_get_frame_id(const ros_mavros_status_text_t* view);
 uint8_t ros_mavros_status_text_get_severity(const ros_mavros_status_text_t* view);
 const char* ros_mavros_status_text_get_text(const ros_mavros_status_text_t* view);
+/** @brief Opaque builder handle for ros_mavros_status_text_t messages. */
+typedef struct ros_mavros_status_text_builder_s ros_mavros_status_text_builder_t;
+ros_mavros_status_text_builder_t* ros_mavros_status_text_builder_new(void);
+void ros_mavros_status_text_builder_free(ros_mavros_status_text_builder_t* b);
+void ros_mavros_status_text_builder_set_stamp(ros_mavros_status_text_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_mavros_status_text_builder_set_frame_id(ros_mavros_status_text_builder_t* b, const char* s);
+void ros_mavros_status_text_builder_set_severity(ros_mavros_status_text_builder_t* b, uint8_t v);
+int  ros_mavros_status_text_builder_set_text(ros_mavros_status_text_builder_t* b, const char* s);
+int  ros_mavros_status_text_builder_build(ros_mavros_status_text_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_mavros_status_text_builder_encode_into(ros_mavros_status_text_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ── GpsRaw ───────────────────────────────────────────────────────────── */
 
@@ -5939,6 +6253,32 @@ uint16_t ros_mavros_gps_raw_get_yaw(const ros_mavros_gps_raw_t* view);
 uint8_t ros_mavros_gps_raw_get_dgps_numch(const ros_mavros_gps_raw_t* view);
 /** @brief Age of DGPS correction in milliseconds (ms). */
 uint32_t ros_mavros_gps_raw_get_dgps_age(const ros_mavros_gps_raw_t* view);
+/** @brief Opaque builder handle for ros_mavros_gps_raw_t messages. */
+typedef struct ros_mavros_gps_raw_builder_s ros_mavros_gps_raw_builder_t;
+ros_mavros_gps_raw_builder_t* ros_mavros_gps_raw_builder_new(void);
+void ros_mavros_gps_raw_builder_free(ros_mavros_gps_raw_builder_t* b);
+void ros_mavros_gps_raw_builder_set_stamp(ros_mavros_gps_raw_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_mavros_gps_raw_builder_set_frame_id(ros_mavros_gps_raw_builder_t* b, const char* s);
+void ros_mavros_gps_raw_builder_set_fix_type(ros_mavros_gps_raw_builder_t* b, uint8_t v);
+void ros_mavros_gps_raw_builder_set_lat(ros_mavros_gps_raw_builder_t* b, int32_t v);
+void ros_mavros_gps_raw_builder_set_lon(ros_mavros_gps_raw_builder_t* b, int32_t v);
+void ros_mavros_gps_raw_builder_set_alt(ros_mavros_gps_raw_builder_t* b, int32_t v);
+void ros_mavros_gps_raw_builder_set_eph(ros_mavros_gps_raw_builder_t* b, uint16_t v);
+void ros_mavros_gps_raw_builder_set_epv(ros_mavros_gps_raw_builder_t* b, uint16_t v);
+void ros_mavros_gps_raw_builder_set_vel(ros_mavros_gps_raw_builder_t* b, uint16_t v);
+void ros_mavros_gps_raw_builder_set_cog(ros_mavros_gps_raw_builder_t* b, uint16_t v);
+void ros_mavros_gps_raw_builder_set_satellites_visible(ros_mavros_gps_raw_builder_t* b, uint8_t v);
+void ros_mavros_gps_raw_builder_set_alt_ellipsoid(ros_mavros_gps_raw_builder_t* b, int32_t v);
+void ros_mavros_gps_raw_builder_set_h_acc(ros_mavros_gps_raw_builder_t* b, uint32_t v);
+void ros_mavros_gps_raw_builder_set_v_acc(ros_mavros_gps_raw_builder_t* b, uint32_t v);
+void ros_mavros_gps_raw_builder_set_vel_acc(ros_mavros_gps_raw_builder_t* b, uint32_t v);
+void ros_mavros_gps_raw_builder_set_hdg_acc(ros_mavros_gps_raw_builder_t* b, int32_t v);
+void ros_mavros_gps_raw_builder_set_yaw(ros_mavros_gps_raw_builder_t* b, uint16_t v);
+void ros_mavros_gps_raw_builder_set_dgps_numch(ros_mavros_gps_raw_builder_t* b, uint8_t v);
+void ros_mavros_gps_raw_builder_set_dgps_age(ros_mavros_gps_raw_builder_t* b, uint32_t v);
+int  ros_mavros_gps_raw_builder_build(ros_mavros_gps_raw_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_mavros_gps_raw_builder_encode_into(ros_mavros_gps_raw_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /* ── TimesyncStatus ───────────────────────────────────────────────────── */
 
@@ -5955,6 +6295,19 @@ uint64_t ros_mavros_timesync_status_get_remote_timestamp_ns(const ros_mavros_tim
 int64_t ros_mavros_timesync_status_get_observed_offset_ns(const ros_mavros_timesync_status_t* view);
 int64_t ros_mavros_timesync_status_get_estimated_offset_ns(const ros_mavros_timesync_status_t* view);
 float ros_mavros_timesync_status_get_round_trip_time_ms(const ros_mavros_timesync_status_t* view);
+/** @brief Opaque builder handle for ros_mavros_timesync_status_t messages. */
+typedef struct ros_mavros_timesync_status_builder_s ros_mavros_timesync_status_builder_t;
+ros_mavros_timesync_status_builder_t* ros_mavros_timesync_status_builder_new(void);
+void ros_mavros_timesync_status_builder_free(ros_mavros_timesync_status_builder_t* b);
+void ros_mavros_timesync_status_builder_set_stamp(ros_mavros_timesync_status_builder_t* b, int32_t sec, uint32_t nanosec);
+int  ros_mavros_timesync_status_builder_set_frame_id(ros_mavros_timesync_status_builder_t* b, const char* s);
+void ros_mavros_timesync_status_builder_set_remote_timestamp_ns(ros_mavros_timesync_status_builder_t* b, uint64_t v);
+void ros_mavros_timesync_status_builder_set_observed_offset_ns(ros_mavros_timesync_status_builder_t* b, int64_t v);
+void ros_mavros_timesync_status_builder_set_estimated_offset_ns(ros_mavros_timesync_status_builder_t* b, int64_t v);
+void ros_mavros_timesync_status_builder_set_round_trip_time_ms(ros_mavros_timesync_status_builder_t* b, float v);
+int  ros_mavros_timesync_status_builder_build(ros_mavros_timesync_status_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  ros_mavros_timesync_status_builder_encode_into(ros_mavros_timesync_status_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+
 
 /** @} */ /* end defgroup mavros_msgs */
 

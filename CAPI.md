@@ -191,7 +191,31 @@ represented as opaque handles wrapping an internal CDR byte buffer.
 | CameraInfo | sensor_msgs |
 | RelativeHumidity | sensor_msgs |
 | TimeReference | sensor_msgs |
+| AccelStamped | geometry_msgs |
+| TwistStamped | geometry_msgs |
+| InertiaStamped | geometry_msgs |
+| PointStamped | geometry_msgs |
+| Vector3Stamped | geometry_msgs |
+| PoseStamped | geometry_msgs |
+| QuaternionStamped | geometry_msgs |
+| WrenchStamped | geometry_msgs |
+| PoseWithCovarianceStamped | geometry_msgs |
+| TwistWithCovarianceStamped | geometry_msgs |
+| AccelWithCovarianceStamped | geometry_msgs |
 | TransformStamped | geometry_msgs |
+| Polygon | geometry_msgs |
+| PolygonStamped | geometry_msgs |
+| PoseArray | geometry_msgs |
+| Odometry | nav_msgs |
+| Altitude | mavros_msgs |
+| VfrHud | mavros_msgs |
+| EstimatorStatus | mavros_msgs |
+| ExtendedState | mavros_msgs |
+| SysStatus | mavros_msgs |
+| State | mavros_msgs |
+| StatusText | mavros_msgs |
+| GpsRaw | mavros_msgs |
+| TimesyncStatus | mavros_msgs |
 | GridCells | nav_msgs |
 | OccupancyGrid | nav_msgs |
 | Path | nav_msgs |
@@ -805,7 +829,62 @@ int  ros_time_reference_builder_encode_into(ros_time_reference_builder_t* b,
 
 ### geometry_msgs — Buffer-backed
 
+All 15 buffer-backed geometry types expose the same builder stack:
+`ros_<type>_builder_{new,free,set_*,build,encode_into}`. There is no
+one-shot `ros_<type>_encode` for these messages. Builder calls return 0 on
+success, -1 on error (`errno`: `EINVAL` for NULL or invalid UTF-8,
+`ENOBUFS` for a short `encode_into` buffer, `EBADMSG` for encoding failure).
+Call `ros_bytes_free(*out_bytes)` after `build`.
+
+#### AccelStamped (template for simple stamped types)
+
+Simple stamped types (`TwistStamped`, `InertiaStamped`, `PointStamped`,
+`Vector3Stamped`, `PoseStamped`, `QuaternionStamped`, `WrenchStamped`,
+`PoseWithCovarianceStamped`, `TwistWithCovarianceStamped`,
+`AccelWithCovarianceStamped`) follow the same header + payload pattern.
+Only the payload setters differ; see `schemas.h` for the full list.
+
+```c
+ros_accel_stamped_t* ros_accel_stamped_from_cdr(const uint8_t* data, size_t len);
+void ros_accel_stamped_free(ros_accel_stamped_t* view);
+
+int32_t     ros_accel_stamped_get_stamp_sec(const ros_accel_stamped_t* view);
+uint32_t    ros_accel_stamped_get_stamp_nanosec(const ros_accel_stamped_t* view);
+const char* ros_accel_stamped_get_frame_id(const ros_accel_stamped_t* view);
+
+const uint8_t* ros_accel_stamped_as_cdr(const ros_accel_stamped_t* view,
+                                          size_t* out_len);
+```
+
+**Builder:**
+
+```c
+ros_accel_stamped_builder_t* ros_accel_stamped_builder_new(void);
+void ros_accel_stamped_builder_free(ros_accel_stamped_builder_t* b);
+
+void ros_accel_stamped_builder_set_stamp(ros_accel_stamped_builder_t* b,
+                                         int32_t sec, uint32_t nanosec);
+int  ros_accel_stamped_builder_set_frame_id(ros_accel_stamped_builder_t* b,
+                                            const char* s);
+void ros_accel_stamped_builder_set_linear_acceleration(ros_accel_stamped_builder_t* b,
+                                                       double x, double y, double z);
+void ros_accel_stamped_builder_set_angular_acceleration(ros_accel_stamped_builder_t* b,
+                                                        double x, double y, double z);
+
+int  ros_accel_stamped_builder_build(ros_accel_stamped_builder_t* b,
+                                    uint8_t** out_bytes, size_t* out_len);
+int  ros_accel_stamped_builder_encode_into(ros_accel_stamped_builder_t* b,
+                                           uint8_t* buf, size_t cap, size_t* out_len);
+```
+
+Covariance stamped types take `ros_*_builder_set_covariance(b, cov)` with a
+36-element `double` array (copied into the builder). `InertiaStamped` uses
+field-wise inertia setters (`set_m`, `set_com`, `set_ixx`, …).
+
 #### TransformStamped
+
+Adds `child_frame_id` and transform translation/rotation setters on top of
+the stamped header pattern.
 
 ```c
 ros_transform_stamped_t* ros_transform_stamped_from_cdr(const uint8_t* data,
@@ -820,6 +899,105 @@ const char* ros_transform_stamped_get_child_frame_id(const ros_transform_stamped
 const uint8_t* ros_transform_stamped_as_cdr(const ros_transform_stamped_t* view,
                                              size_t* out_len);
 ```
+
+**Builder:**
+
+```c
+ros_transform_stamped_builder_t* ros_transform_stamped_builder_new(void);
+void ros_transform_stamped_builder_free(ros_transform_stamped_builder_t* b);
+
+void ros_transform_stamped_builder_set_stamp(ros_transform_stamped_builder_t* b,
+                                             int32_t sec, uint32_t nanosec);
+int  ros_transform_stamped_builder_set_frame_id(ros_transform_stamped_builder_t* b,
+                                                const char* s);
+int  ros_transform_stamped_builder_set_child_frame_id(ros_transform_stamped_builder_t* b,
+                                                      const char* s);
+void ros_transform_stamped_builder_set_translation(ros_transform_stamped_builder_t* b,
+                                                   double x, double y, double z);
+void ros_transform_stamped_builder_set_rotation(ros_transform_stamped_builder_t* b,
+                                                double x, double y, double z, double w);
+
+int  ros_transform_stamped_builder_build(ros_transform_stamped_builder_t* b,
+                                         uint8_t** out_bytes, size_t* out_len);
+int  ros_transform_stamped_builder_encode_into(ros_transform_stamped_builder_t* b,
+                                               uint8_t* buf, size_t cap, size_t* out_len);
+```
+
+#### Polygon / PolygonStamped / PoseArray (sequences)
+
+Sequence setters borrow their argument until `build` or `encode_into`:
+
+```c
+/* count = number of Point32 vertices; xyz = count * 3 contiguous floats */
+int ros_polygon_builder_set_points(ros_polygon_builder_t* b,
+                                   const float* xyz, size_t count);
+
+/* count = number of Pose elements; poses = count * 7 contiguous doubles
+   (px, py, pz, ox, oy, oz, ow per pose) */
+int ros_pose_array_builder_set_poses(ros_pose_array_builder_t* b,
+                                     const double* poses, size_t count);
+```
+
+`PolygonStamped` combines the stamped header with `set_points`. See
+`schemas.h` for `ros_polygon_*` and `ros_pose_array_*` view and builder
+entry points.
+
+---
+
+### nav_msgs — Buffer-backed
+
+#### Odometry
+
+```c
+ros_odometry_t* ros_odometry_from_cdr(const uint8_t* data, size_t len);
+void            ros_odometry_free(ros_odometry_t* view);
+
+int32_t     ros_odometry_get_stamp_sec(const ros_odometry_t* view);
+uint32_t    ros_odometry_get_stamp_nanosec(const ros_odometry_t* view);
+const char* ros_odometry_get_frame_id(const ros_odometry_t* view);
+const char* ros_odometry_get_child_frame_id(const ros_odometry_t* view);
+
+void ros_odometry_get_pose(const ros_odometry_t* view,
+                           double* px, double* py, double* pz,
+                           double* ox, double* oy, double* oz, double* ow);
+void ros_odometry_get_pose_covariance(const ros_odometry_t* view, double* out);
+void ros_odometry_get_twist(const ros_odometry_t* view,
+                            double* lx, double* ly, double* lz,
+                            double* ax, double* ay, double* az);
+void ros_odometry_get_twist_covariance(const ros_odometry_t* view, double* out);
+
+const uint8_t* ros_odometry_as_cdr(const ros_odometry_t* view, size_t* out_len);
+```
+
+**Builder:**
+
+```c
+ros_odometry_builder_t* ros_odometry_builder_new(void);
+void ros_odometry_builder_free(ros_odometry_builder_t* b);
+
+void ros_odometry_builder_set_stamp(ros_odometry_builder_t* b,
+                                    int32_t sec, uint32_t nanosec);
+int  ros_odometry_builder_set_frame_id(ros_odometry_builder_t* b, const char* s);
+int  ros_odometry_builder_set_child_frame_id(ros_odometry_builder_t* b, const char* s);
+void ros_odometry_builder_set_pose(ros_odometry_builder_t* b,
+                                   double px, double py, double pz,
+                                   double ox, double oy, double oz, double ow);
+int  ros_odometry_builder_set_pose_covariance(ros_odometry_builder_t* b,
+                                              const double* cov);
+void ros_odometry_builder_set_twist(ros_odometry_builder_t* b,
+                                    double lx, double ly, double lz,
+                                    double ax, double ay, double az);
+int  ros_odometry_builder_set_twist_covariance(ros_odometry_builder_t* b,
+                                               const double* cov);
+
+int  ros_odometry_builder_build(ros_odometry_builder_t* b,
+                                uint8_t** out_bytes, size_t* out_len);
+int  ros_odometry_builder_encode_into(ros_odometry_builder_t* b,
+                                      uint8_t* buf, size_t cap, size_t* out_len);
+```
+
+`set_*_covariance` copies 36 doubles into the builder (same layout as
+`ros_odometry_get_pose_covariance` / `get_twist_covariance`).
 
 ---
 
@@ -1016,6 +1194,60 @@ int  ros_path_builder_encode_into(ros_path_builder_t* b,
 ```
 
 Unlike other builders, Path uses an accumulator: call `ros_path_builder_add_pose` once per waypoint before calling `build` or `encode_into`. Each call copies `frame_id` into the builder. Returns 0 on success, -1 (errno: `EINVAL`) if `b` is `NULL` or `frame_id` is `NULL` / not valid UTF-8.
+
+---
+
+### mavros_msgs — Buffer-backed
+
+All nine mavros buffer-backed types use the `ros_mavros_<type>_builder_*`
+prefix (not `ros_altitude_*`). There is no one-shot encode; use the builder
+stack with the same errno conventions as geometry builders.
+
+#### Altitude (template)
+
+Other mavros types (`VfrHud`, `EstimatorStatus`, `ExtendedState`,
+`SysStatus`, `State`, `StatusText`, `GpsRaw`, `TimesyncStatus`) follow the
+same view + builder pattern; see `schemas.h` for the full setter list.
+
+```c
+ros_mavros_altitude_t* ros_mavros_altitude_from_cdr(const uint8_t* data, size_t len);
+void                   ros_mavros_altitude_free(ros_mavros_altitude_t* view);
+
+int32_t     ros_mavros_altitude_get_stamp_sec(const ros_mavros_altitude_t* view);
+uint32_t    ros_mavros_altitude_get_stamp_nanosec(const ros_mavros_altitude_t* view);
+const char* ros_mavros_altitude_get_frame_id(const ros_mavros_altitude_t* view);
+float       ros_mavros_altitude_get_monotonic(const ros_mavros_altitude_t* view);
+float       ros_mavros_altitude_get_amsl(const ros_mavros_altitude_t* view);
+float       ros_mavros_altitude_get_local(const ros_mavros_altitude_t* view);
+float       ros_mavros_altitude_get_relative(const ros_mavros_altitude_t* view);
+float       ros_mavros_altitude_get_terrain(const ros_mavros_altitude_t* view);
+float       ros_mavros_altitude_get_bottom_clearance(const ros_mavros_altitude_t* view);
+
+const uint8_t* ros_mavros_altitude_as_cdr(const ros_mavros_altitude_t* view, size_t* out_len);
+```
+
+**Builder:**
+
+```c
+ros_mavros_altitude_builder_t* ros_mavros_altitude_builder_new(void);
+void ros_mavros_altitude_builder_free(ros_mavros_altitude_builder_t* b);
+
+void ros_mavros_altitude_builder_set_stamp(ros_mavros_altitude_builder_t* b,
+                                           int32_t sec, uint32_t nanosec);
+int  ros_mavros_altitude_builder_set_frame_id(ros_mavros_altitude_builder_t* b,
+                                              const char* s);
+void ros_mavros_altitude_builder_set_monotonic(ros_mavros_altitude_builder_t* b, float v);
+void ros_mavros_altitude_builder_set_amsl(ros_mavros_altitude_builder_t* b, float v);
+void ros_mavros_altitude_builder_set_local(ros_mavros_altitude_builder_t* b, float v);
+void ros_mavros_altitude_builder_set_relative(ros_mavros_altitude_builder_t* b, float v);
+void ros_mavros_altitude_builder_set_terrain(ros_mavros_altitude_builder_t* b, float v);
+void ros_mavros_altitude_builder_set_bottom_clearance(ros_mavros_altitude_builder_t* b, float v);
+
+int  ros_mavros_altitude_builder_build(ros_mavros_altitude_builder_t* b,
+                                       uint8_t** out_bytes, size_t* out_len);
+int  ros_mavros_altitude_builder_encode_into(ros_mavros_altitude_builder_t* b,
+                                            uint8_t* buf, size_t cap, size_t* out_len);
+```
 
 ---
 

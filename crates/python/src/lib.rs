@@ -2708,7 +2708,7 @@ impl PyAccelWithCovariance {
 // ── geometry_msgs stamped types (buffer-backed) ─────────────────────
 
 macro_rules! stamped_boilerplate {
-    ($py_name:ident, $rust_ty:ident, $py_str_name:literal, $mod_name:literal, $payload_getter:ident, $py_payload:ident, $payload_ty:ident, $new_fn:expr, $default_payload:expr) => {
+    ($py_name:ident, $rust_ty:ident, $py_str_name:literal, $mod_name:literal, $payload_getter:ident, $py_payload:ident, $default_payload:expr) => {
         #[pyclass(name = $py_str_name, module = $mod_name, frozen)]
         pub struct $py_name {
             inner: $rust_ty<PyBuf>,
@@ -2722,7 +2722,11 @@ macro_rules! stamped_boilerplate {
                 let stamp = header.inner.stamp();
                 let frame_id = header.inner.frame_id().to_string();
                 let payload = $payload_getter.map(|v| v.0).unwrap_or($default_payload);
-                let inner = $new_fn(stamp, &frame_id, payload)
+                let inner = $rust_ty::builder()
+                    .stamp(stamp)
+                    .frame_id(frame_id.as_str())
+                    .$payload_getter(payload)
+                    .build()
                     .map_err(map_cdr_err)?
                     .map_buffer(PyBuf::Owned);
                 Ok(Self { inner })
@@ -2769,8 +2773,6 @@ stamped_boilerplate!(
     "edgefirst.schemas.geometry_msgs",
     twist,
     PyTwist,
-    Twist,
-    TwistStamped::new,
     Twist {
         linear: Vector3 {
             x: 0.0,
@@ -2791,8 +2793,6 @@ stamped_boilerplate!(
     "edgefirst.schemas.geometry_msgs",
     accel,
     PyAccel,
-    Accel,
-    AccelStamped::new,
     Accel {
         linear: Vector3 {
             x: 0.0,
@@ -2813,8 +2813,6 @@ stamped_boilerplate!(
     "edgefirst.schemas.geometry_msgs",
     inertia,
     PyInertia,
-    Inertia,
-    InertiaStamped::new,
     Inertia {
         m: 0.0,
         com: Vector3 {
@@ -2837,8 +2835,6 @@ stamped_boilerplate!(
     "edgefirst.schemas.geometry_msgs",
     point,
     PyPoint,
-    Point,
-    PointStamped::new,
     Point {
         x: 0.0,
         y: 0.0,
@@ -2853,8 +2849,6 @@ stamped_boilerplate!(
     "edgefirst.schemas.geometry_msgs",
     vector,
     PyVector3,
-    Vector3,
-    Vector3Stamped::new,
     Vector3 {
         x: 0.0,
         y: 0.0,
@@ -2869,8 +2863,6 @@ stamped_boilerplate!(
     "edgefirst.schemas.geometry_msgs",
     pose,
     PyPose,
-    Pose,
-    PoseStamped::new,
     Pose {
         position: Point {
             x: 0.0,
@@ -2893,8 +2885,6 @@ stamped_boilerplate!(
     "edgefirst.schemas.geometry_msgs",
     quaternion,
     PyQuaternion,
-    Quaternion,
-    QuaternionStamped::new,
     Quaternion {
         x: 0.0,
         y: 0.0,
@@ -2910,8 +2900,6 @@ stamped_boilerplate!(
     "edgefirst.schemas.geometry_msgs",
     wrench,
     PyWrench,
-    Wrench,
-    WrenchStamped::new,
     Wrench {
         force: Vector3 {
             x: 0.0,
@@ -2933,8 +2921,6 @@ stamped_boilerplate!(
     "edgefirst.schemas.geometry_msgs",
     pose_with_covariance,
     PyPoseWithCovariance,
-    PoseWithCovariance,
-    PoseWithCovarianceStamped::new,
     PoseWithCovariance {
         pose: Pose {
             position: Point {
@@ -2960,8 +2946,6 @@ stamped_boilerplate!(
     "edgefirst.schemas.geometry_msgs",
     twist_with_covariance,
     PyTwistWithCovariance,
-    TwistWithCovariance,
-    TwistWithCovarianceStamped::new,
     TwistWithCovariance {
         twist: Twist {
             linear: Vector3 {
@@ -2986,8 +2970,6 @@ stamped_boilerplate!(
     "edgefirst.schemas.geometry_msgs",
     accel_with_covariance,
     PyAccelWithCovariance,
-    AccelWithCovariance,
-    AccelWithCovarianceStamped::new,
     AccelWithCovariance {
         accel: Accel {
             linear: Vector3 {
@@ -3040,8 +3022,13 @@ impl PyTransformStamped {
                 w: 1.0,
             },
         });
-        let inner =
-            TransformStamped::new(stamp, &frame_id, child_frame_id, t).map_err(map_cdr_err)?;
+        let inner = TransformStamped::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .child_frame_id(child_frame_id)
+            .transform(t)
+            .build()
+            .map_err(map_cdr_err)?;
         Ok(Self {
             inner: inner.map_buffer(PyBuf::Owned),
         })
@@ -3100,7 +3087,9 @@ impl PyPolygon {
             .into_iter()
             .map(|p| p.0)
             .collect();
-        let inner = Polygon::new(&pts)
+        let inner = Polygon::builder()
+            .points(&pts)
+            .build()
             .map_err(map_cdr_err)?
             .map_buffer(PyBuf::Owned);
         Ok(Self { inner })
@@ -3172,7 +3161,11 @@ impl PyPolygonStamped {
             .into_iter()
             .map(|p| p.0)
             .collect();
-        let inner = PolygonStamped::new(stamp, &frame_id, &pts)
+        let inner = PolygonStamped::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .points(&pts)
+            .build()
             .map_err(map_cdr_err)?
             .map_buffer(PyBuf::Owned);
         Ok(Self { inner })
@@ -3244,7 +3237,11 @@ impl PyPoseArray {
         let stamp = header.inner.stamp();
         let frame_id = header.inner.frame_id().to_string();
         let ps: Vec<Pose> = poses.unwrap_or_default().into_iter().map(|p| p.0).collect();
-        let inner = PoseArray::new(stamp, &frame_id, &ps)
+        let inner = PoseArray::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .poses(&ps)
+            .build()
             .map_err(map_cdr_err)?
             .map_buffer(PyBuf::Owned);
         Ok(Self { inner })

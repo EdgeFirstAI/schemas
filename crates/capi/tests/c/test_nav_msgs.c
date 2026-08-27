@@ -426,3 +426,45 @@ Test(nav_msgs, path_builder_matches_golden) {
     ros_path_builder_free(b);
     free(golden);
 }
+
+Test(nav_msgs, odometry_builder_null) {
+    errno = 0;
+    cr_assert_eq(ros_odometry_builder_set_frame_id(NULL, "x"), -1);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(nav_msgs, odometry_builder_matches_golden) {
+    size_t golden_len = 0;
+    uint8_t *golden = load_fixture_nm("testdata/cdr/nav_msgs/Odometry.cdr", &golden_len);
+    cr_assert_not_null(golden);
+
+    double pose_cov[36] = {0};
+    double twist_cov[36] = {0};
+    for (int i = 0; i < 6; i++) {
+        pose_cov[i * 6 + i] = 0.1 * (i + 1);
+        twist_cov[i * 6 + i] = 0.02 * (i + 1);
+    }
+    pose_cov[1] = 0.01;
+    pose_cov[6] = 0.01;
+    twist_cov[7] = 0.001;
+
+    ros_odometry_builder_t *b = ros_odometry_builder_new();
+    cr_assert_not_null(b);
+    ros_odometry_builder_set_stamp(b, 1234567890, 123456789u);
+    cr_assert_eq(ros_odometry_builder_set_frame_id(b, "test_frame"), 0);
+    cr_assert_eq(ros_odometry_builder_set_child_frame_id(b, "base_link"), 0);
+    ros_odometry_builder_set_pose(b, 1.5, -2.5, 3.0, 0.0, 0.0, 0.0, 1.0);
+    cr_assert_eq(ros_odometry_builder_set_pose_covariance(b, pose_cov), 0);
+    ros_odometry_builder_set_twist(b, 1.0, 2.0, 3.0, 0.1, 0.2, 0.3);
+    cr_assert_eq(ros_odometry_builder_set_twist_covariance(b, twist_cov), 0);
+
+    uint8_t *out = NULL;
+    size_t out_len = 0;
+    cr_assert_eq(ros_odometry_builder_build(b, &out, &out_len), 0);
+    cr_assert_eq(out_len, golden_len);
+    cr_assert_eq(memcmp(out, golden, golden_len), 0);
+
+    ros_bytes_free(out, out_len);
+    ros_odometry_builder_free(b);
+    free(golden);
+}
