@@ -3,9 +3,7 @@
  * @brief Criterion tests for Foxglove messages (FoxgloveCompressedVideo)
  *
  * Buffer-backed type: FoxgloveCompressedVideo
- *   ros_compressed_video_encode(&out_bytes, &out_len, stamp_sec, stamp_nanosec,
- *                                frame_id, data, data_len, format) -> int
- *   ros_compressed_video_from_cdr(data, len) -> ros_compressed_video_t*
+ *   ros_foxglove_compressed_video_builder_* / ros_compressed_video_from_cdr
  *   ros_compressed_video_get_* / ros_compressed_video_free
  *
  * SPDX-License-Identifier: Apache-2.0
@@ -19,6 +17,46 @@
 #include <stdlib.h>
 #include "edgefirst/schemas.h"
 
+static int build_compressed_video(uint8_t **bytes, size_t *len,
+                                  int32_t sec, uint32_t nsec,
+                                  const char *frame_id,
+                                  const uint8_t *data, size_t data_len,
+                                  const char *format) {
+    ros_foxglove_compressed_video_builder_t *b =
+        ros_foxglove_compressed_video_builder_new();
+    if (!b) return -1;
+    ros_foxglove_compressed_video_builder_set_stamp(b, sec, nsec);
+    if (ros_foxglove_compressed_video_builder_set_frame_id(b, frame_id) != 0 ||
+        ros_foxglove_compressed_video_builder_set_data(b, data, data_len) != 0 ||
+        ros_foxglove_compressed_video_builder_set_format(b, format) != 0) {
+        ros_foxglove_compressed_video_builder_free(b);
+        return -1;
+    }
+    int ret = ros_foxglove_compressed_video_builder_build(b, bytes, len);
+    ros_foxglove_compressed_video_builder_free(b);
+    return ret;
+}
+
+static int build_foxglove_compressed_image(uint8_t **bytes, size_t *len,
+                                           int32_t sec, uint32_t nsec,
+                                           const char *frame_id,
+                                           const uint8_t *data, size_t data_len,
+                                           const char *format) {
+    ros_foxglove_compressed_image_builder_t *b =
+        ros_foxglove_compressed_image_builder_new();
+    if (!b) return -1;
+    ros_foxglove_compressed_image_builder_set_stamp(b, sec, nsec);
+    if (ros_foxglove_compressed_image_builder_set_frame_id(b, frame_id) != 0 ||
+        ros_foxglove_compressed_image_builder_set_data(b, data, data_len) != 0 ||
+        ros_foxglove_compressed_image_builder_set_format(b, format) != 0) {
+        ros_foxglove_compressed_image_builder_free(b);
+        return -1;
+    }
+    int ret = ros_foxglove_compressed_image_builder_build(b, bytes, len);
+    ros_foxglove_compressed_image_builder_free(b);
+    return ret;
+}
+
 // ============================================================================
 // FoxgloveCompressedVideo Tests
 // ============================================================================
@@ -28,11 +66,11 @@ Test(foxglove_msgs, compressed_video_encode_from_cdr_roundtrip) {
     uint8_t *bytes = NULL;
     size_t len = 0;
 
-    int ret = ros_compressed_video_encode(&bytes, &len,
-                                          1234567890, 123456789,  // stamp
-                                          "video_stream",         // frame_id
-                                          test_data, sizeof(test_data), // data
-                                          "h264");                // format
+    int ret = build_compressed_video(&bytes, &len,
+                                     1234567890, 123456789,
+                                     "video_stream",
+                                     test_data, sizeof(test_data),
+                                     "h264");
     cr_assert_eq(ret, 0, "Encode should succeed");
     cr_assert_not_null(bytes);
     cr_assert_gt(len, 0);
@@ -64,11 +102,7 @@ Test(foxglove_msgs, compressed_video_encode_h265) {
     uint8_t *bytes = NULL;
     size_t len = 0;
 
-    int ret = ros_compressed_video_encode(&bytes, &len,
-                                          0, 0,
-                                          "cam0",
-                                          NULL, 0,
-                                          "h265");
+    int ret = build_compressed_video(&bytes, &len, 0, 0, "cam0", NULL, 0, "h265");
     cr_assert_eq(ret, 0);
 
     ros_compressed_video_t *handle = ros_compressed_video_from_cdr(bytes, len);
@@ -83,11 +117,7 @@ Test(foxglove_msgs, compressed_video_encode_empty_data) {
     uint8_t *bytes = NULL;
     size_t len = 0;
 
-    int ret = ros_compressed_video_encode(&bytes, &len,
-                                          0, 0,
-                                          "",
-                                          NULL, 0,
-                                          "");
+    int ret = build_compressed_video(&bytes, &len, 0, 0, "", NULL, 0, "");
     cr_assert_eq(ret, 0);
 
     ros_compressed_video_t *handle = ros_compressed_video_from_cdr(bytes, len);
@@ -115,11 +145,8 @@ Test(foxglove_msgs, compressed_video_large_data) {
     uint8_t *bytes = NULL;
     size_t len = 0;
 
-    int ret = ros_compressed_video_encode(&bytes, &len,
-                                          0, 0,
-                                          "cam",
-                                          large_data, frame_size,
-                                          "h264");
+    int ret = build_compressed_video(&bytes, &len, 0, 0, "cam",
+                                     large_data, frame_size, "h264");
     cr_assert_eq(ret, 0);
 
     ros_compressed_video_t *handle = ros_compressed_video_from_cdr(bytes, len);
@@ -176,11 +203,11 @@ Test(foxglove_msgs, compressed_image_encode_from_cdr_roundtrip) {
     uint8_t *bytes = NULL;
     size_t len = 0;
 
-    int ret = ros_foxglove_compressed_image_encode(&bytes, &len,
-                                                    1234567890, 123456789, // stamp
-                                                    "image_stream",        // frame_id
-                                                    test_data, sizeof(test_data),
-                                                    "jpeg");               // format
+    int ret = build_foxglove_compressed_image(&bytes, &len,
+                                              1234567890, 123456789,
+                                              "image_stream",
+                                              test_data, sizeof(test_data),
+                                              "jpeg");
     cr_assert_eq(ret, 0, "Encode should succeed");
     cr_assert_not_null(bytes);
     cr_assert_gt(len, 0);
@@ -246,10 +273,10 @@ Test(foxglove_msgs, compressed_image_wire_identical_to_video) {
     uint8_t *img = NULL, *vid = NULL;
     size_t img_len = 0, vid_len = 0;
 
-    cr_assert_eq(ros_foxglove_compressed_image_encode(
+    cr_assert_eq(build_foxglove_compressed_image(
                      &img, &img_len, 42, 7, "cam0", d, sizeof(d), "h264"),
                  0);
-    cr_assert_eq(ros_compressed_video_encode(
+    cr_assert_eq(build_compressed_video(
                      &vid, &vid_len, 42, 7, "cam0", d, sizeof(d), "h264"),
                  0);
     cr_assert_eq(img_len, vid_len, "wire sizes must match");

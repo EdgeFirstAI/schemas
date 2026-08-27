@@ -70,9 +70,9 @@ fn example_fixed_types() {
 fn example_buffer_backed_types() {
     println!("=== Buffer-Backed Types ===\n");
 
-    // Header<Vec<u8>> — owned buffer, constructed with new()
+    // Header<Vec<u8>> — owned buffer, constructed with the builder API
     let stamp = Time::new(1234567890, 123456789);
-    let header = Header::new(stamp, "camera_optical_frame").unwrap();
+    let header = Header::builder().stamp(stamp).frame_id("camera_optical_frame").build().unwrap();
     println!("Header:     stamp={}.{:09}  frame_id=\"{}\"  ({} CDR bytes)",
         header.stamp().sec, header.stamp().nanosec, header.frame_id(), header.cdr_size());
 
@@ -91,7 +91,7 @@ fn example_buffer_backed_types() {
 
     // Image<Vec<u8>> — larger buffer-backed type
     let pixel_data = vec![128u8; 640 * 480 * 3]; // VGA RGB8
-    let img = Image::new(stamp, "camera", 480, 640, "rgb8", 0, 640 * 3, &pixel_data).unwrap();
+    let img = Image::builder().stamp(stamp).frame_id("camera").height(480).width(640).encoding("rgb8").is_bigendian(0).step(640 * 3).data(&pixel_data).build().unwrap();
     println!("\nImage:      {}x{} encoding=\"{}\"  data={} bytes  CDR={} bytes",
         img.width(), img.height(), img.encoding(), img.data().len(), img.cdr_size());
 
@@ -109,7 +109,7 @@ fn example_buffer_backed_types() {
 fn example_mutation() {
     println!("=== Mutation ===\n");
 
-    let mut header = Header::new(Time::new(0, 0), "test").unwrap();
+    let mut header = Header::builder().stamp(Time::new(0, 0)).frame_id("test").build().unwrap();
     println!("Before:     stamp={}.{:09}", header.stamp().sec, header.stamp().nanosec);
 
     header.set_stamp(Time::new(42, 123)).unwrap();

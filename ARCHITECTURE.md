@@ -380,9 +380,10 @@ consistency — mixing conventions inside 3.x would be worse than retaining the
 wart. The tensor family (`ros_tensor_*`, `ros_camera_frame_*`) follows the
 same `ros_*` convention for the same reason.
 
-A full rename of all C symbols to their namespace-correct prefixes remains
-planned for **4.0.0**, which is already a breaking boundary (the DmaBuffer and
-CameraPlane removal, the CameraFrame redefinition, and a SOVERSION bump).
+A full rename of all C symbols to their namespace-correct prefixes is tracked
+as a **pre-4.0 follow-up** and must land before the 4.0.0 tag. The 4.0 line is
+already a breaking boundary (DmaBuffer and CameraPlane removal, CameraFrame
+redefinition, SOVERSION bump).
 Rust, C++, and Python surfaces already use per-namespace module paths
 (`edgefirst_schemas::foxglove_msgs::...`) and are unaffected by the C API
 rename.

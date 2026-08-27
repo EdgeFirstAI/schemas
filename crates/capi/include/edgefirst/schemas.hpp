@@ -2667,10 +2667,20 @@ public:
     ///         failure or invalid UTF-8.
     [[nodiscard]] static expected<Header, Error>
     encode(Time stamp, std::string_view frame_id) noexcept {
+        ros_header_builder_t* b = ros_header_builder_new();
+        if (!b)
+            return unexpected<Error>(Error::from_errno("ros_header_builder_new"));
+        ros_header_builder_set_stamp(b, stamp.sec, stamp.nanosec);
+        if (ros_header_builder_set_frame_id(b, frame_id.data()) != 0) {
+            ros_header_builder_free(b);
+            return unexpected<Error>(Error::from_errno("ros_header_builder_set_frame_id"));
+        }
         std::uint8_t* out = nullptr; std::size_t len = 0;
-        if (ros_header_encode(&out, &len, stamp.sec, stamp.nanosec,
-                              frame_id.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_header_encode"));
+        if (ros_header_builder_build(b, &out, &len) != 0) {
+            ros_header_builder_free(b);
+            return unexpected<Error>(Error::from_errno("ros_header_builder_build"));
+        }
+        ros_header_builder_free(b);
         return make_(out, len);
     }
     /// @brief Header timestamp.
@@ -2766,12 +2776,22 @@ public:
     [[nodiscard]] static expected<CompressedImage, Error>
     encode(Time stamp, std::string_view frame_id, std::string_view format,
            span<const std::uint8_t> data) noexcept {
+        ros_compressed_image_builder_t* b = ros_compressed_image_builder_new();
+        if (!b)
+            return unexpected<Error>(Error::from_errno("ros_compressed_image_builder_new"));
+        ros_compressed_image_builder_set_stamp(b, stamp.sec, stamp.nanosec);
+        if (ros_compressed_image_builder_set_frame_id(b, frame_id.data()) != 0 ||
+            ros_compressed_image_builder_set_format(b, format.data()) != 0 ||
+            ros_compressed_image_builder_set_data(b, data.data(), data.size()) != 0) {
+            ros_compressed_image_builder_free(b);
+            return unexpected<Error>(Error::from_errno("ros_compressed_image_builder_set"));
+        }
         std::uint8_t* out = nullptr; std::size_t len = 0;
-        if (ros_compressed_image_encode(&out, &len,
-                stamp.sec, stamp.nanosec,
-                frame_id.data(), format.data(),
-                data.data(), data.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_compressed_image_encode"));
+        if (ros_compressed_image_builder_build(b, &out, &len) != 0) {
+            ros_compressed_image_builder_free(b);
+            return unexpected<Error>(Error::from_errno("ros_compressed_image_builder_build"));
+        }
+        ros_compressed_image_builder_free(b);
         return make_(out, len);
     }
     /// @brief Message timestamp.
@@ -3567,13 +3587,23 @@ public:
     [[nodiscard]] static expected<CompressedVideo, Error>
     encode(Time stamp, std::string_view frame_id,
            span<const std::uint8_t> data, std::string_view format) noexcept {
+        ros_foxglove_compressed_video_builder_t* b =
+            ros_foxglove_compressed_video_builder_new();
+        if (!b)
+            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_video_builder_new"));
+        ros_foxglove_compressed_video_builder_set_stamp(b, stamp.sec, stamp.nanosec);
+        if (ros_foxglove_compressed_video_builder_set_frame_id(b, frame_id.data()) != 0 ||
+            ros_foxglove_compressed_video_builder_set_data(b, data.data(), data.size()) != 0 ||
+            ros_foxglove_compressed_video_builder_set_format(b, format.data()) != 0) {
+            ros_foxglove_compressed_video_builder_free(b);
+            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_video_builder_set"));
+        }
         std::uint8_t* out = nullptr; std::size_t len = 0;
-        if (ros_compressed_video_encode(&out, &len,
-                stamp.sec, stamp.nanosec,
-                frame_id.data(),
-                data.data(), data.size(),
-                format.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_compressed_video_encode"));
+        if (ros_foxglove_compressed_video_builder_build(b, &out, &len) != 0) {
+            ros_foxglove_compressed_video_builder_free(b);
+            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_video_builder_build"));
+        }
+        ros_foxglove_compressed_video_builder_free(b);
         return make_(out, len);
     }
     /// @brief Message timestamp.
@@ -3688,13 +3718,23 @@ public:
     [[nodiscard]] static expected<FoxgloveCompressedImage, Error>
     encode(Time stamp, std::string_view frame_id,
            span<const std::uint8_t> data, std::string_view format) noexcept {
+        ros_foxglove_compressed_image_builder_t* b =
+            ros_foxglove_compressed_image_builder_new();
+        if (!b)
+            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_image_builder_new"));
+        ros_foxglove_compressed_image_builder_set_stamp(b, stamp.sec, stamp.nanosec);
+        if (ros_foxglove_compressed_image_builder_set_frame_id(b, frame_id.data()) != 0 ||
+            ros_foxglove_compressed_image_builder_set_data(b, data.data(), data.size()) != 0 ||
+            ros_foxglove_compressed_image_builder_set_format(b, format.data()) != 0) {
+            ros_foxglove_compressed_image_builder_free(b);
+            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_image_builder_set"));
+        }
         std::uint8_t* out = nullptr; std::size_t len = 0;
-        if (ros_foxglove_compressed_image_encode(&out, &len,
-                stamp.sec, stamp.nanosec,
-                frame_id.data(),
-                data.data(), data.size(),
-                format.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_image_encode"));
+        if (ros_foxglove_compressed_image_builder_build(b, &out, &len) != 0) {
+            ros_foxglove_compressed_image_builder_free(b);
+            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_image_builder_build"));
+        }
+        ros_foxglove_compressed_image_builder_free(b);
         return make_(out, len);
     }
     /// @brief Message timestamp.
@@ -3816,13 +3856,24 @@ public:
     encode(std::uint32_t height, std::uint32_t width, std::uint32_t length,
            std::string_view encoding, span<const std::uint8_t> data,
            bool boxed) noexcept {
+        ros_mask_builder_t* b = ros_mask_builder_new();
+        if (!b)
+            return unexpected<Error>(Error::from_errno("ros_mask_builder_new"));
+        ros_mask_builder_set_height(b, height);
+        ros_mask_builder_set_width(b, width);
+        ros_mask_builder_set_length(b, length);
+        ros_mask_builder_set_boxed(b, boxed);
+        if (ros_mask_builder_set_encoding(b, encoding.data()) != 0 ||
+            ros_mask_builder_set_mask(b, data.data(), data.size()) != 0) {
+            ros_mask_builder_free(b);
+            return unexpected<Error>(Error::from_errno("ros_mask_builder_set"));
+        }
         std::uint8_t* out = nullptr; std::size_t len = 0;
-        if (ros_mask_encode(&out, &len,
-                height, width, length,
-                encoding.data(),
-                data.data(), data.size(),
-                boxed) != 0)
-            return unexpected<Error>(Error::from_errno("ros_mask_encode"));
+        if (ros_mask_builder_build(b, &out, &len) != 0) {
+            ros_mask_builder_free(b);
+            return unexpected<Error>(Error::from_errno("ros_mask_builder_build"));
+        }
+        ros_mask_builder_free(b);
         return make_(out, len);
     }
     /// @brief Mask height in pixels.
@@ -4066,23 +4117,33 @@ public:
      * @return A new Image instance on success, or an Error on allocator
      *         failure or invalid UTF-8.
      * @note The only allocation in this function is the internal
-     *       `ros_image_encode` buffer allocation by the Rust runtime.
+     *       builder `build()` buffer allocation by the Rust runtime.
      */
     [[nodiscard]] static expected<Image, Error>
     encode(Time stamp, std::string_view frame_id,
            std::uint32_t height, std::uint32_t width,
            std::string_view encoding, bool is_bigendian,
            std::uint32_t step, span<const std::uint8_t> data) noexcept {
+        ros_image_builder_t* b = ros_image_builder_new();
+        if (!b)
+            return unexpected<Error>(Error::from_errno("ros_image_builder_new"));
+        ros_image_builder_set_stamp(b, stamp.sec, stamp.nanosec);
+        ros_image_builder_set_height(b, height);
+        ros_image_builder_set_width(b, width);
+        ros_image_builder_set_is_bigendian(b, static_cast<std::uint8_t>(is_bigendian));
+        ros_image_builder_set_step(b, step);
+        if (ros_image_builder_set_frame_id(b, frame_id.data()) != 0 ||
+            ros_image_builder_set_encoding(b, encoding.data()) != 0 ||
+            ros_image_builder_set_data(b, data.data(), data.size()) != 0) {
+            ros_image_builder_free(b);
+            return unexpected<Error>(Error::from_errno("ros_image_builder_set"));
+        }
         std::uint8_t* out = nullptr; std::size_t len = 0;
-        if (ros_image_encode(&out, &len,
-                stamp.sec, stamp.nanosec,
-                frame_id.data(),
-                height, width,
-                encoding.data(),
-                static_cast<std::uint8_t>(is_bigendian),
-                step,
-                data.data(), data.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_image_encode"));
+        if (ros_image_builder_build(b, &out, &len) != 0) {
+            ros_image_builder_free(b);
+            return unexpected<Error>(Error::from_errno("ros_image_builder_build"));
+        }
+        ros_image_builder_free(b);
         return make_(out, len);
     }
     /// @brief Timestamp of the encoded message.

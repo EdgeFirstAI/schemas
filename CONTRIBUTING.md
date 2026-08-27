@@ -733,7 +733,7 @@ This runs all steps in sequence:
 
 Before creating a release, verify:
 
-- [ ] All tests pass (`cargo test`, `pytest`)
+- [ ] All tests pass (`cargo test`, `pytest`, `make test-c`, `make test-cpp`)
 - [ ] Documentation is up-to-date
 - [ ] CHANGELOG.md updated with all changes since last release (following [Keep a Changelog](https://keepachangelog.com/) format)
 - [ ] Versions synchronized via `cargo release version <level>` (validates all three: Cargo.toml, __init__.py, package.xml)
@@ -741,6 +741,18 @@ Before creating a release, verify:
 - [ ] No uncommitted changes (`git status` clean)
 - [ ] On `main` branch with latest changes pulled
 - [ ] Version sync check passes: `.github/scripts/check_version_sync.sh`
+
+### Pre-4.0 Checklist
+
+Before tagging **4.0.0**, verify the breaking-change contract is complete:
+
+- [ ] `CHANGELOG.md` `[Unreleased]` Migration section reflects all removed APIs
+- [ ] Deprecated Rust `Foo::new()` constructors removed (builders only, including `mavros_msgs`)
+- [ ] Legacy buffer-backed C one-shot encoders removed (`ros_header_encode`, `ros_image_encode`, …)
+- [ ] Tensor/CameraFrame golden fixtures cover I420, split-fd, H264, and empty metadata-only frames
+- [ ] Tensor/CameraFrame criterion benches present in `crates/schemas/benches/serialization.rs`
+- [ ] **C API prefix rename** completed (~1,200 `ros_*` → per-namespace symbols; required before tag)
+- [ ] macOS smoke tests pass (`make test-c`, `make test-cpp` on `macos-latest`)
 
 ### GitHub Actions Release Workflow
 

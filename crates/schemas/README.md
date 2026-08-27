@@ -10,7 +10,7 @@ This is the pure-Rust schema crate. It defines:
 
 - **ROS 2 Common Interfaces** — `std_msgs`, `sensor_msgs`, `geometry_msgs`, `nav_msgs`, `builtin_interfaces`, `rosgraph_msgs`
 - **Foxglove visualization** types
-- **EdgeFirst custom** perception messages (`Detect`, `Box2D`, `Track`, `DmaBuffer`, `RadarCube`, `RadarInfo`, `Model`, `ModelInfo`)
+- **EdgeFirst custom** perception messages (`Detect`, `Box2D`, `Track`, `Tensor`/`CameraFrame`, `RadarCube`, `RadarInfo`, `Model`, `ModelInfo`)
 
 All messages use a custom zero-copy CDR implementation — no `serde`, no allocations in the hot path. See the workspace [`ARCHITECTURE.md`](../../ARCHITECTURE.md) for the full design rationale.
 

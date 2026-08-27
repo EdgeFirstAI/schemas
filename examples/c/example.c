@@ -86,10 +86,19 @@ static int example_header(void) {
     // Encode a Header — allocates output bytes
     uint8_t* bytes = NULL;
     size_t len = 0;
-    if (ros_header_encode(&bytes, &len, 1234567890, 123456789, "camera_frame") != 0) {
-        fprintf(stderr, "ros_header_encode failed: %s\n", strerror(errno));
+    ros_header_builder_t *hb = ros_header_builder_new();
+    if (!hb) {
+        fprintf(stderr, "ros_header_builder_new failed\n");
         return -1;
     }
+    ros_header_builder_set_stamp(hb, 1234567890, 123456789);
+    if (ros_header_builder_set_frame_id(hb, "camera_frame") != 0 ||
+        ros_header_builder_build(hb, &bytes, &len) != 0) {
+        fprintf(stderr, "ros_header_builder failed: %s\n", strerror(errno));
+        ros_header_builder_free(hb);
+        return -1;
+    }
+    ros_header_builder_free(hb);
     printf("Encoded Header: %zu CDR bytes\n", len);
 
     // Decode: zero-copy view over `bytes` — bytes must stay alive until _free()
@@ -137,17 +146,30 @@ static int example_image(void) {
         pixel_data[i] = (uint8_t)(i % 256);
     }
 
-    // Encode an Image — all fields in one call
+    // Encode an Image via the builder API
     uint8_t* bytes = NULL;
     size_t len = 0;
-    if (ros_image_encode(&bytes, &len,
-            1000, 500000, "camera",
-            480, 640, "rgb8", 0, 640 * 3,
-            pixel_data, data_size) != 0) {
-        fprintf(stderr, "ros_image_encode failed: %s\n", strerror(errno));
+    ros_image_builder_t *ib = ros_image_builder_new();
+    if (!ib) {
+        fprintf(stderr, "ros_image_builder_new failed\n");
         free(pixel_data);
         return -1;
     }
+    ros_image_builder_set_stamp(ib, 1000, 500000);
+    ros_image_builder_set_height(ib, 480);
+    ros_image_builder_set_width(ib, 640);
+    ros_image_builder_set_is_bigendian(ib, 0);
+    ros_image_builder_set_step(ib, 640 * 3);
+    if (ros_image_builder_set_frame_id(ib, "camera") != 0 ||
+        ros_image_builder_set_encoding(ib, "rgb8") != 0 ||
+        ros_image_builder_set_data(ib, pixel_data, data_size) != 0 ||
+        ros_image_builder_build(ib, &bytes, &len) != 0) {
+        fprintf(stderr, "ros_image_builder failed: %s\n", strerror(errno));
+        ros_image_builder_free(ib);
+        free(pixel_data);
+        return -1;
+    }
+    ros_image_builder_free(ib);
     free(pixel_data);  // Our source data, normal free
     printf("Encoded Image: %zu CDR bytes\n", len);
 

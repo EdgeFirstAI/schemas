@@ -2722,7 +2722,6 @@ macro_rules! stamped_boilerplate {
                 let stamp = header.inner.stamp();
                 let frame_id = header.inner.frame_id().to_string();
                 let payload = $payload_getter.map(|v| v.0).unwrap_or($default_payload);
-                #[allow(deprecated)]
                 let inner = $new_fn(stamp, &frame_id, payload)
                     .map_err(map_cdr_err)?
                     .map_buffer(PyBuf::Owned);
@@ -3041,7 +3040,6 @@ impl PyTransformStamped {
                 w: 1.0,
             },
         });
-        #[allow(deprecated)]
         let inner =
             TransformStamped::new(stamp, &frame_id, child_frame_id, t).map_err(map_cdr_err)?;
         Ok(Self {
@@ -3821,8 +3819,13 @@ impl PyTimeReference {
         let tref = time_ref
             .map(|t| t.0)
             .unwrap_or(edgefirst_schemas::builtin_interfaces::Time { sec: 0, nanosec: 0 });
-        let inner =
-            TimeReference::new(stamp, frame_id.as_str(), tref, source).map_err(map_cdr_err)?;
+        let inner = TimeReference::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .time_ref(tref)
+            .source(source)
+            .build()
+            .map_err(map_cdr_err)?;
         Ok(Self {
             inner: inner.map_buffer(PyBuf::Owned),
         })
@@ -4239,11 +4242,14 @@ impl PyOdometry {
             },
             covariance: [0.0; 36],
         });
-        // Odometry doesn't expose a builder in the Rust crate; use the
-        // deprecated `new()` constructor (intentional — it's the only
-        // public constructor for this type).
-        #[allow(deprecated)]
-        let inner = Odometry::new(stamp, &frame_id, child_frame_id, p, t).map_err(map_cdr_err)?;
+        let inner = Odometry::builder()
+            .stamp(stamp)
+            .frame_id(&frame_id)
+            .child_frame_id(child_frame_id)
+            .pose(p)
+            .twist(t)
+            .build()
+            .map_err(map_cdr_err)?;
         Ok(Self {
             inner: inner.map_buffer(PyBuf::Owned),
         })
@@ -4410,7 +4416,13 @@ impl PyGridCells {
         let stamp = header.inner.stamp();
         let frame_id = header.inner.frame_id().to_string();
         let pts: Vec<Point> = cells.unwrap_or_default().into_iter().map(|p| p.0).collect();
-        let inner = GridCells::new(stamp, frame_id.as_str(), cell_width, cell_height, &pts)
+        let inner = GridCells::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .cell_width(cell_width)
+            .cell_height(cell_height)
+            .cells(&pts)
+            .build()
             .map_err(map_cdr_err)?
             .map_buffer(PyBuf::Owned);
         Ok(Self { inner })
@@ -4515,7 +4527,12 @@ impl PyOccupancyGrid {
             },
         });
         let d = data.unwrap_or_default();
-        let inner = OccupancyGrid::new(stamp, frame_id.as_str(), meta, &d)
+        let inner = OccupancyGrid::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .info(meta)
+            .data(&d)
+            .build()
             .map_err(map_cdr_err)?
             .map_buffer(PyBuf::Owned);
         Ok(Self { inner })
@@ -4587,7 +4604,11 @@ impl PyPath {
         let frame_id = header.inner.frame_id().to_string();
         let ps: Vec<Pose> = poses.unwrap_or_default().into_iter().map(|p| p.0).collect();
         let tuples: Vec<_> = ps.iter().map(|p| (stamp, frame_id.as_str(), *p)).collect();
-        let inner = Path::new(stamp, frame_id.as_str(), &tuples)
+        let inner = Path::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .poses(&tuples)
+            .build()
             .map_err(map_cdr_err)?
             .map_buffer(PyBuf::Owned);
         Ok(Self { inner })
@@ -6150,17 +6171,19 @@ impl PyMavrosAltitude {
         terrain: f32,
         bottom_clearance: f32,
     ) -> PyResult<Self> {
-        let inner = MavAltitude::new(
-            header.inner.stamp(),
-            header.inner.frame_id(),
-            monotonic,
-            amsl,
-            local,
-            relative,
-            terrain,
-            bottom_clearance,
-        )
-        .map_err(map_cdr_err)?;
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let inner = MavAltitude::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .monotonic(monotonic)
+            .amsl(amsl)
+            .local(local)
+            .relative(relative)
+            .terrain(terrain)
+            .bottom_clearance(bottom_clearance)
+            .build()
+            .map_err(map_cdr_err)?;
         Ok(Self {
             inner: inner.map_buffer(PyBuf::Owned),
         })
@@ -6236,17 +6259,19 @@ impl PyMavrosVfrHud {
         altitude: f32,
         climb: f32,
     ) -> PyResult<Self> {
-        let inner = VfrHud::new(
-            header.inner.stamp(),
-            header.inner.frame_id(),
-            airspeed,
-            groundspeed,
-            heading,
-            throttle,
-            altitude,
-            climb,
-        )
-        .map_err(map_cdr_err)?;
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let inner = VfrHud::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .airspeed(airspeed)
+            .groundspeed(groundspeed)
+            .heading(heading)
+            .throttle(throttle)
+            .altitude(altitude)
+            .climb(climb)
+            .build()
+            .map_err(map_cdr_err)?;
         Ok(Self {
             inner: inner.map_buffer(PyBuf::Owned),
         })
@@ -6332,23 +6357,25 @@ impl PyMavrosEstimatorStatus {
         gps_glitch_status_flag: bool,
         accel_error_status_flag: bool,
     ) -> PyResult<Self> {
-        let inner = EstimatorStatus::new(
-            header.inner.stamp(),
-            header.inner.frame_id(),
-            attitude_status_flag,
-            velocity_horiz_status_flag,
-            velocity_vert_status_flag,
-            pos_horiz_rel_status_flag,
-            pos_horiz_abs_status_flag,
-            pos_vert_abs_status_flag,
-            pos_vert_agl_status_flag,
-            const_pos_mode_status_flag,
-            pred_pos_horiz_rel_status_flag,
-            pred_pos_horiz_abs_status_flag,
-            gps_glitch_status_flag,
-            accel_error_status_flag,
-        )
-        .map_err(map_cdr_err)?;
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let inner = EstimatorStatus::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .attitude_status_flag(attitude_status_flag)
+            .velocity_horiz_status_flag(velocity_horiz_status_flag)
+            .velocity_vert_status_flag(velocity_vert_status_flag)
+            .pos_horiz_rel_status_flag(pos_horiz_rel_status_flag)
+            .pos_horiz_abs_status_flag(pos_horiz_abs_status_flag)
+            .pos_vert_abs_status_flag(pos_vert_abs_status_flag)
+            .pos_vert_agl_status_flag(pos_vert_agl_status_flag)
+            .const_pos_mode_status_flag(const_pos_mode_status_flag)
+            .pred_pos_horiz_rel_status_flag(pred_pos_horiz_rel_status_flag)
+            .pred_pos_horiz_abs_status_flag(pred_pos_horiz_abs_status_flag)
+            .gps_glitch_status_flag(gps_glitch_status_flag)
+            .accel_error_status_flag(accel_error_status_flag)
+            .build()
+            .map_err(map_cdr_err)?;
         Ok(Self {
             inner: inner.map_buffer(PyBuf::Owned),
         })
@@ -6467,13 +6494,15 @@ impl PyMavrosExtendedState {
     #[new]
     #[pyo3(signature = (header, vtol_state=0, landed_state=0))]
     fn new(header: &PyHeader, vtol_state: u8, landed_state: u8) -> PyResult<Self> {
-        let inner = ExtendedState::new(
-            header.inner.stamp(),
-            header.inner.frame_id(),
-            vtol_state,
-            landed_state,
-        )
-        .map_err(map_cdr_err)?;
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let inner = ExtendedState::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .vtol_state(vtol_state)
+            .landed_state(landed_state)
+            .build()
+            .map_err(map_cdr_err)?;
         Ok(Self {
             inner: inner.map_buffer(PyBuf::Owned),
         })
@@ -6540,24 +6569,26 @@ impl PyMavrosSysStatus {
         errors_count3: u16,
         errors_count4: u16,
     ) -> PyResult<Self> {
-        let inner = SysStatus::new(
-            header.inner.stamp(),
-            header.inner.frame_id(),
-            sensors_present,
-            sensors_enabled,
-            sensors_health,
-            load,
-            voltage_battery,
-            current_battery,
-            battery_remaining,
-            drop_rate_comm,
-            errors_comm,
-            errors_count1,
-            errors_count2,
-            errors_count3,
-            errors_count4,
-        )
-        .map_err(map_cdr_err)?;
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let inner = SysStatus::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .sensors_present(sensors_present)
+            .sensors_enabled(sensors_enabled)
+            .sensors_health(sensors_health)
+            .load(load)
+            .voltage_battery(voltage_battery)
+            .current_battery(current_battery)
+            .battery_remaining(battery_remaining)
+            .drop_rate_comm(drop_rate_comm)
+            .errors_comm(errors_comm)
+            .errors_count1(errors_count1)
+            .errors_count2(errors_count2)
+            .errors_count3(errors_count3)
+            .errors_count4(errors_count4)
+            .build()
+            .map_err(map_cdr_err)?;
         Ok(Self {
             inner: inner.map_buffer(PyBuf::Owned),
         })
@@ -6680,17 +6711,19 @@ impl PyMavrosState {
         mode: &str,
         system_status: u8,
     ) -> PyResult<Self> {
-        let inner = MavState::new(
-            header.inner.stamp(),
-            header.inner.frame_id(),
-            connected,
-            armed,
-            guided,
-            manual_input,
-            mode,
-            system_status,
-        )
-        .map_err(map_cdr_err)?;
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let inner = MavState::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .connected(connected)
+            .armed(armed)
+            .guided(guided)
+            .manual_input(manual_input)
+            .mode(mode)
+            .system_status(system_status)
+            .build()
+            .map_err(map_cdr_err)?;
         Ok(Self {
             inner: inner.map_buffer(PyBuf::Owned),
         })
@@ -6775,13 +6808,15 @@ impl PyMavrosStatusText {
     #[new]
     #[pyo3(signature = (header, severity=0, text=""))]
     fn new(header: &PyHeader, severity: u8, text: &str) -> PyResult<Self> {
-        let inner = StatusText::new(
-            header.inner.stamp(),
-            header.inner.frame_id(),
-            severity,
-            text,
-        )
-        .map_err(map_cdr_err)?;
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let inner = StatusText::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .severity(severity)
+            .text(text)
+            .build()
+            .map_err(map_cdr_err)?;
         Ok(Self {
             inner: inner.map_buffer(PyBuf::Owned),
         })
@@ -6871,28 +6906,30 @@ impl PyMavrosGpsRaw {
         dgps_numch: u8,
         dgps_age: u32,
     ) -> PyResult<Self> {
-        let inner = GpsRaw::new(
-            header.inner.stamp(),
-            header.inner.frame_id(),
-            fix_type,
-            lat,
-            lon,
-            alt,
-            eph,
-            epv,
-            vel,
-            cog,
-            satellites_visible,
-            alt_ellipsoid,
-            h_acc,
-            v_acc,
-            vel_acc,
-            hdg_acc,
-            yaw,
-            dgps_numch,
-            dgps_age,
-        )
-        .map_err(map_cdr_err)?;
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let inner = GpsRaw::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .fix_type(fix_type)
+            .lat(lat)
+            .lon(lon)
+            .alt(alt)
+            .eph(eph)
+            .epv(epv)
+            .vel(vel)
+            .cog(cog)
+            .satellites_visible(satellites_visible)
+            .alt_ellipsoid(alt_ellipsoid)
+            .h_acc(h_acc)
+            .v_acc(v_acc)
+            .vel_acc(vel_acc)
+            .hdg_acc(hdg_acc)
+            .yaw(yaw)
+            .dgps_numch(dgps_numch)
+            .dgps_age(dgps_age)
+            .build()
+            .map_err(map_cdr_err)?;
         Ok(Self {
             inner: inner.map_buffer(PyBuf::Owned),
         })
@@ -7014,15 +7051,17 @@ impl PyMavrosTimesyncStatus {
         estimated_offset_ns: i64,
         round_trip_time_ms: f32,
     ) -> PyResult<Self> {
-        let inner = TimesyncStatus::new(
-            header.inner.stamp(),
-            header.inner.frame_id(),
-            remote_timestamp_ns,
-            observed_offset_ns,
-            estimated_offset_ns,
-            round_trip_time_ms,
-        )
-        .map_err(map_cdr_err)?;
+        let stamp = header.inner.stamp();
+        let frame_id = header.inner.frame_id().to_string();
+        let inner = TimesyncStatus::builder()
+            .stamp(stamp)
+            .frame_id(frame_id.as_str())
+            .remote_timestamp_ns(remote_timestamp_ns)
+            .observed_offset_ns(observed_offset_ns)
+            .estimated_offset_ns(estimated_offset_ns)
+            .round_trip_time_ms(round_trip_time_ms)
+            .build()
+            .map_err(map_cdr_err)?;
         Ok(Self {
             inner: inner.map_buffer(PyBuf::Owned),
         })

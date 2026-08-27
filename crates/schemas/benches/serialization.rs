@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright © 2025 Au-Zone Technologies. All Rights Reserved.
 
-// Benches intentionally exercise the deprecated `::new()` constructors
-// alongside the replacement builder APIs for comparison. They will be
-// migrated to builder-only when the legacy constructors are removed.
-#![allow(deprecated)]
-
+// Benches exercise builder APIs for encode/decode hot paths.
 //! Comprehensive performance benchmarks for CDR serialization/deserialization.
 //!
 //! This benchmark suite measures serialization performance for EdgeFirst schemas,
@@ -21,12 +17,13 @@ use std::hint::black_box;
 
 use edgefirst_schemas::builtin_interfaces::Time;
 use edgefirst_schemas::cdr;
-use edgefirst_schemas::edgefirst_msgs::{Mask, RadarCube};
+use edgefirst_schemas::edgefirst_msgs::{CameraFrame, Mask, RadarCube};
 use edgefirst_schemas::foxglove_msgs::FoxgloveCompressedVideo;
 use edgefirst_schemas::geometry_msgs::{Point, Pose, Quaternion, Vector3};
 use edgefirst_schemas::nav_msgs::{GridCells, MapMetaData, OccupancyGrid, Path};
 use edgefirst_schemas::sensor_msgs::{Image, RelativeHumidity, TimeReference};
 use edgefirst_schemas::std_msgs::Header;
+use edgefirst_schemas::tensor::{Tensor, TensorFields, TensorPlaneView};
 
 /// Check if fast benchmark mode is enabled via BENCH_FAST=1 environment variable.
 /// Fast mode runs fewer benchmark variants for quicker CI feedback (~5-10 min vs ~20 min).
@@ -107,12 +104,22 @@ fn bench_header(c: &mut Criterion) {
         sec: 1234567890,
         nanosec: 123456789,
     };
-    let hdr = Header::new(stamp, "sensor_frame").unwrap();
+    let hdr = Header::builder()
+        .stamp(stamp)
+        .frame_id("sensor_frame")
+        .build()
+        .unwrap();
     let bytes = hdr.to_cdr();
     group.throughput(Throughput::Bytes(bytes.len() as u64));
 
-    group.bench_function("new", |b| {
-        b.iter(|| Header::new(black_box(stamp), black_box("sensor_frame")).unwrap())
+    group.bench_function("builder", |b| {
+        b.iter(|| {
+            Header::builder()
+                .stamp(black_box(stamp))
+                .frame_id(black_box("sensor_frame"))
+                .build()
+                .unwrap()
+        })
     });
     group.bench_function("from_cdr", |b| {
         b.iter(|| Header::from_cdr(black_box(bytes.clone())))
@@ -161,34 +168,34 @@ fn bench_image(c: &mut Criterion) {
             .collect();
         let data_size = data.len();
 
-        let img = Image::new(
-            stamp,
-            "sensor_frame",
-            actual_h,
-            width,
-            encoding,
-            0,
-            step,
-            &data,
-        )
-        .unwrap();
+        let img = Image::builder()
+            .stamp(stamp)
+            .frame_id("sensor_frame")
+            .height(actual_h)
+            .width(width)
+            .encoding(encoding)
+            .is_bigendian(0)
+            .step(step)
+            .data(&data)
+            .build()
+            .unwrap();
         let bytes = img.to_cdr();
 
         group.throughput(Throughput::Bytes(data_size as u64));
 
-        group.bench_with_input(BenchmarkId::new("new", name), &data, |b, d| {
+        group.bench_with_input(BenchmarkId::new("builder", name), &data, |b, d| {
             b.iter(|| {
-                Image::new(
-                    black_box(stamp),
-                    "sensor_frame",
-                    actual_h,
-                    width,
-                    encoding,
-                    0,
-                    step,
-                    black_box(d),
-                )
-                .unwrap()
+                Image::builder()
+                    .stamp(black_box(stamp))
+                    .frame_id("sensor_frame")
+                    .height(actual_h)
+                    .width(width)
+                    .encoding(encoding)
+                    .is_bigendian(0)
+                    .step(step)
+                    .data(black_box(d))
+                    .build()
+                    .unwrap()
             })
         });
 
@@ -224,14 +231,25 @@ fn bench_compressed_video(c: &mut Criterion) {
         let mut rng = rand::rng();
         let data: Vec<u8> = (0..size).map(|_| rng.random()).collect();
 
-        let video = FoxgloveCompressedVideo::new(stamp, "sensor_frame", &data, "h264").unwrap();
+        let video = FoxgloveCompressedVideo::builder()
+            .stamp(stamp)
+            .frame_id("sensor_frame")
+            .data(&data)
+            .format("h264")
+            .build()
+            .unwrap();
         let bytes = video.to_cdr();
 
         group.throughput(Throughput::Bytes(size as u64));
 
-        group.bench_with_input(BenchmarkId::new("new", name), &data, |b, d| {
+        group.bench_with_input(BenchmarkId::new("builder", name), &data, |b, d| {
             b.iter(|| {
-                FoxgloveCompressedVideo::new(black_box(stamp), "sensor_frame", black_box(d), "h264")
+                FoxgloveCompressedVideo::builder()
+                    .stamp(black_box(stamp))
+                    .frame_id("sensor_frame")
+                    .data(black_box(d))
+                    .format("h264")
+                    .build()
                     .unwrap()
             })
         });
@@ -271,34 +289,34 @@ fn bench_radar_cube(c: &mut Criterion) {
         let scales: Vec<f32> = vec![1.0, 0.117, 1.0, 0.156];
         let data_size = cube_data.len() * 2;
 
-        let cube = RadarCube::new(
-            stamp,
-            "radar_frame",
-            1234567890123456u64,
-            &layout,
-            &shape_vec,
-            &scales,
-            &cube_data,
-            true,
-        )
-        .unwrap();
+        let cube = RadarCube::builder()
+            .stamp(stamp)
+            .frame_id("radar_frame")
+            .timestamp(1234567890123456u64)
+            .layout(&layout)
+            .shape(&shape_vec)
+            .scales(&scales)
+            .cube(&cube_data)
+            .is_complex(true)
+            .build()
+            .unwrap();
         let bytes = cube.to_cdr();
 
         group.throughput(Throughput::Bytes(data_size as u64));
 
-        group.bench_with_input(BenchmarkId::new("new", name), &cube_data, |b, cd| {
+        group.bench_with_input(BenchmarkId::new("builder", name), &cube_data, |b, cd| {
             b.iter(|| {
-                RadarCube::new(
-                    black_box(stamp),
-                    "radar_frame",
-                    1234567890123456u64,
-                    &layout,
-                    &shape_vec,
-                    &scales,
-                    black_box(cd),
-                    true,
-                )
-                .unwrap()
+                RadarCube::builder()
+                    .stamp(black_box(stamp))
+                    .frame_id("radar_frame")
+                    .timestamp(1234567890123456u64)
+                    .layout(&layout)
+                    .shape(&shape_vec)
+                    .scales(&scales)
+                    .cube(black_box(cd))
+                    .is_complex(true)
+                    .build()
+                    .unwrap()
             })
         });
 
@@ -329,13 +347,31 @@ fn bench_mask(c: &mut Criterion) {
         let data_size = (width * height * channels) as usize;
         let mask_data: Vec<u8> = (0..data_size).map(|_| rng.random()).collect();
 
-        let mask = Mask::new(height, width, channels, "", &mask_data, false).unwrap();
+        let mask = Mask::builder()
+            .height(height)
+            .width(width)
+            .length(channels)
+            .encoding("")
+            .mask(&mask_data)
+            .boxed(false)
+            .build()
+            .unwrap();
         let bytes = mask.to_cdr();
 
         group.throughput(Throughput::Bytes(data_size as u64));
 
-        group.bench_with_input(BenchmarkId::new("new", name), &mask_data, |b, d| {
-            b.iter(|| Mask::new(height, width, channels, "", black_box(d), false).unwrap())
+        group.bench_with_input(BenchmarkId::new("builder", name), &mask_data, |b, d| {
+            b.iter(|| {
+                Mask::builder()
+                    .height(height)
+                    .width(width)
+                    .length(channels)
+                    .encoding("")
+                    .mask(black_box(d))
+                    .boxed(false)
+                    .build()
+                    .unwrap()
+            })
         });
 
         group.bench_with_input(
@@ -395,19 +431,19 @@ fn make_bench_cloud() -> Vec<u8> {
         data[base + 4..base + 8].copy_from_slice(&(i as f32 * 0.5).to_le_bytes());
         data[base + 8..base + 12].copy_from_slice(&(i as f32 * 0.1).to_le_bytes());
     }
-    let pc = PointCloud2::new(
-        Time::new(0, 0),
-        "lidar",
-        1,
-        n,
-        &fields,
-        false,
-        point_step,
-        point_step * n,
-        &data,
-        true,
-    )
-    .unwrap();
+    let pc = PointCloud2::builder()
+        .stamp(Time::new(0, 0))
+        .frame_id("lidar")
+        .height(1)
+        .width(n)
+        .fields(&fields)
+        .is_bigendian(false)
+        .point_step(point_step)
+        .row_step(point_step * n)
+        .data(&data)
+        .is_dense(true)
+        .build()
+        .unwrap();
     pc.to_cdr()
 }
 
@@ -509,19 +545,25 @@ fn bench_relative_humidity(c: &mut Criterion) {
         sec: 1234567890,
         nanosec: 123456789,
     };
-    let msg = RelativeHumidity::new(stamp, "humidity_sensor", 0.6532, 0.0012).unwrap();
+    let msg = RelativeHumidity::builder()
+        .stamp(stamp)
+        .frame_id("humidity_sensor")
+        .relative_humidity(0.6532)
+        .variance(0.0012)
+        .build()
+        .unwrap();
     let bytes = msg.to_cdr();
     group.throughput(Throughput::Bytes(bytes.len() as u64));
 
-    group.bench_function("new", |b| {
+    group.bench_function("builder", |b| {
         b.iter(|| {
-            RelativeHumidity::new(
-                black_box(stamp),
-                black_box("humidity_sensor"),
-                black_box(0.6532),
-                black_box(0.0012),
-            )
-            .unwrap()
+            RelativeHumidity::builder()
+                .stamp(black_box(stamp))
+                .frame_id(black_box("humidity_sensor"))
+                .relative_humidity(black_box(0.6532))
+                .variance(black_box(0.0012))
+                .build()
+                .unwrap()
         })
     });
     group.bench_function("from_cdr", |b| {
@@ -549,19 +591,25 @@ fn bench_time_reference(c: &mut Criterion) {
         sec: 1234567899,
         nanosec: 987654321,
     };
-    let msg = TimeReference::new(stamp, "gps_receiver", time_ref, "GPS").unwrap();
+    let msg = TimeReference::builder()
+        .stamp(stamp)
+        .frame_id("gps_receiver")
+        .time_ref(time_ref)
+        .source("GPS")
+        .build()
+        .unwrap();
     let bytes = msg.to_cdr();
     group.throughput(Throughput::Bytes(bytes.len() as u64));
 
-    group.bench_function("new", |b| {
+    group.bench_function("builder", |b| {
         b.iter(|| {
-            TimeReference::new(
-                black_box(stamp),
-                black_box("gps_receiver"),
-                black_box(time_ref),
-                black_box("GPS"),
-            )
-            .unwrap()
+            TimeReference::builder()
+                .stamp(black_box(stamp))
+                .frame_id(black_box("gps_receiver"))
+                .time_ref(black_box(time_ref))
+                .source(black_box("GPS"))
+                .build()
+                .unwrap()
         })
     });
     group.bench_function("from_cdr", |b| {
@@ -601,13 +649,27 @@ fn bench_grid_cells(c: &mut Criterion) {
                 z: 0.0,
             })
             .collect();
-        let msg = GridCells::new(stamp, "grid_frame", 0.5, 0.5, &cells).unwrap();
+        let msg = GridCells::builder()
+            .stamp(stamp)
+            .frame_id("grid_frame")
+            .cell_width(0.5)
+            .cell_height(0.5)
+            .cells(&cells)
+            .build()
+            .unwrap();
         let bytes = msg.to_cdr();
         group.throughput(Throughput::Bytes(bytes.len() as u64));
 
-        group.bench_with_input(BenchmarkId::new("new", count), &cells, |b, cs| {
+        group.bench_with_input(BenchmarkId::new("builder", count), &cells, |b, cs| {
             b.iter(|| {
-                GridCells::new(black_box(stamp), "grid_frame", 0.5, 0.5, black_box(cs)).unwrap()
+                GridCells::builder()
+                    .stamp(black_box(stamp))
+                    .frame_id("grid_frame")
+                    .cell_width(0.5)
+                    .cell_height(0.5)
+                    .cells(black_box(cs))
+                    .build()
+                    .unwrap()
             })
         });
         group.bench_with_input(BenchmarkId::new("from_cdr", count), &bytes, |b, cdr| {
@@ -685,13 +747,27 @@ fn bench_occupancy_grid(c: &mut Criterion) {
                 },
             },
         };
-        let msg = OccupancyGrid::new(stamp, "map", info, &data).unwrap();
+        let msg = OccupancyGrid::builder()
+            .stamp(stamp)
+            .frame_id("map")
+            .info(info)
+            .data(&data)
+            .build()
+            .unwrap();
         let bytes = msg.to_cdr();
         let name = format!("{}x{}", width, height);
         group.throughput(Throughput::Bytes(count as u64));
 
-        group.bench_with_input(BenchmarkId::new("new", &name), &data, |b, d| {
-            b.iter(|| OccupancyGrid::new(black_box(stamp), "map", info, black_box(d)).unwrap())
+        group.bench_with_input(BenchmarkId::new("builder", &name), &data, |b, d| {
+            b.iter(|| {
+                OccupancyGrid::builder()
+                    .stamp(black_box(stamp))
+                    .frame_id("map")
+                    .info(info)
+                    .data(black_box(d))
+                    .build()
+                    .unwrap()
+            })
         });
         group.bench_with_input(BenchmarkId::new("from_cdr", &name), &bytes, |b, cdr| {
             b.iter(|| OccupancyGrid::from_cdr(black_box(cdr.clone())))
@@ -760,12 +836,24 @@ fn bench_path(c: &mut Criterion) {
 
     for &count in counts {
         let poses: Vec<(Time, &str, Pose)> = (0..count).map(|_| (stamp, "map", pose)).collect();
-        let msg = Path::new(stamp, "path_frame", &poses).unwrap();
+        let msg = Path::builder()
+            .stamp(stamp)
+            .frame_id("path_frame")
+            .poses(&poses)
+            .build()
+            .unwrap();
         let bytes = msg.to_cdr();
         group.throughput(Throughput::Elements(count as u64));
 
-        group.bench_with_input(BenchmarkId::new("new", count), &poses, |b, ps| {
-            b.iter(|| Path::new(black_box(stamp), "path_frame", black_box(ps)).unwrap())
+        group.bench_with_input(BenchmarkId::new("builder", count), &poses, |b, ps| {
+            b.iter(|| {
+                Path::builder()
+                    .stamp(black_box(stamp))
+                    .frame_id("path_frame")
+                    .poses(black_box(ps))
+                    .build()
+                    .unwrap()
+            })
         });
         group.bench_with_input(BenchmarkId::new("from_cdr", count), &bytes, |b, cdr| {
             b.iter(|| Path::from_cdr(black_box(cdr.clone())))
@@ -829,6 +917,158 @@ fn bench_path(c: &mut Criterion) {
 }
 
 // ============================================================================
+// BENCHMARK: Tensor / CameraFrame (buffer-backed, composed payload)
+// ============================================================================
+
+fn nv12_bench_fields<'a>(planes: &'a [TensorPlaneView<'a>]) -> TensorFields<'a> {
+    TensorFields {
+        storage_kind: 2,
+        pid: 4242,
+        fence_fd: -1,
+        dtype: 1,
+        quant_axis: -2,
+        shape: &[480, 640],
+        strides: &[640, 1],
+        quant_scales: &[],
+        quant_zero_points: &[],
+        format: "NV12".into(),
+        color_space: "bt709".into(),
+        color_transfer: "bt709".into(),
+        color_encoding: "bt709".into(),
+        color_range: "limited".into(),
+        planes,
+    }
+}
+
+fn nv12_bench_planes() -> Vec<TensorPlaneView<'static>> {
+    vec![
+        TensorPlaneView {
+            handle: 7,
+            offset: 0,
+            stride: 640,
+            size: 640 * 480,
+            used: 640 * 480,
+            modifier: 0,
+            handle_bytes: &[0xDE, 0xAD, 0xBE, 0xEF],
+            data: &[],
+        },
+        TensorPlaneView {
+            handle: 7,
+            offset: 640 * 480,
+            stride: 640,
+            size: 640 * 480 / 2,
+            used: 640 * 480 / 2,
+            modifier: 0,
+            handle_bytes: &[],
+            data: &[],
+        },
+    ]
+}
+
+fn bench_tensor(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Tensor");
+    let planes = nv12_bench_planes();
+    let fields = nv12_bench_fields(&planes);
+
+    let tensor = {
+        let mut b = Tensor::builder();
+        b.storage_kind(fields.storage_kind)
+            .pid(fields.pid)
+            .fence_fd(fields.fence_fd)
+            .dtype(fields.dtype)
+            .quant_axis(fields.quant_axis)
+            .shape(fields.shape)
+            .strides(fields.strides)
+            .format("NV12")
+            .color_space("bt709")
+            .color_transfer("bt709")
+            .color_encoding("bt709")
+            .color_range("limited")
+            .planes(fields.planes);
+        b.build().unwrap()
+    };
+    let bytes = tensor.as_cdr().to_vec();
+    group.throughput(Throughput::Bytes(bytes.len() as u64));
+
+    group.bench_function("build", |b| {
+        b.iter(|| {
+            let mut tb = Tensor::builder();
+            tb.storage_kind(black_box(2))
+                .pid(black_box(4242))
+                .fence_fd(black_box(-1))
+                .dtype(black_box(1))
+                .quant_axis(black_box(-2))
+                .shape(black_box(&[480u64, 640]))
+                .strides(black_box(&[640i64, 1]))
+                .format("NV12")
+                .color_space("bt709")
+                .color_transfer("bt709")
+                .color_encoding("bt709")
+                .color_range("limited")
+                .planes(black_box(&planes));
+            tb.build().unwrap()
+        })
+    });
+    group.bench_function("from_cdr", |b| {
+        b.iter(|| Tensor::from_cdr(black_box(bytes.as_slice())))
+    });
+
+    let decoded = Tensor::from_cdr(bytes.as_slice()).unwrap();
+    group.bench_function("plane_iteration", |b| {
+        b.iter(|| {
+            let mut acc = 0u64;
+            for p in decoded.planes() {
+                acc = acc.wrapping_add(p.size);
+            }
+            black_box(acc);
+        })
+    });
+
+    group.finish();
+}
+
+fn bench_camera_frame(c: &mut Criterion) {
+    let mut group = c.benchmark_group("CameraFrame");
+    let stamp = Time {
+        sec: 1234567890,
+        nanosec: 123456789,
+    };
+    let planes = nv12_bench_planes();
+    let fields = nv12_bench_fields(&planes);
+
+    let frame = CameraFrame::builder()
+        .stamp(stamp)
+        .frame_id("camera")
+        .seq(99)
+        .tensor(&fields)
+        .build()
+        .unwrap();
+    let bytes = frame.as_cdr().to_vec();
+    group.throughput(Throughput::Bytes(bytes.len() as u64));
+
+    group.bench_function("build", |b| {
+        b.iter(|| {
+            CameraFrame::builder()
+                .stamp(black_box(stamp))
+                .frame_id(black_box("camera"))
+                .seq(black_box(99))
+                .tensor(black_box(&fields))
+                .build()
+                .unwrap()
+        })
+    });
+    group.bench_function("from_cdr", |b| {
+        b.iter(|| CameraFrame::from_cdr(black_box(bytes.as_slice())))
+    });
+    group.bench_function("to_standalone_cdr", |b| {
+        let decoded = CameraFrame::from_cdr(bytes.as_slice()).unwrap();
+        b.iter(|| black_box(decoded.tensor().to_standalone_cdr()))
+    });
+
+    group.finish();
+}
+
+// ============================================================================
 // CRITERION GROUPS
 // ============================================================================
 
@@ -857,6 +1097,8 @@ criterion_group! {
         bench_grid_cells,
         bench_occupancy_grid,
         bench_path,
+        bench_tensor,
+        bench_camera_frame,
 }
 
 criterion_main!(benches);

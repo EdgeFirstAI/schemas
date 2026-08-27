@@ -223,8 +223,9 @@ Brief summary of what changed and why
 - Hand-maintained header (`crates/capi/include/edgefirst/schemas.h`) — edit it
   by hand in lockstep with the FFI implementation; cbindgen is declared as a
   build-dependency but is not invoked (see Common Pitfalls below)
-- Function naming: `ros_<namespace>_<type>_<method>` (e.g., `ros_sensor_image_width()`)
-- EdgeFirst types: `ros_detect_<type>_<method>`
+- Function naming: `ros_<type>_<method>` today (historical `ros_*` prefix for all
+  namespaces). Per-namespace prefixes (`sensor_*`, `edgefirst_*`, …) are planned
+  before the 4.0 tag (~1,200 symbols).
 - All functions that can fail set `errno` and return an error indicator
 - Consistent `EINVAL` for NULL pointer arguments
 

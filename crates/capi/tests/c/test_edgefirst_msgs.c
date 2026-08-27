@@ -5,7 +5,7 @@
  * Buffer-backed types: Track, Box (DetectBox), Detect, Mask,
  *   RadarCube, RadarInfo, Model, ModelInfo, LocalTime
  *
- * Types with encode: Mask
+ * Types with builder encode: Mask
  * Types without encode: Track, Box, Detect, RadarCube, RadarInfo,
  *   Model, ModelInfo, LocalTime
  */
@@ -17,6 +17,26 @@
 #include <string.h>
 #include <stdint.h>
 #include "edgefirst/schemas.h"
+
+static int build_mask(uint8_t **bytes, size_t *len,
+                      uint32_t height, uint32_t width, uint32_t length,
+                      const char *encoding, const uint8_t *data, size_t data_len,
+                      bool boxed) {
+    ros_mask_builder_t *b = ros_mask_builder_new();
+    if (!b) return -1;
+    ros_mask_builder_set_height(b, height);
+    ros_mask_builder_set_width(b, width);
+    ros_mask_builder_set_length(b, length);
+    ros_mask_builder_set_boxed(b, boxed);
+    if (ros_mask_builder_set_encoding(b, encoding) != 0 ||
+        ros_mask_builder_set_mask(b, data, data_len) != 0) {
+        ros_mask_builder_free(b);
+        return -1;
+    }
+    int ret = ros_mask_builder_build(b, bytes, len);
+    ros_mask_builder_free(b);
+    return ret;
+}
 
 // Load a golden CDR fixture from testdata/ at runtime. Returns a malloc'd
 // buffer (caller frees) and writes length via *out_len. Prefer this to
@@ -162,13 +182,8 @@ Test(edgefirst_msgs, mask_encode_from_cdr_roundtrip) {
     uint8_t *bytes = NULL;
     size_t len = 0;
 
-    int ret = ros_mask_encode(&bytes, &len,
-                              100,             // height
-                              200,             // width
-                              4,               // length
-                              "raw",           // encoding
-                              mask_data, sizeof(mask_data), // data
-                              false);          // boxed
+    int ret = build_mask(&bytes, &len, 100, 200, 4, "raw",
+                         mask_data, sizeof(mask_data), false);
     cr_assert_eq(ret, 0);
     cr_assert_not_null(bytes);
 
@@ -196,11 +211,7 @@ Test(edgefirst_msgs, mask_encode_boxed) {
     uint8_t *bytes = NULL;
     size_t len = 0;
 
-    int ret = ros_mask_encode(&bytes, &len,
-                              480, 640, 0,
-                              "rle",
-                              NULL, 0,
-                              true);
+    int ret = build_mask(&bytes, &len, 480, 640, 0, "rle", NULL, 0, true);
     cr_assert_eq(ret, 0);
 
     ros_mask_t *handle = ros_mask_from_cdr(bytes, len);
@@ -653,9 +664,8 @@ Test(memory_safety, ros_mask_free_still_frees_standalone) {
     uint8_t *bytes = NULL;
     size_t   len = 0;
     uint8_t  mdata[] = {1, 2, 3, 4, 5, 6, 7, 8};
-    int rc = ros_mask_encode(&bytes, &len,
-                             2u, 4u, (uint32_t)sizeof(mdata),
-                             "mono8", mdata, sizeof(mdata), true);
+    int rc = build_mask(&bytes, &len, 2u, 4u, (uint32_t)sizeof(mdata),
+                        "mono8", mdata, sizeof(mdata), true);
     cr_assert_eq(rc, 0);
     cr_assert_not_null(bytes);
 

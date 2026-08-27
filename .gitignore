@@ -23,7 +23,9 @@ reports/
 __pycache__/
 build/
 dist/
-venv/
+# Python virtual environments
+venv*/
+.venv*/
 install/
 log/
 .pytest_cache

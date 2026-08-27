@@ -107,24 +107,6 @@ impl<B: AsRef<[u8]>> Header<B> {
 }
 
 impl Header<Vec<u8>> {
-    #[deprecated(
-        since = "3.2.0",
-        note = "use Header::builder() for allocation-free buffer reuse; Header::new will be removed in 4.0"
-    )]
-    pub fn new(stamp: Time, frame_id: &str) -> Result<Self, CdrError> {
-        let mut sizer = CdrSizer::new();
-        Time::size_cdr(&mut sizer);
-        sizer.size_string(frame_id);
-
-        let mut buf = vec![0u8; sizer.size()];
-        let mut w = CdrWriter::new(&mut buf)?;
-        stamp.write_cdr(&mut w);
-        w.write_string(frame_id);
-        let offsets = [w.offset()];
-        w.finish()?;
-        Ok(Header { buf, offsets })
-    }
-
     pub fn into_cdr(self) -> Vec<u8> {
         self.buf
     }
@@ -249,7 +231,6 @@ impl SchemaType for ColorRGBA {
 }
 
 #[cfg(test)]
-#[allow(deprecated)]
 mod tests {
     use super::*;
     use crate::builtin_interfaces::Time;
@@ -264,7 +245,11 @@ mod tests {
             (i32::MAX, 999_999_999, "max_frame", "max time"),
         ];
         for (sec, nanosec, frame_id, name) in cases {
-            let header = Header::new(Time::new(sec, nanosec), frame_id).unwrap();
+            let header = Header::builder()
+                .stamp(Time::new(sec, nanosec))
+                .frame_id(frame_id)
+                .build()
+                .unwrap();
             assert_eq!(
                 header.stamp(),
                 Time::new(sec, nanosec),
@@ -288,7 +273,11 @@ mod tests {
 
     #[test]
     fn header_set_stamp() {
-        let mut header = Header::new(Time::new(0, 0), "test").unwrap();
+        let mut header = Header::builder()
+            .stamp(Time::new(0, 0))
+            .frame_id("test")
+            .build()
+            .unwrap();
         header.set_stamp(Time::new(42, 123)).unwrap();
         assert_eq!(header.stamp(), Time::new(42, 123));
     }

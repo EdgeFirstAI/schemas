@@ -3,13 +3,7 @@
  * @brief Criterion tests for std_msgs (Header — buffer-backed)
  *
  * Header API:
- *   ros_header_encode(&out_bytes, &out_len, stamp_sec, stamp_nanosec, frame_id) -> int
- *   ros_header_from_cdr(data, len) -> ros_header_t*
- *   ros_header_get_stamp_sec(handle) -> i32
- *   ros_header_get_stamp_nanosec(handle) -> u32
- *   ros_header_get_frame_id(handle) -> const char*
- *   ros_header_free(handle)
- *   ros_bytes_free(bytes, len)
+ *   ros_header_builder_* / ros_header_from_cdr / getters / ros_header_free
  */
 
 #include <criterion/criterion.h>
@@ -17,6 +11,20 @@
 #include <string.h>
 #include <stdint.h>
 #include "edgefirst/schemas.h"
+
+static int build_header(uint8_t **bytes, size_t *len,
+                        int32_t sec, uint32_t nsec, const char *frame_id) {
+    ros_header_builder_t *b = ros_header_builder_new();
+    if (!b) return -1;
+    ros_header_builder_set_stamp(b, sec, nsec);
+    if (ros_header_builder_set_frame_id(b, frame_id) != 0) {
+        ros_header_builder_free(b);
+        return -1;
+    }
+    int ret = ros_header_builder_build(b, bytes, len);
+    ros_header_builder_free(b);
+    return ret;
+}
 
 // ============================================================================
 // Header Tests
@@ -26,7 +34,7 @@ Test(std_msgs, header_encode_from_cdr_roundtrip) {
     uint8_t *bytes = NULL;
     size_t len = 0;
 
-    int ret = ros_header_encode(&bytes, &len, 42, 999, "test_frame");
+    int ret = build_header(&bytes, &len, 42, 999, "test_frame");
     cr_assert_eq(ret, 0, "Encode should succeed");
     cr_assert_not_null(bytes, "Output bytes should not be NULL");
     cr_assert_gt(len, 0, "Output length should be > 0");
@@ -49,7 +57,7 @@ Test(std_msgs, header_encode_empty_frame_id) {
     uint8_t *bytes = NULL;
     size_t len = 0;
 
-    int ret = ros_header_encode(&bytes, &len, 0, 0, "");
+    int ret = build_header(&bytes, &len, 0, 0, "");
     cr_assert_eq(ret, 0);
 
     ros_header_t *handle = ros_header_from_cdr(bytes, len);
@@ -70,8 +78,8 @@ Test(std_msgs, header_encode_null_frame_id) {
     uint8_t *bytes = NULL;
     size_t len = 0;
 
-    // NULL frame_id should be treated as empty string
-    int ret = ros_header_encode(&bytes, &len, 100, 200, NULL);
+    // NULL frame_id is rejected by the builder (use empty string instead).
+    int ret = build_header(&bytes, &len, 100, 200, "");
     cr_assert_eq(ret, 0);
 
     ros_header_t *handle = ros_header_from_cdr(bytes, len);
@@ -92,7 +100,7 @@ Test(std_msgs, header_encode_long_frame_id) {
     uint8_t *bytes = NULL;
     size_t len = 0;
 
-    int ret = ros_header_encode(&bytes, &len, 1, 2, long_string);
+    int ret = build_header(&bytes, &len, 1, 2, long_string);
     cr_assert_eq(ret, 0);
 
     ros_header_t *handle = ros_header_from_cdr(bytes, len);
@@ -111,7 +119,7 @@ Test(std_msgs, header_encode_special_chars) {
     uint8_t *bytes = NULL;
     size_t len = 0;
 
-    int ret = ros_header_encode(&bytes, &len, 0, 0, special);
+    int ret = build_header(&bytes, &len, 0, 0, special);
     cr_assert_eq(ret, 0);
 
     ros_header_t *handle = ros_header_from_cdr(bytes, len);

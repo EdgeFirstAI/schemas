@@ -201,6 +201,10 @@ _Foxglove H.264/H.265 NAL-unit frames._
 
 **DmaBuffer: decode latency by fixture**
 
+> **Historical (pre-4.0):** `DmaBuffer` benchmarks are obsolete. See `Tensor` /
+> `CameraFrame` benches in `crates/schemas/benches/serialization.rs` and
+> `scripts/bench_python.py` for current tensor coverage.
+
 _DMA-buf reference (metadata only; no payload)._
 
 ![DmaBuffer/decode](https://quickchart.io/chart?c=%7B%22type%22%3A%22horizontalBar%22%2C%22data%22%3A%7B%22labels%22%3A%5B%22default%201280%5Cu00d7720%20RGBA%22%5D%2C%22datasets%22%3A%5B%7B%22label%22%3A%22edgefirst%20%28pyo3%29%22%2C%22data%22%3A%5B336.1%5D%2C%22backgroundColor%22%3A%22rgba%2859%2C130%2C246%2C0.85%29%22%2C%22borderColor%22%3A%22rgba%2859%2C130%2C246%2C1%29%22%2C%22borderWidth%22%3A1%7D%2C%7B%22label%22%3A%22cyclone-dds-py%22%2C%22data%22%3A%5B13537.0%5D%2C%22backgroundColor%22%3A%22rgba%2816%2C185%2C129%2C0.85%29%22%2C%22borderColor%22%3A%22rgba%2816%2C185%2C129%2C1%29%22%2C%22borderWidth%22%3A1%7D%2C%7B%22label%22%3A%22pycdr2%22%2C%22data%22%3A%5B16167.0%5D%2C%22backgroundColor%22%3A%22rgba%28139%2C92%2C246%2C0.85%29%22%2C%22borderColor%22%3A%22rgba%28139%2C92%2C246%2C1%29%22%2C%22borderWidth%22%3A1%7D%5D%7D%2C%22options%22%3A%7B%22title%22%3A%7B%22display%22%3Atrue%2C%22text%22%3A%22DmaBuffer/decode%22%2C%22fontSize%22%3A11%7D%2C%22legend%22%3A%7B%22labels%22%3A%7B%22fontSize%22%3A9%2C%22boxWidth%22%3A12%7D%7D%2C%22scales%22%3A%7B%22xAxes%22%3A%5B%7B%22scaleLabel%22%3A%7B%22display%22%3Atrue%2C%22labelString%22%3A%22Time%20%28ns%29%22%2C%22fontSize%22%3A9%7D%2C%22ticks%22%3A%7B%22beginAtZero%22%3Atrue%2C%22fontSize%22%3A8%7D%7D%5D%2C%22yAxes%22%3A%5B%7B%22ticks%22%3A%7B%22fontSize%22%3A8%7D%7D%5D%7D%2C%22plugins%22%3A%7B%22datalabels%22%3A%7B%22display%22%3Afalse%7D%7D%7D%7D&w=620&h=180)
