@@ -146,7 +146,7 @@ static int example_image(void) {
         pixel_data[i] = (uint8_t)(i % 256);
     }
 
-    // Encode an Image — all fields in one call
+    // Encode an Image via the builder API
     uint8_t* bytes = NULL;
     size_t len = 0;
     ros_image_builder_t *ib = ros_image_builder_new();

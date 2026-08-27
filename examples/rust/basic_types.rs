@@ -70,7 +70,7 @@ fn example_fixed_types() {
 fn example_buffer_backed_types() {
     println!("=== Buffer-Backed Types ===\n");
 
-    // Header<Vec<u8>> — owned buffer, constructed with new()
+    // Header<Vec<u8>> — owned buffer, constructed with the builder API
     let stamp = Time::new(1234567890, 123456789);
     let header = Header::builder().stamp(stamp).frame_id("camera_optical_frame").build().unwrap();
     println!("Header:     stamp={}.{:09}  frame_id=\"{}\"  ({} CDR bytes)",

@@ -157,32 +157,35 @@ def split_args(s: str) -> list[str]:
 
 
 def type_prefix(match_text: str) -> str:
-    if "::" in match_text:
-        return match_text.rsplit("::", 1)[0] + "::"
-    return ""
+    """Return the module path prefix for a `Type::new` / `mod::Type::new` match.
+
+    `Header::new` → ``; `std_msgs::Header::new` → `std_msgs::`.
+    """
+    parts = match_text.split("::")
+    if len(parts) <= 2:
+        return ""
+    return "::".join(parts[:-2]) + "::"
 
 
 def transform_call(full: str, type_pat: str, chain: str) -> str | None:
-    m = re.match(type_pat + r"\((.*)\)\s*(?:\.unwrap\(\))?", full, re.DOTALL)
+    # process_content already delimited the call; strip optional trailing unwrap
+    body = full.rstrip()
+    if body.endswith(".unwrap()"):
+        body = body[: -len(".unwrap()")]
+    m = re.match(type_pat + r"\((.*)\)$", body, re.DOTALL)
     if not m:
         return None
     args = split_args(m.group(1))
     needed = chain.count("{")
     if len(args) != needed:
         return None
-    prefix = type_prefix(re.search(type_pat, full).group(0))  # type: ignore
-    type_name = re.search(r"(\w+)::new$", type_pat.replace("(?:", "").replace(")?", ""))
-    # extract bare type name from pattern
+    matched = re.search(type_pat, body)
+    if matched is None:
+        return None
+    prefix = type_prefix(matched.group(0))
     bare = re.findall(r"(\w+)::new", type_pat)
     typename = bare[-1] if bare else "Type"
-    built = prefix + typename + "::builder()" + chain.format(*args) + ".build().unwrap()"
-    had_unwrap = ".unwrap()" in full[m.end(1) :]
-    if had_unwrap and not full.strip().endswith(".unwrap()"):
-        pass
-    # preserve trailing .unwrap() on outer expression if original had ? or extra unwrap
-    if full.rstrip().endswith(".unwrap()") and not built.endswith(".unwrap()"):
-        built += ".unwrap()"
-    return built
+    return prefix + typename + "::builder()" + chain.format(*args) + ".build().unwrap()"
 
 
 def process_content(content: str) -> tuple[str, int]:

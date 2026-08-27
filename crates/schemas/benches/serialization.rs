@@ -112,7 +112,7 @@ fn bench_header(c: &mut Criterion) {
     let bytes = hdr.to_cdr();
     group.throughput(Throughput::Bytes(bytes.len() as u64));
 
-    group.bench_function("new", |b| {
+    group.bench_function("builder", |b| {
         b.iter(|| {
             Header::builder()
                 .stamp(black_box(stamp))
@@ -183,7 +183,7 @@ fn bench_image(c: &mut Criterion) {
 
         group.throughput(Throughput::Bytes(data_size as u64));
 
-        group.bench_with_input(BenchmarkId::new("new", name), &data, |b, d| {
+        group.bench_with_input(BenchmarkId::new("builder", name), &data, |b, d| {
             b.iter(|| {
                 Image::builder()
                     .stamp(black_box(stamp))
@@ -242,7 +242,7 @@ fn bench_compressed_video(c: &mut Criterion) {
 
         group.throughput(Throughput::Bytes(size as u64));
 
-        group.bench_with_input(BenchmarkId::new("new", name), &data, |b, d| {
+        group.bench_with_input(BenchmarkId::new("builder", name), &data, |b, d| {
             b.iter(|| {
                 FoxgloveCompressedVideo::builder()
                     .stamp(black_box(stamp))
@@ -304,7 +304,7 @@ fn bench_radar_cube(c: &mut Criterion) {
 
         group.throughput(Throughput::Bytes(data_size as u64));
 
-        group.bench_with_input(BenchmarkId::new("new", name), &cube_data, |b, cd| {
+        group.bench_with_input(BenchmarkId::new("builder", name), &cube_data, |b, cd| {
             b.iter(|| {
                 RadarCube::builder()
                     .stamp(black_box(stamp))
@@ -360,7 +360,7 @@ fn bench_mask(c: &mut Criterion) {
 
         group.throughput(Throughput::Bytes(data_size as u64));
 
-        group.bench_with_input(BenchmarkId::new("new", name), &mask_data, |b, d| {
+        group.bench_with_input(BenchmarkId::new("builder", name), &mask_data, |b, d| {
             b.iter(|| {
                 Mask::builder()
                     .height(height)
@@ -555,7 +555,7 @@ fn bench_relative_humidity(c: &mut Criterion) {
     let bytes = msg.to_cdr();
     group.throughput(Throughput::Bytes(bytes.len() as u64));
 
-    group.bench_function("new", |b| {
+    group.bench_function("builder", |b| {
         b.iter(|| {
             RelativeHumidity::builder()
                 .stamp(black_box(stamp))
@@ -601,7 +601,7 @@ fn bench_time_reference(c: &mut Criterion) {
     let bytes = msg.to_cdr();
     group.throughput(Throughput::Bytes(bytes.len() as u64));
 
-    group.bench_function("new", |b| {
+    group.bench_function("builder", |b| {
         b.iter(|| {
             TimeReference::builder()
                 .stamp(black_box(stamp))
@@ -660,7 +660,7 @@ fn bench_grid_cells(c: &mut Criterion) {
         let bytes = msg.to_cdr();
         group.throughput(Throughput::Bytes(bytes.len() as u64));
 
-        group.bench_with_input(BenchmarkId::new("new", count), &cells, |b, cs| {
+        group.bench_with_input(BenchmarkId::new("builder", count), &cells, |b, cs| {
             b.iter(|| {
                 GridCells::builder()
                     .stamp(black_box(stamp))
@@ -758,7 +758,7 @@ fn bench_occupancy_grid(c: &mut Criterion) {
         let name = format!("{}x{}", width, height);
         group.throughput(Throughput::Bytes(count as u64));
 
-        group.bench_with_input(BenchmarkId::new("new", &name), &data, |b, d| {
+        group.bench_with_input(BenchmarkId::new("builder", &name), &data, |b, d| {
             b.iter(|| {
                 OccupancyGrid::builder()
                     .stamp(black_box(stamp))
@@ -845,7 +845,7 @@ fn bench_path(c: &mut Criterion) {
         let bytes = msg.to_cdr();
         group.throughput(Throughput::Elements(count as u64));
 
-        group.bench_with_input(BenchmarkId::new("new", count), &poses, |b, ps| {
+        group.bench_with_input(BenchmarkId::new("builder", count), &poses, |b, ps| {
             b.iter(|| {
                 Path::builder()
                     .stamp(black_box(stamp))
