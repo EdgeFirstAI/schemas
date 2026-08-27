@@ -268,7 +268,7 @@ extern "C" {
     fn ros_mavros_estimator_status_builder_set_pos_horiz_abs_status_flag(b: *mut ros_mavros_estimator_status_builder_t, v: bool);
     fn ros_mavros_estimator_status_builder_set_pos_vert_abs_status_flag(b: *mut ros_mavros_estimator_status_builder_t, v: bool);
     fn ros_mavros_estimator_status_builder_set_pos_vert_agl_status_flag(b: *mut ros_mavros_estimator_status_builder_t, v: bool);
-    fn ros_mavros_estimator_status_builder_set_const_pos_mode_status_flag(b: *mut ros_mavros_estimator_status_builder_t, v: bool) -> i32;
+    fn ros_mavros_estimator_status_builder_set_const_pos_mode_status_flag(b: *mut ros_mavros_estimator_status_builder_t, v: bool);
     fn ros_mavros_estimator_status_builder_set_pred_pos_horiz_rel_status_flag(b: *mut ros_mavros_estimator_status_builder_t, v: bool);
     fn ros_mavros_estimator_status_builder_set_pred_pos_horiz_abs_status_flag(b: *mut ros_mavros_estimator_status_builder_t, v: bool);
     fn ros_mavros_estimator_status_builder_set_gps_glitch_status_flag(b: *mut ros_mavros_estimator_status_builder_t, v: bool);
@@ -845,7 +845,7 @@ fn ros_mavros_estimator_status_builder_encode_into_matches_rust_builder() {
         ros_mavros_estimator_status_builder_set_pos_horiz_abs_status_flag(b, false);
         ros_mavros_estimator_status_builder_set_pos_vert_abs_status_flag(b, true);
         ros_mavros_estimator_status_builder_set_pos_vert_agl_status_flag(b, false);
-        assert_eq!(ros_mavros_estimator_status_builder_set_const_pos_mode_status_flag(b, false), 0);
+        ros_mavros_estimator_status_builder_set_const_pos_mode_status_flag(b, false);
         ros_mavros_estimator_status_builder_set_pred_pos_horiz_rel_status_flag(b, true);
         ros_mavros_estimator_status_builder_set_pred_pos_horiz_abs_status_flag(b, false);
         ros_mavros_estimator_status_builder_set_gps_glitch_status_flag(b, false);
