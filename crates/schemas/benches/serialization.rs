@@ -19,8 +19,11 @@ use edgefirst_schemas::builtin_interfaces::Time;
 use edgefirst_schemas::cdr;
 use edgefirst_schemas::edgefirst_msgs::{CameraFrame, Mask, RadarCube};
 use edgefirst_schemas::foxglove_msgs::FoxgloveCompressedVideo;
-use edgefirst_schemas::geometry_msgs::{Point, Pose, Quaternion, Vector3};
-use edgefirst_schemas::nav_msgs::{GridCells, MapMetaData, OccupancyGrid, Path};
+use edgefirst_schemas::geometry_msgs::{
+    Point, Pose, PoseArray, PoseStamped, Quaternion, Transform, TransformStamped, Vector3,
+};
+use edgefirst_schemas::mavros_msgs::Altitude;
+use edgefirst_schemas::nav_msgs::{GridCells, MapMetaData, OccupancyGrid, Odometry, Path};
 use edgefirst_schemas::sensor_msgs::{Image, RelativeHumidity, TimeReference};
 use edgefirst_schemas::std_msgs::Header;
 use edgefirst_schemas::tensor::{Tensor, TensorFields, TensorPlaneView};
@@ -1068,6 +1071,278 @@ fn bench_camera_frame(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_pose_stamped(c: &mut Criterion) {
+    let mut group = c.benchmark_group("PoseStamped");
+    let stamp = Time {
+        sec: 1234567890,
+        nanosec: 123456789,
+    };
+    let pose = Pose {
+        position: Point {
+            x: 1.5,
+            y: -2.5,
+            z: 3.0,
+        },
+        orientation: Quaternion {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            w: 1.0,
+        },
+    };
+    let msg = PoseStamped::builder()
+        .stamp(stamp)
+        .frame_id("map")
+        .pose(pose)
+        .build()
+        .unwrap();
+    let bytes = msg.to_cdr();
+    group.throughput(Throughput::Bytes(bytes.len() as u64));
+    group.bench_function("builder", |b| {
+        b.iter(|| {
+            PoseStamped::builder()
+                .stamp(black_box(stamp))
+                .frame_id(black_box("map"))
+                .pose(black_box(pose))
+                .build()
+                .unwrap()
+        })
+    });
+    group.bench_function("from_cdr", |b| {
+        b.iter(|| PoseStamped::from_cdr(black_box(bytes.clone())))
+    });
+    group.bench_function("from_cdr_borrow", |b| {
+        b.iter(|| PoseStamped::from_cdr(black_box(bytes.as_slice())))
+    });
+    group.finish();
+}
+
+fn bench_transform_stamped(c: &mut Criterion) {
+    let mut group = c.benchmark_group("TransformStamped");
+    let stamp = Time {
+        sec: 1234567890,
+        nanosec: 123456789,
+    };
+    let tf = Transform {
+        translation: Vector3 {
+            x: 1.5,
+            y: -2.5,
+            z: 3.0,
+        },
+        rotation: Quaternion {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            w: 1.0,
+        },
+    };
+    let msg = TransformStamped::builder()
+        .stamp(stamp)
+        .frame_id("map")
+        .child_frame_id("base_link")
+        .transform(tf)
+        .build()
+        .unwrap();
+    let bytes = msg.to_cdr();
+    group.throughput(Throughput::Bytes(bytes.len() as u64));
+    group.bench_function("builder", |b| {
+        b.iter(|| {
+            TransformStamped::builder()
+                .stamp(black_box(stamp))
+                .frame_id(black_box("map"))
+                .child_frame_id(black_box("base_link"))
+                .transform(black_box(tf))
+                .build()
+                .unwrap()
+        })
+    });
+    group.bench_function("from_cdr", |b| {
+        b.iter(|| TransformStamped::from_cdr(black_box(bytes.clone())))
+    });
+    group.bench_function("from_cdr_borrow", |b| {
+        b.iter(|| TransformStamped::from_cdr(black_box(bytes.as_slice())))
+    });
+    group.finish();
+}
+
+fn bench_pose_array(c: &mut Criterion) {
+    let mut group = c.benchmark_group("PoseArray");
+    let stamp = Time {
+        sec: 1234567890,
+        nanosec: 123456789,
+    };
+    let poses = [
+        Pose {
+            position: Point {
+                x: 1.5,
+                y: -2.5,
+                z: 3.0,
+            },
+            orientation: Quaternion {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                w: 1.0,
+            },
+        },
+        Pose {
+            position: Point {
+                x: 10.0,
+                y: 20.0,
+                z: 30.0,
+            },
+            orientation: Quaternion {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                w: 1.0,
+            },
+        },
+    ];
+    let msg = PoseArray::builder()
+        .stamp(stamp)
+        .frame_id("map")
+        .poses(&poses)
+        .build()
+        .unwrap();
+    let bytes = msg.to_cdr();
+    group.throughput(Throughput::Bytes(bytes.len() as u64));
+    group.bench_function("builder", |b| {
+        b.iter(|| {
+            PoseArray::builder()
+                .stamp(black_box(stamp))
+                .frame_id(black_box("map"))
+                .poses(black_box(&poses[..]))
+                .build()
+                .unwrap()
+        })
+    });
+    group.bench_function("from_cdr", |b| {
+        b.iter(|| PoseArray::from_cdr(black_box(bytes.clone())))
+    });
+    group.bench_function("from_cdr_borrow", |b| {
+        b.iter(|| PoseArray::from_cdr(black_box(bytes.as_slice())))
+    });
+    group.finish();
+}
+
+fn bench_odometry(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Odometry");
+    let stamp = Time {
+        sec: 1234567890,
+        nanosec: 123456789,
+    };
+    let mut pose_cov = [0.0_f64; 36];
+    let mut twist_cov = [0.0_f64; 36];
+    for i in 0..6 {
+        pose_cov[i * 6 + i] = 0.1 * (i as f64 + 1.0);
+        twist_cov[i * 6 + i] = 0.02 * (i as f64 + 1.0);
+    }
+    let pose = edgefirst_schemas::geometry_msgs::PoseWithCovariance {
+        pose: Pose {
+            position: Point {
+                x: 1.5,
+                y: -2.5,
+                z: 3.0,
+            },
+            orientation: Quaternion {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                w: 1.0,
+            },
+        },
+        covariance: pose_cov,
+    };
+    let twist = edgefirst_schemas::geometry_msgs::TwistWithCovariance {
+        twist: edgefirst_schemas::geometry_msgs::Twist {
+            linear: Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            angular: Vector3 {
+                x: 0.1,
+                y: 0.2,
+                z: 0.3,
+            },
+        },
+        covariance: twist_cov,
+    };
+    let msg = Odometry::builder()
+        .stamp(stamp)
+        .frame_id("odom")
+        .child_frame_id("base_link")
+        .pose(pose)
+        .twist(twist)
+        .build()
+        .unwrap();
+    let bytes = msg.to_cdr();
+    group.throughput(Throughput::Bytes(bytes.len() as u64));
+    group.bench_function("builder", |b| {
+        b.iter(|| {
+            Odometry::builder()
+                .stamp(black_box(stamp))
+                .frame_id(black_box("odom"))
+                .child_frame_id(black_box("base_link"))
+                .pose(black_box(pose))
+                .twist(black_box(twist))
+                .build()
+                .unwrap()
+        })
+    });
+    group.bench_function("from_cdr", |b| {
+        b.iter(|| Odometry::from_cdr(black_box(bytes.clone())))
+    });
+    group.bench_function("from_cdr_borrow", |b| {
+        b.iter(|| Odometry::from_cdr(black_box(bytes.as_slice())))
+    });
+    group.finish();
+}
+
+fn bench_altitude(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Altitude");
+    let stamp = Time {
+        sec: 1234567890,
+        nanosec: 123456789,
+    };
+    let msg = Altitude::builder()
+        .stamp(stamp)
+        .frame_id("map")
+        .monotonic(100.0)
+        .amsl(50.0)
+        .local(10.0)
+        .relative(5.0)
+        .terrain(2.0)
+        .bottom_clearance(1.5)
+        .build()
+        .unwrap();
+    let bytes = msg.to_cdr();
+    group.throughput(Throughput::Bytes(bytes.len() as u64));
+    group.bench_function("builder", |b| {
+        b.iter(|| {
+            Altitude::builder()
+                .stamp(black_box(stamp))
+                .frame_id(black_box("map"))
+                .monotonic(black_box(100.0))
+                .amsl(black_box(50.0))
+                .local(black_box(10.0))
+                .relative(black_box(5.0))
+                .terrain(black_box(2.0))
+                .bottom_clearance(black_box(1.5))
+                .build()
+                .unwrap()
+        })
+    });
+    group.bench_function("from_cdr", |b| {
+        b.iter(|| Altitude::from_cdr(black_box(bytes.clone())))
+    });
+    group.bench_function("from_cdr_borrow", |b| {
+        b.iter(|| Altitude::from_cdr(black_box(bytes.as_slice())))
+    });
+    group.finish();
+}
+
 // ============================================================================
 // CRITERION GROUPS
 // ============================================================================
@@ -1099,6 +1374,11 @@ criterion_group! {
         bench_path,
         bench_tensor,
         bench_camera_frame,
+        bench_pose_stamped,
+        bench_transform_stamped,
+        bench_pose_array,
+        bench_odometry,
+        bench_altitude,
 }
 
 criterion_main!(benches);

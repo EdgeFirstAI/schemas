@@ -38,6 +38,12 @@ gone. See the Migration section below.
   `VfrHud`, `EstimatorStatus`, `ExtendedState`, `SysStatus`, `State`,
   `StatusText`, `GpsRaw`, `TimesyncStatus`), completing the builder-only
   construction convention across every buffer-backed namespace.
+- **C/C++ builders** for the 15 buffer-backed `geometry_msgs` types, `nav_msgs/Odometry`,
+  and all nine `mavros_msgs` types (`ros_*_builder_{new,free,set_*,build,encode_into}`
+  and matching C++ `*Builder` classes), so every previously decode-only handle
+  can be written with the same RelativeHumidity-style stack.
+- **Golden CDR fixtures** for the remaining geometry stamped/sequence types and
+  all nine mavros types.
 - **macOS CI smoke job** (`make lib && make test-c && make test-cpp` on
   `macos-latest`).
 
@@ -77,7 +83,8 @@ gone. See the Migration section below.
 - **Deprecated Rust `Foo::new()` constructors** on all buffer-backed message
   types (deprecated since 3.2.0). Use `Foo::builder()` instead. Also removed
   on types added after the 3.2.0 sweep (`nav_msgs`, `mavros_msgs`,
-  `RelativeHumidity`, `TimeReference`) for a single construction path in 4.0.
+  `RelativeHumidity`, `TimeReference`) and on the 15 buffer-backed
+  `geometry_msgs` types, for a single construction path in 4.0.
 - **Legacy buffer-backed C one-shot encoders** (`ros_header_encode`,
   `ros_image_encode`, `ros_compressed_image_encode`, `ros_compressed_video_encode`,
   `ros_foxglove_compressed_image_encode`, `ros_mask_encode`; deprecated since 3.2.0).

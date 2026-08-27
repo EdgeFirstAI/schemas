@@ -9,9 +9,26 @@
 #include <criterion/criterion.h>
 #include <errno.h>
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 #include "edgefirst/schemas.h"
+
+static uint8_t *_load_fixture_geo(const char *relpath, size_t *out_len) {
+    FILE *f = fopen(relpath, "rb");
+    if (!f) return NULL;
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (sz <= 0) { fclose(f); return NULL; }
+    uint8_t *buf = (uint8_t *) malloc((size_t) sz);
+    size_t got = fread(buf, 1, (size_t) sz, f);
+    fclose(f);
+    if (got != (size_t) sz) { free(buf); return NULL; }
+    *out_len = got;
+    return buf;
+}
 
 // ============================================================================
 // Vector3 Tests
@@ -572,4 +589,94 @@ Test(geometry_msgs, inertia_stamped_roundtrip) {
     cr_assert_eq(ros_inertia_stamped_get_stamp_nanosec(h), 123456789);
     cr_assert_str_eq(ros_inertia_stamped_get_frame_id(h), "test_frame");
     ros_inertia_stamped_free(h);
+}
+
+Test(geometry_msgs, accel_stamped_builder_null) {
+    errno = 0;
+    cr_assert_eq(ros_accel_stamped_builder_set_frame_id(NULL, "x"), -1);
+    cr_assert_eq(errno, EINVAL);
+    errno = 0;
+    cr_assert_eq(ros_accel_stamped_builder_build(NULL, NULL, NULL), -1);
+    cr_assert_eq(errno, EINVAL);
+}
+
+Test(geometry_msgs, accel_stamped_builder_matches_golden) {
+    size_t golden_len = 0;
+    uint8_t *golden = _load_fixture_geo("testdata/cdr/geometry_msgs/AccelStamped.cdr",
+                                       &golden_len);
+    cr_assert_not_null(golden, "failed to load AccelStamped fixture");
+
+    ros_accel_stamped_builder_t *b = ros_accel_stamped_builder_new();
+    cr_assert_not_null(b);
+    ros_accel_stamped_builder_set_stamp(b, 1234567890, 123456789u);
+    cr_assert_eq(ros_accel_stamped_builder_set_frame_id(b, "test_frame"), 0);
+    ros_accel_stamped_builder_set_linear_acceleration(b, 1.0, 2.0, 3.0);
+    ros_accel_stamped_builder_set_angular_acceleration(b, 0.1, 0.2, 0.3);
+
+    uint8_t *out = NULL;
+    size_t out_len = 0;
+    cr_assert_eq(ros_accel_stamped_builder_build(b, &out, &out_len), 0);
+    cr_assert_eq(out_len, golden_len);
+    cr_assert_eq(memcmp(out, golden, golden_len), 0);
+
+    ros_accel_stamped_t *v = ros_accel_stamped_from_cdr(out, out_len);
+    cr_assert_not_null(v);
+    cr_assert_str_eq(ros_accel_stamped_get_frame_id(v), "test_frame");
+    ros_accel_stamped_free(v);
+
+    ros_bytes_free(out, out_len);
+    ros_accel_stamped_builder_free(b);
+    free(golden);
+}
+
+Test(geometry_msgs, transform_stamped_builder_matches_golden) {
+    size_t golden_len = 0;
+    uint8_t *golden = _load_fixture_geo("testdata/cdr/geometry_msgs/TransformStamped.cdr",
+                                       &golden_len);
+    cr_assert_not_null(golden);
+
+    ros_transform_stamped_builder_t *b = ros_transform_stamped_builder_new();
+    cr_assert_not_null(b);
+    ros_transform_stamped_builder_set_stamp(b, 1234567890, 123456789u);
+    cr_assert_eq(ros_transform_stamped_builder_set_frame_id(b, "test_frame"), 0);
+    cr_assert_eq(ros_transform_stamped_builder_set_child_frame_id(b, "child_frame"), 0);
+    ros_transform_stamped_builder_set_translation(b, 1.5, -2.5, 3.0);
+    ros_transform_stamped_builder_set_rotation(b, 0.0, 0.0, 0.0, 1.0);
+
+    uint8_t *out = NULL;
+    size_t out_len = 0;
+    cr_assert_eq(ros_transform_stamped_builder_build(b, &out, &out_len), 0);
+    cr_assert_eq(out_len, golden_len);
+    cr_assert_eq(memcmp(out, golden, golden_len), 0);
+
+    ros_bytes_free(out, out_len);
+    ros_transform_stamped_builder_free(b);
+    free(golden);
+}
+
+Test(geometry_msgs, pose_array_builder_matches_golden) {
+    size_t golden_len = 0;
+    uint8_t *golden = _load_fixture_geo("testdata/cdr/geometry_msgs/PoseArray.cdr",
+                                       &golden_len);
+    cr_assert_not_null(golden);
+
+    double poses[14] = {
+        1.5, -2.5, 3.0, 0.0, 0.0, 0.0, 1.0,
+        10.0, 20.0, 30.0, 0.0, 0.0, 0.0, 1.0,
+    };
+    ros_pose_array_builder_t *b = ros_pose_array_builder_new();
+    cr_assert_not_null(b);
+    ros_pose_array_builder_set_stamp(b, 1234567890, 123456789u);
+    cr_assert_eq(ros_pose_array_builder_set_frame_id(b, "test_frame"), 0);
+    cr_assert_eq(ros_pose_array_builder_set_poses(b, poses, 2), 0);
+
+    uint8_t *out = NULL;
+    size_t out_len = 0;
+    cr_assert_eq(ros_pose_array_builder_build(b, &out, &out_len), 0);
+    cr_assert_eq(out_len, golden_len);
+    cr_assert_eq(memcmp(out, golden, golden_len), 0);
+
+    ros_bytes_free(out, out_len);
+    ros_pose_array_builder_free(b);
+    free(golden);
 }

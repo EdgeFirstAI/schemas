@@ -133,6 +133,9 @@ macro_rules! check_null_ret_null {
     };
 }
 
+mod geometry;
+mod mavros;
+mod nav;
 /// Tensor message family (`Tensor`, `TensorPlane`, `TensorStamped`,
 /// `CameraFrame`).
 ///
@@ -933,15 +936,15 @@ fn copy_le_u32_seq(data: &[u8], seq_off: usize, out: *mut u32, cap: usize) -> u3
 /// Helper to return CDR bytes from an owned view (encode result).
 /// Leaks the Vec as a raw pointer; caller must use ros_bytes_free().
 fn return_cdr_bytes(cdr: Vec<u8>, out_bytes: *mut *mut u8, out_len: *mut usize) -> i32 {
+    if out_bytes.is_null() || out_len.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
     let len = cdr.len();
     let ptr = Box::into_raw(cdr.into_boxed_slice()) as *mut u8;
     unsafe {
-        if !out_bytes.is_null() {
-            *out_bytes = ptr;
-        }
-        if !out_len.is_null() {
-            *out_len = len;
-        }
+        *out_bytes = ptr;
+        *out_len = len;
     }
     0
 }
@@ -17315,3 +17318,7 @@ mod builder_ffi_smoke;
 #[cfg(test)]
 #[path = "../tests/in_place_setters_smoke.rs"]
 mod in_place_setters_smoke;
+
+#[cfg(test)]
+#[path = "../tests/geometry_mavros_builder_smoke.rs"]
+mod geometry_mavros_builder_smoke;

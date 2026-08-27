@@ -44,6 +44,7 @@ from edgefirst.schemas import (
     edgefirst_msgs,
     foxglove_msgs,
     geometry_msgs,
+    mavros_msgs,
     nav_msgs,
     sensor_msgs,
     std_msgs,
@@ -196,6 +197,114 @@ def gen_geometry_msgs():
               geometry_msgs.TwistWithCovariance(
                   twist=geometry_msgs.Twist(linear=lin, angular=ang),
                   covariance=twist_cov))
+
+    write_cdr("geometry_msgs", "Vector3Stamped",
+              geometry_msgs.Vector3Stamped(header=header, vector=lin))
+    write_cdr("geometry_msgs", "PoseStamped",
+              geometry_msgs.PoseStamped(
+                  header=header,
+                  pose=geometry_msgs.Pose(position=pos, orientation=quat)))
+    write_cdr("geometry_msgs", "QuaternionStamped",
+              geometry_msgs.QuaternionStamped(header=header, quaternion=quat))
+    write_cdr("geometry_msgs", "WrenchStamped",
+              geometry_msgs.WrenchStamped(
+                  header=header,
+                  wrench=geometry_msgs.Wrench(force=lin, torque=ang)))
+    write_cdr("geometry_msgs", "PoseWithCovarianceStamped",
+              geometry_msgs.PoseWithCovarianceStamped(
+                  header=header,
+                  pose_with_covariance=geometry_msgs.PoseWithCovariance(
+                      pose=geometry_msgs.Pose(position=pos, orientation=quat),
+                      covariance=pose_cov)))
+    write_cdr("geometry_msgs", "TwistWithCovarianceStamped",
+              geometry_msgs.TwistWithCovarianceStamped(
+                  header=header,
+                  twist_with_covariance=geometry_msgs.TwistWithCovariance(
+                      twist=geometry_msgs.Twist(linear=lin, angular=ang),
+                      covariance=twist_cov)))
+    accel_cov = list(pose_cov)
+    write_cdr("geometry_msgs", "AccelWithCovarianceStamped",
+              geometry_msgs.AccelWithCovarianceStamped(
+                  header=header,
+                  accel_with_covariance=geometry_msgs.AccelWithCovariance(
+                      accel=geometry_msgs.Accel(linear=lin, angular=ang),
+                      covariance=accel_cov)))
+
+    poly_pts = [
+        geometry_msgs.Point32(x=1.0, y=2.0, z=3.0),
+        geometry_msgs.Point32(x=4.0, y=5.0, z=6.0),
+        geometry_msgs.Point32(x=7.0, y=8.0, z=9.0),
+    ]
+    write_cdr("geometry_msgs", "Polygon",
+              geometry_msgs.Polygon(points=poly_pts))
+    write_cdr("geometry_msgs", "PolygonStamped",
+              geometry_msgs.PolygonStamped(header=header, points=poly_pts))
+    write_cdr("geometry_msgs", "PoseArray",
+              geometry_msgs.PoseArray(
+                  header=header,
+                  poses=[
+                      geometry_msgs.Pose(position=pos, orientation=quat),
+                      geometry_msgs.Pose(
+                          position=geometry_msgs.Point(x=10.0, y=20.0, z=30.0),
+                          orientation=quat),
+                  ]))
+
+
+def gen_mavros_msgs():
+    header = std_msgs.Header(stamp=STAMP, frame_id=FRAME_ID)
+    write_cdr("mavros_msgs", "Altitude",
+              mavros_msgs.Altitude(
+                  header=header, monotonic=100.0, amsl=50.0, local=10.0,
+                  relative=5.0, terrain=2.0, bottom_clearance=1.5))
+    write_cdr("mavros_msgs", "VfrHud",
+              mavros_msgs.VfrHud(
+                  header=header, airspeed=12.5, groundspeed=11.0, heading=90,
+                  throttle=0.75, altitude=120.0, climb=0.5))
+    write_cdr("mavros_msgs", "EstimatorStatus",
+              mavros_msgs.EstimatorStatus(
+                  header=header,
+                  attitude_status_flag=True,
+                  velocity_horiz_status_flag=True,
+                  velocity_vert_status_flag=True,
+                  pos_horiz_rel_status_flag=True,
+                  pos_horiz_abs_status_flag=False,
+                  pos_vert_abs_status_flag=True,
+                  pos_vert_agl_status_flag=False,
+                  const_pos_mode_status_flag=False,
+                  pred_pos_horiz_rel_status_flag=True,
+                  pred_pos_horiz_abs_status_flag=False,
+                  gps_glitch_status_flag=False,
+                  accel_error_status_flag=False))
+    write_cdr("mavros_msgs", "ExtendedState",
+              mavros_msgs.ExtendedState(
+                  header=header, vtol_state=3, landed_state=2))
+    write_cdr("mavros_msgs", "SysStatus",
+              mavros_msgs.SysStatus(
+                  header=header, sensors_present=0xFFFF, sensors_enabled=0x00FF,
+                  sensors_health=0x00FE, load=500, voltage_battery=12600,
+                  current_battery=-150, battery_remaining=85, drop_rate_comm=12,
+                  errors_comm=3, errors_count1=1, errors_count2=2,
+                  errors_count3=3, errors_count4=4))
+    write_cdr("mavros_msgs", "State",
+              mavros_msgs.State(
+                  header=header, connected=True, armed=True, guided=True,
+                  manual_input=False, mode="OFFBOARD", system_status=4))
+    write_cdr("mavros_msgs", "StatusText",
+              mavros_msgs.StatusText(
+                  header=header, severity=4,
+                  text="prearm: compass not calibrated"))
+    write_cdr("mavros_msgs", "GpsRaw",
+              mavros_msgs.GpsRaw(
+                  header=header, fix_type=3, lat=473762200, lon=85453900,
+                  alt=488000, eph=120, epv=180, vel=250, cog=9000,
+                  satellites_visible=12, alt_ellipsoid=500000, h_acc=150,
+                  v_acc=200, vel_acc=50, hdg_acc=100, yaw=9000,
+                  dgps_numch=8, dgps_age=120))
+    write_cdr("mavros_msgs", "TimesyncStatus",
+              mavros_msgs.TimesyncStatus(
+                  header=header, remote_timestamp_ns=1234567890123,
+                  observed_offset_ns=-1500, estimated_offset_ns=-1200,
+                  round_trip_time_ms=2.5))
 
 
 def gen_nav_msgs():
@@ -858,6 +967,7 @@ def main():
         print("Generating golden CDR test files …")
     gen_builtin_interfaces()
     gen_geometry_msgs()
+    gen_mavros_msgs()
     gen_nav_msgs()
     gen_std_msgs()
     gen_sensor_msgs()

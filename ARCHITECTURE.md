@@ -312,11 +312,10 @@ loop {
 ```
 
 As of 3.2.0 the builder pattern is applied to **every** buffer-backed
-message type in the crate (30+ types across `std_msgs`, `sensor_msgs`,
-`nav_msgs`, `edgefirst_msgs`, `foxglove_msgs`). The legacy `Foo::new(...)`
-constructors remain as `#[deprecated(since = "3.2.0")]` shims and are
-scheduled for removal in 4.0. The C FFI exposes a parallel
-`ros_<type>_builder_*` handle-based API with the same semantics.
+message type in the crate. Geometry, Odometry, and mavros types that
+previously used `Foo::new(...)` now construct exclusively through
+`Foo::builder()`. The C FFI exposes a parallel `ros_<type>_builder_*`
+handle-based API with the same semantics.
 
 **Scalar fast path (in-place setters).** The builder re-serialises the
 whole buffer, which is wasteful when only a scalar field changes
