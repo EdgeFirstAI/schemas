@@ -17,138 +17,277 @@
 #include <vector>
 
 namespace ef = edgefirst::schemas;
+using ef::builtin_interfaces::Time;
+using ef::builtin_interfaces::Duration;
+using ef::geometry_msgs::Vector3;
+using ef::geometry_msgs::Point;
+using ef::geometry_msgs::Point32;
+using ef::geometry_msgs::Quaternion;
+using ef::geometry_msgs::Pose;
+using ef::geometry_msgs::Transform;
+using ef::geometry_msgs::Twist;
+using ef::geometry_msgs::Accel;
+using ef::geometry_msgs::Wrench;
+using ef::geometry_msgs::PoseWithCovariance;
+using ef::geometry_msgs::TwistWithCovariance;
+using ef::geometry_msgs::AccelWithCovariance;
+using ef::geometry_msgs::AccelStampedView;
+using ef::geometry_msgs::AccelStampedBuilder;
+using ef::geometry_msgs::TwistStampedView;
+using ef::geometry_msgs::TwistStampedBuilder;
+using ef::geometry_msgs::WrenchStampedView;
+using ef::geometry_msgs::WrenchStampedBuilder;
+using ef::geometry_msgs::PointStampedView;
+using ef::geometry_msgs::PointStampedBuilder;
+using ef::geometry_msgs::InertiaStampedView;
+using ef::geometry_msgs::InertiaStampedBuilder;
+using ef::geometry_msgs::Vector3StampedView;
+using ef::geometry_msgs::Vector3StampedBuilder;
+using ef::geometry_msgs::PoseStampedView;
+using ef::geometry_msgs::PoseStampedBuilder;
+using ef::geometry_msgs::QuaternionStampedView;
+using ef::geometry_msgs::QuaternionStampedBuilder;
+using ef::geometry_msgs::PoseWithCovarianceStampedView;
+using ef::geometry_msgs::PoseWithCovarianceStampedBuilder;
+using ef::geometry_msgs::TwistWithCovarianceStampedView;
+using ef::geometry_msgs::TwistWithCovarianceStampedBuilder;
+using ef::geometry_msgs::AccelWithCovarianceStampedView;
+using ef::geometry_msgs::AccelWithCovarianceStampedBuilder;
+using ef::geometry_msgs::PolygonView;
+using ef::geometry_msgs::PolygonBuilder;
+using ef::geometry_msgs::PolygonStampedView;
+using ef::geometry_msgs::PolygonStampedBuilder;
+using ef::geometry_msgs::PoseArrayView;
+using ef::geometry_msgs::PoseArrayBuilder;
+using ef::geometry_msgs::TransformStampedView;
+using ef::geometry_msgs::TransformStampedBuilder;
+using ef::std_msgs::Header;
+using ef::std_msgs::HeaderView;
+using ef::std_msgs::HeaderBuilder;
+using ef::sensor_msgs::NavSatStatus;
+using ef::sensor_msgs::CompressedImage;
+using ef::sensor_msgs::CompressedImageView;
+using ef::sensor_msgs::CompressedImageBuilder;
+using ef::sensor_msgs::Image;
+using ef::sensor_msgs::ImageView;
+using ef::sensor_msgs::ImageBuilder;
+using ef::sensor_msgs::ImuView;
+using ef::sensor_msgs::ImuBuilder;
+using ef::sensor_msgs::NavSatFixView;
+using ef::sensor_msgs::NavSatFixBuilder;
+using ef::sensor_msgs::CameraInfoView;
+using ef::sensor_msgs::CameraInfoBuilder;
+using ef::sensor_msgs::PointCloud2View;
+using ef::sensor_msgs::PointCloud2Builder;
+using ef::sensor_msgs::PointFieldBuilder;
+using ef::sensor_msgs::MagneticFieldView;
+using ef::sensor_msgs::MagneticFieldBuilder;
+using ef::sensor_msgs::FluidPressureView;
+using ef::sensor_msgs::FluidPressureBuilder;
+using ef::sensor_msgs::TemperatureView;
+using ef::sensor_msgs::TemperatureBuilder;
+using ef::sensor_msgs::BatteryStateView;
+using ef::sensor_msgs::BatteryStateBuilder;
+using ef::sensor_msgs::RelativeHumidityView;
+using ef::sensor_msgs::RelativeHumidityBuilder;
+using ef::sensor_msgs::TimeReferenceView;
+using ef::sensor_msgs::TimeReferenceBuilder;
+using ef::nav_msgs::MapMetaData;
+using ef::nav_msgs::OdometryView;
+using ef::nav_msgs::OdometryBuilder;
+using ef::nav_msgs::GridCellsView;
+using ef::nav_msgs::GridCellsBuilder;
+using ef::nav_msgs::OccupancyGridView;
+using ef::nav_msgs::OccupancyGridBuilder;
+using ef::nav_msgs::PathView;
+using ef::nav_msgs::PathBuilder;
+using ef::foxglove_msgs::CompressedVideo;
+using ef::foxglove_msgs::CompressedVideoView;
+using ef::foxglove_msgs::CompressedVideoBuilder;
+using ef::foxglove_msgs::TextAnnotationBuilder;
+using ef::foxglove_msgs::PointAnnotationBuilder;
+using ef::foxglove_msgs::ImageAnnotationBuilder;
+using ef::mavros_msgs::AltitudeView;
+using ef::mavros_msgs::AltitudeBuilder;
+using ef::mavros_msgs::VfrHudView;
+using ef::mavros_msgs::VfrHudBuilder;
+using ef::mavros_msgs::EstimatorStatusView;
+using ef::mavros_msgs::EstimatorStatusBuilder;
+using ef::mavros_msgs::ExtendedStateView;
+using ef::mavros_msgs::ExtendedStateBuilder;
+using ef::mavros_msgs::SysStatusView;
+using ef::mavros_msgs::SysStatusBuilder;
+using ef::mavros_msgs::StateView;
+using ef::mavros_msgs::StateBuilder;
+using ef::mavros_msgs::StatusTextView;
+using ef::mavros_msgs::StatusTextBuilder;
+using ef::mavros_msgs::GpsRawView;
+using ef::mavros_msgs::GpsRawBuilder;
+using ef::mavros_msgs::TimesyncStatusView;
+using ef::mavros_msgs::TimesyncStatusBuilder;
+using ef::edgefirst_msgs::Mask;
+using ef::edgefirst_msgs::MaskView;
+using ef::edgefirst_msgs::MaskBuilder;
+using ef::edgefirst_msgs::LocalTimeView;
+using ef::edgefirst_msgs::LocalTimeBuilder;
+using ef::edgefirst_msgs::TrackView;
+using ef::edgefirst_msgs::TrackBuilder;
+using ef::edgefirst_msgs::BoxView;
+using ef::edgefirst_msgs::DetectView;
+using ef::edgefirst_msgs::DetectBuilder;
+using ef::edgefirst_msgs::DetectBoxBuilder;
+using ef::edgefirst_msgs::ModelView;
+using ef::edgefirst_msgs::ModelBuilder;
+using ef::edgefirst_msgs::ModelInfoView;
+using ef::edgefirst_msgs::ModelInfoBuilder;
+using ef::edgefirst_msgs::RadarCubeView;
+using ef::edgefirst_msgs::RadarCubeBuilder;
+using ef::edgefirst_msgs::RadarInfoView;
+using ef::edgefirst_msgs::RadarInfoBuilder;
+using ef::edgefirst_msgs::VibrationView;
+using ef::edgefirst_msgs::VibrationBuilder;
+using ef::edgefirst_msgs::TensorView;
+using ef::edgefirst_msgs::TensorBuilder;
+using ef::edgefirst_msgs::TensorStampedView;
+using ef::edgefirst_msgs::TensorStampedBuilder;
+using ef::edgefirst_msgs::CameraFrameView;
+using ef::edgefirst_msgs::CameraFrameBuilder;
+using FoxgloveCompressedImage = ef::foxglove_msgs::CompressedImage;
+using FoxgloveCompressedImageView = ef::foxglove_msgs::CompressedImageView;
+using FoxgloveCompressedImageBuilder = ef::foxglove_msgs::CompressedImageBuilder;
+
 
 // ============================================================================
-// MavrosAltitudeView
+// AltitudeView
 // ============================================================================
 
-TEST_CASE("MavrosAltitudeView from_cdr empty returns error", "[mavros][altitude]") {
-    auto result = ef::MavrosAltitudeView::from_cdr({});
+TEST_CASE("AltitudeView from_cdr empty returns error", "[mavros][altitude]") {
+    auto result = AltitudeView::from_cdr({});
     REQUIRE_FALSE(result.has_value());
 }
 
-TEST_CASE("MavrosAltitudeView from_cdr invalid returns error", "[mavros][altitude]") {
+TEST_CASE("AltitudeView from_cdr invalid returns error", "[mavros][altitude]") {
     uint8_t bad[] = {0xDE, 0xAD, 0xBE, 0xEF};
-    auto result = ef::MavrosAltitudeView::from_cdr({bad, sizeof(bad)});
+    auto result = AltitudeView::from_cdr({bad, sizeof(bad)});
     REQUIRE_FALSE(result.has_value());
 }
 
 // ============================================================================
-// MavrosVfrHudView
+// VfrHudView
 // ============================================================================
 
-TEST_CASE("MavrosVfrHudView from_cdr empty returns error", "[mavros][vfrhud]") {
-    auto result = ef::MavrosVfrHudView::from_cdr({});
+TEST_CASE("VfrHudView from_cdr empty returns error", "[mavros][vfrhud]") {
+    auto result = VfrHudView::from_cdr({});
     REQUIRE_FALSE(result.has_value());
 }
 
-TEST_CASE("MavrosVfrHudView from_cdr invalid returns error", "[mavros][vfrhud]") {
+TEST_CASE("VfrHudView from_cdr invalid returns error", "[mavros][vfrhud]") {
     uint8_t bad[] = {0xDE, 0xAD, 0xBE, 0xEF};
-    auto result = ef::MavrosVfrHudView::from_cdr({bad, sizeof(bad)});
+    auto result = VfrHudView::from_cdr({bad, sizeof(bad)});
     REQUIRE_FALSE(result.has_value());
 }
 
 // ============================================================================
-// MavrosEstimatorStatusView
+// EstimatorStatusView
 // ============================================================================
 
-TEST_CASE("MavrosEstimatorStatusView from_cdr empty returns error", "[mavros][estimator]") {
-    auto result = ef::MavrosEstimatorStatusView::from_cdr({});
+TEST_CASE("EstimatorStatusView from_cdr empty returns error", "[mavros][estimator]") {
+    auto result = EstimatorStatusView::from_cdr({});
     REQUIRE_FALSE(result.has_value());
 }
 
-TEST_CASE("MavrosEstimatorStatusView from_cdr invalid returns error", "[mavros][estimator]") {
+TEST_CASE("EstimatorStatusView from_cdr invalid returns error", "[mavros][estimator]") {
     uint8_t bad[] = {0x01, 0x02};
-    auto result = ef::MavrosEstimatorStatusView::from_cdr({bad, sizeof(bad)});
+    auto result = EstimatorStatusView::from_cdr({bad, sizeof(bad)});
     REQUIRE_FALSE(result.has_value());
 }
 
 // ============================================================================
-// MavrosExtendedStateView
+// ExtendedStateView
 // ============================================================================
 
-TEST_CASE("MavrosExtendedStateView from_cdr empty returns error", "[mavros][extstate]") {
-    auto result = ef::MavrosExtendedStateView::from_cdr({});
+TEST_CASE("ExtendedStateView from_cdr empty returns error", "[mavros][extstate]") {
+    auto result = ExtendedStateView::from_cdr({});
     REQUIRE_FALSE(result.has_value());
 }
 
-TEST_CASE("MavrosExtendedStateView constants", "[mavros][extstate]") {
-    CHECK(ef::MavrosExtendedStateView::VTOL_STATE_UNDEFINED == 0);
-    CHECK(ef::MavrosExtendedStateView::VTOL_STATE_FW == 4);
-    CHECK(ef::MavrosExtendedStateView::LANDED_STATE_IN_AIR == 2);
+TEST_CASE("ExtendedStateView constants", "[mavros][extstate]") {
+    CHECK(ExtendedStateView::VTOL_STATE_UNDEFINED == 0);
+    CHECK(ExtendedStateView::VTOL_STATE_FW == 4);
+    CHECK(ExtendedStateView::LANDED_STATE_IN_AIR == 2);
 }
 
 // ============================================================================
-// MavrosSysStatusView
+// SysStatusView
 // ============================================================================
 
-TEST_CASE("MavrosSysStatusView from_cdr empty returns error", "[mavros][sysstatus]") {
-    auto result = ef::MavrosSysStatusView::from_cdr({});
+TEST_CASE("SysStatusView from_cdr empty returns error", "[mavros][sysstatus]") {
+    auto result = SysStatusView::from_cdr({});
     REQUIRE_FALSE(result.has_value());
 }
 
-TEST_CASE("MavrosSysStatusView from_cdr invalid returns error", "[mavros][sysstatus]") {
+TEST_CASE("SysStatusView from_cdr invalid returns error", "[mavros][sysstatus]") {
     uint8_t bad[] = {0xFF, 0xFF, 0xFF, 0xFF};
-    auto result = ef::MavrosSysStatusView::from_cdr({bad, sizeof(bad)});
+    auto result = SysStatusView::from_cdr({bad, sizeof(bad)});
     REQUIRE_FALSE(result.has_value());
 }
 
 // ============================================================================
-// MavrosStateView
+// StateView
 // ============================================================================
 
-TEST_CASE("MavrosStateView from_cdr empty returns error", "[mavros][state]") {
-    auto result = ef::MavrosStateView::from_cdr({});
+TEST_CASE("StateView from_cdr empty returns error", "[mavros][state]") {
+    auto result = StateView::from_cdr({});
     REQUIRE_FALSE(result.has_value());
 }
 
-TEST_CASE("MavrosStateView constants", "[mavros][state]") {
-    CHECK(ef::MavrosStateView::MAV_STATE_UNINIT == 0);
-    CHECK(ef::MavrosStateView::MAV_STATE_ACTIVE == 4);
-    CHECK(ef::MavrosStateView::MAV_STATE_FLIGHT_TERMINATION == 8);
+TEST_CASE("StateView constants", "[mavros][state]") {
+    CHECK(StateView::MAV_STATE_UNINIT == 0);
+    CHECK(StateView::MAV_STATE_ACTIVE == 4);
+    CHECK(StateView::MAV_STATE_FLIGHT_TERMINATION == 8);
 }
 
 // ============================================================================
-// MavrosStatusTextView
+// StatusTextView
 // ============================================================================
 
-TEST_CASE("MavrosStatusTextView from_cdr empty returns error", "[mavros][statustext]") {
-    auto result = ef::MavrosStatusTextView::from_cdr({});
+TEST_CASE("StatusTextView from_cdr empty returns error", "[mavros][statustext]") {
+    auto result = StatusTextView::from_cdr({});
     REQUIRE_FALSE(result.has_value());
 }
 
-TEST_CASE("MavrosStatusTextView severity constants", "[mavros][statustext]") {
-    CHECK(ef::MavrosStatusTextView::SEVERITY_EMERGENCY == 0);
-    CHECK(ef::MavrosStatusTextView::SEVERITY_DEBUG == 7);
+TEST_CASE("StatusTextView severity constants", "[mavros][statustext]") {
+    CHECK(StatusTextView::SEVERITY_EMERGENCY == 0);
+    CHECK(StatusTextView::SEVERITY_DEBUG == 7);
 }
 
 // ============================================================================
-// MavrosGpsRawView
+// GpsRawView
 // ============================================================================
 
-TEST_CASE("MavrosGpsRawView from_cdr empty returns error", "[mavros][gpsraw]") {
-    auto result = ef::MavrosGpsRawView::from_cdr({});
+TEST_CASE("GpsRawView from_cdr empty returns error", "[mavros][gpsraw]") {
+    auto result = GpsRawView::from_cdr({});
     REQUIRE_FALSE(result.has_value());
 }
 
-TEST_CASE("MavrosGpsRawView fix type constants", "[mavros][gpsraw]") {
-    CHECK(ef::MavrosGpsRawView::GPS_FIX_TYPE_NO_GPS == 0);
-    CHECK(ef::MavrosGpsRawView::GPS_FIX_TYPE_3D_FIX == 3);
-    CHECK(ef::MavrosGpsRawView::GPS_FIX_TYPE_PPP == 8);
+TEST_CASE("GpsRawView fix type constants", "[mavros][gpsraw]") {
+    CHECK(GpsRawView::GPS_FIX_TYPE_NO_GPS == 0);
+    CHECK(GpsRawView::GPS_FIX_TYPE_3D_FIX == 3);
+    CHECK(GpsRawView::GPS_FIX_TYPE_PPP == 8);
 }
 
 // ============================================================================
-// MavrosTimesyncStatusView
+// TimesyncStatusView
 // ============================================================================
 
-TEST_CASE("MavrosTimesyncStatusView from_cdr empty returns error", "[mavros][timesync]") {
-    auto result = ef::MavrosTimesyncStatusView::from_cdr({});
+TEST_CASE("TimesyncStatusView from_cdr empty returns error", "[mavros][timesync]") {
+    auto result = TimesyncStatusView::from_cdr({});
     REQUIRE_FALSE(result.has_value());
 }
 
-TEST_CASE("MavrosTimesyncStatusView from_cdr invalid returns error", "[mavros][timesync]") {
+TEST_CASE("TimesyncStatusView from_cdr invalid returns error", "[mavros][timesync]") {
     uint8_t bad[] = {0xBA, 0xDC, 0x0D, 0xE0};
-    auto result = ef::MavrosTimesyncStatusView::from_cdr({bad, sizeof(bad)});
+    auto result = TimesyncStatusView::from_cdr({bad, sizeof(bad)});
     REQUIRE_FALSE(result.has_value());
 }
 
@@ -166,17 +305,17 @@ static std::vector<std::uint8_t> load_fixture_mav(const std::string& relpath) {
     return buf;
 }
 
-TEST_CASE("MavrosAltitudeBuilder bytes match golden", "[mavros][builder]") {
+TEST_CASE("AltitudeBuilder bytes match golden", "[mavros][builder]") {
     auto golden = load_fixture_mav("testdata/cdr/mavros_msgs/Altitude.cdr");
-    auto b = ef::MavrosAltitudeBuilder::create();
+    auto b = AltitudeBuilder::create();
     REQUIRE(b.has_value());
-    b->stamp(ef::Time{1234567890, 123456789});
+    b->stamp(Time{1234567890, 123456789});
     REQUIRE(b->frame_id("test_frame").has_value());
     b->monotonic(100.0f).amsl(50.0f).local(10.0f)
         .relative(5.0f).terrain(2.0f).bottom_clearance(1.5f);
     auto r = b->build();
     REQUIRE(r.has_value());
     std::vector<std::uint8_t> out(r->data, r->data + r->size);
-    ros_bytes_free(r->data, r->size);
+    edgefirst_schemas_bytes_free(r->data, r->size);
     REQUIRE(out == golden);
 }

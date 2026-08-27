@@ -28,6 +28,145 @@
 #include <vector>
 
 namespace ef = edgefirst::schemas;
+using ef::builtin_interfaces::Time;
+using ef::builtin_interfaces::Duration;
+using ef::geometry_msgs::Vector3;
+using ef::geometry_msgs::Point;
+using ef::geometry_msgs::Point32;
+using ef::geometry_msgs::Quaternion;
+using ef::geometry_msgs::Pose;
+using ef::geometry_msgs::Transform;
+using ef::geometry_msgs::Twist;
+using ef::geometry_msgs::Accel;
+using ef::geometry_msgs::Wrench;
+using ef::geometry_msgs::PoseWithCovariance;
+using ef::geometry_msgs::TwistWithCovariance;
+using ef::geometry_msgs::AccelWithCovariance;
+using ef::geometry_msgs::AccelStampedView;
+using ef::geometry_msgs::AccelStampedBuilder;
+using ef::geometry_msgs::TwistStampedView;
+using ef::geometry_msgs::TwistStampedBuilder;
+using ef::geometry_msgs::WrenchStampedView;
+using ef::geometry_msgs::WrenchStampedBuilder;
+using ef::geometry_msgs::PointStampedView;
+using ef::geometry_msgs::PointStampedBuilder;
+using ef::geometry_msgs::InertiaStampedView;
+using ef::geometry_msgs::InertiaStampedBuilder;
+using ef::geometry_msgs::Vector3StampedView;
+using ef::geometry_msgs::Vector3StampedBuilder;
+using ef::geometry_msgs::PoseStampedView;
+using ef::geometry_msgs::PoseStampedBuilder;
+using ef::geometry_msgs::QuaternionStampedView;
+using ef::geometry_msgs::QuaternionStampedBuilder;
+using ef::geometry_msgs::PoseWithCovarianceStampedView;
+using ef::geometry_msgs::PoseWithCovarianceStampedBuilder;
+using ef::geometry_msgs::TwistWithCovarianceStampedView;
+using ef::geometry_msgs::TwistWithCovarianceStampedBuilder;
+using ef::geometry_msgs::AccelWithCovarianceStampedView;
+using ef::geometry_msgs::AccelWithCovarianceStampedBuilder;
+using ef::geometry_msgs::PolygonView;
+using ef::geometry_msgs::PolygonBuilder;
+using ef::geometry_msgs::PolygonStampedView;
+using ef::geometry_msgs::PolygonStampedBuilder;
+using ef::geometry_msgs::PoseArrayView;
+using ef::geometry_msgs::PoseArrayBuilder;
+using ef::geometry_msgs::TransformStampedView;
+using ef::geometry_msgs::TransformStampedBuilder;
+using ef::std_msgs::Header;
+using ef::std_msgs::HeaderView;
+using ef::std_msgs::HeaderBuilder;
+using ef::sensor_msgs::NavSatStatus;
+using ef::sensor_msgs::CompressedImage;
+using ef::sensor_msgs::CompressedImageView;
+using ef::sensor_msgs::CompressedImageBuilder;
+using ef::sensor_msgs::Image;
+using ef::sensor_msgs::ImageView;
+using ef::sensor_msgs::ImageBuilder;
+using ef::sensor_msgs::ImuView;
+using ef::sensor_msgs::ImuBuilder;
+using ef::sensor_msgs::NavSatFixView;
+using ef::sensor_msgs::NavSatFixBuilder;
+using ef::sensor_msgs::CameraInfoView;
+using ef::sensor_msgs::CameraInfoBuilder;
+using ef::sensor_msgs::PointCloud2View;
+using ef::sensor_msgs::PointCloud2Builder;
+using ef::sensor_msgs::PointFieldBuilder;
+using ef::sensor_msgs::MagneticFieldView;
+using ef::sensor_msgs::MagneticFieldBuilder;
+using ef::sensor_msgs::FluidPressureView;
+using ef::sensor_msgs::FluidPressureBuilder;
+using ef::sensor_msgs::TemperatureView;
+using ef::sensor_msgs::TemperatureBuilder;
+using ef::sensor_msgs::BatteryStateView;
+using ef::sensor_msgs::BatteryStateBuilder;
+using ef::sensor_msgs::RelativeHumidityView;
+using ef::sensor_msgs::RelativeHumidityBuilder;
+using ef::sensor_msgs::TimeReferenceView;
+using ef::sensor_msgs::TimeReferenceBuilder;
+using ef::nav_msgs::MapMetaData;
+using ef::nav_msgs::OdometryView;
+using ef::nav_msgs::OdometryBuilder;
+using ef::nav_msgs::GridCellsView;
+using ef::nav_msgs::GridCellsBuilder;
+using ef::nav_msgs::OccupancyGridView;
+using ef::nav_msgs::OccupancyGridBuilder;
+using ef::nav_msgs::PathView;
+using ef::nav_msgs::PathBuilder;
+using ef::foxglove_msgs::CompressedVideo;
+using ef::foxglove_msgs::CompressedVideoView;
+using ef::foxglove_msgs::CompressedVideoBuilder;
+using ef::foxglove_msgs::TextAnnotationBuilder;
+using ef::foxglove_msgs::PointAnnotationBuilder;
+using ef::foxglove_msgs::ImageAnnotationBuilder;
+using ef::mavros_msgs::AltitudeView;
+using ef::mavros_msgs::AltitudeBuilder;
+using ef::mavros_msgs::VfrHudView;
+using ef::mavros_msgs::VfrHudBuilder;
+using ef::mavros_msgs::EstimatorStatusView;
+using ef::mavros_msgs::EstimatorStatusBuilder;
+using ef::mavros_msgs::ExtendedStateView;
+using ef::mavros_msgs::ExtendedStateBuilder;
+using ef::mavros_msgs::SysStatusView;
+using ef::mavros_msgs::SysStatusBuilder;
+using ef::mavros_msgs::StateView;
+using ef::mavros_msgs::StateBuilder;
+using ef::mavros_msgs::StatusTextView;
+using ef::mavros_msgs::StatusTextBuilder;
+using ef::mavros_msgs::GpsRawView;
+using ef::mavros_msgs::GpsRawBuilder;
+using ef::mavros_msgs::TimesyncStatusView;
+using ef::mavros_msgs::TimesyncStatusBuilder;
+using ef::edgefirst_msgs::Mask;
+using ef::edgefirst_msgs::MaskView;
+using ef::edgefirst_msgs::MaskBuilder;
+using ef::edgefirst_msgs::LocalTimeView;
+using ef::edgefirst_msgs::LocalTimeBuilder;
+using ef::edgefirst_msgs::TrackView;
+using ef::edgefirst_msgs::TrackBuilder;
+using ef::edgefirst_msgs::BoxView;
+using ef::edgefirst_msgs::DetectView;
+using ef::edgefirst_msgs::DetectBuilder;
+using ef::edgefirst_msgs::DetectBoxBuilder;
+using ef::edgefirst_msgs::ModelView;
+using ef::edgefirst_msgs::ModelBuilder;
+using ef::edgefirst_msgs::ModelInfoView;
+using ef::edgefirst_msgs::ModelInfoBuilder;
+using ef::edgefirst_msgs::RadarCubeView;
+using ef::edgefirst_msgs::RadarCubeBuilder;
+using ef::edgefirst_msgs::RadarInfoView;
+using ef::edgefirst_msgs::RadarInfoBuilder;
+using ef::edgefirst_msgs::VibrationView;
+using ef::edgefirst_msgs::VibrationBuilder;
+using ef::edgefirst_msgs::TensorView;
+using ef::edgefirst_msgs::TensorBuilder;
+using ef::edgefirst_msgs::TensorStampedView;
+using ef::edgefirst_msgs::TensorStampedBuilder;
+using ef::edgefirst_msgs::CameraFrameView;
+using ef::edgefirst_msgs::CameraFrameBuilder;
+using FoxgloveCompressedImage = ef::foxglove_msgs::CompressedImage;
+using FoxgloveCompressedImageView = ef::foxglove_msgs::CompressedImageView;
+using FoxgloveCompressedImageBuilder = ef::foxglove_msgs::CompressedImageBuilder;
+
 
 // ============================================================================
 // Helpers
@@ -35,7 +174,7 @@ namespace ef = edgefirst::schemas;
 
 static void free_released(ef::Released& r) {
     if (r.data) {
-        ros_bytes_free(r.data, r.size);
+        edgefirst_schemas_bytes_free(r.data, r.size);
         r.data = nullptr;
         r.size = 0;
     }
@@ -56,8 +195,8 @@ static const std::array<std::int64_t, 2>  STRIDES_NV12{640, 1};
 static const std::array<std::uint8_t, 4>  HANDLE_BYTES{0xDE, 0xAD, 0xBE, 0xEF};
 
 /// Two referenced planes, as a single-allocation NV12 dma-buf frame carries.
-static std::array<ros_tensor_plane_elem_t, 2> nv12_planes() {
-    std::array<ros_tensor_plane_elem_t, 2> p{};
+static std::array<edgefirst_msgs_tensor_plane_elem_t, 2> nv12_planes() {
+    std::array<edgefirst_msgs_tensor_plane_elem_t, 2> p{};
     p[0].handle           = 7;
     p[0].offset           = 0;
     p[0].stride           = 640;
@@ -74,8 +213,8 @@ static std::array<ros_tensor_plane_elem_t, 2> nv12_planes() {
 }
 
 /// Configure a TensorBuilder as an unquantized NV12 camera frame.
-static void configure_nv12(ef::TensorBuilder& tb,
-                           const std::array<ros_tensor_plane_elem_t, 2>& planes) {
+static void configure_nv12(TensorBuilder& tb,
+                           const std::array<edgefirst_msgs_tensor_plane_elem_t, 2>& planes) {
     tb.storage_kind(2).pid(4242).fence_fd(-1).dtype(1).quant_axis(-2);
     REQUIRE(tb.shape({SHAPE_NV12.data(), SHAPE_NV12.size()}).has_value());
     REQUIRE(tb.strides({STRIDES_NV12.data(), STRIDES_NV12.size()}).has_value());
@@ -92,7 +231,7 @@ static void configure_nv12(ef::TensorBuilder& tb,
 // ============================================================================
 
 TEST_CASE("TensorBuilder round-trips every field", "[tensor]") {
-    auto tb = ef::TensorBuilder::create();
+    auto tb = TensorBuilder::create();
     REQUIRE(tb.has_value());
     auto planes = nv12_planes();
     configure_nv12(*tb, planes);
@@ -101,7 +240,7 @@ TEST_CASE("TensorBuilder round-trips every field", "[tensor]") {
     REQUIRE(built.has_value());
     Bytes bytes{*built};
 
-    auto t = ef::TensorView::from_cdr(bytes.span());
+    auto t = TensorView::from_cdr(bytes.span());
     REQUIRE(t.has_value());
 
     CHECK(t->storage_kind() == 2);
@@ -130,7 +269,7 @@ TEST_CASE("TensorBuilder round-trips every field", "[tensor]") {
 }
 
 TEST_CASE("Plane iteration borrows and yields correct fields", "[tensor][planes]") {
-    auto tb = ef::TensorBuilder::create();
+    auto tb = TensorBuilder::create();
     REQUIRE(tb.has_value());
     auto planes = nv12_planes();
     configure_nv12(*tb, planes);
@@ -138,7 +277,7 @@ TEST_CASE("Plane iteration borrows and yields correct fields", "[tensor][planes]
     auto built = tb->build();
     REQUIRE(built.has_value());
     Bytes bytes{*built};
-    auto t = ef::TensorView::from_cdr(bytes.span());
+    auto t = TensorView::from_cdr(bytes.span());
     REQUIRE(t.has_value());
 
     auto range = t->planes();
@@ -170,14 +309,14 @@ TEST_CASE("Plane iteration borrows and yields correct fields", "[tensor][planes]
 
 TEST_CASE("Inline plane round-trips its payload", "[tensor][planes]") {
     const std::array<std::uint8_t, 8> payload{1, 2, 3, 4, 5, 6, 7, 8};
-    ros_tensor_plane_elem_t plane{};
+    edgefirst_msgs_tensor_plane_elem_t plane{};
     plane.handle   = -1;
     plane.size     = payload.size();
     plane.used     = payload.size();
     plane.data     = payload.data();
     plane.data_len = payload.size();
 
-    auto tb = ef::TensorBuilder::create();
+    auto tb = TensorBuilder::create();
     REQUIRE(tb.has_value());
     tb->dtype(1);
     REQUIRE(tb->planes({&plane, 1}).has_value());
@@ -185,7 +324,7 @@ TEST_CASE("Inline plane round-trips its payload", "[tensor][planes]") {
     auto built = tb->build();
     REQUIRE(built.has_value());
     Bytes bytes{*built};
-    auto t = ef::TensorView::from_cdr(bytes.span());
+    auto t = TensorView::from_cdr(bytes.span());
     REQUIRE(t.has_value());
 
     auto p = *t->planes().begin();
@@ -203,13 +342,13 @@ TEST_CASE("Inline plane round-trips its payload", "[tensor][planes]") {
 TEST_CASE("Builder rejects incoherent plane sets", "[tensor][validation]") {
     SECTION("inline plane whose size disagrees with its data") {
         const std::array<std::uint8_t, 8> payload{};
-        ros_tensor_plane_elem_t plane{};
+        edgefirst_msgs_tensor_plane_elem_t plane{};
         plane.handle   = -1;
         plane.size     = 99;  // lies
         plane.data     = payload.data();
         plane.data_len = payload.size();
 
-        auto tb = ef::TensorBuilder::create();
+        auto tb = TensorBuilder::create();
         REQUIRE(tb.has_value());
         REQUIRE(tb->planes({&plane, 1}).has_value());
         CHECK_FALSE(tb->build().has_value());
@@ -217,7 +356,7 @@ TEST_CASE("Builder rejects incoherent plane sets", "[tensor][validation]") {
 
     SECTION("mixed transport modes") {
         const std::array<std::uint8_t, 4> payload{};
-        std::array<ros_tensor_plane_elem_t, 2> planes{};
+        std::array<edgefirst_msgs_tensor_plane_elem_t, 2> planes{};
         planes[0].handle = 3;  // referenced
         planes[0].size   = 16;
         planes[1].handle = -1;  // inline — incoherent with plane 0
@@ -225,19 +364,19 @@ TEST_CASE("Builder rejects incoherent plane sets", "[tensor][validation]") {
         planes[1].data     = payload.data();
         planes[1].data_len = payload.size();
 
-        auto tb = ef::TensorBuilder::create();
+        auto tb = TensorBuilder::create();
         REQUIRE(tb.has_value());
         REQUIRE(tb->planes({planes.data(), planes.size()}).has_value());
         CHECK_FALSE(tb->build().has_value());
     }
 
     SECTION("used exceeding size") {
-        ros_tensor_plane_elem_t plane{};
+        edgefirst_msgs_tensor_plane_elem_t plane{};
         plane.handle = 3;
         plane.size   = 16;
         plane.used   = 17;
 
-        auto tb = ef::TensorBuilder::create();
+        auto tb = TensorBuilder::create();
         REQUIRE(tb.has_value());
         REQUIRE(tb->planes({&plane, 1}).has_value());
         CHECK_FALSE(tb->build().has_value());
@@ -250,7 +389,7 @@ TEST_CASE("quant_axis selects the required scale shape", "[tensor][validation]")
         const std::array<float, 1> scale{0.125f};
         const std::array<std::int32_t, 1> zero{7};
 
-        auto tb = ef::TensorBuilder::create();
+        auto tb = TensorBuilder::create();
         REQUIRE(tb.has_value());
         tb->dtype(3).quant_axis(-1);
         REQUIRE(tb->shape({shape.data(), shape.size()}).has_value());
@@ -260,7 +399,7 @@ TEST_CASE("quant_axis selects the required scale shape", "[tensor][validation]")
         auto built = tb->build();
         REQUIRE(built.has_value());
         Bytes bytes{*built};
-        auto t = ef::TensorView::from_cdr(bytes.span());
+        auto t = TensorView::from_cdr(bytes.span());
         REQUIRE(t.has_value());
         CHECK(t->quant_axis() == -1);
         REQUIRE(t->quant_scales().size() == 1);
@@ -273,7 +412,7 @@ TEST_CASE("quant_axis selects the required scale shape", "[tensor][validation]")
         const std::array<std::uint64_t, 2> shape{3, 8};
         const std::array<float, 3> scales{0.5f, 0.25f, 0.125f};
 
-        auto tb = ef::TensorBuilder::create();
+        auto tb = TensorBuilder::create();
         REQUIRE(tb.has_value());
         tb->quant_axis(0);
         REQUIRE(tb->shape({shape.data(), shape.size()}).has_value());
@@ -293,7 +432,7 @@ TEST_CASE("quant_axis selects the required scale shape", "[tensor][validation]")
         const std::array<std::uint64_t, 2> shape{3, 8};
         const std::array<float, 2> scales{0.5f, 0.25f};  // should be 3
 
-        auto tb = ef::TensorBuilder::create();
+        auto tb = TensorBuilder::create();
         REQUIRE(tb.has_value());
         tb->quant_axis(0);
         REQUIRE(tb->shape({shape.data(), shape.size()}).has_value());
@@ -303,7 +442,7 @@ TEST_CASE("quant_axis selects the required scale shape", "[tensor][validation]")
 
     SECTION("unquantized with scales is rejected") {
         const std::array<float, 1> scale{0.5f};
-        auto tb = ef::TensorBuilder::create();
+        auto tb = TensorBuilder::create();
         REQUIRE(tb.has_value());
         tb->quant_axis(-2);
         REQUIRE(tb->quant_scales({scale.data(), scale.size()}).has_value());
@@ -315,7 +454,7 @@ TEST_CASE("strides rank must match shape rank", "[tensor][validation]") {
     const std::array<std::uint64_t, 2> shape{4, 4};
     const std::array<std::int64_t, 1> strides{4};
 
-    auto tb = ef::TensorBuilder::create();
+    auto tb = TensorBuilder::create();
     REQUIRE(tb.has_value());
     REQUIRE(tb->shape({shape.data(), shape.size()}).has_value());
     REQUIRE(tb->strides({strides.data(), strides.size()}).has_value());
@@ -327,12 +466,12 @@ TEST_CASE("strides rank must match shape rank", "[tensor][validation]") {
 // ============================================================================
 
 TEST_CASE("CameraFrame round-trips header and payload", "[tensor][wrapper]") {
-    auto tb = ef::TensorBuilder::create();
+    auto tb = TensorBuilder::create();
     REQUIRE(tb.has_value());
     auto planes = nv12_planes();
     configure_nv12(*tb, planes);
 
-    auto fb = ef::CameraFrameBuilder::create();
+    auto fb = CameraFrameBuilder::create();
     REQUIRE(fb.has_value());
     fb->stamp({1234567890, 123456789}).seq(99);
     REQUIRE(fb->frame_id("camera_0").has_value());
@@ -342,7 +481,7 @@ TEST_CASE("CameraFrame round-trips header and payload", "[tensor][wrapper]") {
     REQUIRE(built.has_value());
     Bytes bytes{*built};
 
-    auto f = ef::CameraFrameView::from_cdr(bytes.span());
+    auto f = CameraFrameView::from_cdr(bytes.span());
     REQUIRE(f.has_value());
     CHECK(f->stamp().sec == 1234567890);
     CHECK(f->stamp().nanosec == 123456789);
@@ -360,7 +499,7 @@ TEST_CASE("CameraFrame round-trips header and payload", "[tensor][wrapper]") {
 }
 
 TEST_CASE("A wrapper builder with no tensor payload fails", "[tensor][wrapper]") {
-    auto fb = ef::CameraFrameBuilder::create();
+    auto fb = CameraFrameBuilder::create();
     REQUIRE(fb.has_value());
     fb->seq(1);
     CHECK_FALSE(fb->build().has_value());
@@ -374,7 +513,7 @@ TEST_CASE("A wrapper builder with no tensor payload fails", "[tensor][wrapper]")
  */
 TEST_CASE("Tensor bytes are identical across wrappers and frame_ids",
           "[tensor][wrapper][position-independence]") {
-    auto tb = ef::TensorBuilder::create();
+    auto tb = TensorBuilder::create();
     REQUIRE(tb.has_value());
     auto planes = nv12_planes();
     configure_nv12(*tb, planes);
@@ -383,7 +522,7 @@ TEST_CASE("Tensor bytes are identical across wrappers and frame_ids",
     std::vector<std::uint8_t> reference;
 
     for (const char* id : ids) {
-        auto fb = ef::CameraFrameBuilder::create();
+        auto fb = CameraFrameBuilder::create();
         REQUIRE(fb.has_value());
         REQUIRE(fb->frame_id(id).has_value());
         fb->seq(5);
@@ -391,11 +530,11 @@ TEST_CASE("Tensor bytes are identical across wrappers and frame_ids",
         auto fbuilt = fb->build();
         REQUIRE(fbuilt.has_value());
         Bytes fbytes{*fbuilt};
-        auto f = ef::CameraFrameView::from_cdr(fbytes.span());
+        auto f = CameraFrameView::from_cdr(fbytes.span());
         REQUIRE(f.has_value());
         auto ft = f->tensor().tensor_bytes();
 
-        auto sb = ef::TensorStampedBuilder::create();
+        auto sb = TensorStampedBuilder::create();
         REQUIRE(sb.has_value());
         REQUIRE(sb->frame_id(id).has_value());
         sb->seq(5);
@@ -403,7 +542,7 @@ TEST_CASE("Tensor bytes are identical across wrappers and frame_ids",
         auto sbuilt = sb->build();
         REQUIRE(sbuilt.has_value());
         Bytes sbytes{*sbuilt};
-        auto s = ef::TensorStampedView::from_cdr(sbytes.span());
+        auto s = TensorStampedView::from_cdr(sbytes.span());
         REQUIRE(s.has_value());
         auto st = s->tensor().tensor_bytes();
 
@@ -422,12 +561,12 @@ TEST_CASE("Tensor bytes are identical across wrappers and frame_ids",
 }
 
 TEST_CASE("An embedded tensor re-parses standalone", "[tensor][wrapper]") {
-    auto tb = ef::TensorBuilder::create();
+    auto tb = TensorBuilder::create();
     REQUIRE(tb.has_value());
     auto planes = nv12_planes();
     configure_nv12(*tb, planes);
 
-    auto fb = ef::CameraFrameBuilder::create();
+    auto fb = CameraFrameBuilder::create();
     REQUIRE(fb.has_value());
     REQUIRE(fb->frame_id("camera_0").has_value());
     REQUIRE(fb->tensor(*tb).has_value());
@@ -435,14 +574,14 @@ TEST_CASE("An embedded tensor re-parses standalone", "[tensor][wrapper]") {
     REQUIRE(built.has_value());
     Bytes bytes{*built};
 
-    auto f = ef::CameraFrameView::from_cdr(bytes.span());
+    auto f = CameraFrameView::from_cdr(bytes.span());
     REQUIRE(f.has_value());
 
     auto standalone = f->tensor().to_standalone_cdr();
     REQUIRE(standalone.has_value());
     Bytes sa{*standalone};
 
-    auto t = ef::TensorView::from_cdr(sa.span());
+    auto t = TensorView::from_cdr(sa.span());
     REQUIRE(t.has_value());
     CHECK(t->format() == "NV12");
     CHECK(t->num_planes() == 2);
@@ -461,7 +600,7 @@ TEST_CASE("An embedded tensor re-parses standalone", "[tensor][wrapper]") {
 // ============================================================================
 
 TEST_CASE("encode_into reports short buffers and matches build()", "[tensor]") {
-    auto tb = ef::TensorBuilder::create();
+    auto tb = TensorBuilder::create();
     REQUIRE(tb.has_value());
     auto planes = nv12_planes();
     configure_nv12(*tb, planes);
@@ -485,11 +624,11 @@ TEST_CASE("encode_into reports short buffers and matches build()", "[tensor]") {
 // ============================================================================
 
 TEST_CASE("Views are move-only and release exactly once", "[tensor][lifetime]") {
-    static_assert(!std::is_copy_constructible_v<ef::TensorView>);
-    static_assert(!std::is_copy_assignable_v<ef::TensorView>);
-    static_assert(std::is_move_constructible_v<ef::TensorView>);
-    static_assert(!std::is_copy_constructible_v<ef::CameraFrameView>);
-    static_assert(std::is_move_constructible_v<ef::CameraFrameView>);
+    static_assert(!std::is_copy_constructible_v<TensorView>);
+    static_assert(!std::is_copy_assignable_v<TensorView>);
+    static_assert(std::is_move_constructible_v<TensorView>);
+    static_assert(!std::is_copy_constructible_v<CameraFrameView>);
+    static_assert(std::is_move_constructible_v<CameraFrameView>);
 
     // Borrowed children must not be storable past their parent.
     static_assert(!std::is_default_constructible_v<ef::BorrowedTensorView>);
@@ -497,7 +636,7 @@ TEST_CASE("Views are move-only and release exactly once", "[tensor][lifetime]") 
     static_assert(!std::is_default_constructible_v<ef::BorrowedTensorPlaneView>);
     static_assert(!std::is_copy_assignable_v<ef::BorrowedTensorPlaneView>);
 
-    auto tb = ef::TensorBuilder::create();
+    auto tb = TensorBuilder::create();
     REQUIRE(tb.has_value());
     auto planes = nv12_planes();
     configure_nv12(*tb, planes);
@@ -505,7 +644,7 @@ TEST_CASE("Views are move-only and release exactly once", "[tensor][lifetime]") 
     REQUIRE(built.has_value());
     Bytes bytes{*built};
 
-    auto t = ef::TensorView::from_cdr(bytes.span());
+    auto t = TensorView::from_cdr(bytes.span());
     REQUIRE(t.has_value());
     auto moved = std::move(*t);
     CHECK(moved.num_planes() == 2);
@@ -514,9 +653,9 @@ TEST_CASE("Views are move-only and release exactly once", "[tensor][lifetime]") 
 
 TEST_CASE("from_cdr rejects malformed input", "[tensor]") {
     const std::array<std::uint8_t, 4> bad{0xDE, 0xAD, 0xBE, 0xEF};
-    CHECK_FALSE(ef::TensorView::from_cdr({bad.data(), bad.size()}).has_value());
-    CHECK_FALSE(ef::CameraFrameView::from_cdr({bad.data(), bad.size()}).has_value());
-    CHECK_FALSE(ef::TensorStampedView::from_cdr({bad.data(), bad.size()}).has_value());
+    CHECK_FALSE(TensorView::from_cdr({bad.data(), bad.size()}).has_value());
+    CHECK_FALSE(CameraFrameView::from_cdr({bad.data(), bad.size()}).has_value());
+    CHECK_FALSE(TensorStampedView::from_cdr({bad.data(), bad.size()}).has_value());
 }
 
 // ============================================================================
@@ -541,7 +680,7 @@ TEST_CASE("Golden Tensor decodes", "[tensor][golden]") {
     INFO("fixture missing - run scripts/generate_cdr_testdata.py");
     REQUIRE_FALSE(g.empty());
 
-    auto t = ef::TensorView::from_cdr({g.data(), g.size()});
+    auto t = TensorView::from_cdr({g.data(), g.size()});
     REQUIRE(t.has_value());
     CHECK(t->storage_kind() == 2);
     CHECK(t->pid() == 4242);
@@ -564,7 +703,7 @@ TEST_CASE("Golden inline and quantized tensors decode", "[tensor][golden]") {
         auto g = load_golden("Tensor_inline");
         INFO("fixture missing");
         REQUIRE_FALSE(g.empty());
-        auto t = ef::TensorView::from_cdr({g.data(), g.size()});
+        auto t = TensorView::from_cdr({g.data(), g.size()});
         REQUIRE(t.has_value());
         CHECK(t->format() == "mono8");
         auto p = *t->planes().begin();
@@ -577,7 +716,7 @@ TEST_CASE("Golden inline and quantized tensors decode", "[tensor][golden]") {
         auto g = load_golden("Tensor_quantized");
         INFO("fixture missing");
         REQUIRE_FALSE(g.empty());
-        auto t = ef::TensorView::from_cdr({g.data(), g.size()});
+        auto t = TensorView::from_cdr({g.data(), g.size()});
         REQUIRE(t.has_value());
         CHECK(t->quant_axis() == 0);
         auto sc = t->quant_scales();
@@ -595,13 +734,13 @@ TEST_CASE("Either wrapper decodes either golden fixture", "[tensor][golden]") {
         INFO("fixture missing");
         REQUIRE_FALSE(g.empty());
 
-        auto f = ef::CameraFrameView::from_cdr({g.data(), g.size()});
+        auto f = CameraFrameView::from_cdr({g.data(), g.size()});
         REQUIRE(f.has_value());
         CHECK(f->seq() == 99);
         CHECK(f->frame_id() == "test_frame");
         CHECK(f->tensor().format() == "NV12");
 
-        auto s = ef::TensorStampedView::from_cdr({g.data(), g.size()});
+        auto s = TensorStampedView::from_cdr({g.data(), g.size()});
         REQUIRE(s.has_value());
         CHECK(s->seq() == 99);
         CHECK(s->tensor().num_planes() == 2);
@@ -622,7 +761,7 @@ TEST_CASE("A long frame_id re-heads to the standalone golden", "[tensor][golden]
     INFO("fixtures missing");
     REQUIRE_FALSE((g.empty() || standalone.empty()));
 
-    auto f = ef::CameraFrameView::from_cdr({g.data(), g.size()});
+    auto f = CameraFrameView::from_cdr({g.data(), g.size()});
     REQUIRE(f.has_value());
     CHECK(f->frame_id() == "a_very_long_frame_identifier_x");
 
@@ -638,7 +777,7 @@ TEST_CASE("Our encoder reproduces the golden bytes", "[tensor][golden]") {
     INFO("fixture missing");
     REQUIRE_FALSE(g.empty());
 
-    auto tb = ef::TensorBuilder::create();
+    auto tb = TensorBuilder::create();
     REQUIRE(tb.has_value());
     auto planes = nv12_planes();
     configure_nv12(*tb, planes);

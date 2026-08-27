@@ -17,6 +17,145 @@
 #include <vector>
 
 namespace ef = edgefirst::schemas;
+using ef::builtin_interfaces::Time;
+using ef::builtin_interfaces::Duration;
+using ef::geometry_msgs::Vector3;
+using ef::geometry_msgs::Point;
+using ef::geometry_msgs::Point32;
+using ef::geometry_msgs::Quaternion;
+using ef::geometry_msgs::Pose;
+using ef::geometry_msgs::Transform;
+using ef::geometry_msgs::Twist;
+using ef::geometry_msgs::Accel;
+using ef::geometry_msgs::Wrench;
+using ef::geometry_msgs::PoseWithCovariance;
+using ef::geometry_msgs::TwistWithCovariance;
+using ef::geometry_msgs::AccelWithCovariance;
+using ef::geometry_msgs::AccelStampedView;
+using ef::geometry_msgs::AccelStampedBuilder;
+using ef::geometry_msgs::TwistStampedView;
+using ef::geometry_msgs::TwistStampedBuilder;
+using ef::geometry_msgs::WrenchStampedView;
+using ef::geometry_msgs::WrenchStampedBuilder;
+using ef::geometry_msgs::PointStampedView;
+using ef::geometry_msgs::PointStampedBuilder;
+using ef::geometry_msgs::InertiaStampedView;
+using ef::geometry_msgs::InertiaStampedBuilder;
+using ef::geometry_msgs::Vector3StampedView;
+using ef::geometry_msgs::Vector3StampedBuilder;
+using ef::geometry_msgs::PoseStampedView;
+using ef::geometry_msgs::PoseStampedBuilder;
+using ef::geometry_msgs::QuaternionStampedView;
+using ef::geometry_msgs::QuaternionStampedBuilder;
+using ef::geometry_msgs::PoseWithCovarianceStampedView;
+using ef::geometry_msgs::PoseWithCovarianceStampedBuilder;
+using ef::geometry_msgs::TwistWithCovarianceStampedView;
+using ef::geometry_msgs::TwistWithCovarianceStampedBuilder;
+using ef::geometry_msgs::AccelWithCovarianceStampedView;
+using ef::geometry_msgs::AccelWithCovarianceStampedBuilder;
+using ef::geometry_msgs::PolygonView;
+using ef::geometry_msgs::PolygonBuilder;
+using ef::geometry_msgs::PolygonStampedView;
+using ef::geometry_msgs::PolygonStampedBuilder;
+using ef::geometry_msgs::PoseArrayView;
+using ef::geometry_msgs::PoseArrayBuilder;
+using ef::geometry_msgs::TransformStampedView;
+using ef::geometry_msgs::TransformStampedBuilder;
+using ef::std_msgs::Header;
+using ef::std_msgs::HeaderView;
+using ef::std_msgs::HeaderBuilder;
+using ef::sensor_msgs::NavSatStatus;
+using ef::sensor_msgs::CompressedImage;
+using ef::sensor_msgs::CompressedImageView;
+using ef::sensor_msgs::CompressedImageBuilder;
+using ef::sensor_msgs::Image;
+using ef::sensor_msgs::ImageView;
+using ef::sensor_msgs::ImageBuilder;
+using ef::sensor_msgs::ImuView;
+using ef::sensor_msgs::ImuBuilder;
+using ef::sensor_msgs::NavSatFixView;
+using ef::sensor_msgs::NavSatFixBuilder;
+using ef::sensor_msgs::CameraInfoView;
+using ef::sensor_msgs::CameraInfoBuilder;
+using ef::sensor_msgs::PointCloud2View;
+using ef::sensor_msgs::PointCloud2Builder;
+using ef::sensor_msgs::PointFieldBuilder;
+using ef::sensor_msgs::MagneticFieldView;
+using ef::sensor_msgs::MagneticFieldBuilder;
+using ef::sensor_msgs::FluidPressureView;
+using ef::sensor_msgs::FluidPressureBuilder;
+using ef::sensor_msgs::TemperatureView;
+using ef::sensor_msgs::TemperatureBuilder;
+using ef::sensor_msgs::BatteryStateView;
+using ef::sensor_msgs::BatteryStateBuilder;
+using ef::sensor_msgs::RelativeHumidityView;
+using ef::sensor_msgs::RelativeHumidityBuilder;
+using ef::sensor_msgs::TimeReferenceView;
+using ef::sensor_msgs::TimeReferenceBuilder;
+using ef::nav_msgs::MapMetaData;
+using ef::nav_msgs::OdometryView;
+using ef::nav_msgs::OdometryBuilder;
+using ef::nav_msgs::GridCellsView;
+using ef::nav_msgs::GridCellsBuilder;
+using ef::nav_msgs::OccupancyGridView;
+using ef::nav_msgs::OccupancyGridBuilder;
+using ef::nav_msgs::PathView;
+using ef::nav_msgs::PathBuilder;
+using ef::foxglove_msgs::CompressedVideo;
+using ef::foxglove_msgs::CompressedVideoView;
+using ef::foxglove_msgs::CompressedVideoBuilder;
+using ef::foxglove_msgs::TextAnnotationBuilder;
+using ef::foxglove_msgs::PointAnnotationBuilder;
+using ef::foxglove_msgs::ImageAnnotationBuilder;
+using ef::mavros_msgs::AltitudeView;
+using ef::mavros_msgs::AltitudeBuilder;
+using ef::mavros_msgs::VfrHudView;
+using ef::mavros_msgs::VfrHudBuilder;
+using ef::mavros_msgs::EstimatorStatusView;
+using ef::mavros_msgs::EstimatorStatusBuilder;
+using ef::mavros_msgs::ExtendedStateView;
+using ef::mavros_msgs::ExtendedStateBuilder;
+using ef::mavros_msgs::SysStatusView;
+using ef::mavros_msgs::SysStatusBuilder;
+using ef::mavros_msgs::StateView;
+using ef::mavros_msgs::StateBuilder;
+using ef::mavros_msgs::StatusTextView;
+using ef::mavros_msgs::StatusTextBuilder;
+using ef::mavros_msgs::GpsRawView;
+using ef::mavros_msgs::GpsRawBuilder;
+using ef::mavros_msgs::TimesyncStatusView;
+using ef::mavros_msgs::TimesyncStatusBuilder;
+using ef::edgefirst_msgs::Mask;
+using ef::edgefirst_msgs::MaskView;
+using ef::edgefirst_msgs::MaskBuilder;
+using ef::edgefirst_msgs::LocalTimeView;
+using ef::edgefirst_msgs::LocalTimeBuilder;
+using ef::edgefirst_msgs::TrackView;
+using ef::edgefirst_msgs::TrackBuilder;
+using ef::edgefirst_msgs::BoxView;
+using ef::edgefirst_msgs::DetectView;
+using ef::edgefirst_msgs::DetectBuilder;
+using ef::edgefirst_msgs::DetectBoxBuilder;
+using ef::edgefirst_msgs::ModelView;
+using ef::edgefirst_msgs::ModelBuilder;
+using ef::edgefirst_msgs::ModelInfoView;
+using ef::edgefirst_msgs::ModelInfoBuilder;
+using ef::edgefirst_msgs::RadarCubeView;
+using ef::edgefirst_msgs::RadarCubeBuilder;
+using ef::edgefirst_msgs::RadarInfoView;
+using ef::edgefirst_msgs::RadarInfoBuilder;
+using ef::edgefirst_msgs::VibrationView;
+using ef::edgefirst_msgs::VibrationBuilder;
+using ef::edgefirst_msgs::TensorView;
+using ef::edgefirst_msgs::TensorBuilder;
+using ef::edgefirst_msgs::TensorStampedView;
+using ef::edgefirst_msgs::TensorStampedBuilder;
+using ef::edgefirst_msgs::CameraFrameView;
+using ef::edgefirst_msgs::CameraFrameBuilder;
+using FoxgloveCompressedImage = ef::foxglove_msgs::CompressedImage;
+using FoxgloveCompressedImageView = ef::foxglove_msgs::CompressedImageView;
+using FoxgloveCompressedImageBuilder = ef::foxglove_msgs::CompressedImageBuilder;
+
 
 // ============================================================================
 // Golden CDR fixtures
@@ -67,7 +206,7 @@ static constexpr std::uint8_t kGoldenDetectEmptyBytes[] = {
 // ============================================================================
 
 TEST_CASE("BoxView from_cdr error on empty span", "[buffer_backed][box]") {
-    auto v = ef::BoxView::from_cdr({});
+    auto v = BoxView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
@@ -76,7 +215,7 @@ TEST_CASE("BoxView from_cdr error on empty span", "[buffer_backed][box]") {
 // ============================================================================
 
 TEST_CASE("DetectView from_cdr error on empty span", "[buffer_backed][detect]") {
-    auto v = ef::DetectView::from_cdr({});
+    auto v = DetectView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
@@ -85,7 +224,7 @@ TEST_CASE("DetectView from_cdr error on empty span", "[buffer_backed][detect]") 
 // ============================================================================
 
 TEST_CASE("ModelView from_cdr error on empty span", "[buffer_backed][model]") {
-    auto v = ef::ModelView::from_cdr({});
+    auto v = ModelView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
@@ -94,7 +233,7 @@ TEST_CASE("ModelView from_cdr error on empty span", "[buffer_backed][model]") {
 // ============================================================================
 
 TEST_CASE("ModelInfoView from_cdr error on empty span", "[buffer_backed][model_info]") {
-    auto v = ef::ModelInfoView::from_cdr({});
+    auto v = ModelInfoView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
@@ -103,7 +242,7 @@ TEST_CASE("ModelInfoView from_cdr error on empty span", "[buffer_backed][model_i
 // ============================================================================
 
 TEST_CASE("PointCloud2View from_cdr error on empty span", "[buffer_backed][pointcloud2]") {
-    auto v = ef::PointCloud2View::from_cdr({});
+    auto v = PointCloud2View::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
@@ -112,7 +251,7 @@ TEST_CASE("PointCloud2View from_cdr error on empty span", "[buffer_backed][point
 // ============================================================================
 
 TEST_CASE("RadarCubeView from_cdr error on empty span", "[buffer_backed][radar_cube]") {
-    auto v = ef::RadarCubeView::from_cdr({});
+    auto v = RadarCubeView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
@@ -121,7 +260,7 @@ TEST_CASE("RadarCubeView from_cdr error on empty span", "[buffer_backed][radar_c
 // ============================================================================
 
 TEST_CASE("RadarInfoView from_cdr error on empty span", "[buffer_backed][radar_info]") {
-    auto v = ef::RadarInfoView::from_cdr({});
+    auto v = RadarInfoView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
@@ -130,7 +269,7 @@ TEST_CASE("RadarInfoView from_cdr error on empty span", "[buffer_backed][radar_i
 // ============================================================================
 
 TEST_CASE("DetectView range iteration yields expected boxes", "[detect][iteration]") {
-    auto det = ef::DetectView::from_cdr(
+    auto det = DetectView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenDetectBytes, sizeof(kGoldenDetectBytes)});
     REQUIRE(det.has_value());
 
@@ -187,7 +326,7 @@ TEST_CASE("DetectView range iteration yields expected boxes", "[detect][iteratio
 }
 
 TEST_CASE("DetectView empty iteration", "[detect][iteration]") {
-    auto det = ef::DetectView::from_cdr(
+    auto det = DetectView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenDetectEmptyBytes, sizeof(kGoldenDetectEmptyBytes)});
     REQUIRE(det.has_value());
 
@@ -204,7 +343,7 @@ TEST_CASE("DetectView empty iteration", "[detect][iteration]") {
 }
 
 TEST_CASE("DetectView boxes iterator STL interop", "[detect][iteration]") {
-    auto det = ef::DetectView::from_cdr(
+    auto det = DetectView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenDetectBytes, sizeof(kGoldenDetectBytes)});
     REQUIRE(det.has_value());
 
@@ -221,7 +360,7 @@ TEST_CASE("DetectView boxes iterator STL interop", "[detect][iteration]") {
 
 TEST_CASE("DetectView from_cdr on garbage bytes", "[detect][error]") {
     std::vector<std::uint8_t> garbage(32, 0xFF);
-    auto bad = ef::DetectView::from_cdr({garbage.data(), garbage.size()});
+    auto bad = DetectView::from_cdr({garbage.data(), garbage.size()});
     // Garbage must either fail cleanly or parse without crashing
     (void)bad;
 }
@@ -231,12 +370,12 @@ TEST_CASE("DetectView boxes expose track_created via BorrowedBoxView", "[detect]
     //   boxes[0] label="a"      -> track_created={sec=1, nanosec=0}
     //   boxes[1] label="person" -> track_created={sec=2, nanosec=0}
     //   boxes[2] label="ab"     -> track_created={sec=0, nanosec=0}
-    auto det = ef::DetectView::from_cdr(
+    auto det = DetectView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenDetectBytes, sizeof(kGoldenDetectBytes)});
     REQUIRE(det.has_value());
     REQUIRE(det->boxes_len() == 3u);
 
-    std::vector<ef::Time> track_createds;
+    std::vector<Time> track_createds;
     for (auto box : det->boxes()) {
         track_createds.push_back(box.track_created());
     }
@@ -264,16 +403,16 @@ TEST_CASE("ModelInfoView labels_len and label accessor compile", "[buffer_backed
     // Structural test: ensure the method signatures are correct.
     // We can't call them without a valid CDR, but we can verify the types.
     // Use a lambda to capture method pointer types without invoking them.
-    auto check_labels_len = [](const ef::ModelInfoView& v) -> std::uint32_t {
+    auto check_labels_len = [](const ModelInfoView& v) -> std::uint32_t {
         return v.labels_len();
     };
-    auto check_label = [](const ef::ModelInfoView& v, std::uint32_t i) -> std::string_view {
+    auto check_label = [](const ModelInfoView& v, std::uint32_t i) -> std::string_view {
         return v.label(i);
     };
-    auto check_input_shape = [](const ef::ModelInfoView& v) -> ef::span<const std::uint32_t> {
+    auto check_input_shape = [](const ModelInfoView& v) -> ef::span<const std::uint32_t> {
         return v.input_shape();
     };
-    auto check_output_shape = [](const ef::ModelInfoView& v) -> ef::span<const std::uint32_t> {
+    auto check_output_shape = [](const ModelInfoView& v) -> ef::span<const std::uint32_t> {
         return v.output_shape();
     };
     (void)check_labels_len;

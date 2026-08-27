@@ -3,7 +3,7 @@
  * @brief Criterion tests for std_msgs (Header — buffer-backed)
  *
  * Header API:
- *   ros_header_builder_* / ros_header_from_cdr / getters / ros_header_free
+ *   std_msgs_header_builder_* / std_msgs_header_from_cdr / getters / std_msgs_header_free
  */
 
 #include <criterion/criterion.h>
@@ -14,15 +14,15 @@
 
 static int build_header(uint8_t **bytes, size_t *len,
                         int32_t sec, uint32_t nsec, const char *frame_id) {
-    ros_header_builder_t *b = ros_header_builder_new();
+    std_msgs_header_builder_t *b = std_msgs_header_builder_new();
     if (!b) return -1;
-    ros_header_builder_set_stamp(b, sec, nsec);
-    if (ros_header_builder_set_frame_id(b, frame_id) != 0) {
-        ros_header_builder_free(b);
+    std_msgs_header_builder_set_stamp(b, sec, nsec);
+    if (std_msgs_header_builder_set_frame_id(b, frame_id) != 0) {
+        std_msgs_header_builder_free(b);
         return -1;
     }
-    int ret = ros_header_builder_build(b, bytes, len);
-    ros_header_builder_free(b);
+    int ret = std_msgs_header_builder_build(b, bytes, len);
+    std_msgs_header_builder_free(b);
     return ret;
 }
 
@@ -39,18 +39,18 @@ Test(std_msgs, header_encode_from_cdr_roundtrip) {
     cr_assert_not_null(bytes, "Output bytes should not be NULL");
     cr_assert_gt(len, 0, "Output length should be > 0");
 
-    ros_header_t *handle = ros_header_from_cdr(bytes, len);
+    std_msgs_header_t *handle = std_msgs_header_from_cdr(bytes, len);
     cr_assert_not_null(handle, "from_cdr should succeed");
 
-    cr_assert_eq(ros_header_get_stamp_sec(handle), 42);
-    cr_assert_eq(ros_header_get_stamp_nanosec(handle), 999);
+    cr_assert_eq(std_msgs_header_get_stamp_sec(handle), 42);
+    cr_assert_eq(std_msgs_header_get_stamp_nanosec(handle), 999);
 
-    const char *frame_id = ros_header_get_frame_id(handle);
+    const char *frame_id = std_msgs_header_get_frame_id(handle);
     cr_assert_not_null(frame_id);
     cr_assert_str_eq(frame_id, "test_frame");
 
-    ros_header_free(handle);
-    ros_bytes_free(bytes, len);
+    std_msgs_header_free(handle);
+    edgefirst_schemas_bytes_free(bytes, len);
 }
 
 Test(std_msgs, header_encode_empty_frame_id) {
@@ -60,18 +60,18 @@ Test(std_msgs, header_encode_empty_frame_id) {
     int ret = build_header(&bytes, &len, 0, 0, "");
     cr_assert_eq(ret, 0);
 
-    ros_header_t *handle = ros_header_from_cdr(bytes, len);
+    std_msgs_header_t *handle = std_msgs_header_from_cdr(bytes, len);
     cr_assert_not_null(handle);
 
-    cr_assert_eq(ros_header_get_stamp_sec(handle), 0);
-    cr_assert_eq(ros_header_get_stamp_nanosec(handle), 0);
+    cr_assert_eq(std_msgs_header_get_stamp_sec(handle), 0);
+    cr_assert_eq(std_msgs_header_get_stamp_nanosec(handle), 0);
 
-    const char *frame_id = ros_header_get_frame_id(handle);
+    const char *frame_id = std_msgs_header_get_frame_id(handle);
     cr_assert_not_null(frame_id);
     cr_assert_str_eq(frame_id, "");
 
-    ros_header_free(handle);
-    ros_bytes_free(bytes, len);
+    std_msgs_header_free(handle);
+    edgefirst_schemas_bytes_free(bytes, len);
 }
 
 Test(std_msgs, header_encode_null_frame_id) {
@@ -82,14 +82,14 @@ Test(std_msgs, header_encode_null_frame_id) {
     int ret = build_header(&bytes, &len, 100, 200, "");
     cr_assert_eq(ret, 0);
 
-    ros_header_t *handle = ros_header_from_cdr(bytes, len);
+    std_msgs_header_t *handle = std_msgs_header_from_cdr(bytes, len);
     cr_assert_not_null(handle);
 
-    cr_assert_eq(ros_header_get_stamp_sec(handle), 100);
-    cr_assert_eq(ros_header_get_stamp_nanosec(handle), 200);
+    cr_assert_eq(std_msgs_header_get_stamp_sec(handle), 100);
+    cr_assert_eq(std_msgs_header_get_stamp_nanosec(handle), 200);
 
-    ros_header_free(handle);
-    ros_bytes_free(bytes, len);
+    std_msgs_header_free(handle);
+    edgefirst_schemas_bytes_free(bytes, len);
 }
 
 Test(std_msgs, header_encode_long_frame_id) {
@@ -103,15 +103,15 @@ Test(std_msgs, header_encode_long_frame_id) {
     int ret = build_header(&bytes, &len, 1, 2, long_string);
     cr_assert_eq(ret, 0);
 
-    ros_header_t *handle = ros_header_from_cdr(bytes, len);
+    std_msgs_header_t *handle = std_msgs_header_from_cdr(bytes, len);
     cr_assert_not_null(handle);
 
-    const char *frame_id = ros_header_get_frame_id(handle);
+    const char *frame_id = std_msgs_header_get_frame_id(handle);
     cr_assert_not_null(frame_id);
     cr_assert_str_eq(frame_id, long_string);
 
-    ros_header_free(handle);
-    ros_bytes_free(bytes, len);
+    std_msgs_header_free(handle);
+    edgefirst_schemas_bytes_free(bytes, len);
 }
 
 Test(std_msgs, header_encode_special_chars) {
@@ -122,19 +122,19 @@ Test(std_msgs, header_encode_special_chars) {
     int ret = build_header(&bytes, &len, 0, 0, special);
     cr_assert_eq(ret, 0);
 
-    ros_header_t *handle = ros_header_from_cdr(bytes, len);
+    std_msgs_header_t *handle = std_msgs_header_from_cdr(bytes, len);
     cr_assert_not_null(handle);
 
-    const char *frame_id = ros_header_get_frame_id(handle);
+    const char *frame_id = std_msgs_header_get_frame_id(handle);
     cr_assert_str_eq(frame_id, special);
 
-    ros_header_free(handle);
-    ros_bytes_free(bytes, len);
+    std_msgs_header_free(handle);
+    edgefirst_schemas_bytes_free(bytes, len);
 }
 
 Test(std_msgs, header_from_cdr_null) {
     errno = 0;
-    ros_header_t *handle = ros_header_from_cdr(NULL, 100);
+    std_msgs_header_t *handle = std_msgs_header_from_cdr(NULL, 100);
     cr_assert_null(handle, "Should return NULL for NULL data");
     cr_assert_eq(errno, EINVAL, "errno should be EINVAL");
 }
@@ -142,18 +142,18 @@ Test(std_msgs, header_from_cdr_null) {
 Test(std_msgs, header_from_cdr_invalid) {
     uint8_t bad_data[4] = {0xFF, 0xFF, 0xFF, 0xFF};
     errno = 0;
-    ros_header_t *handle = ros_header_from_cdr(bad_data, 4);
+    std_msgs_header_t *handle = std_msgs_header_from_cdr(bad_data, 4);
     cr_assert_null(handle, "Should return NULL for invalid data");
     cr_assert_eq(errno, EBADMSG, "errno should be EBADMSG");
 }
 
 Test(std_msgs, header_free_null) {
     // Should not crash when freeing NULL
-    ros_header_free(NULL);
+    std_msgs_header_free(NULL);
 }
 
 Test(std_msgs, header_getters_null_handle) {
-    cr_assert_eq(ros_header_get_stamp_sec(NULL), 0);
-    cr_assert_eq(ros_header_get_stamp_nanosec(NULL), 0);
-    cr_assert_null(ros_header_get_frame_id(NULL));
+    cr_assert_eq(std_msgs_header_get_stamp_sec(NULL), 0);
+    cr_assert_eq(std_msgs_header_get_stamp_nanosec(NULL), 0);
+    cr_assert_null(std_msgs_header_get_frame_id(NULL));
 }

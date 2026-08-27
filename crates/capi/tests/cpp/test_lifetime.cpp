@@ -22,120 +22,259 @@
 #include <cstdint>
 
 namespace ef = edgefirst::schemas;
+using ef::builtin_interfaces::Time;
+using ef::builtin_interfaces::Duration;
+using ef::geometry_msgs::Vector3;
+using ef::geometry_msgs::Point;
+using ef::geometry_msgs::Point32;
+using ef::geometry_msgs::Quaternion;
+using ef::geometry_msgs::Pose;
+using ef::geometry_msgs::Transform;
+using ef::geometry_msgs::Twist;
+using ef::geometry_msgs::Accel;
+using ef::geometry_msgs::Wrench;
+using ef::geometry_msgs::PoseWithCovariance;
+using ef::geometry_msgs::TwistWithCovariance;
+using ef::geometry_msgs::AccelWithCovariance;
+using ef::geometry_msgs::AccelStampedView;
+using ef::geometry_msgs::AccelStampedBuilder;
+using ef::geometry_msgs::TwistStampedView;
+using ef::geometry_msgs::TwistStampedBuilder;
+using ef::geometry_msgs::WrenchStampedView;
+using ef::geometry_msgs::WrenchStampedBuilder;
+using ef::geometry_msgs::PointStampedView;
+using ef::geometry_msgs::PointStampedBuilder;
+using ef::geometry_msgs::InertiaStampedView;
+using ef::geometry_msgs::InertiaStampedBuilder;
+using ef::geometry_msgs::Vector3StampedView;
+using ef::geometry_msgs::Vector3StampedBuilder;
+using ef::geometry_msgs::PoseStampedView;
+using ef::geometry_msgs::PoseStampedBuilder;
+using ef::geometry_msgs::QuaternionStampedView;
+using ef::geometry_msgs::QuaternionStampedBuilder;
+using ef::geometry_msgs::PoseWithCovarianceStampedView;
+using ef::geometry_msgs::PoseWithCovarianceStampedBuilder;
+using ef::geometry_msgs::TwistWithCovarianceStampedView;
+using ef::geometry_msgs::TwistWithCovarianceStampedBuilder;
+using ef::geometry_msgs::AccelWithCovarianceStampedView;
+using ef::geometry_msgs::AccelWithCovarianceStampedBuilder;
+using ef::geometry_msgs::PolygonView;
+using ef::geometry_msgs::PolygonBuilder;
+using ef::geometry_msgs::PolygonStampedView;
+using ef::geometry_msgs::PolygonStampedBuilder;
+using ef::geometry_msgs::PoseArrayView;
+using ef::geometry_msgs::PoseArrayBuilder;
+using ef::geometry_msgs::TransformStampedView;
+using ef::geometry_msgs::TransformStampedBuilder;
+using ef::std_msgs::Header;
+using ef::std_msgs::HeaderView;
+using ef::std_msgs::HeaderBuilder;
+using ef::sensor_msgs::NavSatStatus;
+using ef::sensor_msgs::CompressedImage;
+using ef::sensor_msgs::CompressedImageView;
+using ef::sensor_msgs::CompressedImageBuilder;
+using ef::sensor_msgs::Image;
+using ef::sensor_msgs::ImageView;
+using ef::sensor_msgs::ImageBuilder;
+using ef::sensor_msgs::ImuView;
+using ef::sensor_msgs::ImuBuilder;
+using ef::sensor_msgs::NavSatFixView;
+using ef::sensor_msgs::NavSatFixBuilder;
+using ef::sensor_msgs::CameraInfoView;
+using ef::sensor_msgs::CameraInfoBuilder;
+using ef::sensor_msgs::PointCloud2View;
+using ef::sensor_msgs::PointCloud2Builder;
+using ef::sensor_msgs::PointFieldBuilder;
+using ef::sensor_msgs::MagneticFieldView;
+using ef::sensor_msgs::MagneticFieldBuilder;
+using ef::sensor_msgs::FluidPressureView;
+using ef::sensor_msgs::FluidPressureBuilder;
+using ef::sensor_msgs::TemperatureView;
+using ef::sensor_msgs::TemperatureBuilder;
+using ef::sensor_msgs::BatteryStateView;
+using ef::sensor_msgs::BatteryStateBuilder;
+using ef::sensor_msgs::RelativeHumidityView;
+using ef::sensor_msgs::RelativeHumidityBuilder;
+using ef::sensor_msgs::TimeReferenceView;
+using ef::sensor_msgs::TimeReferenceBuilder;
+using ef::nav_msgs::MapMetaData;
+using ef::nav_msgs::OdometryView;
+using ef::nav_msgs::OdometryBuilder;
+using ef::nav_msgs::GridCellsView;
+using ef::nav_msgs::GridCellsBuilder;
+using ef::nav_msgs::OccupancyGridView;
+using ef::nav_msgs::OccupancyGridBuilder;
+using ef::nav_msgs::PathView;
+using ef::nav_msgs::PathBuilder;
+using ef::foxglove_msgs::CompressedVideo;
+using ef::foxglove_msgs::CompressedVideoView;
+using ef::foxglove_msgs::CompressedVideoBuilder;
+using ef::foxglove_msgs::TextAnnotationBuilder;
+using ef::foxglove_msgs::PointAnnotationBuilder;
+using ef::foxglove_msgs::ImageAnnotationBuilder;
+using ef::mavros_msgs::AltitudeView;
+using ef::mavros_msgs::AltitudeBuilder;
+using ef::mavros_msgs::VfrHudView;
+using ef::mavros_msgs::VfrHudBuilder;
+using ef::mavros_msgs::EstimatorStatusView;
+using ef::mavros_msgs::EstimatorStatusBuilder;
+using ef::mavros_msgs::ExtendedStateView;
+using ef::mavros_msgs::ExtendedStateBuilder;
+using ef::mavros_msgs::SysStatusView;
+using ef::mavros_msgs::SysStatusBuilder;
+using ef::mavros_msgs::StateView;
+using ef::mavros_msgs::StateBuilder;
+using ef::mavros_msgs::StatusTextView;
+using ef::mavros_msgs::StatusTextBuilder;
+using ef::mavros_msgs::GpsRawView;
+using ef::mavros_msgs::GpsRawBuilder;
+using ef::mavros_msgs::TimesyncStatusView;
+using ef::mavros_msgs::TimesyncStatusBuilder;
+using ef::edgefirst_msgs::Mask;
+using ef::edgefirst_msgs::MaskView;
+using ef::edgefirst_msgs::MaskBuilder;
+using ef::edgefirst_msgs::LocalTimeView;
+using ef::edgefirst_msgs::LocalTimeBuilder;
+using ef::edgefirst_msgs::TrackView;
+using ef::edgefirst_msgs::TrackBuilder;
+using ef::edgefirst_msgs::BoxView;
+using ef::edgefirst_msgs::DetectView;
+using ef::edgefirst_msgs::DetectBuilder;
+using ef::edgefirst_msgs::DetectBoxBuilder;
+using ef::edgefirst_msgs::ModelView;
+using ef::edgefirst_msgs::ModelBuilder;
+using ef::edgefirst_msgs::ModelInfoView;
+using ef::edgefirst_msgs::ModelInfoBuilder;
+using ef::edgefirst_msgs::RadarCubeView;
+using ef::edgefirst_msgs::RadarCubeBuilder;
+using ef::edgefirst_msgs::RadarInfoView;
+using ef::edgefirst_msgs::RadarInfoBuilder;
+using ef::edgefirst_msgs::VibrationView;
+using ef::edgefirst_msgs::VibrationBuilder;
+using ef::edgefirst_msgs::TensorView;
+using ef::edgefirst_msgs::TensorBuilder;
+using ef::edgefirst_msgs::TensorStampedView;
+using ef::edgefirst_msgs::TensorStampedBuilder;
+using ef::edgefirst_msgs::CameraFrameView;
+using ef::edgefirst_msgs::CameraFrameBuilder;
+using FoxgloveCompressedImage = ef::foxglove_msgs::CompressedImage;
+using FoxgloveCompressedImageView = ef::foxglove_msgs::CompressedImageView;
+using FoxgloveCompressedImageBuilder = ef::foxglove_msgs::CompressedImageBuilder;
+
 
 // ============================================================================
 // Compile-time: CdrFixed value types
 // Must be trivially copyable and nothrow default constructible.
 // ============================================================================
 
-static_assert(std::is_trivially_copyable_v<ef::Time>);
-static_assert(std::is_nothrow_default_constructible_v<ef::Time>);
+static_assert(std::is_trivially_copyable_v<Time>);
+static_assert(std::is_nothrow_default_constructible_v<Time>);
 
-static_assert(std::is_trivially_copyable_v<ef::Duration>);
-static_assert(std::is_nothrow_default_constructible_v<ef::Duration>);
+static_assert(std::is_trivially_copyable_v<Duration>);
+static_assert(std::is_nothrow_default_constructible_v<Duration>);
 
-static_assert(std::is_trivially_copyable_v<ef::Vector3>);
-static_assert(std::is_nothrow_default_constructible_v<ef::Vector3>);
+static_assert(std::is_trivially_copyable_v<Vector3>);
+static_assert(std::is_nothrow_default_constructible_v<Vector3>);
 
-static_assert(std::is_trivially_copyable_v<ef::Point>);
-static_assert(std::is_nothrow_default_constructible_v<ef::Point>);
+static_assert(std::is_trivially_copyable_v<Point>);
+static_assert(std::is_nothrow_default_constructible_v<Point>);
 
-static_assert(std::is_trivially_copyable_v<ef::Quaternion>);
-static_assert(std::is_nothrow_default_constructible_v<ef::Quaternion>);
+static_assert(std::is_trivially_copyable_v<Quaternion>);
+static_assert(std::is_nothrow_default_constructible_v<Quaternion>);
 
-static_assert(std::is_trivially_copyable_v<ef::Pose>);
-static_assert(std::is_nothrow_default_constructible_v<ef::Pose>);
+static_assert(std::is_trivially_copyable_v<Pose>);
+static_assert(std::is_nothrow_default_constructible_v<Pose>);
 
-static_assert(std::is_trivially_copyable_v<ef::Transform>);
-static_assert(std::is_nothrow_default_constructible_v<ef::Transform>);
+static_assert(std::is_trivially_copyable_v<Transform>);
+static_assert(std::is_nothrow_default_constructible_v<Transform>);
 
-static_assert(std::is_trivially_copyable_v<ef::Twist>);
-static_assert(std::is_nothrow_default_constructible_v<ef::Twist>);
+static_assert(std::is_trivially_copyable_v<Twist>);
+static_assert(std::is_nothrow_default_constructible_v<Twist>);
 
-static_assert(std::is_trivially_copyable_v<ef::Accel>);
-static_assert(std::is_nothrow_default_constructible_v<ef::Accel>);
+static_assert(std::is_trivially_copyable_v<Accel>);
+static_assert(std::is_nothrow_default_constructible_v<Accel>);
 
-static_assert(std::is_trivially_copyable_v<ef::NavSatStatus>);
-static_assert(std::is_nothrow_default_constructible_v<ef::NavSatStatus>);
+static_assert(std::is_trivially_copyable_v<NavSatStatus>);
+static_assert(std::is_nothrow_default_constructible_v<NavSatStatus>);
 
 // ============================================================================
 // Compile-time: View types — move-only
 // ============================================================================
 
-static_assert(!std::is_copy_constructible_v<ef::HeaderView>);
-static_assert(!std::is_copy_assignable_v<ef::HeaderView>);
-static_assert(std::is_nothrow_move_constructible_v<ef::HeaderView>);
-static_assert(std::is_nothrow_move_assignable_v<ef::HeaderView>);
+static_assert(!std::is_copy_constructible_v<HeaderView>);
+static_assert(!std::is_copy_assignable_v<HeaderView>);
+static_assert(std::is_nothrow_move_constructible_v<HeaderView>);
+static_assert(std::is_nothrow_move_assignable_v<HeaderView>);
 
-static_assert(!std::is_copy_constructible_v<ef::CompressedImageView>);
-static_assert(!std::is_copy_assignable_v<ef::CompressedImageView>);
-static_assert(std::is_nothrow_move_constructible_v<ef::CompressedImageView>);
-static_assert(std::is_nothrow_move_assignable_v<ef::CompressedImageView>);
+static_assert(!std::is_copy_constructible_v<CompressedImageView>);
+static_assert(!std::is_copy_assignable_v<CompressedImageView>);
+static_assert(std::is_nothrow_move_constructible_v<CompressedImageView>);
+static_assert(std::is_nothrow_move_assignable_v<CompressedImageView>);
 
-static_assert(!std::is_copy_constructible_v<ef::ImuView>);
-static_assert(!std::is_copy_assignable_v<ef::ImuView>);
-static_assert(std::is_nothrow_move_constructible_v<ef::ImuView>);
-static_assert(std::is_nothrow_move_assignable_v<ef::ImuView>);
+static_assert(!std::is_copy_constructible_v<ImuView>);
+static_assert(!std::is_copy_assignable_v<ImuView>);
+static_assert(std::is_nothrow_move_constructible_v<ImuView>);
+static_assert(std::is_nothrow_move_assignable_v<ImuView>);
 
-static_assert(!std::is_copy_constructible_v<ef::NavSatFixView>);
-static_assert(!std::is_copy_assignable_v<ef::NavSatFixView>);
-static_assert(std::is_nothrow_move_constructible_v<ef::NavSatFixView>);
-static_assert(std::is_nothrow_move_assignable_v<ef::NavSatFixView>);
+static_assert(!std::is_copy_constructible_v<NavSatFixView>);
+static_assert(!std::is_copy_assignable_v<NavSatFixView>);
+static_assert(std::is_nothrow_move_constructible_v<NavSatFixView>);
+static_assert(std::is_nothrow_move_assignable_v<NavSatFixView>);
 
-static_assert(!std::is_copy_constructible_v<ef::CameraInfoView>);
-static_assert(!std::is_copy_assignable_v<ef::CameraInfoView>);
-static_assert(std::is_nothrow_move_constructible_v<ef::CameraInfoView>);
-static_assert(std::is_nothrow_move_assignable_v<ef::CameraInfoView>);
+static_assert(!std::is_copy_constructible_v<CameraInfoView>);
+static_assert(!std::is_copy_assignable_v<CameraInfoView>);
+static_assert(std::is_nothrow_move_constructible_v<CameraInfoView>);
+static_assert(std::is_nothrow_move_assignable_v<CameraInfoView>);
 
-static_assert(!std::is_copy_constructible_v<ef::TransformStampedView>);
-static_assert(!std::is_copy_assignable_v<ef::TransformStampedView>);
-static_assert(std::is_nothrow_move_constructible_v<ef::TransformStampedView>);
-static_assert(std::is_nothrow_move_assignable_v<ef::TransformStampedView>);
+static_assert(!std::is_copy_constructible_v<TransformStampedView>);
+static_assert(!std::is_copy_assignable_v<TransformStampedView>);
+static_assert(std::is_nothrow_move_constructible_v<TransformStampedView>);
+static_assert(std::is_nothrow_move_assignable_v<TransformStampedView>);
 
-static_assert(!std::is_copy_constructible_v<ef::CompressedVideoView>);
-static_assert(!std::is_copy_assignable_v<ef::CompressedVideoView>);
-static_assert(std::is_nothrow_move_constructible_v<ef::CompressedVideoView>);
-static_assert(std::is_nothrow_move_assignable_v<ef::CompressedVideoView>);
+static_assert(!std::is_copy_constructible_v<CompressedVideoView>);
+static_assert(!std::is_copy_assignable_v<CompressedVideoView>);
+static_assert(std::is_nothrow_move_constructible_v<CompressedVideoView>);
+static_assert(std::is_nothrow_move_assignable_v<CompressedVideoView>);
 
-static_assert(!std::is_copy_constructible_v<ef::MaskView>);
-static_assert(!std::is_copy_assignable_v<ef::MaskView>);
-static_assert(std::is_nothrow_move_constructible_v<ef::MaskView>);
-static_assert(std::is_nothrow_move_assignable_v<ef::MaskView>);
+static_assert(!std::is_copy_constructible_v<MaskView>);
+static_assert(!std::is_copy_assignable_v<MaskView>);
+static_assert(std::is_nothrow_move_constructible_v<MaskView>);
+static_assert(std::is_nothrow_move_assignable_v<MaskView>);
 
-static_assert(!std::is_copy_constructible_v<ef::LocalTimeView>);
-static_assert(!std::is_copy_assignable_v<ef::LocalTimeView>);
-static_assert(std::is_nothrow_move_constructible_v<ef::LocalTimeView>);
-static_assert(std::is_nothrow_move_assignable_v<ef::LocalTimeView>);
+static_assert(!std::is_copy_constructible_v<LocalTimeView>);
+static_assert(!std::is_copy_assignable_v<LocalTimeView>);
+static_assert(std::is_nothrow_move_constructible_v<LocalTimeView>);
+static_assert(std::is_nothrow_move_assignable_v<LocalTimeView>);
 
-static_assert(!std::is_copy_constructible_v<ef::TrackView>);
-static_assert(!std::is_copy_assignable_v<ef::TrackView>);
-static_assert(std::is_nothrow_move_constructible_v<ef::TrackView>);
-static_assert(std::is_nothrow_move_assignable_v<ef::TrackView>);
+static_assert(!std::is_copy_constructible_v<TrackView>);
+static_assert(!std::is_copy_assignable_v<TrackView>);
+static_assert(std::is_nothrow_move_constructible_v<TrackView>);
+static_assert(std::is_nothrow_move_assignable_v<TrackView>);
 
-static_assert(!std::is_copy_constructible_v<ef::ImageView>);
-static_assert(!std::is_copy_assignable_v<ef::ImageView>);
-static_assert(std::is_nothrow_move_constructible_v<ef::ImageView>);
-static_assert(std::is_nothrow_move_assignable_v<ef::ImageView>);
+static_assert(!std::is_copy_constructible_v<ImageView>);
+static_assert(!std::is_copy_assignable_v<ImageView>);
+static_assert(std::is_nothrow_move_constructible_v<ImageView>);
+static_assert(std::is_nothrow_move_assignable_v<ImageView>);
 
-static_assert(!std::is_copy_constructible_v<ef::PointCloud2View>);
-static_assert(!std::is_copy_assignable_v<ef::PointCloud2View>);
-static_assert(std::is_nothrow_move_constructible_v<ef::PointCloud2View>);
-static_assert(std::is_nothrow_move_assignable_v<ef::PointCloud2View>);
+static_assert(!std::is_copy_constructible_v<PointCloud2View>);
+static_assert(!std::is_copy_assignable_v<PointCloud2View>);
+static_assert(std::is_nothrow_move_constructible_v<PointCloud2View>);
+static_assert(std::is_nothrow_move_assignable_v<PointCloud2View>);
 
-static_assert(!std::is_copy_constructible_v<ef::RadarCubeView>);
-static_assert(!std::is_copy_assignable_v<ef::RadarCubeView>);
-static_assert(std::is_nothrow_move_constructible_v<ef::RadarCubeView>);
-static_assert(std::is_nothrow_move_assignable_v<ef::RadarCubeView>);
+static_assert(!std::is_copy_constructible_v<RadarCubeView>);
+static_assert(!std::is_copy_assignable_v<RadarCubeView>);
+static_assert(std::is_nothrow_move_constructible_v<RadarCubeView>);
+static_assert(std::is_nothrow_move_assignable_v<RadarCubeView>);
 
-static_assert(!std::is_copy_constructible_v<ef::RadarInfoView>);
-static_assert(!std::is_copy_assignable_v<ef::RadarInfoView>);
-static_assert(std::is_nothrow_move_constructible_v<ef::RadarInfoView>);
-static_assert(std::is_nothrow_move_assignable_v<ef::RadarInfoView>);
+static_assert(!std::is_copy_constructible_v<RadarInfoView>);
+static_assert(!std::is_copy_assignable_v<RadarInfoView>);
+static_assert(std::is_nothrow_move_constructible_v<RadarInfoView>);
+static_assert(std::is_nothrow_move_assignable_v<RadarInfoView>);
 
-static_assert(!std::is_copy_constructible_v<ef::BoxView>);
-static_assert(!std::is_copy_assignable_v<ef::BoxView>);
-static_assert(std::is_nothrow_move_constructible_v<ef::BoxView>);
-static_assert(std::is_nothrow_move_assignable_v<ef::BoxView>);
+static_assert(!std::is_copy_constructible_v<BoxView>);
+static_assert(!std::is_copy_assignable_v<BoxView>);
+static_assert(std::is_nothrow_move_constructible_v<BoxView>);
+static_assert(std::is_nothrow_move_assignable_v<BoxView>);
 
 // BorrowedBoxView / BorrowedMaskView: yielded by ChildRange iteration.
 // Non-default-constructible (require a parent-borrowed handle at construction),
@@ -156,59 +295,59 @@ static_assert( std::is_move_constructible_v<ef::detail::BorrowedMaskView>);
 static_assert(!std::is_move_assignable_v<ef::detail::BorrowedMaskView>);
 static_assert( std::is_trivially_destructible_v<ef::detail::BorrowedMaskView>);
 
-static_assert(!std::is_copy_constructible_v<ef::DetectView>);
-static_assert(!std::is_copy_assignable_v<ef::DetectView>);
-static_assert(std::is_nothrow_move_constructible_v<ef::DetectView>);
-static_assert(std::is_nothrow_move_assignable_v<ef::DetectView>);
+static_assert(!std::is_copy_constructible_v<DetectView>);
+static_assert(!std::is_copy_assignable_v<DetectView>);
+static_assert(std::is_nothrow_move_constructible_v<DetectView>);
+static_assert(std::is_nothrow_move_assignable_v<DetectView>);
 
-static_assert(!std::is_copy_constructible_v<ef::ModelView>);
-static_assert(!std::is_copy_assignable_v<ef::ModelView>);
-static_assert(std::is_nothrow_move_constructible_v<ef::ModelView>);
-static_assert(std::is_nothrow_move_assignable_v<ef::ModelView>);
+static_assert(!std::is_copy_constructible_v<ModelView>);
+static_assert(!std::is_copy_assignable_v<ModelView>);
+static_assert(std::is_nothrow_move_constructible_v<ModelView>);
+static_assert(std::is_nothrow_move_assignable_v<ModelView>);
 
-static_assert(!std::is_copy_constructible_v<ef::ModelInfoView>);
-static_assert(!std::is_copy_assignable_v<ef::ModelInfoView>);
-static_assert(std::is_nothrow_move_constructible_v<ef::ModelInfoView>);
-static_assert(std::is_nothrow_move_assignable_v<ef::ModelInfoView>);
+static_assert(!std::is_copy_constructible_v<ModelInfoView>);
+static_assert(!std::is_copy_assignable_v<ModelInfoView>);
+static_assert(std::is_nothrow_move_constructible_v<ModelInfoView>);
+static_assert(std::is_nothrow_move_assignable_v<ModelInfoView>);
 
 // ============================================================================
 // Compile-time: Owning types — move-only
 // ============================================================================
 
-static_assert(!std::is_copy_constructible_v<ef::Header>);
-static_assert(!std::is_copy_assignable_v<ef::Header>);
-static_assert(std::is_nothrow_move_constructible_v<ef::Header>);
-static_assert(std::is_nothrow_move_assignable_v<ef::Header>);
+static_assert(!std::is_copy_constructible_v<Header>);
+static_assert(!std::is_copy_assignable_v<Header>);
+static_assert(std::is_nothrow_move_constructible_v<Header>);
+static_assert(std::is_nothrow_move_assignable_v<Header>);
 
-static_assert(!std::is_copy_constructible_v<ef::CompressedImage>);
-static_assert(!std::is_copy_assignable_v<ef::CompressedImage>);
-static_assert(std::is_nothrow_move_constructible_v<ef::CompressedImage>);
-static_assert(std::is_nothrow_move_assignable_v<ef::CompressedImage>);
+static_assert(!std::is_copy_constructible_v<CompressedImage>);
+static_assert(!std::is_copy_assignable_v<CompressedImage>);
+static_assert(std::is_nothrow_move_constructible_v<CompressedImage>);
+static_assert(std::is_nothrow_move_assignable_v<CompressedImage>);
 
-static_assert(!std::is_copy_constructible_v<ef::CompressedVideo>);
-static_assert(!std::is_copy_assignable_v<ef::CompressedVideo>);
-static_assert(std::is_nothrow_move_constructible_v<ef::CompressedVideo>);
-static_assert(std::is_nothrow_move_assignable_v<ef::CompressedVideo>);
+static_assert(!std::is_copy_constructible_v<CompressedVideo>);
+static_assert(!std::is_copy_assignable_v<CompressedVideo>);
+static_assert(std::is_nothrow_move_constructible_v<CompressedVideo>);
+static_assert(std::is_nothrow_move_assignable_v<CompressedVideo>);
 
-static_assert(!std::is_copy_constructible_v<ef::Mask>);
-static_assert(!std::is_copy_assignable_v<ef::Mask>);
-static_assert(std::is_nothrow_move_constructible_v<ef::Mask>);
-static_assert(std::is_nothrow_move_assignable_v<ef::Mask>);
+static_assert(!std::is_copy_constructible_v<Mask>);
+static_assert(!std::is_copy_assignable_v<Mask>);
+static_assert(std::is_nothrow_move_constructible_v<Mask>);
+static_assert(std::is_nothrow_move_assignable_v<Mask>);
 
-static_assert(!std::is_copy_constructible_v<ef::Image>);
-static_assert(!std::is_copy_assignable_v<ef::Image>);
-static_assert(std::is_nothrow_move_constructible_v<ef::Image>);
-static_assert(std::is_nothrow_move_assignable_v<ef::Image>);
+static_assert(!std::is_copy_constructible_v<Image>);
+static_assert(!std::is_copy_assignable_v<Image>);
+static_assert(std::is_nothrow_move_constructible_v<Image>);
+static_assert(std::is_nothrow_move_assignable_v<Image>);
 
 // ============================================================================
 // Runtime: HeaderView move semantics
 // ============================================================================
 
 TEST_CASE("HeaderView move construct leaves source safely destructible", "[lifetime]") {
-    auto hdr = ef::Header::encode({1, 2}, "cam");
+    auto hdr = Header::encode({1, 2}, "cam");
     REQUIRE(hdr.has_value());
     auto cdr = hdr->as_cdr();
-    auto v1 = ef::HeaderView::from_cdr(cdr);
+    auto v1 = HeaderView::from_cdr(cdr);
     REQUIRE(v1.has_value());
 
     // Move construct: v2 owns the handle, v1 is in a moved-from (null handle) state.
@@ -218,12 +357,12 @@ TEST_CASE("HeaderView move construct leaves source safely destructible", "[lifet
 }
 
 TEST_CASE("HeaderView move assign", "[lifetime]") {
-    auto hdr1 = ef::Header::encode({1, 2}, "cam1");
-    auto hdr2 = ef::Header::encode({3, 4}, "cam2");
+    auto hdr1 = Header::encode({1, 2}, "cam1");
+    auto hdr2 = Header::encode({3, 4}, "cam2");
     REQUIRE(hdr1.has_value());
     REQUIRE(hdr2.has_value());
-    auto v1 = ef::HeaderView::from_cdr(hdr1->as_cdr());
-    auto v2 = ef::HeaderView::from_cdr(hdr2->as_cdr());
+    auto v1 = HeaderView::from_cdr(hdr1->as_cdr());
+    auto v2 = HeaderView::from_cdr(hdr2->as_cdr());
     REQUIRE(v1.has_value());
     REQUIRE(v2.has_value());
 
@@ -233,14 +372,14 @@ TEST_CASE("HeaderView move assign", "[lifetime]") {
 }
 
 TEST_CASE("HeaderView self-move is safe", "[lifetime]") {
-    auto hdr = ef::Header::encode({1, 2}, "cam");
+    auto hdr = Header::encode({1, 2}, "cam");
     REQUIRE(hdr.has_value());
-    auto view = ef::HeaderView::from_cdr(hdr->as_cdr());
+    auto view = HeaderView::from_cdr(hdr->as_cdr());
     REQUIRE(view.has_value());
 
     // Use an indirection through a pointer to suppress compiler self-move warnings
     // while still exercising the self-move code path.
-    ef::HeaderView* p = &(*view);
+    HeaderView* p = &(*view);
     *p = std::move(*view);  // self-move via pointer alias
     CHECK(view->frame_id() == "cam");
 }
@@ -250,7 +389,7 @@ TEST_CASE("HeaderView self-move is safe", "[lifetime]") {
 // ============================================================================
 
 TEST_CASE("Header move construct leaves source safely destructible", "[lifetime]") {
-    auto h1 = ef::Header::encode({10, 20}, "lidar");
+    auto h1 = Header::encode({10, 20}, "lidar");
     REQUIRE(h1.has_value());
 
     auto h2 = std::move(*h1);
@@ -261,8 +400,8 @@ TEST_CASE("Header move construct leaves source safely destructible", "[lifetime]
 }
 
 TEST_CASE("Header move assign", "[lifetime]") {
-    auto h1 = ef::Header::encode({1, 0}, "a");
-    auto h2 = ef::Header::encode({2, 0}, "b");
+    auto h1 = Header::encode({1, 0}, "a");
+    auto h2 = Header::encode({2, 0}, "b");
     REQUIRE(h1.has_value());
     REQUIRE(h2.has_value());
 
@@ -271,11 +410,11 @@ TEST_CASE("Header move assign", "[lifetime]") {
 }
 
 TEST_CASE("Header self-move is safe", "[lifetime]") {
-    auto h = ef::Header::encode({5, 6}, "self");
+    auto h = Header::encode({5, 6}, "self");
     REQUIRE(h.has_value());
 
     // Use pointer indirection to suppress compiler self-move warnings.
-    ef::Header* p = &(*h);
+    Header* p = &(*h);
     *p = std::move(*h);
     CHECK(h->frame_id() == "self");
 }
@@ -286,7 +425,7 @@ TEST_CASE("Header self-move is safe", "[lifetime]") {
 
 TEST_CASE("Image move construct leaves source safely destructible", "[lifetime]") {
     std::vector<std::uint8_t> pixels(640 * 480 * 3, 42);
-    auto img = ef::Image::encode(
+    auto img = Image::encode(
         {1, 0}, "cam", 480, 640, "rgb8", false, 640 * 3,
         {pixels.data(), pixels.size()});
     REQUIRE(img.has_value());
@@ -301,9 +440,9 @@ TEST_CASE("Image move construct leaves source safely destructible", "[lifetime]"
 TEST_CASE("Image move assign", "[lifetime]") {
     std::vector<std::uint8_t> px1(100, 1);
     std::vector<std::uint8_t> px2(200, 2);
-    auto img1 = ef::Image::encode({1, 0}, "a", 10, 10, "mono8", false, 10,
+    auto img1 = Image::encode({1, 0}, "a", 10, 10, "mono8", false, 10,
                                    {px1.data(), px1.size()});
-    auto img2 = ef::Image::encode({2, 0}, "b", 20, 10, "mono8", false, 10,
+    auto img2 = Image::encode({2, 0}, "b", 20, 10, "mono8", false, 10,
                                    {px2.data(), px2.size()});
     REQUIRE(img1.has_value());
     REQUIRE(img2.has_value());
@@ -319,12 +458,12 @@ TEST_CASE("Image move assign", "[lifetime]") {
 
 TEST_CASE("ImageView move construct leaves source safely destructible", "[lifetime]") {
     std::vector<std::uint8_t> pixels(100, 7);
-    auto img = ef::Image::encode({1, 0}, "cam", 10, 10, "mono8", false, 10,
+    auto img = Image::encode({1, 0}, "cam", 10, 10, "mono8", false, 10,
                                   {pixels.data(), pixels.size()});
     REQUIRE(img.has_value());
     auto cdr = img->as_cdr();
 
-    auto v1 = ef::ImageView::from_cdr(cdr);
+    auto v1 = ImageView::from_cdr(cdr);
     REQUIRE(v1.has_value());
 
     auto v2 = std::move(*v1);
@@ -335,15 +474,15 @@ TEST_CASE("ImageView move construct leaves source safely destructible", "[lifeti
 
 TEST_CASE("ImageView move assign", "[lifetime]") {
     std::vector<std::uint8_t> px(100, 5);
-    auto img1 = ef::Image::encode({1, 0}, "c1", 10, 10, "mono8", false, 10,
+    auto img1 = Image::encode({1, 0}, "c1", 10, 10, "mono8", false, 10,
                                    {px.data(), px.size()});
-    auto img2 = ef::Image::encode({2, 0}, "c2", 10, 10, "mono8", false, 10,
+    auto img2 = Image::encode({2, 0}, "c2", 10, 10, "mono8", false, 10,
                                    {px.data(), px.size()});
     REQUIRE(img1.has_value());
     REQUIRE(img2.has_value());
 
-    auto v1 = ef::ImageView::from_cdr(img1->as_cdr());
-    auto v2 = ef::ImageView::from_cdr(img2->as_cdr());
+    auto v1 = ImageView::from_cdr(img1->as_cdr());
+    auto v2 = ImageView::from_cdr(img2->as_cdr());
     REQUIRE(v1.has_value());
     REQUIRE(v2.has_value());
 
@@ -357,7 +496,7 @@ TEST_CASE("ImageView move assign", "[lifetime]") {
 
 TEST_CASE("Mask move construct leaves source safely destructible", "[lifetime]") {
     std::vector<std::uint8_t> mdata(64, 0xAA);
-    auto m1 = ef::Mask::encode(8, 8, 64, "rle", {mdata.data(), mdata.size()}, false);
+    auto m1 = Mask::encode(8, 8, 64, "rle", {mdata.data(), mdata.size()}, false);
     REQUIRE(m1.has_value());
 
     auto m2 = std::move(*m1);
@@ -412,12 +551,12 @@ static constexpr std::uint8_t kGoldenModelBytesForMove[] = {
 // ============================================================================
 
 TEST_CASE("DetectView error paths", "[lifetime][detect]") {
-    auto bad = ef::DetectView::from_cdr({});
+    auto bad = DetectView::from_cdr({});
     CHECK_FALSE(bad.has_value());
 }
 
 TEST_CASE("DetectView move semantics", "[lifetime][detect]") {
-    auto v1 = ef::DetectView::from_cdr(
+    auto v1 = DetectView::from_cdr(
         {kGoldenDetectBytesForMove, sizeof(kGoldenDetectBytesForMove)});
     REQUIRE(v1.has_value());
     const auto orig_frame = std::string(v1->frame_id());
@@ -429,7 +568,7 @@ TEST_CASE("DetectView move semantics", "[lifetime][detect]") {
     // v1 is moved-from; destructor must be safe (ASan would catch double-free).
 
     // Move assign from a fresh view
-    auto v3 = ef::DetectView::from_cdr(
+    auto v3 = DetectView::from_cdr(
         {kGoldenDetectBytesForMove, sizeof(kGoldenDetectBytesForMove)});
     REQUIRE(v3.has_value());
     v2 = std::move(*v3);
@@ -442,12 +581,12 @@ TEST_CASE("DetectView move semantics", "[lifetime][detect]") {
 // ============================================================================
 
 TEST_CASE("ModelView error paths", "[lifetime][model]") {
-    auto bad = ef::ModelView::from_cdr({});
+    auto bad = ModelView::from_cdr({});
     CHECK_FALSE(bad.has_value());
 }
 
 TEST_CASE("ModelView move semantics", "[lifetime][model]") {
-    auto v1 = ef::ModelView::from_cdr(
+    auto v1 = ModelView::from_cdr(
         {kGoldenModelBytesForMove, sizeof(kGoldenModelBytesForMove)});
     REQUIRE(v1.has_value());
     const auto orig_frame = std::string(v1->frame_id());
@@ -459,7 +598,7 @@ TEST_CASE("ModelView move semantics", "[lifetime][model]") {
     // v1 is moved-from; destructor must be safe (ASan would catch double-free).
 
     // Move assign from a fresh view
-    auto v3 = ef::ModelView::from_cdr(
+    auto v3 = ModelView::from_cdr(
         {kGoldenModelBytesForMove, sizeof(kGoldenModelBytesForMove)});
     REQUIRE(v3.has_value());
     v2 = std::move(*v3);
@@ -472,8 +611,8 @@ TEST_CASE("ModelView move semantics", "[lifetime][model]") {
 // ============================================================================
 
 TEST_CASE("Time is trivially copyable: copy and original are independent", "[lifetime]") {
-    ef::Time t1{100, 200};
-    ef::Time t2 = t1;  // trivial copy
+    Time t1{100, 200};
+    Time t2 = t1;  // trivial copy
     CHECK(t2.sec == 100);
     CHECK(t2.nanosec == 200);
 

@@ -138,12 +138,12 @@ def example_serialization() -> None:
         frame_id="test_frame"
     )
 
-    # Serialize to CDR
-    bytes_data = header.serialize()
+    # Encode to CDR
+    bytes_data = header.to_bytes()
     print(f"Serialized header to {len(bytes_data)} bytes")
 
-    # Deserialize from CDR
-    decoded = Header.deserialize(bytes_data)
+    # Decode from CDR
+    decoded = Header.from_cdr(bytes_data)
 
     # Verify round-trip
     assert decoded.stamp.sec == header.stamp.sec

@@ -54,10 +54,10 @@ header = Header(
 
 ```python
 # Serialize
-bytes_data = header.serialize()
+bytes_data = header.to_bytes()
 
 # Deserialize
-decoded = Header.deserialize(bytes_data)
+decoded = Header.from_cdr(bytes_data)
 ```
 
 ## Additional Resources

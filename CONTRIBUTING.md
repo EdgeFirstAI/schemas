@@ -747,11 +747,11 @@ Before creating a release, verify:
 Before tagging **4.0.0**, verify the breaking-change contract is complete:
 
 - [ ] `CHANGELOG.md` `[Unreleased]` Migration section reflects all removed APIs
-- [ ] Deprecated Rust `Foo::new()` constructors removed (builders only, including `mavros_msgs`)
-- [ ] Legacy buffer-backed C one-shot encoders removed (`ros_header_encode`, `ros_image_encode`, …)
+- [x] Deprecated Rust `Foo::new()` constructors removed (builders only, including `mavros_msgs`)
+- [x] Legacy buffer-backed C one-shot encoders removed (`std_msgs_header_encode`, `sensor_msgs_image_encode`, …)
 - [ ] Tensor/CameraFrame golden fixtures cover I420, split-fd, H264, and empty metadata-only frames
 - [ ] Tensor/CameraFrame criterion benches present in `crates/schemas/benches/serialization.rs`
-- [ ] **C API prefix rename** completed (~1,200 `ros_*` → per-namespace symbols; required before tag)
+- [x] **C API prefix rename** completed (~1,200 `ros_*` → ROS package-name prefixes; no aliases)
 - [ ] macOS smoke tests pass (`make test-c`, `make test-cpp` on `macos-latest`)
 
 ### GitHub Actions Release Workflow

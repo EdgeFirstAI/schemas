@@ -72,7 +72,7 @@ cd tests/c
 make bench
 
 # Python benchmarks
-pytest tests/python/benchmarks/ --benchmark-only
+pytest benches/python/bench_native.py --benchmark-only
 ```
 
 For complete command reference, see the [Commands Cheat Sheet](#commands-cheat-sheet) section.
@@ -334,62 +334,44 @@ EdgeFirst Schemas uses [Criterion](https://github.com/Snaipe/Criterion) for C te
 
 ### Test Structure
 
-**Example (tests/c/test_builtin_interfaces.c):**
+**Example (`crates/capi/tests/c/test_builtin_interfaces.c`):**
 
 ```c
 #include <criterion/criterion.h>
-#include <edgefirst/schemas.h>
+#include <errno.h>
+#include <stdint.h>
+#include "edgefirst/schemas.h"
 
-Test(builtin_interfaces, time_default) {
-    RosTime* time = ros_time_new();
-    
-    cr_assert_not_null(time);
-    cr_assert_eq(ros_time_get_sec(time), 0);
-    cr_assert_eq(ros_time_get_nanosec(time), 0);
-    
-    ros_time_free(time);
+Test(builtin_interfaces, time_encode_decode_roundtrip) {
+    uint8_t buf[64];
+    size_t written = 0;
+
+    int ret = builtin_interfaces_time_encode(buf, sizeof(buf), &written, 12345, 67890);
+    cr_assert_eq(ret, 0, "Encode should succeed");
+    cr_assert_gt(written, 0, "Written bytes should be > 0");
+
+    int32_t sec = 0;
+    uint32_t nanosec = 0;
+    ret = builtin_interfaces_time_decode(buf, written, &sec, &nanosec);
+    cr_assert_eq(ret, 0, "Decode should succeed");
+    cr_assert_eq(sec, 12345);
+    cr_assert_eq(nanosec, 67890);
 }
 
-Test(builtin_interfaces, time_round_trip_cdr) {
-    RosTime* time = ros_time_new();
-    ros_time_set_sec(time, 1234567890);
-    ros_time_set_nanosec(time, 123456789);
-    
-    // Serialize
-    uint8_t* bytes = NULL;
-    size_t len = 0;
-    EdgeFirstResult result = ros_time_serialize(time, &bytes, &len);
-    cr_assert_eq(result, EDGEFIRST_OK);
-    cr_assert_not_null(bytes);
-    cr_assert_gt(len, 0);
-    
-    // Deserialize
-    RosTime* decoded = ros_time_deserialize(bytes, len, &result);
-    cr_assert_eq(result, EDGEFIRST_OK);
-    cr_assert_not_null(decoded);
-    cr_assert_eq(ros_time_get_sec(decoded), 1234567890);
-    cr_assert_eq(ros_time_get_nanosec(decoded), 123456789);
-    
-    // Cleanup
-    free(bytes);
-    ros_time_free(time);
-    ros_time_free(decoded);
-}
-
-Test(builtin_interfaces, time_serialize_null_checks) {
-    uint8_t* bytes = NULL;
-    size_t len = 0;
-    
-    EdgeFirstResult result = ros_time_serialize(NULL, &bytes, &len);
-    cr_assert_eq(result, EDGEFIRST_ERROR_NULL_POINTER);
+Test(builtin_interfaces, time_encode_null_buf_returns_einval) {
+    size_t written = 0;
+    int ret = builtin_interfaces_time_encode(NULL, 64, &written, 1, 2);
+    cr_assert_eq(ret, -1);
+    cr_assert_eq(errno, EINVAL);
 }
 ```
 
 ### Memory Leak Detection with Valgrind
 
 ```bash
-cd tests/c
-make test-valgrind
+# Build debug C tests, then run under Valgrind (Linux)
+RELEASE=0 make test-c
+valgrind --leak-check=full ./build/test_builtin_interfaces
 ```
 
 Valgrind checks for:
@@ -401,35 +383,20 @@ Valgrind checks for:
 ### Running C Tests
 
 ```bash
-cd tests/c
-
-# Build and run all tests
-make test
-
-# With coverage
-make test-coverage
-open coverage-html/index.html
+# From repository root (builds the Rust library, then Criterion binaries)
+make test-c
 
 # JUnit XML output (for CI/CD)
-make test-xml
+make test-c-xml
 
-# JSON output
-make test-json
-
-# Valgrind memory check
-make test-valgrind
-
-# Specific test suite
-./build/test_builtin_interfaces
-
-# Clean build artifacts
-make clean
+# Debug library (for coverage)
+RELEASE=0 make test-c
 ```
 
 ### Build System (Makefile)
 
 ```makefile
-# tests/c/Makefile
+# Makefile (repo root) / crates/capi/tests/c/
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c11 -I../../include
 LDFLAGS = -L../../target/release -ledgefirst_schemas -lcriterion
@@ -477,11 +444,11 @@ def test_header_round_trip_cdr():
         frame_id="camera"
     )
     
-    # Serialize to CDR
-    encoded = header.serialize()
+    # Encode / decode CDR (PyO3 bindings)
+    encoded = header.to_bytes()
     
-    # Deserialize from CDR
-    decoded = Header.deserialize(encoded)
+    # Decode from CDR
+    decoded = Header.from_cdr(encoded)
     
     assert decoded.stamp.sec == header.stamp.sec
     assert decoded.stamp.nanosec == header.stamp.nanosec
@@ -499,8 +466,8 @@ def test_header_parameterized(sec, nanosec, frame_id):
         stamp=Time(sec=sec, nanosec=nanosec),
         frame_id=frame_id
     )
-    encoded = header.serialize()
-    decoded = Header.deserialize(encoded)
+    encoded = header.to_bytes()
+    decoded = Header.from_cdr(encoded)
     assert decoded.stamp.sec == sec
     assert decoded.stamp.nanosec == nanosec
     assert decoded.frame_id == frame_id
@@ -518,10 +485,10 @@ from edgefirst.schemas.geometry_msgs import Vector3
     z=st.floats(allow_nan=False, allow_infinity=False)
 )
 def test_vector3_round_trip(x, y, z):
-    """Property test: all finite floats serialize correctly."""
+    """Property test: all finite floats round-trip correctly."""
     vec = Vector3(x=x, y=y, z=z)
-    encoded = vec.serialize()
-    decoded = Vector3.deserialize(encoded)
+    encoded = vec.to_bytes()
+    decoded = Vector3.from_cdr(encoded)
     
     # Allow small floating point errors
     assert abs(decoded.x - x) < 1e-6
@@ -775,12 +742,22 @@ fn bench_std_msgs(c: &mut Criterion) {
     let mut group = c.benchmark_group("std_msgs");
 
     let stamp = Time { sec: 1234567890, nanosec: 123456789 };
-    let hdr = Header::new(stamp, "camera").unwrap();
+    let hdr = Header::builder()
+        .stamp(stamp)
+        .frame_id("camera")
+        .build()
+        .unwrap();
     let bytes = hdr.to_cdr();
     group.throughput(Throughput::Bytes(bytes.len() as u64));
 
-    group.bench_function("Header/new", |b| {
-        b.iter(|| Header::new(black_box(stamp), "camera").unwrap())
+    group.bench_function("Header/builder", |b| {
+        b.iter(|| {
+            Header::builder()
+                .stamp(black_box(stamp))
+                .frame_id("camera")
+                .build()
+                .unwrap()
+        })
     });
     group.bench_function("Header/from_cdr", |b| {
         b.iter(|| Header::from_cdr(black_box(bytes.clone())))
@@ -826,60 +803,35 @@ cargo bench -- --baseline main
 
 C uses a **custom benchmark harness** with `clock_gettime(CLOCK_MONOTONIC)`:
 
-**Example (tests/c/bench_serialization.c):**
+**Example (builder encode_into — preferred for hot paths):**
 
 ```c
-#include "bench_helpers.h"
 #include <edgefirst/schemas.h>
+#include <stdint.h>
+#include <stdio.h>
 
-void bench_header_serialize(BenchmarkResults* results) {
-    RosHeader* header = ros_header_new();
-    ros_header_set_frame_id(header, "camera");
-    
-    RosTime* stamp = ros_header_get_stamp_mut(header);
-    ros_time_set_sec(stamp, 1234567890);
-    ros_time_set_nanosec(stamp, 123456789);
-    
-    uint8_t* bytes = NULL;
-    size_t len = 0;
-    
-    const int iterations = 10000;
-    struct timespec start, end;
-    
-    clock_gettime(CLOCK_MONOTONIC, &start);
-    for (int i = 0; i < iterations; i++) {
-        ros_header_serialize(header, &bytes, &len);
-        free(bytes);
-        bytes = NULL;
+void encode_header_into_stack_buf(void) {
+    std_msgs_header_builder_t *b = std_msgs_header_builder_new();
+    std_msgs_header_builder_set_stamp(b, 1234567890, 123456789);
+    std_msgs_header_builder_set_frame_id(b, "camera");
+
+    uint8_t buf[256];
+    size_t out_len = 0;
+    int rc = std_msgs_header_builder_encode_into(b, buf, sizeof(buf), &out_len);
+    if (rc != 0) {
+        /* errno set — ENOBUFS if buf too small */
     }
-    clock_gettime(CLOCK_MONOTONIC, &end);
-    
-    results->total_ns = timespec_diff_ns(&start, &end);
-    results->iterations = iterations;
-    results->avg_ns = results->total_ns / iterations;
-    
-    ros_header_free(header);
+    std_msgs_header_builder_free(b);
+    printf("encoded %zu bytes\n", out_len);
 }
 ```
 
-**Running C Benchmarks:**
-
-```bash
-cd tests/c
-
-# Run all benchmarks
-make bench
-
-# JSON output for CI/CD
-make bench-json
-
-# With coverage
-make bench-coverage
-```
+**Running C / C++ Benchmarks:** see [`benches/cpp/`](benches/cpp/) and
+[`BENCHMARKS.md`](BENCHMARKS.md) (Google Benchmark competitive suite).
 
 ### Python Benchmarks (pytest-benchmark)
 
-**Example (tests/python/benchmarks/test_serialize.py):**
+**Example (`benches/python/bench_native.py`):**
 
 ```python
 import pytest
@@ -887,53 +839,25 @@ from edgefirst.schemas.std_msgs import Header
 from edgefirst.schemas.builtin_interfaces import Time
 
 def test_header_serialize(benchmark):
-    """Benchmark header serialization."""
+    """Benchmark header encoding."""
     header = Header(
         stamp=Time(sec=1234567890, nanosec=123456789),
         frame_id="camera"
     )
-    
-    result = benchmark(header.serialize)
-    assert len(result) > 0
 
-@pytest.mark.slow
-def test_image_serialize_640x480(benchmark):
-    """Benchmark 640x480 image serialization."""
-    from edgefirst.schemas.sensor_msgs import Image
-    
-    image = Image(
-        header=Header(),
-        height=480,
-        width=640,
-        encoding="rgb8",
-        is_bigendian=0,
-        step=640 * 3,
-        data=bytes(640 * 480 * 3)  # ~900KB
-    )
-    
-    result = benchmark(image.serialize)
+    result = benchmark(header.to_bytes)
     assert len(result) > 0
 ```
 
 **Running Python Benchmarks:**
 
 ```bash
-# All benchmarks
-pytest tests/python/benchmarks/ --benchmark-only
+# Native EdgeFirst bindings
+pytest benches/python/bench_native.py --benchmark-only
 
 # With JSON output
-pytest tests/python/benchmarks/ --benchmark-only \
+pytest benches/python/bench_native.py --benchmark-only \
     --benchmark-json=benchmark_results.json
-
-# Exclude slow tests
-pytest tests/python/benchmarks/ --benchmark-only -m "not slow"
-
-# With coverage
-pytest tests/python/benchmarks/ --benchmark-only \
-    --cov=edgefirst --cov-report=html
-
-# Compare results
-pytest-benchmark compare 0001 0002 --group-by=func
 ```
 
 ### Performance Targets
@@ -1035,7 +959,7 @@ jobs:
       - name: Upload to Codecov
         uses: codecov/codecov-action@v3
         with:
-          files: tests/c/coverage.info
+          files: lcov.info  # combined Rust+C via cargo-llvm-cov
           flags: c
 
   test-python:
@@ -1092,7 +1016,7 @@ sonar.projectKey=edgefirst_schemas
 # Coverage paths
 sonar.coverage.exclusions=**/tests/**,**/benches/**,**/examples/**
 sonar.rust.lcov.reportPaths=lcov-rust.info
-sonar.c.coverage.reportPaths=tests/c/coverage.info
+sonar.coverage.reportPaths=lcov.info
 sonar.python.coverage.reportPaths=coverage.xml
 
 # Test exclusions
@@ -1238,10 +1162,10 @@ pytest tests/python/ -m "not benchmark" --cov=edgefirst --cov-report=html
 mypy edgefirst/
 
 # Benchmarks
-pytest tests/python/benchmarks/ --benchmark-only
+pytest benches/python/bench_native.py --benchmark-only
 
 # Benchmarks with JSON
-pytest tests/python/benchmarks/ --benchmark-only --benchmark-json=results.json
+pytest benches/python/bench_native.py --benchmark-only --benchmark-json=results.json
 ```
 
 ### Full CI/CD Simulation

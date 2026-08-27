@@ -71,35 +71,37 @@ struct OdometryBuilderOwned {
     twist_cov: [f64; 36],
 }
 
-pub struct ros_odometry_builder_t(OdometryBuilderOwned);
+pub struct nav_msgs_odometry_builder_t(OdometryBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_odometry_builder_new() -> *mut ros_odometry_builder_t {
-    Box::into_raw(Box::new(ros_odometry_builder_t(OdometryBuilderOwned {
-        stamp_sec: 0,
-        stamp_nanosec: 0,
-        frame_id: String::new(),
-        child_frame_id: String::new(),
-        px: 0.0,
-        py: 0.0,
-        pz: 0.0,
-        ox: 0.0,
-        oy: 0.0,
-        oz: 0.0,
-        ow: 1.0,
-        pose_cov: [0.0; 36],
-        lx: 0.0,
-        ly: 0.0,
-        lz: 0.0,
-        ax: 0.0,
-        ay: 0.0,
-        az: 0.0,
-        twist_cov: [0.0; 36],
-    })))
+pub extern "C" fn nav_msgs_odometry_builder_new() -> *mut nav_msgs_odometry_builder_t {
+    Box::into_raw(Box::new(nav_msgs_odometry_builder_t(
+        OdometryBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            child_frame_id: String::new(),
+            px: 0.0,
+            py: 0.0,
+            pz: 0.0,
+            ox: 0.0,
+            oy: 0.0,
+            oz: 0.0,
+            ow: 1.0,
+            pose_cov: [0.0; 36],
+            lx: 0.0,
+            ly: 0.0,
+            lz: 0.0,
+            ax: 0.0,
+            ay: 0.0,
+            az: 0.0,
+            twist_cov: [0.0; 36],
+        },
+    )))
 }
 
 #[no_mangle]
-pub extern "C" fn ros_odometry_builder_free(b: *mut ros_odometry_builder_t) {
+pub extern "C" fn nav_msgs_odometry_builder_free(b: *mut nav_msgs_odometry_builder_t) {
     if !b.is_null() {
         unsafe {
             drop(Box::from_raw(b));
@@ -108,8 +110,8 @@ pub extern "C" fn ros_odometry_builder_free(b: *mut ros_odometry_builder_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_odometry_builder_set_stamp(
-    b: *mut ros_odometry_builder_t,
+pub extern "C" fn nav_msgs_odometry_builder_set_stamp(
+    b: *mut nav_msgs_odometry_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -122,8 +124,8 @@ pub extern "C" fn ros_odometry_builder_set_stamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_odometry_builder_set_frame_id(
-    b: *mut ros_odometry_builder_t,
+pub extern "C" fn nav_msgs_odometry_builder_set_frame_id(
+    b: *mut nav_msgs_odometry_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -141,8 +143,8 @@ pub extern "C" fn ros_odometry_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_odometry_builder_set_child_frame_id(
-    b: *mut ros_odometry_builder_t,
+pub extern "C" fn nav_msgs_odometry_builder_set_child_frame_id(
+    b: *mut nav_msgs_odometry_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -160,8 +162,8 @@ pub extern "C" fn ros_odometry_builder_set_child_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_odometry_builder_set_pose(
-    b: *mut ros_odometry_builder_t,
+pub extern "C" fn nav_msgs_odometry_builder_set_pose(
+    b: *mut nav_msgs_odometry_builder_t,
     px: f64,
     py: f64,
     pz: f64,
@@ -184,8 +186,8 @@ pub extern "C" fn ros_odometry_builder_set_pose(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_odometry_builder_set_pose_covariance(
-    b: *mut ros_odometry_builder_t,
+pub extern "C" fn nav_msgs_odometry_builder_set_pose_covariance(
+    b: *mut nav_msgs_odometry_builder_t,
     cov: *const f64,
 ) -> i32 {
     if b.is_null() || cov.is_null() {
@@ -201,8 +203,8 @@ pub extern "C" fn ros_odometry_builder_set_pose_covariance(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_odometry_builder_set_twist(
-    b: *mut ros_odometry_builder_t,
+pub extern "C" fn nav_msgs_odometry_builder_set_twist(
+    b: *mut nav_msgs_odometry_builder_t,
     lx: f64,
     ly: f64,
     lz: f64,
@@ -223,8 +225,8 @@ pub extern "C" fn ros_odometry_builder_set_twist(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_odometry_builder_set_twist_covariance(
-    b: *mut ros_odometry_builder_t,
+pub extern "C" fn nav_msgs_odometry_builder_set_twist_covariance(
+    b: *mut nav_msgs_odometry_builder_t,
     cov: *const f64,
 ) -> i32 {
     if b.is_null() || cov.is_null() {
@@ -281,8 +283,8 @@ fn odometry_builder(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_odometry_builder_build(
-    b: *mut ros_odometry_builder_t,
+pub extern "C" fn nav_msgs_odometry_builder_build(
+    b: *mut nav_msgs_odometry_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -300,8 +302,8 @@ pub extern "C" fn ros_odometry_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_odometry_builder_encode_into(
-    b: *mut ros_odometry_builder_t,
+pub extern "C" fn nav_msgs_odometry_builder_encode_into(
+    b: *mut nav_msgs_odometry_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,

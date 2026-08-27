@@ -12,13 +12,152 @@
 #include <cstring>
 
 namespace ef = edgefirst::schemas;
+using ef::builtin_interfaces::Time;
+using ef::builtin_interfaces::Duration;
+using ef::geometry_msgs::Vector3;
+using ef::geometry_msgs::Point;
+using ef::geometry_msgs::Point32;
+using ef::geometry_msgs::Quaternion;
+using ef::geometry_msgs::Pose;
+using ef::geometry_msgs::Transform;
+using ef::geometry_msgs::Twist;
+using ef::geometry_msgs::Accel;
+using ef::geometry_msgs::Wrench;
+using ef::geometry_msgs::PoseWithCovariance;
+using ef::geometry_msgs::TwistWithCovariance;
+using ef::geometry_msgs::AccelWithCovariance;
+using ef::geometry_msgs::AccelStampedView;
+using ef::geometry_msgs::AccelStampedBuilder;
+using ef::geometry_msgs::TwistStampedView;
+using ef::geometry_msgs::TwistStampedBuilder;
+using ef::geometry_msgs::WrenchStampedView;
+using ef::geometry_msgs::WrenchStampedBuilder;
+using ef::geometry_msgs::PointStampedView;
+using ef::geometry_msgs::PointStampedBuilder;
+using ef::geometry_msgs::InertiaStampedView;
+using ef::geometry_msgs::InertiaStampedBuilder;
+using ef::geometry_msgs::Vector3StampedView;
+using ef::geometry_msgs::Vector3StampedBuilder;
+using ef::geometry_msgs::PoseStampedView;
+using ef::geometry_msgs::PoseStampedBuilder;
+using ef::geometry_msgs::QuaternionStampedView;
+using ef::geometry_msgs::QuaternionStampedBuilder;
+using ef::geometry_msgs::PoseWithCovarianceStampedView;
+using ef::geometry_msgs::PoseWithCovarianceStampedBuilder;
+using ef::geometry_msgs::TwistWithCovarianceStampedView;
+using ef::geometry_msgs::TwistWithCovarianceStampedBuilder;
+using ef::geometry_msgs::AccelWithCovarianceStampedView;
+using ef::geometry_msgs::AccelWithCovarianceStampedBuilder;
+using ef::geometry_msgs::PolygonView;
+using ef::geometry_msgs::PolygonBuilder;
+using ef::geometry_msgs::PolygonStampedView;
+using ef::geometry_msgs::PolygonStampedBuilder;
+using ef::geometry_msgs::PoseArrayView;
+using ef::geometry_msgs::PoseArrayBuilder;
+using ef::geometry_msgs::TransformStampedView;
+using ef::geometry_msgs::TransformStampedBuilder;
+using ef::std_msgs::Header;
+using ef::std_msgs::HeaderView;
+using ef::std_msgs::HeaderBuilder;
+using ef::sensor_msgs::NavSatStatus;
+using ef::sensor_msgs::CompressedImage;
+using ef::sensor_msgs::CompressedImageView;
+using ef::sensor_msgs::CompressedImageBuilder;
+using ef::sensor_msgs::Image;
+using ef::sensor_msgs::ImageView;
+using ef::sensor_msgs::ImageBuilder;
+using ef::sensor_msgs::ImuView;
+using ef::sensor_msgs::ImuBuilder;
+using ef::sensor_msgs::NavSatFixView;
+using ef::sensor_msgs::NavSatFixBuilder;
+using ef::sensor_msgs::CameraInfoView;
+using ef::sensor_msgs::CameraInfoBuilder;
+using ef::sensor_msgs::PointCloud2View;
+using ef::sensor_msgs::PointCloud2Builder;
+using ef::sensor_msgs::PointFieldBuilder;
+using ef::sensor_msgs::MagneticFieldView;
+using ef::sensor_msgs::MagneticFieldBuilder;
+using ef::sensor_msgs::FluidPressureView;
+using ef::sensor_msgs::FluidPressureBuilder;
+using ef::sensor_msgs::TemperatureView;
+using ef::sensor_msgs::TemperatureBuilder;
+using ef::sensor_msgs::BatteryStateView;
+using ef::sensor_msgs::BatteryStateBuilder;
+using ef::sensor_msgs::RelativeHumidityView;
+using ef::sensor_msgs::RelativeHumidityBuilder;
+using ef::sensor_msgs::TimeReferenceView;
+using ef::sensor_msgs::TimeReferenceBuilder;
+using ef::nav_msgs::MapMetaData;
+using ef::nav_msgs::OdometryView;
+using ef::nav_msgs::OdometryBuilder;
+using ef::nav_msgs::GridCellsView;
+using ef::nav_msgs::GridCellsBuilder;
+using ef::nav_msgs::OccupancyGridView;
+using ef::nav_msgs::OccupancyGridBuilder;
+using ef::nav_msgs::PathView;
+using ef::nav_msgs::PathBuilder;
+using ef::foxglove_msgs::CompressedVideo;
+using ef::foxglove_msgs::CompressedVideoView;
+using ef::foxglove_msgs::CompressedVideoBuilder;
+using ef::foxglove_msgs::TextAnnotationBuilder;
+using ef::foxglove_msgs::PointAnnotationBuilder;
+using ef::foxglove_msgs::ImageAnnotationBuilder;
+using ef::mavros_msgs::AltitudeView;
+using ef::mavros_msgs::AltitudeBuilder;
+using ef::mavros_msgs::VfrHudView;
+using ef::mavros_msgs::VfrHudBuilder;
+using ef::mavros_msgs::EstimatorStatusView;
+using ef::mavros_msgs::EstimatorStatusBuilder;
+using ef::mavros_msgs::ExtendedStateView;
+using ef::mavros_msgs::ExtendedStateBuilder;
+using ef::mavros_msgs::SysStatusView;
+using ef::mavros_msgs::SysStatusBuilder;
+using ef::mavros_msgs::StateView;
+using ef::mavros_msgs::StateBuilder;
+using ef::mavros_msgs::StatusTextView;
+using ef::mavros_msgs::StatusTextBuilder;
+using ef::mavros_msgs::GpsRawView;
+using ef::mavros_msgs::GpsRawBuilder;
+using ef::mavros_msgs::TimesyncStatusView;
+using ef::mavros_msgs::TimesyncStatusBuilder;
+using ef::edgefirst_msgs::Mask;
+using ef::edgefirst_msgs::MaskView;
+using ef::edgefirst_msgs::MaskBuilder;
+using ef::edgefirst_msgs::LocalTimeView;
+using ef::edgefirst_msgs::LocalTimeBuilder;
+using ef::edgefirst_msgs::TrackView;
+using ef::edgefirst_msgs::TrackBuilder;
+using ef::edgefirst_msgs::BoxView;
+using ef::edgefirst_msgs::DetectView;
+using ef::edgefirst_msgs::DetectBuilder;
+using ef::edgefirst_msgs::DetectBoxBuilder;
+using ef::edgefirst_msgs::ModelView;
+using ef::edgefirst_msgs::ModelBuilder;
+using ef::edgefirst_msgs::ModelInfoView;
+using ef::edgefirst_msgs::ModelInfoBuilder;
+using ef::edgefirst_msgs::RadarCubeView;
+using ef::edgefirst_msgs::RadarCubeBuilder;
+using ef::edgefirst_msgs::RadarInfoView;
+using ef::edgefirst_msgs::RadarInfoBuilder;
+using ef::edgefirst_msgs::VibrationView;
+using ef::edgefirst_msgs::VibrationBuilder;
+using ef::edgefirst_msgs::TensorView;
+using ef::edgefirst_msgs::TensorBuilder;
+using ef::edgefirst_msgs::TensorStampedView;
+using ef::edgefirst_msgs::TensorStampedBuilder;
+using ef::edgefirst_msgs::CameraFrameView;
+using ef::edgefirst_msgs::CameraFrameBuilder;
+using FoxgloveCompressedImage = ef::foxglove_msgs::CompressedImage;
+using FoxgloveCompressedImageView = ef::foxglove_msgs::CompressedImageView;
+using FoxgloveCompressedImageBuilder = ef::foxglove_msgs::CompressedImageBuilder;
+
 
 // ============================================================================
 // std_msgs - Header
 // ============================================================================
 
 TEST_CASE("Header encode+view roundtrip", "[buffer_backed][header]") {
-    auto hdr = ef::Header::encode({1234, 5678}, "test_frame");
+    auto hdr = Header::encode({1234, 5678}, "test_frame");
     REQUIRE(hdr.has_value());
     CHECK(hdr->stamp().sec == 1234);
     CHECK(hdr->stamp().nanosec == 5678);
@@ -27,7 +166,7 @@ TEST_CASE("Header encode+view roundtrip", "[buffer_backed][header]") {
 }
 
 TEST_CASE("Header release transfers byte ownership", "[buffer_backed][header][release]") {
-    auto hdr = ef::Header::encode({1234, 5678}, "release_test");
+    auto hdr = Header::encode({1234, 5678}, "release_test");
     REQUIRE(hdr.has_value());
 
     // Capture the raw buffer pointer and size BEFORE release.
@@ -45,12 +184,12 @@ TEST_CASE("Header release transfers byte ownership", "[buffer_backed][header][re
     // double-free if release() didn't null the internal state.
 
     // Caller is responsible for freeing the buffer.
-    ros_bytes_free(released.data, released.size);
+    edgefirst_schemas_bytes_free(released.data, released.size);
 }
 
 TEST_CASE("Header double-release yields empty buffer on second call",
           "[buffer_backed][header][release]") {
-    auto hdr = ef::Header::encode({1, 2}, "cam");
+    auto hdr = Header::encode({1, 2}, "cam");
     REQUIRE(hdr.has_value());
     auto r1 = std::move(*hdr).release();
     CHECK(r1.data != nullptr);
@@ -58,22 +197,22 @@ TEST_CASE("Header double-release yields empty buffer on second call",
 
     // Construct a moved-from Header via default construction impossible
     // (protected), so simulate via self-assign from another release:
-    auto hdr2 = ef::Header::encode({3, 4}, "cam2");
+    auto hdr2 = Header::encode({3, 4}, "cam2");
     REQUIRE(hdr2.has_value());
     auto r2 = std::move(*hdr2).release();
     CHECK(r2.data != nullptr);
 
     // Free both buffers ourselves.
-    ros_bytes_free(r1.data, r1.size);
-    ros_bytes_free(r2.data, r2.size);
+    edgefirst_schemas_bytes_free(r1.data, r1.size);
+    edgefirst_schemas_bytes_free(r2.data, r2.size);
 }
 
 TEST_CASE("Image release transfers large pixel buffer ownership",
           "[buffer_backed][image][release]") {
     // Large pixel buffer to verify release() also works for big payloads.
     std::vector<std::uint8_t> pixels(640 * 480 * 3, 0xA5);
-    auto img = ef::Image::encode(
-        ef::Time{1, 2}, "cam", 480, 640, "rgb8", /*is_bigendian=*/false,
+    auto img = Image::encode(
+        Time{1, 2}, "cam", 480, 640, "rgb8", /*is_bigendian=*/false,
         640 * 3, ef::span<const std::uint8_t>{pixels.data(), pixels.size()});
     REQUIRE(img.has_value());
 
@@ -86,15 +225,15 @@ TEST_CASE("Image release transfers large pixel buffer ownership",
     CHECK(released.size == expected_size);
     CHECK(released.size > pixels.size());  // includes CDR header + fields
 
-    ros_bytes_free(released.data, released.size);
+    edgefirst_schemas_bytes_free(released.data, released.size);
 }
 
 TEST_CASE("Mask release works on OwnedBaseNoCdr derivatives",
           "[buffer_backed][mask][release]") {
-    // Mask uses OwnedBaseNoCdr (no ros_mask_as_cdr); verify release()
+    // Mask uses OwnedBaseNoCdr (no edgefirst_msgs_mask_as_cdr); verify release()
     // is also available there and correctly transfers ownership.
     std::vector<std::uint8_t> mdata{1, 2, 3, 4, 5, 6, 7, 8};
-    auto mask = ef::Mask::encode(
+    auto mask = Mask::encode(
         /*height=*/2, /*width=*/4, /*length=*/static_cast<std::uint32_t>(mdata.size()),
         "mono8",
         ef::span<const std::uint8_t>{mdata.data(), mdata.size()},
@@ -105,26 +244,26 @@ TEST_CASE("Mask release works on OwnedBaseNoCdr derivatives",
     CHECK(released.data != nullptr);
     CHECK(released.size > 0);
 
-    ros_bytes_free(released.data, released.size);
+    edgefirst_schemas_bytes_free(released.data, released.size);
 }
 
 TEST_CASE("Header encode empty frame_id", "[buffer_backed][header]") {
-    auto hdr = ef::Header::encode({0, 0}, "");
+    auto hdr = Header::encode({0, 0}, "");
     REQUIRE(hdr.has_value());
     CHECK(hdr->frame_id() == "");
     CHECK(hdr->stamp().sec == 0);
 }
 
 TEST_CASE("HeaderView from_cdr error on empty span", "[buffer_backed][header]") {
-    auto v = ef::HeaderView::from_cdr({});
+    auto v = HeaderView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("HeaderView from_cdr success + accessors", "[buffer_backed][header]") {
-    auto hdr = ef::Header::encode({10, 20}, "cam");
+    auto hdr = Header::encode({10, 20}, "cam");
     REQUIRE(hdr.has_value());
     auto cdr = hdr->as_cdr();
-    auto v = ef::HeaderView::from_cdr(cdr);
+    auto v = HeaderView::from_cdr(cdr);
     REQUIRE(v.has_value());
     CHECK(v->stamp().sec == 10);
     CHECK(v->stamp().nanosec == 20);
@@ -133,10 +272,10 @@ TEST_CASE("HeaderView from_cdr success + accessors", "[buffer_backed][header]") 
 }
 
 TEST_CASE("HeaderView move semantics", "[buffer_backed][header]") {
-    auto hdr = ef::Header::encode({1, 2}, "cam");
+    auto hdr = Header::encode({1, 2}, "cam");
     REQUIRE(hdr.has_value());
     auto cdr = hdr->as_cdr();
-    auto v1 = ef::HeaderView::from_cdr(cdr);
+    auto v1 = HeaderView::from_cdr(cdr);
     REQUIRE(v1.has_value());
     auto v2 = std::move(*v1);
     CHECK(v2.frame_id() == "cam");
@@ -144,7 +283,7 @@ TEST_CASE("HeaderView move semantics", "[buffer_backed][header]") {
 }
 
 TEST_CASE("Header move semantics", "[buffer_backed][header]") {
-    auto h1 = ef::Header::encode({99, 0}, "lidar");
+    auto h1 = Header::encode({99, 0}, "lidar");
     REQUIRE(h1.has_value());
     auto h2 = std::move(*h1);
     CHECK(h2.frame_id() == "lidar");
@@ -159,7 +298,7 @@ TEST_CASE("Header move semantics", "[buffer_backed][header]") {
 TEST_CASE("CompressedImage encode+view roundtrip", "[buffer_backed][compressed_image]") {
     const std::uint8_t pixels[] = {0xFF, 0xD8, 0xFF, 0xE0, 0x42};
     ef::span<const std::uint8_t> data_span{pixels, sizeof(pixels)};
-    auto img = ef::CompressedImage::encode({100, 200}, "camera", "jpeg", data_span);
+    auto img = CompressedImage::encode({100, 200}, "camera", "jpeg", data_span);
     REQUIRE(img.has_value());
     CHECK(img->stamp().sec == 100);
     CHECK(img->stamp().nanosec == 200);
@@ -170,17 +309,17 @@ TEST_CASE("CompressedImage encode+view roundtrip", "[buffer_backed][compressed_i
 }
 
 TEST_CASE("CompressedImageView from_cdr error on empty span", "[buffer_backed][compressed_image]") {
-    auto v = ef::CompressedImageView::from_cdr({});
+    auto v = CompressedImageView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("CompressedImageView from_cdr + move", "[buffer_backed][compressed_image]") {
     const std::uint8_t px[] = {1, 2, 3};
-    auto img = ef::CompressedImage::encode({5, 6}, "front", "png",
+    auto img = CompressedImage::encode({5, 6}, "front", "png",
                                            ef::span<const std::uint8_t>{px, 3});
     REQUIRE(img.has_value());
     auto cdr = img->as_cdr();
-    auto v1 = ef::CompressedImageView::from_cdr(cdr);
+    auto v1 = CompressedImageView::from_cdr(cdr);
     REQUIRE(v1.has_value());
     auto v2 = std::move(*v1);
     CHECK(v2.format() == "png");
@@ -190,7 +329,7 @@ TEST_CASE("CompressedImageView from_cdr + move", "[buffer_backed][compressed_ima
 
 TEST_CASE("CompressedImage move semantics", "[buffer_backed][compressed_image]") {
     const std::uint8_t px[] = {0xAB};
-    auto i1 = ef::CompressedImage::encode({0, 0}, "back", "h264",
+    auto i1 = CompressedImage::encode({0, 0}, "back", "h264",
                                           ef::span<const std::uint8_t>{px, 1});
     REQUIRE(i1.has_value());
     auto i2 = std::move(*i1);
@@ -401,12 +540,12 @@ static constexpr std::uint8_t kGoldenBoxBytes[] = {
 // ============================================================================
 
 TEST_CASE("ImuView error paths", "[buffer_backed][imu]") {
-    auto v = ef::ImuView::from_cdr({});
+    auto v = ImuView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("ImuView move semantics", "[buffer_backed][imu]") {
-    auto v1 = ef::ImuView::from_cdr(
+    auto v1 = ImuView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenImuBytes, sizeof(kGoldenImuBytes)});
     REQUIRE(v1.has_value());
     CHECK(v1->frame_id() == "test_frame");
@@ -420,7 +559,7 @@ TEST_CASE("ImuView move semantics", "[buffer_backed][imu]") {
     CHECK(v2.orientation().w == Approx(1.0));
 
     // Move assign from a fresh view
-    auto v3 = ef::ImuView::from_cdr(
+    auto v3 = ImuView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenImuBytes, sizeof(kGoldenImuBytes)});
     REQUIRE(v3.has_value());
     v2 = std::move(*v3);
@@ -433,12 +572,12 @@ TEST_CASE("ImuView move semantics", "[buffer_backed][imu]") {
 // ============================================================================
 
 TEST_CASE("NavSatFixView error paths", "[buffer_backed][nav_sat_fix]") {
-    auto v = ef::NavSatFixView::from_cdr({});
+    auto v = NavSatFixView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("NavSatFixView move semantics", "[buffer_backed][nav_sat_fix]") {
-    auto v1 = ef::NavSatFixView::from_cdr(
+    auto v1 = NavSatFixView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenNavSatFixBytes, sizeof(kGoldenNavSatFixBytes)});
     REQUIRE(v1.has_value());
     CHECK(v1->frame_id() == "test_frame");
@@ -451,7 +590,7 @@ TEST_CASE("NavSatFixView move semantics", "[buffer_backed][nav_sat_fix]") {
     CHECK(v2.altitude()  == Approx(100.0).epsilon(0.001));
 
     // Move assign from a fresh view
-    auto v3 = ef::NavSatFixView::from_cdr(
+    auto v3 = NavSatFixView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenNavSatFixBytes, sizeof(kGoldenNavSatFixBytes)});
     REQUIRE(v3.has_value());
     v2 = std::move(*v3);
@@ -464,12 +603,12 @@ TEST_CASE("NavSatFixView move semantics", "[buffer_backed][nav_sat_fix]") {
 // ============================================================================
 
 TEST_CASE("CameraInfoView error paths", "[buffer_backed][camera_info]") {
-    auto v = ef::CameraInfoView::from_cdr({});
+    auto v = CameraInfoView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("CameraInfoView move semantics", "[buffer_backed][camera_info]") {
-    auto v1 = ef::CameraInfoView::from_cdr(
+    auto v1 = CameraInfoView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenCameraInfoBytes, sizeof(kGoldenCameraInfoBytes)});
     REQUIRE(v1.has_value());
     CHECK(v1->frame_id() == "test_frame");
@@ -483,7 +622,7 @@ TEST_CASE("CameraInfoView move semantics", "[buffer_backed][camera_info]") {
     CHECK(v2.width()  == 640u);
 
     // Move assign from a fresh view
-    auto v3 = ef::CameraInfoView::from_cdr(
+    auto v3 = CameraInfoView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenCameraInfoBytes, sizeof(kGoldenCameraInfoBytes)});
     REQUIRE(v3.has_value());
     v2 = std::move(*v3);
@@ -496,12 +635,12 @@ TEST_CASE("CameraInfoView move semantics", "[buffer_backed][camera_info]") {
 // ============================================================================
 
 TEST_CASE("TransformStampedView error paths", "[buffer_backed][transform_stamped]") {
-    auto v = ef::TransformStampedView::from_cdr({});
+    auto v = TransformStampedView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("TransformStampedView move semantics", "[buffer_backed][transform_stamped]") {
-    auto v1 = ef::TransformStampedView::from_cdr(
+    auto v1 = TransformStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenTransformStampedBytes,
                                      sizeof(kGoldenTransformStampedBytes)});
     REQUIRE(v1.has_value());
@@ -514,7 +653,7 @@ TEST_CASE("TransformStampedView move semantics", "[buffer_backed][transform_stam
     CHECK(v2.child_frame_id() == "child_frame");
 
     // Move assign from a fresh view
-    auto v3 = ef::TransformStampedView::from_cdr(
+    auto v3 = TransformStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenTransformStampedBytes,
                                      sizeof(kGoldenTransformStampedBytes)});
     REQUIRE(v3.has_value());
@@ -530,7 +669,7 @@ TEST_CASE("TransformStampedView move semantics", "[buffer_backed][transform_stam
 TEST_CASE("CompressedVideo encode+view roundtrip", "[buffer_backed][compressed_video]") {
     const std::uint8_t vdata[] = {0x00, 0x00, 0x00, 0x01, 0x67};
     ef::span<const std::uint8_t> data_span{vdata, sizeof(vdata)};
-    auto vid = ef::CompressedVideo::encode({500, 0}, "camera_front", data_span, "h264");
+    auto vid = CompressedVideo::encode({500, 0}, "camera_front", data_span, "h264");
     REQUIRE(vid.has_value());
     CHECK(vid->stamp().sec == 500);
     CHECK(vid->stamp().nanosec == 0);
@@ -541,17 +680,17 @@ TEST_CASE("CompressedVideo encode+view roundtrip", "[buffer_backed][compressed_v
 }
 
 TEST_CASE("CompressedVideoView from_cdr error on empty span", "[buffer_backed][compressed_video]") {
-    auto v = ef::CompressedVideoView::from_cdr({});
+    auto v = CompressedVideoView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("CompressedVideoView from_cdr + move", "[buffer_backed][compressed_video]") {
     const std::uint8_t vd[] = {0x01, 0x02};
-    auto vid = ef::CompressedVideo::encode({7, 8}, "back_cam",
+    auto vid = CompressedVideo::encode({7, 8}, "back_cam",
                                            ef::span<const std::uint8_t>{vd, 2}, "h265");
     REQUIRE(vid.has_value());
     auto cdr = vid->as_cdr();
-    auto v1 = ef::CompressedVideoView::from_cdr(cdr);
+    auto v1 = CompressedVideoView::from_cdr(cdr);
     REQUIRE(v1.has_value());
     auto v2 = std::move(*v1);
     CHECK(v2.format() == "h265");
@@ -561,7 +700,7 @@ TEST_CASE("CompressedVideoView from_cdr + move", "[buffer_backed][compressed_vid
 
 TEST_CASE("CompressedVideo move semantics", "[buffer_backed][compressed_video]") {
     const std::uint8_t vd[] = {0xFF};
-    auto v1 = ef::CompressedVideo::encode({0, 0}, "side",
+    auto v1 = CompressedVideo::encode({0, 0}, "side",
                                           ef::span<const std::uint8_t>{vd, 1}, "av1");
     REQUIRE(v1.has_value());
     auto v2 = std::move(*v1);
@@ -579,7 +718,7 @@ TEST_CASE("CompressedVideo move semantics", "[buffer_backed][compressed_video]")
 TEST_CASE("FoxgloveCompressedImage encode+view roundtrip", "[buffer_backed][foxglove_compressed_image]") {
     const std::uint8_t idata[] = {0xFF, 0xD8, 0xFF, 0xE0, 0x00};
     ef::span<const std::uint8_t> data_span{idata, sizeof(idata)};
-    auto img = ef::FoxgloveCompressedImage::encode({500, 0}, "camera_front", data_span, "jpeg");
+    auto img = FoxgloveCompressedImage::encode({500, 0}, "camera_front", data_span, "jpeg");
     REQUIRE(img.has_value());
     CHECK(img->stamp().sec == 500);
     CHECK(img->timestamp().sec == 500);
@@ -590,17 +729,17 @@ TEST_CASE("FoxgloveCompressedImage encode+view roundtrip", "[buffer_backed][foxg
 }
 
 TEST_CASE("FoxgloveCompressedImageView from_cdr error on empty span", "[buffer_backed][foxglove_compressed_image]") {
-    auto v = ef::FoxgloveCompressedImageView::from_cdr({});
+    auto v = FoxgloveCompressedImageView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("FoxgloveCompressedImageView from_cdr + move", "[buffer_backed][foxglove_compressed_image]") {
     const std::uint8_t id[] = {0x01, 0x02};
-    auto img = ef::FoxgloveCompressedImage::encode({7, 8}, "back_cam",
+    auto img = FoxgloveCompressedImage::encode({7, 8}, "back_cam",
                                                    ef::span<const std::uint8_t>{id, 2}, "png");
     REQUIRE(img.has_value());
     auto cdr = img->as_cdr();
-    auto v1 = ef::FoxgloveCompressedImageView::from_cdr(cdr);
+    auto v1 = FoxgloveCompressedImageView::from_cdr(cdr);
     REQUIRE(v1.has_value());
     auto v2 = std::move(*v1);
     CHECK(v2.format() == "png");
@@ -610,7 +749,7 @@ TEST_CASE("FoxgloveCompressedImageView from_cdr + move", "[buffer_backed][foxglo
 
 TEST_CASE("FoxgloveCompressedImage move semantics", "[buffer_backed][foxglove_compressed_image]") {
     const std::uint8_t id[] = {0xFF};
-    auto v1 = ef::FoxgloveCompressedImage::encode({0, 0}, "side",
+    auto v1 = FoxgloveCompressedImage::encode({0, 0}, "side",
                                                   ef::span<const std::uint8_t>{id, 1}, "webp");
     REQUIRE(v1.has_value());
     auto v2 = std::move(*v1);
@@ -621,8 +760,8 @@ TEST_CASE("FoxgloveCompressedImage move semantics", "[buffer_backed][foxglove_co
 TEST_CASE("FoxgloveCompressedImage wire-identical to CompressedVideo", "[buffer_backed][foxglove_compressed_image]") {
     const std::uint8_t d[] = {0x01, 0x02, 0x03, 0x04};
     ef::span<const std::uint8_t> span{d, sizeof(d)};
-    auto img = ef::FoxgloveCompressedImage::encode({42, 7}, "cam0", span, "h264");
-    auto vid = ef::CompressedVideo::encode({42, 7}, "cam0", span, "h264");
+    auto img = FoxgloveCompressedImage::encode({42, 7}, "cam0", span, "h264");
+    auto vid = CompressedVideo::encode({42, 7}, "cam0", span, "h264");
     REQUIRE(img.has_value());
     REQUIRE(vid.has_value());
     auto ib = img->as_cdr();
@@ -638,7 +777,7 @@ TEST_CASE("FoxgloveCompressedImage wire-identical to CompressedVideo", "[buffer_
 TEST_CASE("Mask encode+view roundtrip", "[buffer_backed][mask]") {
     const std::uint8_t mdata[] = {0x01, 0x00, 0x01, 0xFF};
     ef::span<const std::uint8_t> data_span{mdata, sizeof(mdata)};
-    auto mask = ef::Mask::encode(2, 2, 4, "mono8", data_span, false);
+    auto mask = Mask::encode(2, 2, 4, "mono8", data_span, false);
     REQUIRE(mask.has_value());
     CHECK(mask->height() == 2);
     CHECK(mask->width() == 2);
@@ -651,24 +790,24 @@ TEST_CASE("Mask encode+view roundtrip", "[buffer_backed][mask]") {
 
 TEST_CASE("Mask encode boxed=true", "[buffer_backed][mask]") {
     const std::uint8_t mdata[] = {0x01};
-    auto mask = ef::Mask::encode(1, 1, 1, "mono8",
+    auto mask = Mask::encode(1, 1, 1, "mono8",
                                  ef::span<const std::uint8_t>{mdata, 1}, true);
     REQUIRE(mask.has_value());
     CHECK(mask->boxed() == true);
 }
 
 TEST_CASE("MaskView from_cdr error on empty span", "[buffer_backed][mask]") {
-    auto v = ef::MaskView::from_cdr({});
+    auto v = MaskView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("MaskView from_cdr success + move", "[buffer_backed][mask]") {
     const std::uint8_t mdata[] = {0xAA, 0xBB};
-    auto mask = ef::Mask::encode(1, 2, 2, "mono8",
+    auto mask = Mask::encode(1, 2, 2, "mono8",
                                  ef::span<const std::uint8_t>{mdata, 2}, false);
     REQUIRE(mask.has_value());
     auto cdr = mask->as_cdr();
-    auto v1 = ef::MaskView::from_cdr(cdr);
+    auto v1 = MaskView::from_cdr(cdr);
     REQUIRE(v1.has_value());
     auto v2 = std::move(*v1);
     CHECK(v2.height() == 1);
@@ -678,7 +817,7 @@ TEST_CASE("MaskView from_cdr success + move", "[buffer_backed][mask]") {
 
 TEST_CASE("Mask move semantics", "[buffer_backed][mask]") {
     const std::uint8_t mdata[] = {0x01, 0x02, 0x03};
-    auto m1 = ef::Mask::encode(1, 3, 3, "mono8",
+    auto m1 = Mask::encode(1, 3, 3, "mono8",
                                ef::span<const std::uint8_t>{mdata, 3}, false);
     REQUIRE(m1.has_value());
     auto m2 = std::move(*m1);
@@ -692,12 +831,12 @@ TEST_CASE("Mask move semantics", "[buffer_backed][mask]") {
 // ============================================================================
 
 TEST_CASE("LocalTimeView error paths", "[buffer_backed][local_time]") {
-    auto v = ef::LocalTimeView::from_cdr({});
+    auto v = LocalTimeView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("LocalTimeView move semantics", "[buffer_backed][local_time]") {
-    auto v1 = ef::LocalTimeView::from_cdr(
+    auto v1 = LocalTimeView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenLocalTimeBytes, sizeof(kGoldenLocalTimeBytes)});
     REQUIRE(v1.has_value());
     CHECK(v1->frame_id() == "test_frame");
@@ -709,7 +848,7 @@ TEST_CASE("LocalTimeView move semantics", "[buffer_backed][local_time]") {
     CHECK(v2.stamp().sec == 1234567890u);
 
     // Move assign from a fresh view
-    auto v3 = ef::LocalTimeView::from_cdr(
+    auto v3 = LocalTimeView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenLocalTimeBytes, sizeof(kGoldenLocalTimeBytes)});
     REQUIRE(v3.has_value());
     v2 = std::move(*v3);
@@ -722,12 +861,12 @@ TEST_CASE("LocalTimeView move semantics", "[buffer_backed][local_time]") {
 // ============================================================================
 
 TEST_CASE("TrackView error paths", "[buffer_backed][track]") {
-    auto v = ef::TrackView::from_cdr({});
+    auto v = TrackView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("TrackView move semantics", "[buffer_backed][track]") {
-    auto v1 = ef::TrackView::from_cdr(
+    auto v1 = TrackView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenTrackBytes, sizeof(kGoldenTrackBytes)});
     REQUIRE(v1.has_value());
     CHECK(v1->id() == "t1");
@@ -739,7 +878,7 @@ TEST_CASE("TrackView move semantics", "[buffer_backed][track]") {
     CHECK(v2.lifetime() == 5);
 
     // Move assign from a fresh view
-    auto v3 = ef::TrackView::from_cdr(
+    auto v3 = TrackView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenTrackBytes, sizeof(kGoldenTrackBytes)});
     REQUIRE(v3.has_value());
     v2 = std::move(*v3);
@@ -752,7 +891,7 @@ TEST_CASE("TrackView move semantics", "[buffer_backed][track]") {
 // ============================================================================
 
 TEST_CASE("DetectView move semantics", "[buffer_backed][detect]") {
-    auto v1 = ef::DetectView::from_cdr(
+    auto v1 = DetectView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenSimpleDetectBytes, sizeof(kGoldenSimpleDetectBytes)});
     REQUIRE(v1.has_value());
     CHECK(v1->frame_id() == "test_frame");
@@ -764,7 +903,7 @@ TEST_CASE("DetectView move semantics", "[buffer_backed][detect]") {
     CHECK(v2.boxes_len() == 1u);
 
     // Move assign from a fresh view
-    auto v3 = ef::DetectView::from_cdr(
+    auto v3 = DetectView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenSimpleDetectBytes, sizeof(kGoldenSimpleDetectBytes)});
     REQUIRE(v3.has_value());
     v2 = std::move(*v3);
@@ -777,7 +916,7 @@ TEST_CASE("DetectView move semantics", "[buffer_backed][detect]") {
 // ============================================================================
 
 TEST_CASE("ModelView move semantics", "[buffer_backed][model]") {
-    auto v1 = ef::ModelView::from_cdr(
+    auto v1 = ModelView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenModelBytes, sizeof(kGoldenModelBytes)});
     REQUIRE(v1.has_value());
     CHECK(v1->frame_id() == "test_frame");
@@ -789,7 +928,7 @@ TEST_CASE("ModelView move semantics", "[buffer_backed][model]") {
     CHECK(v2.boxes_len() == 1u);
 
     // Move assign from a fresh view
-    auto v3 = ef::ModelView::from_cdr(
+    auto v3 = ModelView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenModelBytes, sizeof(kGoldenModelBytes)});
     REQUIRE(v3.has_value());
     v2 = std::move(*v3);
@@ -802,7 +941,7 @@ TEST_CASE("ModelView move semantics", "[buffer_backed][model]") {
 // ============================================================================
 
 TEST_CASE("ModelInfoView move semantics", "[buffer_backed][model_info]") {
-    auto v1 = ef::ModelInfoView::from_cdr(
+    auto v1 = ModelInfoView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenModelInfoBytes, sizeof(kGoldenModelInfoBytes)});
     REQUIRE(v1.has_value());
     CHECK(v1->frame_id() == "test_frame");
@@ -815,7 +954,7 @@ TEST_CASE("ModelInfoView move semantics", "[buffer_backed][model_info]") {
     CHECK(v2.label(0) == "person");
 
     // Move assign from a fresh view
-    auto v3 = ef::ModelInfoView::from_cdr(
+    auto v3 = ModelInfoView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenModelInfoBytes, sizeof(kGoldenModelInfoBytes)});
     REQUIRE(v3.has_value());
     v2 = std::move(*v3);
@@ -828,7 +967,7 @@ TEST_CASE("ModelInfoView move semantics", "[buffer_backed][model_info]") {
 // ============================================================================
 
 TEST_CASE("RadarCubeView move semantics", "[buffer_backed][radar_cube]") {
-    auto v1 = ef::RadarCubeView::from_cdr(
+    auto v1 = RadarCubeView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenRadarCubeBytes, sizeof(kGoldenRadarCubeBytes)});
     REQUIRE(v1.has_value());
     CHECK(v1->frame_id() == "test_frame");
@@ -840,7 +979,7 @@ TEST_CASE("RadarCubeView move semantics", "[buffer_backed][radar_cube]") {
     CHECK(v2.timestamp() == 1234567890123456ull);
 
     // Move assign from a fresh view
-    auto v3 = ef::RadarCubeView::from_cdr(
+    auto v3 = RadarCubeView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenRadarCubeBytes, sizeof(kGoldenRadarCubeBytes)});
     REQUIRE(v3.has_value());
     v2 = std::move(*v3);
@@ -853,7 +992,7 @@ TEST_CASE("RadarCubeView move semantics", "[buffer_backed][radar_cube]") {
 // ============================================================================
 
 TEST_CASE("RadarInfoView move semantics", "[buffer_backed][radar_info]") {
-    auto v1 = ef::RadarInfoView::from_cdr(
+    auto v1 = RadarInfoView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenRadarInfoBytes, sizeof(kGoldenRadarInfoBytes)});
     REQUIRE(v1.has_value());
     CHECK(v1->frame_id()            == "test_frame");
@@ -870,7 +1009,7 @@ TEST_CASE("RadarInfoView move semantics", "[buffer_backed][radar_info]") {
     CHECK(v2.cube() == true);
 
     // Move assign from a fresh view
-    auto v3 = ef::RadarInfoView::from_cdr(
+    auto v3 = RadarInfoView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenRadarInfoBytes, sizeof(kGoldenRadarInfoBytes)});
     REQUIRE(v3.has_value());
     v2 = std::move(*v3);
@@ -883,7 +1022,7 @@ TEST_CASE("RadarInfoView move semantics", "[buffer_backed][radar_info]") {
 // ============================================================================
 
 TEST_CASE("PointCloud2View move semantics", "[buffer_backed][pointcloud2]") {
-    auto v1 = ef::PointCloud2View::from_cdr(
+    auto v1 = PointCloud2View::from_cdr(
         ef::span<const std::uint8_t>{kGoldenPointCloud2Bytes, sizeof(kGoldenPointCloud2Bytes)});
     REQUIRE(v1.has_value());
     CHECK(v1->frame_id()   == "test_frame");
@@ -899,7 +1038,7 @@ TEST_CASE("PointCloud2View move semantics", "[buffer_backed][pointcloud2]") {
     CHECK(v2.fields_len() == 3u);
 
     // Move assign from a fresh view
-    auto v3 = ef::PointCloud2View::from_cdr(
+    auto v3 = PointCloud2View::from_cdr(
         ef::span<const std::uint8_t>{kGoldenPointCloud2Bytes, sizeof(kGoldenPointCloud2Bytes)});
     REQUIRE(v3.has_value());
     v2 = std::move(*v3);
@@ -912,7 +1051,7 @@ TEST_CASE("PointCloud2View move semantics", "[buffer_backed][pointcloud2]") {
 // ============================================================================
 
 TEST_CASE("BoxView move semantics", "[buffer_backed][box]") {
-    auto v1 = ef::BoxView::from_cdr(
+    auto v1 = BoxView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenBoxBytes, sizeof(kGoldenBoxBytes)});
     REQUIRE(v1.has_value());
     CHECK(v1->label()    == "car");
@@ -927,7 +1066,7 @@ TEST_CASE("BoxView move semantics", "[buffer_backed][box]") {
     CHECK(v2.track_lifetime() == 5);
 
     // Move assign from a fresh view
-    auto v3 = ef::BoxView::from_cdr(
+    auto v3 = BoxView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenBoxBytes, sizeof(kGoldenBoxBytes)});
     REQUIRE(v3.has_value());
     v2 = std::move(*v3);
@@ -938,7 +1077,7 @@ TEST_CASE("BoxView move semantics", "[buffer_backed][box]") {
 TEST_CASE("BoxView track_created accessor", "[buffer_backed][box][track_created]") {
     // kGoldenBoxBytes encodes: track_created={sec=95, nanosec=0}
     // (mirrors box_cdr fixture from tests/c/test_edgefirst_msgs.c)
-    auto v = ef::BoxView::from_cdr(
+    auto v = BoxView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenBoxBytes, sizeof(kGoldenBoxBytes)});
     REQUIRE(v.has_value());
     auto tc = v->track_created();
@@ -960,12 +1099,12 @@ static constexpr std::uint8_t kGoldenTwistStampedBytes[] = {
 };
 
 TEST_CASE("TwistStampedView error paths", "[buffer_backed][twist_stamped]") {
-    auto v = ef::TwistStampedView::from_cdr({});
+    auto v = TwistStampedView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("TwistStampedView happy path", "[buffer_backed][twist_stamped]") {
-    auto v = ef::TwistStampedView::from_cdr(
+    auto v = TwistStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenTwistStampedBytes,
                                      sizeof(kGoldenTwistStampedBytes)});
     REQUIRE(v.has_value());
@@ -975,7 +1114,7 @@ TEST_CASE("TwistStampedView happy path", "[buffer_backed][twist_stamped]") {
 }
 
 TEST_CASE("TwistStampedView move semantics", "[buffer_backed][twist_stamped]") {
-    auto v1 = ef::TwistStampedView::from_cdr(
+    auto v1 = TwistStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenTwistStampedBytes,
                                      sizeof(kGoldenTwistStampedBytes)});
     REQUIRE(v1.has_value());
@@ -997,12 +1136,12 @@ static constexpr std::uint8_t kGoldenAccelStampedBytes[] = {
 };
 
 TEST_CASE("AccelStampedView error paths", "[buffer_backed][accel_stamped]") {
-    auto v = ef::AccelStampedView::from_cdr({});
+    auto v = AccelStampedView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("AccelStampedView happy path", "[buffer_backed][accel_stamped]") {
-    auto v = ef::AccelStampedView::from_cdr(
+    auto v = AccelStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenAccelStampedBytes,
                                      sizeof(kGoldenAccelStampedBytes)});
     REQUIRE(v.has_value());
@@ -1012,7 +1151,7 @@ TEST_CASE("AccelStampedView happy path", "[buffer_backed][accel_stamped]") {
 }
 
 TEST_CASE("AccelStampedView move semantics", "[buffer_backed][accel_stamped]") {
-    auto v1 = ef::AccelStampedView::from_cdr(
+    auto v1 = AccelStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenAccelStampedBytes,
                                      sizeof(kGoldenAccelStampedBytes)});
     REQUIRE(v1.has_value());
@@ -1033,12 +1172,12 @@ static constexpr std::uint8_t kGoldenPointStampedBytes[] = {
 };
 
 TEST_CASE("PointStampedView error paths", "[buffer_backed][point_stamped]") {
-    auto v = ef::PointStampedView::from_cdr({});
+    auto v = PointStampedView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("PointStampedView happy path", "[buffer_backed][point_stamped]") {
-    auto v = ef::PointStampedView::from_cdr(
+    auto v = PointStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenPointStampedBytes,
                                      sizeof(kGoldenPointStampedBytes)});
     REQUIRE(v.has_value());
@@ -1048,7 +1187,7 @@ TEST_CASE("PointStampedView happy path", "[buffer_backed][point_stamped]") {
 }
 
 TEST_CASE("PointStampedView move semantics", "[buffer_backed][point_stamped]") {
-    auto v1 = ef::PointStampedView::from_cdr(
+    auto v1 = PointStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenPointStampedBytes,
                                      sizeof(kGoldenPointStampedBytes)});
     REQUIRE(v1.has_value());
@@ -1072,12 +1211,12 @@ static constexpr std::uint8_t kGoldenInertiaStampedBytes[] = {
 };
 
 TEST_CASE("InertiaStampedView error paths", "[buffer_backed][inertia_stamped]") {
-    auto v = ef::InertiaStampedView::from_cdr({});
+    auto v = InertiaStampedView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("InertiaStampedView happy path", "[buffer_backed][inertia_stamped]") {
-    auto v = ef::InertiaStampedView::from_cdr(
+    auto v = InertiaStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenInertiaStampedBytes,
                                      sizeof(kGoldenInertiaStampedBytes)});
     REQUIRE(v.has_value());
@@ -1087,7 +1226,7 @@ TEST_CASE("InertiaStampedView happy path", "[buffer_backed][inertia_stamped]") {
 }
 
 TEST_CASE("InertiaStampedView move semantics", "[buffer_backed][inertia_stamped]") {
-    auto v1 = ef::InertiaStampedView::from_cdr(
+    auto v1 = InertiaStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenInertiaStampedBytes,
                                      sizeof(kGoldenInertiaStampedBytes)});
     REQUIRE(v1.has_value());
@@ -1108,12 +1247,12 @@ static constexpr std::uint8_t kGoldenVector3StampedBytes[] = {
 };
 
 TEST_CASE("Vector3StampedView error paths", "[buffer_backed][vector3_stamped]") {
-    auto v = ef::Vector3StampedView::from_cdr({});
+    auto v = Vector3StampedView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("Vector3StampedView happy path", "[buffer_backed][vector3_stamped]") {
-    auto v = ef::Vector3StampedView::from_cdr(
+    auto v = Vector3StampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenVector3StampedBytes,
                                      sizeof(kGoldenVector3StampedBytes)});
     REQUIRE(v.has_value());
@@ -1123,7 +1262,7 @@ TEST_CASE("Vector3StampedView happy path", "[buffer_backed][vector3_stamped]") {
 }
 
 TEST_CASE("Vector3StampedView move semantics", "[buffer_backed][vector3_stamped]") {
-    auto v1 = ef::Vector3StampedView::from_cdr(
+    auto v1 = Vector3StampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenVector3StampedBytes,
                                      sizeof(kGoldenVector3StampedBytes)});
     REQUIRE(v1.has_value());
@@ -1144,12 +1283,12 @@ static constexpr std::uint8_t kGoldenQuaternionStampedBytes[] = {
 };
 
 TEST_CASE("QuaternionStampedView error paths", "[buffer_backed][quaternion_stamped]") {
-    auto v = ef::QuaternionStampedView::from_cdr({});
+    auto v = QuaternionStampedView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("QuaternionStampedView happy path", "[buffer_backed][quaternion_stamped]") {
-    auto v = ef::QuaternionStampedView::from_cdr(
+    auto v = QuaternionStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenQuaternionStampedBytes,
                                      sizeof(kGoldenQuaternionStampedBytes)});
     REQUIRE(v.has_value());
@@ -1159,7 +1298,7 @@ TEST_CASE("QuaternionStampedView happy path", "[buffer_backed][quaternion_stampe
 }
 
 TEST_CASE("QuaternionStampedView move semantics", "[buffer_backed][quaternion_stamped]") {
-    auto v1 = ef::QuaternionStampedView::from_cdr(
+    auto v1 = QuaternionStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenQuaternionStampedBytes,
                                      sizeof(kGoldenQuaternionStampedBytes)});
     REQUIRE(v1.has_value());
@@ -1182,12 +1321,12 @@ static constexpr std::uint8_t kGoldenPoseStampedBytes[] = {
 };
 
 TEST_CASE("PoseStampedView error paths", "[buffer_backed][pose_stamped]") {
-    auto v = ef::PoseStampedView::from_cdr({});
+    auto v = PoseStampedView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("PoseStampedView happy path", "[buffer_backed][pose_stamped]") {
-    auto v = ef::PoseStampedView::from_cdr(
+    auto v = PoseStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenPoseStampedBytes,
                                      sizeof(kGoldenPoseStampedBytes)});
     REQUIRE(v.has_value());
@@ -1197,7 +1336,7 @@ TEST_CASE("PoseStampedView happy path", "[buffer_backed][pose_stamped]") {
 }
 
 TEST_CASE("PoseStampedView move semantics", "[buffer_backed][pose_stamped]") {
-    auto v1 = ef::PoseStampedView::from_cdr(
+    auto v1 = PoseStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenPoseStampedBytes,
                                      sizeof(kGoldenPoseStampedBytes)});
     REQUIRE(v1.has_value());
@@ -1219,12 +1358,12 @@ static constexpr std::uint8_t kGoldenWrenchStampedBytes[] = {
 };
 
 TEST_CASE("WrenchStampedView error paths", "[buffer_backed][wrench_stamped]") {
-    auto v = ef::WrenchStampedView::from_cdr({});
+    auto v = WrenchStampedView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("WrenchStampedView happy path", "[buffer_backed][wrench_stamped]") {
-    auto v = ef::WrenchStampedView::from_cdr(
+    auto v = WrenchStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenWrenchStampedBytes,
                                      sizeof(kGoldenWrenchStampedBytes)});
     REQUIRE(v.has_value());
@@ -1234,7 +1373,7 @@ TEST_CASE("WrenchStampedView happy path", "[buffer_backed][wrench_stamped]") {
 }
 
 TEST_CASE("WrenchStampedView move semantics", "[buffer_backed][wrench_stamped]") {
-    auto v1 = ef::WrenchStampedView::from_cdr(
+    auto v1 = WrenchStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenWrenchStampedBytes,
                                      sizeof(kGoldenWrenchStampedBytes)});
     REQUIRE(v1.has_value());
@@ -1275,12 +1414,12 @@ static constexpr std::uint8_t kGoldenPoseWithCovarianceStampedBytes[] = {
 };
 
 TEST_CASE("PoseWithCovarianceStampedView error paths", "[buffer_backed][pose_with_covariance_stamped]") {
-    auto v = ef::PoseWithCovarianceStampedView::from_cdr({});
+    auto v = PoseWithCovarianceStampedView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("PoseWithCovarianceStampedView happy path", "[buffer_backed][pose_with_covariance_stamped]") {
-    auto v = ef::PoseWithCovarianceStampedView::from_cdr(
+    auto v = PoseWithCovarianceStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenPoseWithCovarianceStampedBytes,
                                      sizeof(kGoldenPoseWithCovarianceStampedBytes)});
     REQUIRE(v.has_value());
@@ -1290,7 +1429,7 @@ TEST_CASE("PoseWithCovarianceStampedView happy path", "[buffer_backed][pose_with
 }
 
 TEST_CASE("PoseWithCovarianceStampedView move semantics", "[buffer_backed][pose_with_covariance_stamped]") {
-    auto v1 = ef::PoseWithCovarianceStampedView::from_cdr(
+    auto v1 = PoseWithCovarianceStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenPoseWithCovarianceStampedBytes,
                                      sizeof(kGoldenPoseWithCovarianceStampedBytes)});
     REQUIRE(v1.has_value());
@@ -1330,12 +1469,12 @@ static constexpr std::uint8_t kGoldenTwistWithCovarianceStampedBytes[] = {
 };
 
 TEST_CASE("TwistWithCovarianceStampedView error paths", "[buffer_backed][twist_with_covariance_stamped]") {
-    auto v = ef::TwistWithCovarianceStampedView::from_cdr({});
+    auto v = TwistWithCovarianceStampedView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("TwistWithCovarianceStampedView happy path", "[buffer_backed][twist_with_covariance_stamped]") {
-    auto v = ef::TwistWithCovarianceStampedView::from_cdr(
+    auto v = TwistWithCovarianceStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenTwistWithCovarianceStampedBytes,
                                      sizeof(kGoldenTwistWithCovarianceStampedBytes)});
     REQUIRE(v.has_value());
@@ -1345,7 +1484,7 @@ TEST_CASE("TwistWithCovarianceStampedView happy path", "[buffer_backed][twist_wi
 }
 
 TEST_CASE("TwistWithCovarianceStampedView move semantics", "[buffer_backed][twist_with_covariance_stamped]") {
-    auto v1 = ef::TwistWithCovarianceStampedView::from_cdr(
+    auto v1 = TwistWithCovarianceStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenTwistWithCovarianceStampedBytes,
                                      sizeof(kGoldenTwistWithCovarianceStampedBytes)});
     REQUIRE(v1.has_value());
@@ -1385,12 +1524,12 @@ static constexpr std::uint8_t kGoldenAccelWithCovarianceStampedBytes[] = {
 };
 
 TEST_CASE("AccelWithCovarianceStampedView error paths", "[buffer_backed][accel_with_covariance_stamped]") {
-    auto v = ef::AccelWithCovarianceStampedView::from_cdr({});
+    auto v = AccelWithCovarianceStampedView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("AccelWithCovarianceStampedView happy path", "[buffer_backed][accel_with_covariance_stamped]") {
-    auto v = ef::AccelWithCovarianceStampedView::from_cdr(
+    auto v = AccelWithCovarianceStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenAccelWithCovarianceStampedBytes,
                                      sizeof(kGoldenAccelWithCovarianceStampedBytes)});
     REQUIRE(v.has_value());
@@ -1400,7 +1539,7 @@ TEST_CASE("AccelWithCovarianceStampedView happy path", "[buffer_backed][accel_wi
 }
 
 TEST_CASE("AccelWithCovarianceStampedView move semantics", "[buffer_backed][accel_with_covariance_stamped]") {
-    auto v1 = ef::AccelWithCovarianceStampedView::from_cdr(
+    auto v1 = AccelWithCovarianceStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenAccelWithCovarianceStampedBytes,
                                      sizeof(kGoldenAccelWithCovarianceStampedBytes)});
     REQUIRE(v1.has_value());
@@ -1420,12 +1559,12 @@ static constexpr std::uint8_t kGoldenPolygonBytes[] = {
 };
 
 TEST_CASE("PolygonView error paths", "[buffer_backed][polygon]") {
-    auto v = ef::PolygonView::from_cdr({});
+    auto v = PolygonView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("PolygonView happy path", "[buffer_backed][polygon]") {
-    auto v = ef::PolygonView::from_cdr(
+    auto v = PolygonView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenPolygonBytes,
                                      sizeof(kGoldenPolygonBytes)});
     REQUIRE(v.has_value());
@@ -1433,7 +1572,7 @@ TEST_CASE("PolygonView happy path", "[buffer_backed][polygon]") {
 }
 
 TEST_CASE("PolygonView move semantics", "[buffer_backed][polygon]") {
-    auto v1 = ef::PolygonView::from_cdr(
+    auto v1 = PolygonView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenPolygonBytes,
                                      sizeof(kGoldenPolygonBytes)});
     REQUIRE(v1.has_value());
@@ -1454,12 +1593,12 @@ static constexpr std::uint8_t kGoldenPolygonStampedBytes[] = {
 };
 
 TEST_CASE("PolygonStampedView error paths", "[buffer_backed][polygon_stamped]") {
-    auto v = ef::PolygonStampedView::from_cdr({});
+    auto v = PolygonStampedView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("PolygonStampedView happy path", "[buffer_backed][polygon_stamped]") {
-    auto v = ef::PolygonStampedView::from_cdr(
+    auto v = PolygonStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenPolygonStampedBytes,
                                      sizeof(kGoldenPolygonStampedBytes)});
     REQUIRE(v.has_value());
@@ -1470,7 +1609,7 @@ TEST_CASE("PolygonStampedView happy path", "[buffer_backed][polygon_stamped]") {
 }
 
 TEST_CASE("PolygonStampedView move semantics", "[buffer_backed][polygon_stamped]") {
-    auto v1 = ef::PolygonStampedView::from_cdr(
+    auto v1 = PolygonStampedView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenPolygonStampedBytes,
                                      sizeof(kGoldenPolygonStampedBytes)});
     REQUIRE(v1.has_value());
@@ -1497,12 +1636,12 @@ static constexpr std::uint8_t kGoldenPoseArrayBytes[] = {
 };
 
 TEST_CASE("PoseArrayView error paths", "[buffer_backed][pose_array]") {
-    auto v = ef::PoseArrayView::from_cdr({});
+    auto v = PoseArrayView::from_cdr({});
     REQUIRE_FALSE(v.has_value());
 }
 
 TEST_CASE("PoseArrayView happy path", "[buffer_backed][pose_array]") {
-    auto v = ef::PoseArrayView::from_cdr(
+    auto v = PoseArrayView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenPoseArrayBytes,
                                      sizeof(kGoldenPoseArrayBytes)});
     REQUIRE(v.has_value());
@@ -1513,7 +1652,7 @@ TEST_CASE("PoseArrayView happy path", "[buffer_backed][pose_array]") {
 }
 
 TEST_CASE("PoseArrayView move semantics", "[buffer_backed][pose_array]") {
-    auto v1 = ef::PoseArrayView::from_cdr(
+    auto v1 = PoseArrayView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenPoseArrayBytes,
                                      sizeof(kGoldenPoseArrayBytes)});
     REQUIRE(v1.has_value());

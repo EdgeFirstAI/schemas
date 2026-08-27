@@ -123,10 +123,10 @@ struct AccelStampedBuilderOwned {
 }
 
 impl_builder_new_free!(
-    ros_accel_stamped_builder_t,
+    geometry_msgs_accel_stamped_builder_t,
     AccelStampedBuilderOwned,
-    ros_accel_stamped_builder_new,
-    ros_accel_stamped_builder_free,
+    geometry_msgs_accel_stamped_builder_new,
+    geometry_msgs_accel_stamped_builder_free,
     AccelStampedBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -140,14 +140,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_accel_stamped_builder_t,
-    ros_accel_stamped_builder_set_stamp,
-    ros_accel_stamped_builder_set_frame_id
+    geometry_msgs_accel_stamped_builder_t,
+    geometry_msgs_accel_stamped_builder_set_stamp,
+    geometry_msgs_accel_stamped_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_accel_stamped_builder_set_linear_acceleration(
-    b: *mut ros_accel_stamped_builder_t,
+pub extern "C" fn geometry_msgs_accel_stamped_builder_set_linear_acceleration(
+    b: *mut geometry_msgs_accel_stamped_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -162,8 +162,8 @@ pub extern "C" fn ros_accel_stamped_builder_set_linear_acceleration(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_accel_stamped_builder_set_angular_acceleration(
-    b: *mut ros_accel_stamped_builder_t,
+pub extern "C" fn geometry_msgs_accel_stamped_builder_set_angular_acceleration(
+    b: *mut geometry_msgs_accel_stamped_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -178,8 +178,8 @@ pub extern "C" fn ros_accel_stamped_builder_set_angular_acceleration(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_accel_stamped_builder_build(
-    b: *mut ros_accel_stamped_builder_t,
+pub extern "C" fn geometry_msgs_accel_stamped_builder_build(
+    b: *mut geometry_msgs_accel_stamped_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -208,8 +208,8 @@ pub extern "C" fn ros_accel_stamped_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_accel_stamped_builder_encode_into(
-    b: *mut ros_accel_stamped_builder_t,
+pub extern "C" fn geometry_msgs_accel_stamped_builder_encode_into(
+    b: *mut geometry_msgs_accel_stamped_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -254,10 +254,10 @@ struct TwistStampedBuilderOwned {
 }
 
 impl_builder_new_free!(
-    ros_twist_stamped_builder_t,
+    geometry_msgs_twist_stamped_builder_t,
     TwistStampedBuilderOwned,
-    ros_twist_stamped_builder_new,
-    ros_twist_stamped_builder_free,
+    geometry_msgs_twist_stamped_builder_new,
+    geometry_msgs_twist_stamped_builder_free,
     TwistStampedBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -271,14 +271,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_twist_stamped_builder_t,
-    ros_twist_stamped_builder_set_stamp,
-    ros_twist_stamped_builder_set_frame_id
+    geometry_msgs_twist_stamped_builder_t,
+    geometry_msgs_twist_stamped_builder_set_stamp,
+    geometry_msgs_twist_stamped_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_twist_stamped_builder_set_linear(
-    b: *mut ros_twist_stamped_builder_t,
+pub extern "C" fn geometry_msgs_twist_stamped_builder_set_linear(
+    b: *mut geometry_msgs_twist_stamped_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -293,8 +293,8 @@ pub extern "C" fn ros_twist_stamped_builder_set_linear(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_twist_stamped_builder_set_angular(
-    b: *mut ros_twist_stamped_builder_t,
+pub extern "C" fn geometry_msgs_twist_stamped_builder_set_angular(
+    b: *mut geometry_msgs_twist_stamped_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -309,8 +309,8 @@ pub extern "C" fn ros_twist_stamped_builder_set_angular(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_twist_stamped_builder_build(
-    b: *mut ros_twist_stamped_builder_t,
+pub extern "C" fn geometry_msgs_twist_stamped_builder_build(
+    b: *mut geometry_msgs_twist_stamped_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -339,8 +339,8 @@ pub extern "C" fn ros_twist_stamped_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_twist_stamped_builder_encode_into(
-    b: *mut ros_twist_stamped_builder_t,
+pub extern "C" fn geometry_msgs_twist_stamped_builder_encode_into(
+    b: *mut geometry_msgs_twist_stamped_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -385,10 +385,10 @@ struct WrenchStampedBuilderOwned {
 }
 
 impl_builder_new_free!(
-    ros_wrench_stamped_builder_t,
+    geometry_msgs_wrench_stamped_builder_t,
     WrenchStampedBuilderOwned,
-    ros_wrench_stamped_builder_new,
-    ros_wrench_stamped_builder_free,
+    geometry_msgs_wrench_stamped_builder_new,
+    geometry_msgs_wrench_stamped_builder_free,
     WrenchStampedBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -402,14 +402,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_wrench_stamped_builder_t,
-    ros_wrench_stamped_builder_set_stamp,
-    ros_wrench_stamped_builder_set_frame_id
+    geometry_msgs_wrench_stamped_builder_t,
+    geometry_msgs_wrench_stamped_builder_set_stamp,
+    geometry_msgs_wrench_stamped_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_wrench_stamped_builder_set_force(
-    b: *mut ros_wrench_stamped_builder_t,
+pub extern "C" fn geometry_msgs_wrench_stamped_builder_set_force(
+    b: *mut geometry_msgs_wrench_stamped_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -424,8 +424,8 @@ pub extern "C" fn ros_wrench_stamped_builder_set_force(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_wrench_stamped_builder_set_torque(
-    b: *mut ros_wrench_stamped_builder_t,
+pub extern "C" fn geometry_msgs_wrench_stamped_builder_set_torque(
+    b: *mut geometry_msgs_wrench_stamped_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -440,8 +440,8 @@ pub extern "C" fn ros_wrench_stamped_builder_set_torque(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_wrench_stamped_builder_build(
-    b: *mut ros_wrench_stamped_builder_t,
+pub extern "C" fn geometry_msgs_wrench_stamped_builder_build(
+    b: *mut geometry_msgs_wrench_stamped_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -470,8 +470,8 @@ pub extern "C" fn ros_wrench_stamped_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_wrench_stamped_builder_encode_into(
-    b: *mut ros_wrench_stamped_builder_t,
+pub extern "C" fn geometry_msgs_wrench_stamped_builder_encode_into(
+    b: *mut geometry_msgs_wrench_stamped_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -513,10 +513,10 @@ struct PointStampedBuilderOwned {
 }
 
 impl_builder_new_free!(
-    ros_point_stamped_builder_t,
+    geometry_msgs_point_stamped_builder_t,
     PointStampedBuilderOwned,
-    ros_point_stamped_builder_new,
-    ros_point_stamped_builder_free,
+    geometry_msgs_point_stamped_builder_new,
+    geometry_msgs_point_stamped_builder_free,
     PointStampedBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -527,14 +527,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_point_stamped_builder_t,
-    ros_point_stamped_builder_set_stamp,
-    ros_point_stamped_builder_set_frame_id
+    geometry_msgs_point_stamped_builder_t,
+    geometry_msgs_point_stamped_builder_set_stamp,
+    geometry_msgs_point_stamped_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_point_stamped_builder_set_point(
-    b: *mut ros_point_stamped_builder_t,
+pub extern "C" fn geometry_msgs_point_stamped_builder_set_point(
+    b: *mut geometry_msgs_point_stamped_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -549,8 +549,8 @@ pub extern "C" fn ros_point_stamped_builder_set_point(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_stamped_builder_build(
-    b: *mut ros_point_stamped_builder_t,
+pub extern "C" fn geometry_msgs_point_stamped_builder_build(
+    b: *mut geometry_msgs_point_stamped_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -572,8 +572,8 @@ pub extern "C" fn ros_point_stamped_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_stamped_builder_encode_into(
-    b: *mut ros_point_stamped_builder_t,
+pub extern "C" fn geometry_msgs_point_stamped_builder_encode_into(
+    b: *mut geometry_msgs_point_stamped_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -608,10 +608,10 @@ struct Vector3StampedBuilderOwned {
 }
 
 impl_builder_new_free!(
-    ros_vector3_stamped_builder_t,
+    geometry_msgs_vector3_stamped_builder_t,
     Vector3StampedBuilderOwned,
-    ros_vector3_stamped_builder_new,
-    ros_vector3_stamped_builder_free,
+    geometry_msgs_vector3_stamped_builder_new,
+    geometry_msgs_vector3_stamped_builder_free,
     Vector3StampedBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -622,14 +622,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_vector3_stamped_builder_t,
-    ros_vector3_stamped_builder_set_stamp,
-    ros_vector3_stamped_builder_set_frame_id
+    geometry_msgs_vector3_stamped_builder_t,
+    geometry_msgs_vector3_stamped_builder_set_stamp,
+    geometry_msgs_vector3_stamped_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_vector3_stamped_builder_set_vector(
-    b: *mut ros_vector3_stamped_builder_t,
+pub extern "C" fn geometry_msgs_vector3_stamped_builder_set_vector(
+    b: *mut geometry_msgs_vector3_stamped_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -644,8 +644,8 @@ pub extern "C" fn ros_vector3_stamped_builder_set_vector(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vector3_stamped_builder_build(
-    b: *mut ros_vector3_stamped_builder_t,
+pub extern "C" fn geometry_msgs_vector3_stamped_builder_build(
+    b: *mut geometry_msgs_vector3_stamped_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -667,8 +667,8 @@ pub extern "C" fn ros_vector3_stamped_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vector3_stamped_builder_encode_into(
-    b: *mut ros_vector3_stamped_builder_t,
+pub extern "C" fn geometry_msgs_vector3_stamped_builder_encode_into(
+    b: *mut geometry_msgs_vector3_stamped_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -704,10 +704,10 @@ struct QuaternionStampedBuilderOwned {
 }
 
 impl_builder_new_free!(
-    ros_quaternion_stamped_builder_t,
+    geometry_msgs_quaternion_stamped_builder_t,
     QuaternionStampedBuilderOwned,
-    ros_quaternion_stamped_builder_new,
-    ros_quaternion_stamped_builder_free,
+    geometry_msgs_quaternion_stamped_builder_new,
+    geometry_msgs_quaternion_stamped_builder_free,
     QuaternionStampedBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -719,14 +719,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_quaternion_stamped_builder_t,
-    ros_quaternion_stamped_builder_set_stamp,
-    ros_quaternion_stamped_builder_set_frame_id
+    geometry_msgs_quaternion_stamped_builder_t,
+    geometry_msgs_quaternion_stamped_builder_set_stamp,
+    geometry_msgs_quaternion_stamped_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_quaternion_stamped_builder_set_quaternion(
-    b: *mut ros_quaternion_stamped_builder_t,
+pub extern "C" fn geometry_msgs_quaternion_stamped_builder_set_quaternion(
+    b: *mut geometry_msgs_quaternion_stamped_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -743,8 +743,8 @@ pub extern "C" fn ros_quaternion_stamped_builder_set_quaternion(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_quaternion_stamped_builder_build(
-    b: *mut ros_quaternion_stamped_builder_t,
+pub extern "C" fn geometry_msgs_quaternion_stamped_builder_build(
+    b: *mut geometry_msgs_quaternion_stamped_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -767,8 +767,8 @@ pub extern "C" fn ros_quaternion_stamped_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_quaternion_stamped_builder_encode_into(
-    b: *mut ros_quaternion_stamped_builder_t,
+pub extern "C" fn geometry_msgs_quaternion_stamped_builder_encode_into(
+    b: *mut geometry_msgs_quaternion_stamped_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -808,10 +808,10 @@ struct PoseStampedBuilderOwned {
 }
 
 impl_builder_new_free!(
-    ros_pose_stamped_builder_t,
+    geometry_msgs_pose_stamped_builder_t,
     PoseStampedBuilderOwned,
-    ros_pose_stamped_builder_new,
-    ros_pose_stamped_builder_free,
+    geometry_msgs_pose_stamped_builder_new,
+    geometry_msgs_pose_stamped_builder_free,
     PoseStampedBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -826,14 +826,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_pose_stamped_builder_t,
-    ros_pose_stamped_builder_set_stamp,
-    ros_pose_stamped_builder_set_frame_id
+    geometry_msgs_pose_stamped_builder_t,
+    geometry_msgs_pose_stamped_builder_set_stamp,
+    geometry_msgs_pose_stamped_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_pose_stamped_builder_set_position(
-    b: *mut ros_pose_stamped_builder_t,
+pub extern "C" fn geometry_msgs_pose_stamped_builder_set_position(
+    b: *mut geometry_msgs_pose_stamped_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -848,8 +848,8 @@ pub extern "C" fn ros_pose_stamped_builder_set_position(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_pose_stamped_builder_set_orientation(
-    b: *mut ros_pose_stamped_builder_t,
+pub extern "C" fn geometry_msgs_pose_stamped_builder_set_orientation(
+    b: *mut geometry_msgs_pose_stamped_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -866,8 +866,8 @@ pub extern "C" fn ros_pose_stamped_builder_set_orientation(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_pose_stamped_builder_build(
-    b: *mut ros_pose_stamped_builder_t,
+pub extern "C" fn geometry_msgs_pose_stamped_builder_build(
+    b: *mut geometry_msgs_pose_stamped_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -897,8 +897,8 @@ pub extern "C" fn ros_pose_stamped_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_pose_stamped_builder_encode_into(
-    b: *mut ros_pose_stamped_builder_t,
+pub extern "C" fn geometry_msgs_pose_stamped_builder_encode_into(
+    b: *mut geometry_msgs_pose_stamped_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -948,10 +948,10 @@ struct InertiaStampedBuilderOwned {
 }
 
 impl_builder_new_free!(
-    ros_inertia_stamped_builder_t,
+    geometry_msgs_inertia_stamped_builder_t,
     InertiaStampedBuilderOwned,
-    ros_inertia_stamped_builder_new,
-    ros_inertia_stamped_builder_free,
+    geometry_msgs_inertia_stamped_builder_new,
+    geometry_msgs_inertia_stamped_builder_free,
     InertiaStampedBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -969,14 +969,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_inertia_stamped_builder_t,
-    ros_inertia_stamped_builder_set_stamp,
-    ros_inertia_stamped_builder_set_frame_id
+    geometry_msgs_inertia_stamped_builder_t,
+    geometry_msgs_inertia_stamped_builder_set_stamp,
+    geometry_msgs_inertia_stamped_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_inertia_stamped_builder_set_mass(
-    b: *mut ros_inertia_stamped_builder_t,
+pub extern "C" fn geometry_msgs_inertia_stamped_builder_set_mass(
+    b: *mut geometry_msgs_inertia_stamped_builder_t,
     m: f64,
 ) {
     if b.is_null() {
@@ -988,8 +988,8 @@ pub extern "C" fn ros_inertia_stamped_builder_set_mass(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_inertia_stamped_builder_set_com(
-    b: *mut ros_inertia_stamped_builder_t,
+pub extern "C" fn geometry_msgs_inertia_stamped_builder_set_com(
+    b: *mut geometry_msgs_inertia_stamped_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -1004,8 +1004,8 @@ pub extern "C" fn ros_inertia_stamped_builder_set_com(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_inertia_stamped_builder_set_inertia_tensor(
-    b: *mut ros_inertia_stamped_builder_t,
+pub extern "C" fn geometry_msgs_inertia_stamped_builder_set_inertia_tensor(
+    b: *mut geometry_msgs_inertia_stamped_builder_t,
     ixx: f64,
     ixy: f64,
     ixz: f64,
@@ -1026,8 +1026,8 @@ pub extern "C" fn ros_inertia_stamped_builder_set_inertia_tensor(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_inertia_stamped_builder_build(
-    b: *mut ros_inertia_stamped_builder_t,
+pub extern "C" fn geometry_msgs_inertia_stamped_builder_build(
+    b: *mut geometry_msgs_inertia_stamped_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -1058,8 +1058,8 @@ pub extern "C" fn ros_inertia_stamped_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_inertia_stamped_builder_encode_into(
-    b: *mut ros_inertia_stamped_builder_t,
+pub extern "C" fn geometry_msgs_inertia_stamped_builder_encode_into(
+    b: *mut geometry_msgs_inertia_stamped_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -1108,10 +1108,10 @@ struct TransformStampedBuilderOwned {
 }
 
 impl_builder_new_free!(
-    ros_transform_stamped_builder_t,
+    geometry_msgs_transform_stamped_builder_t,
     TransformStampedBuilderOwned,
-    ros_transform_stamped_builder_new,
-    ros_transform_stamped_builder_free,
+    geometry_msgs_transform_stamped_builder_new,
+    geometry_msgs_transform_stamped_builder_free,
     TransformStampedBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -1127,14 +1127,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_transform_stamped_builder_t,
-    ros_transform_stamped_builder_set_stamp,
-    ros_transform_stamped_builder_set_frame_id
+    geometry_msgs_transform_stamped_builder_t,
+    geometry_msgs_transform_stamped_builder_set_stamp,
+    geometry_msgs_transform_stamped_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_transform_stamped_builder_set_child_frame_id(
-    b: *mut ros_transform_stamped_builder_t,
+pub extern "C" fn geometry_msgs_transform_stamped_builder_set_child_frame_id(
+    b: *mut geometry_msgs_transform_stamped_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -1152,8 +1152,8 @@ pub extern "C" fn ros_transform_stamped_builder_set_child_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_transform_stamped_builder_set_translation(
-    b: *mut ros_transform_stamped_builder_t,
+pub extern "C" fn geometry_msgs_transform_stamped_builder_set_translation(
+    b: *mut geometry_msgs_transform_stamped_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -1168,8 +1168,8 @@ pub extern "C" fn ros_transform_stamped_builder_set_translation(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_transform_stamped_builder_set_rotation(
-    b: *mut ros_transform_stamped_builder_t,
+pub extern "C" fn geometry_msgs_transform_stamped_builder_set_rotation(
+    b: *mut geometry_msgs_transform_stamped_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -1186,8 +1186,8 @@ pub extern "C" fn ros_transform_stamped_builder_set_rotation(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_transform_stamped_builder_build(
-    b: *mut ros_transform_stamped_builder_t,
+pub extern "C" fn geometry_msgs_transform_stamped_builder_build(
+    b: *mut geometry_msgs_transform_stamped_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -1218,8 +1218,8 @@ pub extern "C" fn ros_transform_stamped_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_transform_stamped_builder_encode_into(
-    b: *mut ros_transform_stamped_builder_t,
+pub extern "C" fn geometry_msgs_transform_stamped_builder_encode_into(
+    b: *mut geometry_msgs_transform_stamped_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -1279,10 +1279,10 @@ struct PoseWithCovarianceStampedBuilderOwned {
 }
 
 impl_builder_new_free!(
-    ros_pose_with_covariance_stamped_builder_t,
+    geometry_msgs_pose_with_covariance_stamped_builder_t,
     PoseWithCovarianceStampedBuilderOwned,
-    ros_pose_with_covariance_stamped_builder_new,
-    ros_pose_with_covariance_stamped_builder_free,
+    geometry_msgs_pose_with_covariance_stamped_builder_new,
+    geometry_msgs_pose_with_covariance_stamped_builder_free,
     PoseWithCovarianceStampedBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -1298,14 +1298,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_pose_with_covariance_stamped_builder_t,
-    ros_pose_with_covariance_stamped_builder_set_stamp,
-    ros_pose_with_covariance_stamped_builder_set_frame_id
+    geometry_msgs_pose_with_covariance_stamped_builder_t,
+    geometry_msgs_pose_with_covariance_stamped_builder_set_stamp,
+    geometry_msgs_pose_with_covariance_stamped_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_pose_with_covariance_stamped_builder_set_position(
-    b: *mut ros_pose_with_covariance_stamped_builder_t,
+pub extern "C" fn geometry_msgs_pose_with_covariance_stamped_builder_set_position(
+    b: *mut geometry_msgs_pose_with_covariance_stamped_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -1320,8 +1320,8 @@ pub extern "C" fn ros_pose_with_covariance_stamped_builder_set_position(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_pose_with_covariance_stamped_builder_set_orientation(
-    b: *mut ros_pose_with_covariance_stamped_builder_t,
+pub extern "C" fn geometry_msgs_pose_with_covariance_stamped_builder_set_orientation(
+    b: *mut geometry_msgs_pose_with_covariance_stamped_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -1338,8 +1338,8 @@ pub extern "C" fn ros_pose_with_covariance_stamped_builder_set_orientation(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_pose_with_covariance_stamped_builder_set_covariance(
-    b: *mut ros_pose_with_covariance_stamped_builder_t,
+pub extern "C" fn geometry_msgs_pose_with_covariance_stamped_builder_set_covariance(
+    b: *mut geometry_msgs_pose_with_covariance_stamped_builder_t,
     cov: *const f64,
 ) -> i32 {
     if b.is_null() {
@@ -1350,8 +1350,8 @@ pub extern "C" fn ros_pose_with_covariance_stamped_builder_set_covariance(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_pose_with_covariance_stamped_builder_build(
-    b: *mut ros_pose_with_covariance_stamped_builder_t,
+pub extern "C" fn geometry_msgs_pose_with_covariance_stamped_builder_build(
+    b: *mut geometry_msgs_pose_with_covariance_stamped_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -1384,8 +1384,8 @@ pub extern "C" fn ros_pose_with_covariance_stamped_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_pose_with_covariance_stamped_builder_encode_into(
-    b: *mut ros_pose_with_covariance_stamped_builder_t,
+pub extern "C" fn geometry_msgs_pose_with_covariance_stamped_builder_encode_into(
+    b: *mut geometry_msgs_pose_with_covariance_stamped_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -1435,10 +1435,10 @@ struct TwistWithCovarianceStampedBuilderOwned {
 }
 
 impl_builder_new_free!(
-    ros_twist_with_covariance_stamped_builder_t,
+    geometry_msgs_twist_with_covariance_stamped_builder_t,
     TwistWithCovarianceStampedBuilderOwned,
-    ros_twist_with_covariance_stamped_builder_new,
-    ros_twist_with_covariance_stamped_builder_free,
+    geometry_msgs_twist_with_covariance_stamped_builder_new,
+    geometry_msgs_twist_with_covariance_stamped_builder_free,
     TwistWithCovarianceStampedBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -1453,14 +1453,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_twist_with_covariance_stamped_builder_t,
-    ros_twist_with_covariance_stamped_builder_set_stamp,
-    ros_twist_with_covariance_stamped_builder_set_frame_id
+    geometry_msgs_twist_with_covariance_stamped_builder_t,
+    geometry_msgs_twist_with_covariance_stamped_builder_set_stamp,
+    geometry_msgs_twist_with_covariance_stamped_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_twist_with_covariance_stamped_builder_set_linear(
-    b: *mut ros_twist_with_covariance_stamped_builder_t,
+pub extern "C" fn geometry_msgs_twist_with_covariance_stamped_builder_set_linear(
+    b: *mut geometry_msgs_twist_with_covariance_stamped_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -1475,8 +1475,8 @@ pub extern "C" fn ros_twist_with_covariance_stamped_builder_set_linear(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_twist_with_covariance_stamped_builder_set_angular(
-    b: *mut ros_twist_with_covariance_stamped_builder_t,
+pub extern "C" fn geometry_msgs_twist_with_covariance_stamped_builder_set_angular(
+    b: *mut geometry_msgs_twist_with_covariance_stamped_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -1491,8 +1491,8 @@ pub extern "C" fn ros_twist_with_covariance_stamped_builder_set_angular(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_twist_with_covariance_stamped_builder_set_covariance(
-    b: *mut ros_twist_with_covariance_stamped_builder_t,
+pub extern "C" fn geometry_msgs_twist_with_covariance_stamped_builder_set_covariance(
+    b: *mut geometry_msgs_twist_with_covariance_stamped_builder_t,
     cov: *const f64,
 ) -> i32 {
     if b.is_null() {
@@ -1503,8 +1503,8 @@ pub extern "C" fn ros_twist_with_covariance_stamped_builder_set_covariance(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_twist_with_covariance_stamped_builder_build(
-    b: *mut ros_twist_with_covariance_stamped_builder_t,
+pub extern "C" fn geometry_msgs_twist_with_covariance_stamped_builder_build(
+    b: *mut geometry_msgs_twist_with_covariance_stamped_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -1536,8 +1536,8 @@ pub extern "C" fn ros_twist_with_covariance_stamped_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_twist_with_covariance_stamped_builder_encode_into(
-    b: *mut ros_twist_with_covariance_stamped_builder_t,
+pub extern "C" fn geometry_msgs_twist_with_covariance_stamped_builder_encode_into(
+    b: *mut geometry_msgs_twist_with_covariance_stamped_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -1586,10 +1586,10 @@ struct AccelWithCovarianceStampedBuilderOwned {
 }
 
 impl_builder_new_free!(
-    ros_accel_with_covariance_stamped_builder_t,
+    geometry_msgs_accel_with_covariance_stamped_builder_t,
     AccelWithCovarianceStampedBuilderOwned,
-    ros_accel_with_covariance_stamped_builder_new,
-    ros_accel_with_covariance_stamped_builder_free,
+    geometry_msgs_accel_with_covariance_stamped_builder_new,
+    geometry_msgs_accel_with_covariance_stamped_builder_free,
     AccelWithCovarianceStampedBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -1604,14 +1604,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_accel_with_covariance_stamped_builder_t,
-    ros_accel_with_covariance_stamped_builder_set_stamp,
-    ros_accel_with_covariance_stamped_builder_set_frame_id
+    geometry_msgs_accel_with_covariance_stamped_builder_t,
+    geometry_msgs_accel_with_covariance_stamped_builder_set_stamp,
+    geometry_msgs_accel_with_covariance_stamped_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_accel_with_covariance_stamped_builder_set_linear_acceleration(
-    b: *mut ros_accel_with_covariance_stamped_builder_t,
+pub extern "C" fn geometry_msgs_accel_with_covariance_stamped_builder_set_linear_acceleration(
+    b: *mut geometry_msgs_accel_with_covariance_stamped_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -1626,8 +1626,8 @@ pub extern "C" fn ros_accel_with_covariance_stamped_builder_set_linear_accelerat
 }
 
 #[no_mangle]
-pub extern "C" fn ros_accel_with_covariance_stamped_builder_set_angular_acceleration(
-    b: *mut ros_accel_with_covariance_stamped_builder_t,
+pub extern "C" fn geometry_msgs_accel_with_covariance_stamped_builder_set_angular_acceleration(
+    b: *mut geometry_msgs_accel_with_covariance_stamped_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -1642,8 +1642,8 @@ pub extern "C" fn ros_accel_with_covariance_stamped_builder_set_angular_accelera
 }
 
 #[no_mangle]
-pub extern "C" fn ros_accel_with_covariance_stamped_builder_set_covariance(
-    b: *mut ros_accel_with_covariance_stamped_builder_t,
+pub extern "C" fn geometry_msgs_accel_with_covariance_stamped_builder_set_covariance(
+    b: *mut geometry_msgs_accel_with_covariance_stamped_builder_t,
     cov: *const f64,
 ) -> i32 {
     if b.is_null() {
@@ -1654,8 +1654,8 @@ pub extern "C" fn ros_accel_with_covariance_stamped_builder_set_covariance(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_accel_with_covariance_stamped_builder_build(
-    b: *mut ros_accel_with_covariance_stamped_builder_t,
+pub extern "C" fn geometry_msgs_accel_with_covariance_stamped_builder_build(
+    b: *mut geometry_msgs_accel_with_covariance_stamped_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -1687,8 +1687,8 @@ pub extern "C" fn ros_accel_with_covariance_stamped_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_accel_with_covariance_stamped_builder_encode_into(
-    b: *mut ros_accel_with_covariance_stamped_builder_t,
+pub extern "C" fn geometry_msgs_accel_with_covariance_stamped_builder_encode_into(
+    b: *mut geometry_msgs_accel_with_covariance_stamped_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -1729,10 +1729,10 @@ struct PolygonBuilderOwned {
 }
 
 impl_builder_new_free!(
-    ros_polygon_builder_t,
+    geometry_msgs_polygon_builder_t,
     PolygonBuilderOwned,
-    ros_polygon_builder_new,
-    ros_polygon_builder_free,
+    geometry_msgs_polygon_builder_new,
+    geometry_msgs_polygon_builder_free,
     PolygonBuilderOwned {
         xyz: std::ptr::null(),
         count: 0,
@@ -1740,8 +1740,8 @@ impl_builder_new_free!(
 );
 
 #[no_mangle]
-pub extern "C" fn ros_polygon_builder_set_points(
-    b: *mut ros_polygon_builder_t,
+pub extern "C" fn geometry_msgs_polygon_builder_set_points(
+    b: *mut geometry_msgs_polygon_builder_t,
     xyz: *const f32,
     count: usize,
 ) -> i32 {
@@ -1786,8 +1786,8 @@ fn polygon_points(xyz: *const f32, count: usize) -> Vec<Point32> {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_polygon_builder_build(
-    b: *mut ros_polygon_builder_t,
+pub extern "C" fn geometry_msgs_polygon_builder_build(
+    b: *mut geometry_msgs_polygon_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -1803,8 +1803,8 @@ pub extern "C" fn ros_polygon_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_polygon_builder_encode_into(
-    b: *mut ros_polygon_builder_t,
+pub extern "C" fn geometry_msgs_polygon_builder_encode_into(
+    b: *mut geometry_msgs_polygon_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -1832,10 +1832,10 @@ struct PolygonStampedBuilderOwned {
 }
 
 impl_builder_new_free!(
-    ros_polygon_stamped_builder_t,
+    geometry_msgs_polygon_stamped_builder_t,
     PolygonStampedBuilderOwned,
-    ros_polygon_stamped_builder_new,
-    ros_polygon_stamped_builder_free,
+    geometry_msgs_polygon_stamped_builder_new,
+    geometry_msgs_polygon_stamped_builder_free,
     PolygonStampedBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -1845,14 +1845,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_polygon_stamped_builder_t,
-    ros_polygon_stamped_builder_set_stamp,
-    ros_polygon_stamped_builder_set_frame_id
+    geometry_msgs_polygon_stamped_builder_t,
+    geometry_msgs_polygon_stamped_builder_set_stamp,
+    geometry_msgs_polygon_stamped_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_polygon_stamped_builder_set_points(
-    b: *mut ros_polygon_stamped_builder_t,
+pub extern "C" fn geometry_msgs_polygon_stamped_builder_set_points(
+    b: *mut geometry_msgs_polygon_stamped_builder_t,
     xyz: *const f32,
     count: usize,
 ) -> i32 {
@@ -1872,8 +1872,8 @@ pub extern "C" fn ros_polygon_stamped_builder_set_points(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_polygon_stamped_builder_build(
-    b: *mut ros_polygon_stamped_builder_t,
+pub extern "C" fn geometry_msgs_polygon_stamped_builder_build(
+    b: *mut geometry_msgs_polygon_stamped_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -1891,8 +1891,8 @@ pub extern "C" fn ros_polygon_stamped_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_polygon_stamped_builder_encode_into(
-    b: *mut ros_polygon_stamped_builder_t,
+pub extern "C" fn geometry_msgs_polygon_stamped_builder_encode_into(
+    b: *mut geometry_msgs_polygon_stamped_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -1922,10 +1922,10 @@ struct PoseArrayBuilderOwned {
 }
 
 impl_builder_new_free!(
-    ros_pose_array_builder_t,
+    geometry_msgs_pose_array_builder_t,
     PoseArrayBuilderOwned,
-    ros_pose_array_builder_new,
-    ros_pose_array_builder_free,
+    geometry_msgs_pose_array_builder_new,
+    geometry_msgs_pose_array_builder_free,
     PoseArrayBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -1935,14 +1935,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_pose_array_builder_t,
-    ros_pose_array_builder_set_stamp,
-    ros_pose_array_builder_set_frame_id
+    geometry_msgs_pose_array_builder_t,
+    geometry_msgs_pose_array_builder_set_stamp,
+    geometry_msgs_pose_array_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_pose_array_builder_set_poses(
-    b: *mut ros_pose_array_builder_t,
+pub extern "C" fn geometry_msgs_pose_array_builder_set_poses(
+    b: *mut geometry_msgs_pose_array_builder_t,
     poses: *const f64,
     count: usize,
 ) -> i32 {
@@ -1995,8 +1995,8 @@ fn pose_array_poses(poses: *const f64, count: usize) -> Vec<Pose> {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_pose_array_builder_build(
-    b: *mut ros_pose_array_builder_t,
+pub extern "C" fn geometry_msgs_pose_array_builder_build(
+    b: *mut geometry_msgs_pose_array_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -2014,8 +2014,8 @@ pub extern "C" fn ros_pose_array_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_pose_array_builder_encode_into(
-    b: *mut ros_pose_array_builder_t,
+pub extern "C" fn geometry_msgs_pose_array_builder_encode_into(
+    b: *mut geometry_msgs_pose_array_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,

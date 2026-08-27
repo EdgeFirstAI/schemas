@@ -105,31 +105,40 @@ set PATH=C:\path\to\lib;%PATH%
 
 ## Naming Conventions
 
-Function and type names follow a consistent prefix scheme based on message origin:
+Every C symbol uses the **ROS package name** as its prefix. Library-level
+helpers (not tied to a message package) use `edgefirst_schemas_`.
 
-| Origin | Function prefix | Type suffix | Source |
-|--------|----------------|-------------|--------|
-| ROS 2 common_interfaces | `ros_` | `ros_<type>_t` | [ros2/common_interfaces](https://github.com/ros2/common_interfaces) |
-| Foxglove schemas | `ros_compressed_video_` | `ros_compressed_video_t` | [foxglove-sdk](https://github.com/foxglove/foxglove-sdk) |
-| EdgeFirst custom | `ros_tensor_`, `ros_detect_`, etc. | `ros_<type>_t` | edgefirst_msgs/msg |
+| Package | C prefix | C++ namespace | Source |
+|---------|----------|----------------|--------|
+| builtin_interfaces | `builtin_interfaces_` | `edgefirst::schemas::builtin_interfaces` | [ros2/common_interfaces](https://github.com/ros2/common_interfaces) |
+| std_msgs | `std_msgs_` | `edgefirst::schemas::std_msgs` | same |
+| sensor_msgs | `sensor_msgs_` | `edgefirst::schemas::sensor_msgs` | same |
+| geometry_msgs | `geometry_msgs_` | `edgefirst::schemas::geometry_msgs` | same |
+| nav_msgs | `nav_msgs_` | `edgefirst::schemas::nav_msgs` | same |
+| foxglove_msgs | `foxglove_msgs_` | `edgefirst::schemas::foxglove_msgs` | [foxglove-sdk](https://github.com/foxglove/foxglove-sdk) |
+| edgefirst_msgs | `edgefirst_msgs_` | `edgefirst::schemas::edgefirst_msgs` | edgefirst_msgs/msg |
+| mavros_msgs | `mavros_msgs_` | `edgefirst::schemas::mavros_msgs` | mavros |
+| (library helpers) | `edgefirst_schemas_` | n/a | e.g. `edgefirst_schemas_bytes_free` |
 
 **Snake-case conversion rules:**
 
 | Rust / ROS type | C function prefix |
 |-----------------|-------------------|
-| `PointCloud2` | `ros_point_cloud2_` |
-| `NavSatFix` | `ros_nav_sat_fix_` |
-| `CameraFrame` | `ros_camera_frame_` |
-| `TensorPlane` | `ros_tensor_plane_` |
-| `CompressedImage` | `ros_compressed_image_` |
-| `TransformStamped` | `ros_transform_stamped_` |
+| `PointCloud2` | `sensor_msgs_point_cloud2_` |
+| `NavSatFix` | `sensor_msgs_nav_sat_fix_` |
+| `CameraFrame` | `edgefirst_msgs_camera_frame_` |
+| `TensorPlane` | `edgefirst_msgs_tensor_plane_` |
+| `CompressedImage` (sensor) | `sensor_msgs_compressed_image_` |
+| `CompressedImage` (foxglove) | `foxglove_msgs_compressed_image_` |
+| `TransformStamped` | `geometry_msgs_transform_stamped_` |
+| `Altitude` (mavros) | `mavros_msgs_altitude_` |
 
 Acronyms are treated as single words: `Sat` → `sat`, `Nav` → `nav`.
 Numbers stay attached to the preceding word: `Cloud2` → `cloud2`.
 
-> **Pre-4.0 follow-up:** All symbols currently share the historical `ros_*`
-> prefix regardless of namespace. A per-namespace rename (`sensor_*`,
-> `edgefirst_*`, …) is required before the 4.0 tag (~1,200 symbols).
+There are **no** `ros_*` compatibility aliases. C++ collision prefixes
+(`Foxglove*`, `Mavros*`) are dropped once types live under nested package
+namespaces.
 
 ## Architecture
 
@@ -162,12 +171,12 @@ primitive values — no strings, no variable-length arrays.
 // Encode into a stack buffer
 uint8_t buf[64];
 size_t written;
-ros_time_encode(buf, sizeof(buf), &written, sec, nanosec);
+builtin_interfaces_time_encode(buf, sizeof(buf), &written, sec, nanosec);
 
 // Decode from CDR bytes
 int32_t sec;
 uint32_t nanosec;
-ros_time_decode(data, len, &sec, &nanosec);
+builtin_interfaces_time_decode(data, len, &sec, &nanosec);
 ```
 
 Encode functions write CDR bytes into a caller-provided buffer. Pass
@@ -239,19 +248,19 @@ represented as opaque handles wrapping an internal CDR byte buffer.
 
 ```c
 // Decode: create a zero-copy view over the caller's CDR buffer.
-// IMPORTANT: `data` must remain valid until ros_image_free(img).
-ros_image_t* img = ros_image_from_cdr(data, len);
+// IMPORTANT: `data` must remain valid until sensor_msgs_image_free(img).
+sensor_msgs_image_t* img = sensor_msgs_image_from_cdr(data, len);
 
 // Access fields — O(1), pointers borrow from the caller's buffer
-uint32_t w = ros_image_get_width(img);
-const char* enc = ros_image_get_encoding(img);      // borrowed from data
-const uint8_t* px = ros_image_get_data(img, &pxlen); // borrowed from data
+uint32_t w = sensor_msgs_image_get_width(img);
+const char* enc = sensor_msgs_image_get_encoding(img);      // borrowed from data
+const uint8_t* px = sensor_msgs_image_get_data(img, &pxlen); // borrowed from data
 
 // Re-export the raw CDR bytes (points into the original data buffer)
-const uint8_t* cdr = ros_image_as_cdr(img, &cdr_len); // borrowed from data
+const uint8_t* cdr = sensor_msgs_image_as_cdr(img, &cdr_len); // borrowed from data
 
 // Free the handle, THEN free the source data buffer
-ros_image_free(img);
+sensor_msgs_image_free(img);
 // data can now be freed safely
 ```
 
@@ -261,31 +270,31 @@ across publishes:
 
 ```c
 // Create a reusable builder handle
-ros_image_builder_t* b = ros_image_builder_new();
+sensor_msgs_image_builder_t* b = sensor_msgs_image_builder_new();
 
 // Set metadata once (strings are copied into the builder)
-ros_image_builder_set_frame_id(b, "camera");
-ros_image_builder_set_height(b, 480);
-ros_image_builder_set_width(b, 640);
-ros_image_builder_set_encoding(b, "rgb8");
-ros_image_builder_set_is_bigendian(b, 0);
-ros_image_builder_set_step(b, 1920);
+sensor_msgs_image_builder_set_frame_id(b, "camera");
+sensor_msgs_image_builder_set_height(b, 480);
+sensor_msgs_image_builder_set_width(b, 640);
+sensor_msgs_image_builder_set_encoding(b, "rgb8");
+sensor_msgs_image_builder_set_is_bigendian(b, 0);
+sensor_msgs_image_builder_set_step(b, 1920);
 
 uint8_t cdr_buf[MAX_CDR_SIZE];
 for (int frame = 0; frame < N; ++frame) {
-    ros_image_builder_set_stamp(b, now_sec(), now_nsec());
+    sensor_msgs_image_builder_set_stamp(b, now_sec(), now_nsec());
     // Bulk data is BORROWED — must remain valid until the next
     // encode_into / build / free / set_data call on this handle.
-    ros_image_builder_set_data(b, pixels, pixel_len);
+    sensor_msgs_image_builder_set_data(b, pixels, pixel_len);
 
     size_t out_len = 0;
-    if (ros_image_builder_encode_into(b, cdr_buf, sizeof(cdr_buf), &out_len) != 0) {
+    if (sensor_msgs_image_builder_encode_into(b, cdr_buf, sizeof(cdr_buf), &out_len) != 0) {
         // errno set; handle error
     }
     publish(cdr_buf, out_len);
 }
 
-ros_image_builder_free(b);
+sensor_msgs_image_builder_free(b);
 ```
 
 Or allocate a fresh buffer per call:
@@ -293,36 +302,36 @@ Or allocate a fresh buffer per call:
 ```c
 uint8_t* bytes = NULL;
 size_t len = 0;
-ros_image_builder_build(b, &bytes, &len);
+sensor_msgs_image_builder_build(b, &bytes, &len);
 // ... use bytes ...
-ros_bytes_free(bytes, len);
+edgefirst_schemas_bytes_free(bytes, len);
 ```
 
 Every buffer-backed type provides these entry points:
 
 | Function | Purpose |
 |----------|---------|
-| `ros_<type>_from_cdr(data, len)` | Zero-copy view over caller's CDR buffer (data must outlive handle) |
-| `ros_<type>_get_<field>(handle)` | Read a field (O(1), zero-copy for strings/blobs) |
-| `ros_<type>_set_<field>(buf, len, ...)` | Write a fixed-size field in place on a raw CDR buffer (no re-serialisation) |
-| `ros_<type>_as_cdr(handle, &len)` | Borrow the raw CDR buffer (points into caller's data) |
-| `ros_<type>_free(handle)` | Release the handle (does NOT free the source data) |
-| `ros_<type>_builder_new()` | Create a builder handle |
-| `ros_<type>_builder_set_<field>(b, ...)` | Set a field on the builder (strings copy; bulk data borrows) |
-| `ros_<type>_builder_build(b, &bytes, &len)` | Allocate a fresh CDR buffer and encode |
-| `ros_<type>_builder_encode_into(b, buf, cap, &out_len)` | Encode into caller-owned buffer; errors if too small |
-| `ros_<type>_builder_free(b)` | Release the builder handle |
+| `<package>_<type>_from_cdr(data, len)` | Zero-copy view over caller's CDR buffer (data must outlive handle) |
+| `<package>_<type>_get_<field>(handle)` | Read a field (O(1), zero-copy for strings/blobs) |
+| `<package>_<type>_set_<field>(buf, len, ...)` | Write a fixed-size field in place on a raw CDR buffer (no re-serialisation) |
+| `<package>_<type>_as_cdr(handle, &len)` | Borrow the raw CDR buffer (points into caller's data) |
+| `<package>_<type>_free(handle)` | Release the handle (does NOT free the source data) |
+| `<package>_<type>_builder_new()` | Create a builder handle |
+| `<package>_<type>_builder_set_<field>(b, ...)` | Set a field on the builder (strings copy; bulk data borrows) |
+| `<package>_<type>_builder_build(b, &bytes, &len)` | Allocate a fresh CDR buffer and encode |
+| `<package>_<type>_builder_encode_into(b, buf, cap, &out_len)` | Encode into caller-owned buffer; errors if too small |
+| `<package>_<type>_builder_free(b)` | Release the builder handle |
 
 **When to use in-place setters vs. the builder.** Fixed-size fields
 (scalars, fixed-size arrays, CdrFixed struct fields like `Vector3`)
-can be mutated cheaply via `ros_<type>_set_<field>(buf, len, ...)` —
+can be mutated cheaply via `<package>_<type>_set_<field>(buf, len, ...)` —
 this re-parses the CDR buffer to locate the field, then writes
 directly in place. No allocation, no re-serialisation.
 
 Variable-length fields (strings, byte sequences, nested view
 sequences) **cannot** be mutated in place because changing their
 length would shift every subsequent field. Use the builder API
-(`ros_<type>_builder_*`) for those — it re-serialises the whole
+(`<package>_<type>_builder_*`) for those — it re-serialises the whole
 buffer, reusing the existing allocation via `encode_into`.
 
 Rule of thumb: if the field's wire size can change, use the builder.
@@ -344,9 +353,9 @@ a `_free` call. Passing `NULL` to any `_free` function is safe (no-op).
 buffer directly. The `data` pointer must remain valid until `_free()` is called.
 Freeing `data` before the handle causes undefined behavior.
 
-**Rule 2 — Free encode output with `ros_bytes_free()`.**
+**Rule 2 — Free encode output with `edgefirst_schemas_bytes_free()`.**
 Buffer-backed `_encode` functions allocate output via `uint8_t**`.
-Free this memory with `ros_bytes_free(bytes, len)`. Do **not** call
+Free this memory with `edgefirst_schemas_bytes_free(bytes, len)`. Do **not** call
 `free()` directly — the memory is allocated by the Rust runtime.
 
 **Rule 3 — Do NOT free borrowed pointers.**
@@ -355,13 +364,13 @@ pointers into the caller's original CDR buffer. These are valid as long as
 both the handle and the source data remain alive. Do not free them.
 
 ```c
-ros_header_t* hdr = ros_header_from_cdr(data, len);
+std_msgs_header_t* hdr = std_msgs_header_from_cdr(data, len);
 
-const char* frame = ros_header_get_frame_id(hdr);
+const char* frame = std_msgs_header_get_frame_id(hdr);
 printf("%s\n", frame);
 // Do NOT call free(frame) — it points into the caller's data buffer
 
-ros_header_free(hdr);
+std_msgs_header_free(hdr);
 // frame is now dangling — do not use after free
 // data can now be freed safely
 ```
@@ -371,42 +380,42 @@ ros_header_free(hdr);
 a `const uint8_t*` you provide. No heap allocation, nothing to free.
 
 **Rule 5 — Parent-borrowed child handles.**
-Indexed accessors like `ros_detect_get_box(view, i)`, `ros_model_get_box(view, i)`,
-and `ros_model_get_mask(view, i)` return pointers to child view handles owned by
+Indexed accessors like `edgefirst_msgs_detect_get_box(view, i)`, `edgefirst_msgs_model_get_box(view, i)`,
+and `edgefirst_msgs_model_get_mask(view, i)` return pointers to child view handles owned by
 the parent. These are NOT separately allocated — they live inside the parent's
 internal `child_boxes`/`child_masks` vector, which is populated once during
-`from_cdr` and freed with the parent. Do not pass them to `ros_box_free()` /
-`ros_mask_free()`; the parent owns them. They become invalid when the parent is
-freed. The parent's CDR buffer (passed to `ros_<parent>_from_cdr`) must also remain
+`from_cdr` and freed with the parent. Do not pass them to `edgefirst_msgs_box_free()` /
+`edgefirst_msgs_mask_free()`; the parent owns them. They become invalid when the parent is
+freed. The parent's CDR buffer (passed to `<package>_<parent>_from_cdr`) must also remain
 valid for as long as the child pointers are used.
 
 ### Summary
 
 | Source | Who owns it | How to free |
 |--------|-------------|-------------|
-| `ros_<type>_from_cdr(...)` | Caller (handle + source data) | `ros_<type>_free(handle)`, then free source data |
-| `ros_<type>_builder_build(b, &bytes, ...)` | Caller | `ros_bytes_free(bytes, len)` |
-| `ros_<type>_get_<field>(handle)` | Source data (via handle) | Do not free |
-| `ros_<type>_as_cdr(handle, ...)` | Source data (via handle) | Do not free |
-| `ros_detect_get_box(handle, i)` | Parent handle | Do NOT free; owned by parent |
-| `ros_model_get_box(handle, i)` | Parent handle | Do NOT free; owned by parent |
-| `ros_model_get_mask(handle, i)` | Parent handle | Do NOT free; owned by parent |
+| `<package>_<type>_from_cdr(...)` | Caller (handle + source data) | `<package>_<type>_free(handle)`, then free source data |
+| `<package>_<type>_builder_build(b, &bytes, ...)` | Caller | `edgefirst_schemas_bytes_free(bytes, len)` |
+| `<package>_<type>_get_<field>(handle)` | Source data (via handle) | Do not free |
+| `<package>_<type>_as_cdr(handle, ...)` | Source data (via handle) | Do not free |
+| `edgefirst_msgs_detect_get_box(handle, i)` | Parent handle | Do NOT free; owned by parent |
+| `edgefirst_msgs_model_get_box(handle, i)` | Parent handle | Do NOT free; owned by parent |
+| `edgefirst_msgs_model_get_mask(handle, i)` | Parent handle | Do NOT free; owned by parent |
 | CdrFixed `_encode(buf, ...)` | Caller | Stack/caller buffer, no free needed |
 
 ## Functions removed in 3.0.0
 
 The following C API functions were removed in 3.0.0 as part of the refactor
-that made `ros_box_t` and `ros_mask_t` parent-borrowed view types:
+that made `edgefirst_msgs_box_t` and `edgefirst_msgs_mask_t` parent-borrowed view types:
 
-- **`ros_box_as_cdr(box, &len)`** — removed. Child boxes inside a Detect have
+- **`edgefirst_msgs_box_as_cdr(box, &len)`** — removed. Child boxes inside a Detect have
   no independent CDR encoding; producing one would require re-encoding the
   box into a fresh buffer, which violates the library's zero-copy contract.
-  **Migration**: forward the parent Detect via `ros_detect_as_cdr(detect, &len)`
-  and let subscribers iterate with `ros_detect_get_box(detect, i)`.
-- **`ros_mask_as_cdr(mask, &len)`** — removed for the same reason. Forward
-  the parent Model via `ros_model_as_cdr` and iterate with `ros_model_get_mask`.
+  **Migration**: forward the parent Detect via `edgefirst_msgs_detect_as_cdr(detect, &len)`
+  and let subscribers iterate with `edgefirst_msgs_detect_get_box(detect, i)`.
+- **`edgefirst_msgs_mask_as_cdr(mask, &len)`** — removed for the same reason. Forward
+  the parent Model via `edgefirst_msgs_model_as_cdr` and iterate with `edgefirst_msgs_model_get_mask`.
 
-Standalone `ros_box_from_cdr(bytes, len)` and `ros_mask_from_cdr(bytes, len)`
+Standalone `edgefirst_msgs_box_from_cdr(bytes, len)` and `edgefirst_msgs_mask_from_cdr(bytes, len)`
 remain available for decoding box/mask CDR buffers that were encoded
 standalone (not embedded in a Detect/Model).
 
@@ -435,7 +444,7 @@ a non-NULL `const char*` expect the call to succeed.
 #include <errno.h>
 #include <string.h>
 
-ros_header_t* hdr = ros_header_from_cdr(data, len);
+std_msgs_header_t* hdr = std_msgs_header_from_cdr(data, len);
 if (!hdr) {
     fprintf(stderr, "decode failed: %s\n", strerror(errno));
     // errno == EINVAL for NULL data pointer, EBADMSG for anything else
@@ -451,10 +460,10 @@ handle requires external synchronization.
 ### Memory
 
 ```c
-void ros_bytes_free(uint8_t* bytes, size_t len);
+void edgefirst_schemas_bytes_free(uint8_t* bytes, size_t len);
 ```
 
-Free a byte buffer returned by any `ros_*_encode()` function. Passing
+Free a byte buffer returned by any `<package>_*_encode()` function. Passing
 `NULL` is safe.
 
 ---
@@ -464,10 +473,10 @@ Free a byte buffer returned by any `ros_*_encode()` function. Passing
 #### Time
 
 ```c
-int ros_time_encode(uint8_t* buf, size_t cap, size_t* written,
+int builtin_interfaces_time_encode(uint8_t* buf, size_t cap, size_t* written,
                     int32_t sec, uint32_t nanosec);
 
-int ros_time_decode(const uint8_t* data, size_t len,
+int builtin_interfaces_time_decode(const uint8_t* data, size_t len,
                     int32_t* sec, uint32_t* nanosec);
 ```
 
@@ -476,10 +485,10 @@ int ros_time_decode(const uint8_t* data, size_t len,
 #### Duration
 
 ```c
-int ros_duration_encode(uint8_t* buf, size_t cap, size_t* written,
+int builtin_interfaces_duration_encode(uint8_t* buf, size_t cap, size_t* written,
                         int32_t sec, uint32_t nanosec);
 
-int ros_duration_decode(const uint8_t* data, size_t len,
+int builtin_interfaces_duration_decode(const uint8_t* data, size_t len,
                         int32_t* sec, uint32_t* nanosec);
 ```
 
@@ -492,41 +501,41 @@ int ros_duration_decode(const uint8_t* data, size_t len,
 #### Vector3
 
 ```c
-int ros_vector3_encode(uint8_t* buf, size_t cap, size_t* written,
+int geometry_msgs_vector3_encode(uint8_t* buf, size_t cap, size_t* written,
                        double x, double y, double z);
 
-int ros_vector3_decode(const uint8_t* data, size_t len,
+int geometry_msgs_vector3_decode(const uint8_t* data, size_t len,
                        double* x, double* y, double* z);
 ```
 
 #### Point
 
 ```c
-int ros_point_encode(uint8_t* buf, size_t cap, size_t* written,
+int geometry_msgs_point_encode(uint8_t* buf, size_t cap, size_t* written,
                      double x, double y, double z);
 
-int ros_point_decode(const uint8_t* data, size_t len,
+int geometry_msgs_point_decode(const uint8_t* data, size_t len,
                      double* x, double* y, double* z);
 ```
 
 #### Quaternion
 
 ```c
-int ros_quaternion_encode(uint8_t* buf, size_t cap, size_t* written,
+int geometry_msgs_quaternion_encode(uint8_t* buf, size_t cap, size_t* written,
                           double x, double y, double z, double w);
 
-int ros_quaternion_decode(const uint8_t* data, size_t len,
+int geometry_msgs_quaternion_decode(const uint8_t* data, size_t len,
                           double* x, double* y, double* z, double* w);
 ```
 
 #### Pose
 
 ```c
-int ros_pose_encode(uint8_t* buf, size_t cap, size_t* written,
+int geometry_msgs_pose_encode(uint8_t* buf, size_t cap, size_t* written,
                     double px, double py, double pz,
                     double ox, double oy, double oz, double ow);
 
-int ros_pose_decode(const uint8_t* data, size_t len,
+int geometry_msgs_pose_decode(const uint8_t* data, size_t len,
                     double* px, double* py, double* pz,
                     double* ox, double* oy, double* oz, double* ow);
 ```
@@ -536,11 +545,11 @@ int ros_pose_decode(const uint8_t* data, size_t len,
 #### Transform
 
 ```c
-int ros_transform_encode(uint8_t* buf, size_t cap, size_t* written,
+int geometry_msgs_transform_encode(uint8_t* buf, size_t cap, size_t* written,
                          double tx, double ty, double tz,
                          double rx, double ry, double rz, double rw);
 
-int ros_transform_decode(const uint8_t* data, size_t len,
+int geometry_msgs_transform_decode(const uint8_t* data, size_t len,
                          double* tx, double* ty, double* tz,
                          double* rx, double* ry, double* rz, double* rw);
 ```
@@ -550,11 +559,11 @@ int ros_transform_decode(const uint8_t* data, size_t len,
 #### Twist
 
 ```c
-int ros_twist_encode(uint8_t* buf, size_t cap, size_t* written,
+int geometry_msgs_twist_encode(uint8_t* buf, size_t cap, size_t* written,
                      double lx, double ly, double lz,
                      double ax, double ay, double az);
 
-int ros_twist_decode(const uint8_t* data, size_t len,
+int geometry_msgs_twist_decode(const uint8_t* data, size_t len,
                      double* lx, double* ly, double* lz,
                      double* ax, double* ay, double* az);
 ```
@@ -564,11 +573,11 @@ int ros_twist_decode(const uint8_t* data, size_t len,
 #### Accel
 
 ```c
-int ros_accel_encode(uint8_t* buf, size_t cap, size_t* written,
+int geometry_msgs_accel_encode(uint8_t* buf, size_t cap, size_t* written,
                      double lx, double ly, double lz,
                      double ax, double ay, double az);
 
-int ros_accel_decode(const uint8_t* data, size_t len,
+int geometry_msgs_accel_decode(const uint8_t* data, size_t len,
                      double* lx, double* ly, double* lz,
                      double* ax, double* ay, double* az);
 ```
@@ -582,10 +591,10 @@ int ros_accel_decode(const uint8_t* data, size_t len,
 #### NavSatStatus
 
 ```c
-int ros_nav_sat_status_encode(uint8_t* buf, size_t cap, size_t* written,
+int sensor_msgs_nav_sat_status_encode(uint8_t* buf, size_t cap, size_t* written,
                               int8_t status, uint16_t service);
 
-int ros_nav_sat_status_decode(const uint8_t* data, size_t len,
+int sensor_msgs_nav_sat_status_decode(const uint8_t* data, size_t len,
                               int8_t* status, uint16_t* service);
 ```
 
@@ -598,16 +607,16 @@ int ros_nav_sat_status_decode(const uint8_t* data, size_t len,
 #### Header
 
 ```c
-ros_header_t* ros_header_from_cdr(const uint8_t* data, size_t len);
-void          ros_header_free(ros_header_t* view);
+std_msgs_header_t* std_msgs_header_from_cdr(const uint8_t* data, size_t len);
+void          std_msgs_header_free(std_msgs_header_t* view);
 
-int32_t      ros_header_get_stamp_sec(const ros_header_t* view);
-uint32_t     ros_header_get_stamp_nanosec(const ros_header_t* view);
-const char*  ros_header_get_frame_id(const ros_header_t* view);     // borrowed
+int32_t      std_msgs_header_get_stamp_sec(const std_msgs_header_t* view);
+uint32_t     std_msgs_header_get_stamp_nanosec(const std_msgs_header_t* view);
+const char*  std_msgs_header_get_frame_id(const std_msgs_header_t* view);     // borrowed
 
-const uint8_t* ros_header_as_cdr(const ros_header_t* view, size_t* out_len);
+const uint8_t* std_msgs_header_as_cdr(const std_msgs_header_t* view, size_t* out_len);
 
-// Builder API: ros_header_builder_new / _set_* / _build / _encode_into
+// Builder API: std_msgs_header_builder_new / _set_* / _build / _encode_into
 ```
 
 ---
@@ -617,66 +626,66 @@ const uint8_t* ros_header_as_cdr(const ros_header_t* view, size_t* out_len);
 #### Image
 
 ```c
-ros_image_t* ros_image_from_cdr(const uint8_t* data, size_t len);
-void         ros_image_free(ros_image_t* view);
+sensor_msgs_image_t* sensor_msgs_image_from_cdr(const uint8_t* data, size_t len);
+void         sensor_msgs_image_free(sensor_msgs_image_t* view);
 
-int32_t      ros_image_get_stamp_sec(const ros_image_t* view);
-uint32_t     ros_image_get_stamp_nanosec(const ros_image_t* view);
-const char*  ros_image_get_frame_id(const ros_image_t* view);       // borrowed
-uint32_t     ros_image_get_height(const ros_image_t* view);
-uint32_t     ros_image_get_width(const ros_image_t* view);
-const char*  ros_image_get_encoding(const ros_image_t* view);       // borrowed
-uint8_t      ros_image_get_is_bigendian(const ros_image_t* view);
-uint32_t     ros_image_get_step(const ros_image_t* view);
-const uint8_t* ros_image_get_data(const ros_image_t* view, size_t* out_len); // borrowed
+int32_t      sensor_msgs_image_get_stamp_sec(const sensor_msgs_image_t* view);
+uint32_t     sensor_msgs_image_get_stamp_nanosec(const sensor_msgs_image_t* view);
+const char*  sensor_msgs_image_get_frame_id(const sensor_msgs_image_t* view);       // borrowed
+uint32_t     sensor_msgs_image_get_height(const sensor_msgs_image_t* view);
+uint32_t     sensor_msgs_image_get_width(const sensor_msgs_image_t* view);
+const char*  sensor_msgs_image_get_encoding(const sensor_msgs_image_t* view);       // borrowed
+uint8_t      sensor_msgs_image_get_is_bigendian(const sensor_msgs_image_t* view);
+uint32_t     sensor_msgs_image_get_step(const sensor_msgs_image_t* view);
+const uint8_t* sensor_msgs_image_get_data(const sensor_msgs_image_t* view, size_t* out_len); // borrowed
 
-const uint8_t* ros_image_as_cdr(const ros_image_t* view, size_t* out_len);
+const uint8_t* sensor_msgs_image_as_cdr(const sensor_msgs_image_t* view, size_t* out_len);
 
-// Builder API: ros_image_builder_new / _set_* / _build / _encode_into
+// Builder API: sensor_msgs_image_builder_new / _set_* / _build / _encode_into
 ```
 
 #### CompressedImage
 
 ```c
-ros_compressed_image_t* ros_compressed_image_from_cdr(const uint8_t* data, size_t len);
-void                    ros_compressed_image_free(ros_compressed_image_t* view);
+sensor_msgs_compressed_image_t* sensor_msgs_compressed_image_from_cdr(const uint8_t* data, size_t len);
+void                    sensor_msgs_compressed_image_free(sensor_msgs_compressed_image_t* view);
 
-int32_t      ros_compressed_image_get_stamp_sec(const ros_compressed_image_t* view);
-uint32_t     ros_compressed_image_get_stamp_nanosec(const ros_compressed_image_t* view);
-const char*  ros_compressed_image_get_frame_id(const ros_compressed_image_t* view);
-const char*  ros_compressed_image_get_format(const ros_compressed_image_t* view);
-const uint8_t* ros_compressed_image_get_data(const ros_compressed_image_t* view,
+int32_t      sensor_msgs_compressed_image_get_stamp_sec(const sensor_msgs_compressed_image_t* view);
+uint32_t     sensor_msgs_compressed_image_get_stamp_nanosec(const sensor_msgs_compressed_image_t* view);
+const char*  sensor_msgs_compressed_image_get_frame_id(const sensor_msgs_compressed_image_t* view);
+const char*  sensor_msgs_compressed_image_get_format(const sensor_msgs_compressed_image_t* view);
+const uint8_t* sensor_msgs_compressed_image_get_data(const sensor_msgs_compressed_image_t* view,
                                               size_t* out_len);
 
-const uint8_t* ros_compressed_image_as_cdr(const ros_compressed_image_t* view,
+const uint8_t* sensor_msgs_compressed_image_as_cdr(const sensor_msgs_compressed_image_t* view,
                                             size_t* out_len);
 
-// Builder API: ros_compressed_image_builder_new / _set_* / _build
+// Builder API: sensor_msgs_compressed_image_builder_new / _set_* / _build
 ```
 
 #### Imu
 
 ```c
-ros_imu_t* ros_imu_from_cdr(const uint8_t* data, size_t len);
-void       ros_imu_free(ros_imu_t* view);
+sensor_msgs_imu_t* sensor_msgs_imu_from_cdr(const uint8_t* data, size_t len);
+void       sensor_msgs_imu_free(sensor_msgs_imu_t* view);
 
-int32_t     ros_imu_get_stamp_sec(const ros_imu_t* view);
-uint32_t    ros_imu_get_stamp_nanosec(const ros_imu_t* view);
-const char* ros_imu_get_frame_id(const ros_imu_t* view);
+int32_t     sensor_msgs_imu_get_stamp_sec(const sensor_msgs_imu_t* view);
+uint32_t    sensor_msgs_imu_get_stamp_nanosec(const sensor_msgs_imu_t* view);
+const char* sensor_msgs_imu_get_frame_id(const sensor_msgs_imu_t* view);
 
-void ros_imu_get_orientation(const ros_imu_t* view,
+void sensor_msgs_imu_get_orientation(const sensor_msgs_imu_t* view,
                              double* x, double* y, double* z, double* w);
-void ros_imu_get_orientation_covariance(const ros_imu_t* view, double* out);
+void sensor_msgs_imu_get_orientation_covariance(const sensor_msgs_imu_t* view, double* out);
 
-void ros_imu_get_angular_velocity(const ros_imu_t* view,
+void sensor_msgs_imu_get_angular_velocity(const sensor_msgs_imu_t* view,
                                   double* x, double* y, double* z);
-void ros_imu_get_angular_velocity_covariance(const ros_imu_t* view, double* out);
+void sensor_msgs_imu_get_angular_velocity_covariance(const sensor_msgs_imu_t* view, double* out);
 
-void ros_imu_get_linear_acceleration(const ros_imu_t* view,
+void sensor_msgs_imu_get_linear_acceleration(const sensor_msgs_imu_t* view,
                                      double* x, double* y, double* z);
-void ros_imu_get_linear_acceleration_covariance(const ros_imu_t* view, double* out);
+void sensor_msgs_imu_get_linear_acceleration_covariance(const sensor_msgs_imu_t* view, double* out);
 
-const uint8_t* ros_imu_as_cdr(const ros_imu_t* view, size_t* out_len);
+const uint8_t* sensor_msgs_imu_as_cdr(const sensor_msgs_imu_t* view, size_t* out_len);
 ```
 
 Covariance functions write 9 `double` values (row-major 3x3 matrix) into
@@ -689,39 +698,39 @@ from the Rust API or from CDR bytes received over Zenoh/DDS.
 #### NavSatFix
 
 ```c
-ros_nav_sat_fix_t* ros_nav_sat_fix_from_cdr(const uint8_t* data, size_t len);
-void               ros_nav_sat_fix_free(ros_nav_sat_fix_t* view);
+sensor_msgs_nav_sat_fix_t* sensor_msgs_nav_sat_fix_from_cdr(const uint8_t* data, size_t len);
+void               sensor_msgs_nav_sat_fix_free(sensor_msgs_nav_sat_fix_t* view);
 
-int32_t     ros_nav_sat_fix_get_stamp_sec(const ros_nav_sat_fix_t* view);
-uint32_t    ros_nav_sat_fix_get_stamp_nanosec(const ros_nav_sat_fix_t* view);
-const char* ros_nav_sat_fix_get_frame_id(const ros_nav_sat_fix_t* view);
-double      ros_nav_sat_fix_get_latitude(const ros_nav_sat_fix_t* view);
-double      ros_nav_sat_fix_get_longitude(const ros_nav_sat_fix_t* view);
-double      ros_nav_sat_fix_get_altitude(const ros_nav_sat_fix_t* view);
+int32_t     sensor_msgs_nav_sat_fix_get_stamp_sec(const sensor_msgs_nav_sat_fix_t* view);
+uint32_t    sensor_msgs_nav_sat_fix_get_stamp_nanosec(const sensor_msgs_nav_sat_fix_t* view);
+const char* sensor_msgs_nav_sat_fix_get_frame_id(const sensor_msgs_nav_sat_fix_t* view);
+double      sensor_msgs_nav_sat_fix_get_latitude(const sensor_msgs_nav_sat_fix_t* view);
+double      sensor_msgs_nav_sat_fix_get_longitude(const sensor_msgs_nav_sat_fix_t* view);
+double      sensor_msgs_nav_sat_fix_get_altitude(const sensor_msgs_nav_sat_fix_t* view);
 
-const uint8_t* ros_nav_sat_fix_as_cdr(const ros_nav_sat_fix_t* view, size_t* out_len);
+const uint8_t* sensor_msgs_nav_sat_fix_as_cdr(const sensor_msgs_nav_sat_fix_t* view, size_t* out_len);
 ```
 
 #### PointCloud2
 
 ```c
-ros_point_cloud2_t* ros_point_cloud2_from_cdr(const uint8_t* data, size_t len);
-void                ros_point_cloud2_free(ros_point_cloud2_t* view);
+sensor_msgs_point_cloud2_t* sensor_msgs_point_cloud2_from_cdr(const uint8_t* data, size_t len);
+void                sensor_msgs_point_cloud2_free(sensor_msgs_point_cloud2_t* view);
 
-int32_t     ros_point_cloud2_get_stamp_sec(const ros_point_cloud2_t* view);
-uint32_t    ros_point_cloud2_get_stamp_nanosec(const ros_point_cloud2_t* view);
-const char* ros_point_cloud2_get_frame_id(const ros_point_cloud2_t* view);
-uint32_t    ros_point_cloud2_get_height(const ros_point_cloud2_t* view);
-uint32_t    ros_point_cloud2_get_width(const ros_point_cloud2_t* view);
-uint32_t    ros_point_cloud2_get_point_step(const ros_point_cloud2_t* view);
-uint32_t    ros_point_cloud2_get_row_step(const ros_point_cloud2_t* view);
-const uint8_t* ros_point_cloud2_get_data(const ros_point_cloud2_t* view,
+int32_t     sensor_msgs_point_cloud2_get_stamp_sec(const sensor_msgs_point_cloud2_t* view);
+uint32_t    sensor_msgs_point_cloud2_get_stamp_nanosec(const sensor_msgs_point_cloud2_t* view);
+const char* sensor_msgs_point_cloud2_get_frame_id(const sensor_msgs_point_cloud2_t* view);
+uint32_t    sensor_msgs_point_cloud2_get_height(const sensor_msgs_point_cloud2_t* view);
+uint32_t    sensor_msgs_point_cloud2_get_width(const sensor_msgs_point_cloud2_t* view);
+uint32_t    sensor_msgs_point_cloud2_get_point_step(const sensor_msgs_point_cloud2_t* view);
+uint32_t    sensor_msgs_point_cloud2_get_row_step(const sensor_msgs_point_cloud2_t* view);
+const uint8_t* sensor_msgs_point_cloud2_get_data(const sensor_msgs_point_cloud2_t* view,
                                           size_t* out_len);
-bool        ros_point_cloud2_get_is_dense(const ros_point_cloud2_t* view);
-bool        ros_point_cloud2_get_is_bigendian(const ros_point_cloud2_t* view);
-uint32_t    ros_point_cloud2_get_fields_len(const ros_point_cloud2_t* view);
+bool        sensor_msgs_point_cloud2_get_is_dense(const sensor_msgs_point_cloud2_t* view);
+bool        sensor_msgs_point_cloud2_get_is_bigendian(const sensor_msgs_point_cloud2_t* view);
+uint32_t    sensor_msgs_point_cloud2_get_fields_len(const sensor_msgs_point_cloud2_t* view);
 
-const uint8_t* ros_point_cloud2_as_cdr(const ros_point_cloud2_t* view,
+const uint8_t* sensor_msgs_point_cloud2_as_cdr(const sensor_msgs_point_cloud2_t* view,
                                         size_t* out_len);
 ```
 
@@ -732,35 +741,35 @@ point values (x, y, z, intensity, etc.).
 #### CameraInfo
 
 ```c
-ros_camera_info_t* ros_camera_info_from_cdr(const uint8_t* data, size_t len);
-void               ros_camera_info_free(ros_camera_info_t* view);
+sensor_msgs_camera_info_t* sensor_msgs_camera_info_from_cdr(const uint8_t* data, size_t len);
+void               sensor_msgs_camera_info_free(sensor_msgs_camera_info_t* view);
 
-int32_t     ros_camera_info_get_stamp_sec(const ros_camera_info_t* view);
-uint32_t    ros_camera_info_get_stamp_nanosec(const ros_camera_info_t* view);
-const char* ros_camera_info_get_frame_id(const ros_camera_info_t* view);
-uint32_t    ros_camera_info_get_height(const ros_camera_info_t* view);
-uint32_t    ros_camera_info_get_width(const ros_camera_info_t* view);
-const char* ros_camera_info_get_distortion_model(const ros_camera_info_t* view);
-uint32_t    ros_camera_info_get_binning_x(const ros_camera_info_t* view);
-uint32_t    ros_camera_info_get_binning_y(const ros_camera_info_t* view);
+int32_t     sensor_msgs_camera_info_get_stamp_sec(const sensor_msgs_camera_info_t* view);
+uint32_t    sensor_msgs_camera_info_get_stamp_nanosec(const sensor_msgs_camera_info_t* view);
+const char* sensor_msgs_camera_info_get_frame_id(const sensor_msgs_camera_info_t* view);
+uint32_t    sensor_msgs_camera_info_get_height(const sensor_msgs_camera_info_t* view);
+uint32_t    sensor_msgs_camera_info_get_width(const sensor_msgs_camera_info_t* view);
+const char* sensor_msgs_camera_info_get_distortion_model(const sensor_msgs_camera_info_t* view);
+uint32_t    sensor_msgs_camera_info_get_binning_x(const sensor_msgs_camera_info_t* view);
+uint32_t    sensor_msgs_camera_info_get_binning_y(const sensor_msgs_camera_info_t* view);
 
-const uint8_t* ros_camera_info_as_cdr(const ros_camera_info_t* view,
+const uint8_t* sensor_msgs_camera_info_as_cdr(const sensor_msgs_camera_info_t* view,
                                        size_t* out_len);
 ```
 
 #### RelativeHumidity
 
 ```c
-ros_relative_humidity_t* ros_relative_humidity_from_cdr(const uint8_t* data, size_t len);
-void                     ros_relative_humidity_free(ros_relative_humidity_t* view);
+sensor_msgs_relative_humidity_t* sensor_msgs_relative_humidity_from_cdr(const uint8_t* data, size_t len);
+void                     sensor_msgs_relative_humidity_free(sensor_msgs_relative_humidity_t* view);
 
-int32_t     ros_relative_humidity_get_stamp_sec(const ros_relative_humidity_t* view);
-uint32_t    ros_relative_humidity_get_stamp_nanosec(const ros_relative_humidity_t* view);
-const char* ros_relative_humidity_get_frame_id(const ros_relative_humidity_t* view);
-double      ros_relative_humidity_get_relative_humidity(const ros_relative_humidity_t* view);
-double      ros_relative_humidity_get_variance(const ros_relative_humidity_t* view);
+int32_t     sensor_msgs_relative_humidity_get_stamp_sec(const sensor_msgs_relative_humidity_t* view);
+uint32_t    sensor_msgs_relative_humidity_get_stamp_nanosec(const sensor_msgs_relative_humidity_t* view);
+const char* sensor_msgs_relative_humidity_get_frame_id(const sensor_msgs_relative_humidity_t* view);
+double      sensor_msgs_relative_humidity_get_relative_humidity(const sensor_msgs_relative_humidity_t* view);
+double      sensor_msgs_relative_humidity_get_variance(const sensor_msgs_relative_humidity_t* view);
 
-const uint8_t* ros_relative_humidity_as_cdr(const ros_relative_humidity_t* view,
+const uint8_t* sensor_msgs_relative_humidity_as_cdr(const sensor_msgs_relative_humidity_t* view,
                                              size_t* out_len);
 ```
 
@@ -769,37 +778,37 @@ const uint8_t* ros_relative_humidity_as_cdr(const ros_relative_humidity_t* view,
 **Builder:**
 
 ```c
-ros_relative_humidity_builder_t* ros_relative_humidity_builder_new(void);
-void ros_relative_humidity_builder_free(ros_relative_humidity_builder_t* b);
+sensor_msgs_relative_humidity_builder_t* sensor_msgs_relative_humidity_builder_new(void);
+void sensor_msgs_relative_humidity_builder_free(sensor_msgs_relative_humidity_builder_t* b);
 
-void ros_relative_humidity_builder_set_stamp(ros_relative_humidity_builder_t* b,
+void sensor_msgs_relative_humidity_builder_set_stamp(sensor_msgs_relative_humidity_builder_t* b,
                                               int32_t sec, uint32_t nanosec);
-int  ros_relative_humidity_builder_set_frame_id(ros_relative_humidity_builder_t* b,
+int  sensor_msgs_relative_humidity_builder_set_frame_id(sensor_msgs_relative_humidity_builder_t* b,
                                                  const char* s);
-void ros_relative_humidity_builder_set_relative_humidity(ros_relative_humidity_builder_t* b,
+void sensor_msgs_relative_humidity_builder_set_relative_humidity(sensor_msgs_relative_humidity_builder_t* b,
                                                           double v);
-void ros_relative_humidity_builder_set_variance(ros_relative_humidity_builder_t* b, double v);
+void sensor_msgs_relative_humidity_builder_set_variance(sensor_msgs_relative_humidity_builder_t* b, double v);
 
-int  ros_relative_humidity_builder_build(ros_relative_humidity_builder_t* b,
+int  sensor_msgs_relative_humidity_builder_build(sensor_msgs_relative_humidity_builder_t* b,
                                           uint8_t** out_bytes, size_t* out_len);
-int  ros_relative_humidity_builder_encode_into(ros_relative_humidity_builder_t* b,
+int  sensor_msgs_relative_humidity_builder_encode_into(sensor_msgs_relative_humidity_builder_t* b,
                                                 uint8_t* buf, size_t cap, size_t* out_len);
 ```
 
 #### TimeReference
 
 ```c
-ros_time_reference_t* ros_time_reference_from_cdr(const uint8_t* data, size_t len);
-void                  ros_time_reference_free(ros_time_reference_t* view);
+sensor_msgs_time_reference_t* sensor_msgs_time_reference_from_cdr(const uint8_t* data, size_t len);
+void                  sensor_msgs_time_reference_free(sensor_msgs_time_reference_t* view);
 
-int32_t     ros_time_reference_get_stamp_sec(const ros_time_reference_t* view);
-uint32_t    ros_time_reference_get_stamp_nanosec(const ros_time_reference_t* view);
-const char* ros_time_reference_get_frame_id(const ros_time_reference_t* view);
-int32_t     ros_time_reference_get_time_ref_sec(const ros_time_reference_t* view);
-uint32_t    ros_time_reference_get_time_ref_nanosec(const ros_time_reference_t* view);
-const char* ros_time_reference_get_source(const ros_time_reference_t* view);     // borrowed
+int32_t     sensor_msgs_time_reference_get_stamp_sec(const sensor_msgs_time_reference_t* view);
+uint32_t    sensor_msgs_time_reference_get_stamp_nanosec(const sensor_msgs_time_reference_t* view);
+const char* sensor_msgs_time_reference_get_frame_id(const sensor_msgs_time_reference_t* view);
+int32_t     sensor_msgs_time_reference_get_time_ref_sec(const sensor_msgs_time_reference_t* view);
+uint32_t    sensor_msgs_time_reference_get_time_ref_nanosec(const sensor_msgs_time_reference_t* view);
+const char* sensor_msgs_time_reference_get_source(const sensor_msgs_time_reference_t* view);     // borrowed
 
-const uint8_t* ros_time_reference_as_cdr(const ros_time_reference_t* view, size_t* out_len);
+const uint8_t* sensor_msgs_time_reference_as_cdr(const sensor_msgs_time_reference_t* view, size_t* out_len);
 ```
 
 **Fields:** `time_ref` (the referenced external clock time as sec/nanosec), `source` (human-readable string identifying the time source; borrowed from the CDR buffer).
@@ -807,21 +816,21 @@ const uint8_t* ros_time_reference_as_cdr(const ros_time_reference_t* view, size_
 **Builder:**
 
 ```c
-ros_time_reference_builder_t* ros_time_reference_builder_new(void);
-void ros_time_reference_builder_free(ros_time_reference_builder_t* b);
+sensor_msgs_time_reference_builder_t* sensor_msgs_time_reference_builder_new(void);
+void sensor_msgs_time_reference_builder_free(sensor_msgs_time_reference_builder_t* b);
 
-void ros_time_reference_builder_set_stamp(ros_time_reference_builder_t* b,
+void sensor_msgs_time_reference_builder_set_stamp(sensor_msgs_time_reference_builder_t* b,
                                           int32_t sec, uint32_t nanosec);
-int  ros_time_reference_builder_set_frame_id(ros_time_reference_builder_t* b,
+int  sensor_msgs_time_reference_builder_set_frame_id(sensor_msgs_time_reference_builder_t* b,
                                              const char* s);
-void ros_time_reference_builder_set_time_ref(ros_time_reference_builder_t* b,
+void sensor_msgs_time_reference_builder_set_time_ref(sensor_msgs_time_reference_builder_t* b,
                                              int32_t sec, uint32_t nanosec);
-int  ros_time_reference_builder_set_source(ros_time_reference_builder_t* b,
+int  sensor_msgs_time_reference_builder_set_source(sensor_msgs_time_reference_builder_t* b,
                                            const char* s);
 
-int  ros_time_reference_builder_build(ros_time_reference_builder_t* b,
+int  sensor_msgs_time_reference_builder_build(sensor_msgs_time_reference_builder_t* b,
                                       uint8_t** out_bytes, size_t* out_len);
-int  ros_time_reference_builder_encode_into(ros_time_reference_builder_t* b,
+int  sensor_msgs_time_reference_builder_encode_into(sensor_msgs_time_reference_builder_t* b,
                                             uint8_t* buf, size_t cap, size_t* out_len);
 ```
 
@@ -830,11 +839,11 @@ int  ros_time_reference_builder_encode_into(ros_time_reference_builder_t* b,
 ### geometry_msgs — Buffer-backed
 
 All 15 buffer-backed geometry types expose the same builder stack:
-`ros_<type>_builder_{new,free,set_*,build,encode_into}`. There is no
-one-shot `ros_<type>_encode` for these messages. Builder calls return 0 on
+`<package>_<type>_builder_{new,free,set_*,build,encode_into}`. There is no
+one-shot `<package>_<type>_encode` for these messages. Builder calls return 0 on
 success, -1 on error (`errno`: `EINVAL` for NULL or invalid UTF-8,
 `ENOBUFS` for a short `encode_into` buffer, `EBADMSG` for encoding failure).
-Call `ros_bytes_free(*out_bytes, *out_len)` after `build`.
+Call `edgefirst_schemas_bytes_free(*out_bytes, *out_len)` after `build`.
 
 #### AccelStamped (template for simple stamped types)
 
@@ -845,39 +854,39 @@ Simple stamped types (`TwistStamped`, `InertiaStamped`, `PointStamped`,
 Only the payload setters differ; see `schemas.h` for the full list.
 
 ```c
-ros_accel_stamped_t* ros_accel_stamped_from_cdr(const uint8_t* data, size_t len);
-void ros_accel_stamped_free(ros_accel_stamped_t* view);
+geometry_msgs_accel_stamped_t* geometry_msgs_accel_stamped_from_cdr(const uint8_t* data, size_t len);
+void geometry_msgs_accel_stamped_free(geometry_msgs_accel_stamped_t* view);
 
-int32_t     ros_accel_stamped_get_stamp_sec(const ros_accel_stamped_t* view);
-uint32_t    ros_accel_stamped_get_stamp_nanosec(const ros_accel_stamped_t* view);
-const char* ros_accel_stamped_get_frame_id(const ros_accel_stamped_t* view);
+int32_t     geometry_msgs_accel_stamped_get_stamp_sec(const geometry_msgs_accel_stamped_t* view);
+uint32_t    geometry_msgs_accel_stamped_get_stamp_nanosec(const geometry_msgs_accel_stamped_t* view);
+const char* geometry_msgs_accel_stamped_get_frame_id(const geometry_msgs_accel_stamped_t* view);
 
-const uint8_t* ros_accel_stamped_as_cdr(const ros_accel_stamped_t* view,
+const uint8_t* geometry_msgs_accel_stamped_as_cdr(const geometry_msgs_accel_stamped_t* view,
                                           size_t* out_len);
 ```
 
 **Builder:**
 
 ```c
-ros_accel_stamped_builder_t* ros_accel_stamped_builder_new(void);
-void ros_accel_stamped_builder_free(ros_accel_stamped_builder_t* b);
+geometry_msgs_accel_stamped_builder_t* geometry_msgs_accel_stamped_builder_new(void);
+void geometry_msgs_accel_stamped_builder_free(geometry_msgs_accel_stamped_builder_t* b);
 
-void ros_accel_stamped_builder_set_stamp(ros_accel_stamped_builder_t* b,
+void geometry_msgs_accel_stamped_builder_set_stamp(geometry_msgs_accel_stamped_builder_t* b,
                                          int32_t sec, uint32_t nanosec);
-int  ros_accel_stamped_builder_set_frame_id(ros_accel_stamped_builder_t* b,
+int  geometry_msgs_accel_stamped_builder_set_frame_id(geometry_msgs_accel_stamped_builder_t* b,
                                             const char* s);
-void ros_accel_stamped_builder_set_linear_acceleration(ros_accel_stamped_builder_t* b,
+void geometry_msgs_accel_stamped_builder_set_linear_acceleration(geometry_msgs_accel_stamped_builder_t* b,
                                                        double x, double y, double z);
-void ros_accel_stamped_builder_set_angular_acceleration(ros_accel_stamped_builder_t* b,
+void geometry_msgs_accel_stamped_builder_set_angular_acceleration(geometry_msgs_accel_stamped_builder_t* b,
                                                         double x, double y, double z);
 
-int  ros_accel_stamped_builder_build(ros_accel_stamped_builder_t* b,
+int  geometry_msgs_accel_stamped_builder_build(geometry_msgs_accel_stamped_builder_t* b,
                                     uint8_t** out_bytes, size_t* out_len);
-int  ros_accel_stamped_builder_encode_into(ros_accel_stamped_builder_t* b,
+int  geometry_msgs_accel_stamped_builder_encode_into(geometry_msgs_accel_stamped_builder_t* b,
                                            uint8_t* buf, size_t cap, size_t* out_len);
 ```
 
-Covariance stamped types take `ros_*_builder_set_covariance(b, cov)` with a
+Covariance stamped types take `<package>_*_builder_set_covariance(b, cov)` with a
 36-element `double` array (copied into the builder). `InertiaStamped` uses
 field-wise inertia setters (`set_mass`, `set_com`, `set_inertia_tensor`).
 
@@ -887,39 +896,39 @@ Adds `child_frame_id` and transform translation/rotation setters on top of
 the stamped header pattern.
 
 ```c
-ros_transform_stamped_t* ros_transform_stamped_from_cdr(const uint8_t* data,
+geometry_msgs_transform_stamped_t* geometry_msgs_transform_stamped_from_cdr(const uint8_t* data,
                                                          size_t len);
-void ros_transform_stamped_free(ros_transform_stamped_t* view);
+void geometry_msgs_transform_stamped_free(geometry_msgs_transform_stamped_t* view);
 
-int32_t     ros_transform_stamped_get_stamp_sec(const ros_transform_stamped_t* view);
-uint32_t    ros_transform_stamped_get_stamp_nanosec(const ros_transform_stamped_t* view);
-const char* ros_transform_stamped_get_frame_id(const ros_transform_stamped_t* view);
-const char* ros_transform_stamped_get_child_frame_id(const ros_transform_stamped_t* view);
+int32_t     geometry_msgs_transform_stamped_get_stamp_sec(const geometry_msgs_transform_stamped_t* view);
+uint32_t    geometry_msgs_transform_stamped_get_stamp_nanosec(const geometry_msgs_transform_stamped_t* view);
+const char* geometry_msgs_transform_stamped_get_frame_id(const geometry_msgs_transform_stamped_t* view);
+const char* geometry_msgs_transform_stamped_get_child_frame_id(const geometry_msgs_transform_stamped_t* view);
 
-const uint8_t* ros_transform_stamped_as_cdr(const ros_transform_stamped_t* view,
+const uint8_t* geometry_msgs_transform_stamped_as_cdr(const geometry_msgs_transform_stamped_t* view,
                                              size_t* out_len);
 ```
 
 **Builder:**
 
 ```c
-ros_transform_stamped_builder_t* ros_transform_stamped_builder_new(void);
-void ros_transform_stamped_builder_free(ros_transform_stamped_builder_t* b);
+geometry_msgs_transform_stamped_builder_t* geometry_msgs_transform_stamped_builder_new(void);
+void geometry_msgs_transform_stamped_builder_free(geometry_msgs_transform_stamped_builder_t* b);
 
-void ros_transform_stamped_builder_set_stamp(ros_transform_stamped_builder_t* b,
+void geometry_msgs_transform_stamped_builder_set_stamp(geometry_msgs_transform_stamped_builder_t* b,
                                              int32_t sec, uint32_t nanosec);
-int  ros_transform_stamped_builder_set_frame_id(ros_transform_stamped_builder_t* b,
+int  geometry_msgs_transform_stamped_builder_set_frame_id(geometry_msgs_transform_stamped_builder_t* b,
                                                 const char* s);
-int  ros_transform_stamped_builder_set_child_frame_id(ros_transform_stamped_builder_t* b,
+int  geometry_msgs_transform_stamped_builder_set_child_frame_id(geometry_msgs_transform_stamped_builder_t* b,
                                                       const char* s);
-void ros_transform_stamped_builder_set_translation(ros_transform_stamped_builder_t* b,
+void geometry_msgs_transform_stamped_builder_set_translation(geometry_msgs_transform_stamped_builder_t* b,
                                                    double x, double y, double z);
-void ros_transform_stamped_builder_set_rotation(ros_transform_stamped_builder_t* b,
+void geometry_msgs_transform_stamped_builder_set_rotation(geometry_msgs_transform_stamped_builder_t* b,
                                                 double x, double y, double z, double w);
 
-int  ros_transform_stamped_builder_build(ros_transform_stamped_builder_t* b,
+int  geometry_msgs_transform_stamped_builder_build(geometry_msgs_transform_stamped_builder_t* b,
                                          uint8_t** out_bytes, size_t* out_len);
-int  ros_transform_stamped_builder_encode_into(ros_transform_stamped_builder_t* b,
+int  geometry_msgs_transform_stamped_builder_encode_into(geometry_msgs_transform_stamped_builder_t* b,
                                                uint8_t* buf, size_t cap, size_t* out_len);
 ```
 
@@ -929,17 +938,17 @@ Sequence setters borrow their argument until `build` or `encode_into`:
 
 ```c
 /* count = number of Point32 vertices; xyz = count * 3 contiguous floats */
-int ros_polygon_builder_set_points(ros_polygon_builder_t* b,
+int geometry_msgs_polygon_builder_set_points(geometry_msgs_polygon_builder_t* b,
                                    const float* xyz, size_t count);
 
 /* count = number of Pose elements; poses = count * 7 contiguous doubles
    (px, py, pz, ox, oy, oz, ow per pose) */
-int ros_pose_array_builder_set_poses(ros_pose_array_builder_t* b,
+int geometry_msgs_pose_array_builder_set_poses(geometry_msgs_pose_array_builder_t* b,
                                      const double* poses, size_t count);
 ```
 
 `PolygonStamped` combines the stamped header with `set_points`. See
-`schemas.h` for `ros_polygon_*` and `ros_pose_array_*` view and builder
+`schemas.h` for `geometry_msgs_polygon_*` and `geometry_msgs_pose_array_*` view and builder
 entry points.
 
 ---
@@ -949,55 +958,55 @@ entry points.
 #### Odometry
 
 ```c
-ros_odometry_t* ros_odometry_from_cdr(const uint8_t* data, size_t len);
-void            ros_odometry_free(ros_odometry_t* view);
+nav_msgs_odometry_t* nav_msgs_odometry_from_cdr(const uint8_t* data, size_t len);
+void            nav_msgs_odometry_free(nav_msgs_odometry_t* view);
 
-int32_t     ros_odometry_get_stamp_sec(const ros_odometry_t* view);
-uint32_t    ros_odometry_get_stamp_nanosec(const ros_odometry_t* view);
-const char* ros_odometry_get_frame_id(const ros_odometry_t* view);
-const char* ros_odometry_get_child_frame_id(const ros_odometry_t* view);
+int32_t     nav_msgs_odometry_get_stamp_sec(const nav_msgs_odometry_t* view);
+uint32_t    nav_msgs_odometry_get_stamp_nanosec(const nav_msgs_odometry_t* view);
+const char* nav_msgs_odometry_get_frame_id(const nav_msgs_odometry_t* view);
+const char* nav_msgs_odometry_get_child_frame_id(const nav_msgs_odometry_t* view);
 
-void ros_odometry_get_pose(const ros_odometry_t* view,
+void nav_msgs_odometry_get_pose(const nav_msgs_odometry_t* view,
                            double* px, double* py, double* pz,
                            double* ox, double* oy, double* oz, double* ow);
-void ros_odometry_get_pose_covariance(const ros_odometry_t* view, double* out);
-void ros_odometry_get_twist(const ros_odometry_t* view,
+void nav_msgs_odometry_get_pose_covariance(const nav_msgs_odometry_t* view, double* out);
+void nav_msgs_odometry_get_twist(const nav_msgs_odometry_t* view,
                             double* lx, double* ly, double* lz,
                             double* ax, double* ay, double* az);
-void ros_odometry_get_twist_covariance(const ros_odometry_t* view, double* out);
+void nav_msgs_odometry_get_twist_covariance(const nav_msgs_odometry_t* view, double* out);
 
-const uint8_t* ros_odometry_as_cdr(const ros_odometry_t* view, size_t* out_len);
+const uint8_t* nav_msgs_odometry_as_cdr(const nav_msgs_odometry_t* view, size_t* out_len);
 ```
 
 **Builder:**
 
 ```c
-ros_odometry_builder_t* ros_odometry_builder_new(void);
-void ros_odometry_builder_free(ros_odometry_builder_t* b);
+nav_msgs_odometry_builder_t* nav_msgs_odometry_builder_new(void);
+void nav_msgs_odometry_builder_free(nav_msgs_odometry_builder_t* b);
 
-void ros_odometry_builder_set_stamp(ros_odometry_builder_t* b,
+void nav_msgs_odometry_builder_set_stamp(nav_msgs_odometry_builder_t* b,
                                     int32_t sec, uint32_t nanosec);
-int  ros_odometry_builder_set_frame_id(ros_odometry_builder_t* b, const char* s);
-int  ros_odometry_builder_set_child_frame_id(ros_odometry_builder_t* b, const char* s);
-void ros_odometry_builder_set_pose(ros_odometry_builder_t* b,
+int  nav_msgs_odometry_builder_set_frame_id(nav_msgs_odometry_builder_t* b, const char* s);
+int  nav_msgs_odometry_builder_set_child_frame_id(nav_msgs_odometry_builder_t* b, const char* s);
+void nav_msgs_odometry_builder_set_pose(nav_msgs_odometry_builder_t* b,
                                    double px, double py, double pz,
                                    double ox, double oy, double oz, double ow);
-int  ros_odometry_builder_set_pose_covariance(ros_odometry_builder_t* b,
+int  nav_msgs_odometry_builder_set_pose_covariance(nav_msgs_odometry_builder_t* b,
                                               const double* cov);
-void ros_odometry_builder_set_twist(ros_odometry_builder_t* b,
+void nav_msgs_odometry_builder_set_twist(nav_msgs_odometry_builder_t* b,
                                     double lx, double ly, double lz,
                                     double ax, double ay, double az);
-int  ros_odometry_builder_set_twist_covariance(ros_odometry_builder_t* b,
+int  nav_msgs_odometry_builder_set_twist_covariance(nav_msgs_odometry_builder_t* b,
                                                const double* cov);
 
-int  ros_odometry_builder_build(ros_odometry_builder_t* b,
+int  nav_msgs_odometry_builder_build(nav_msgs_odometry_builder_t* b,
                                 uint8_t** out_bytes, size_t* out_len);
-int  ros_odometry_builder_encode_into(ros_odometry_builder_t* b,
+int  nav_msgs_odometry_builder_encode_into(nav_msgs_odometry_builder_t* b,
                                       uint8_t* buf, size_t cap, size_t* out_len);
 ```
 
 `set_*_covariance` copies 36 doubles into the builder (same layout as
-`ros_odometry_get_pose_covariance` / `get_twist_covariance`).
+`nav_msgs_odometry_get_pose_covariance` / `get_twist_covariance`).
 
 ---
 
@@ -1006,14 +1015,14 @@ int  ros_odometry_builder_encode_into(ros_odometry_builder_t* b,
 #### MapMetaData
 
 ```c
-int ros_map_meta_data_encode(
+int nav_msgs_map_meta_data_encode(
     uint8_t* buf, size_t cap, size_t* written,
     int32_t  map_load_time_sec, uint32_t map_load_time_nanosec,
     float    resolution, uint32_t width, uint32_t height,
     double   origin_px, double origin_py, double origin_pz,
     double   origin_ox, double origin_oy, double origin_oz, double origin_ow);
 
-int ros_map_meta_data_decode(
+int nav_msgs_map_meta_data_decode(
     const uint8_t* data, size_t len,
     int32_t*  map_load_time_sec, uint32_t* map_load_time_nanosec,
     float*    resolution, uint32_t* width, uint32_t* height,
@@ -1029,7 +1038,7 @@ Pass `buf = NULL` to `encode` to query the required buffer size via `written`. A
 > MapMetaData is embedded inside a composite type at a CDR data offset ≡ 4 (mod 8) the
 > payload shrinks to 76 B because the origin's 8-byte alignment padding is not needed.
 > Never apply fixed-offset arithmetic to MapMetaData inside composite types; use
-> `ros_occupancy_grid_get_info` to read it out of an OccupancyGrid.
+> `nav_msgs_occupancy_grid_get_info` to read it out of an OccupancyGrid.
 
 ---
 
@@ -1038,44 +1047,44 @@ Pass `buf = NULL` to `encode` to query the required buffer size via `written`. A
 #### GridCells
 
 ```c
-ros_grid_cells_t* ros_grid_cells_from_cdr(const uint8_t* data, size_t len);
-void              ros_grid_cells_free(ros_grid_cells_t* view);
+nav_msgs_grid_cells_t* nav_msgs_grid_cells_from_cdr(const uint8_t* data, size_t len);
+void              nav_msgs_grid_cells_free(nav_msgs_grid_cells_t* view);
 
-int32_t     ros_grid_cells_get_stamp_sec(const ros_grid_cells_t* view);
-uint32_t    ros_grid_cells_get_stamp_nanosec(const ros_grid_cells_t* view);
-const char* ros_grid_cells_get_frame_id(const ros_grid_cells_t* view);
-float       ros_grid_cells_get_cell_width(const ros_grid_cells_t* view);
-float       ros_grid_cells_get_cell_height(const ros_grid_cells_t* view);
+int32_t     nav_msgs_grid_cells_get_stamp_sec(const nav_msgs_grid_cells_t* view);
+uint32_t    nav_msgs_grid_cells_get_stamp_nanosec(const nav_msgs_grid_cells_t* view);
+const char* nav_msgs_grid_cells_get_frame_id(const nav_msgs_grid_cells_t* view);
+float       nav_msgs_grid_cells_get_cell_width(const nav_msgs_grid_cells_t* view);
+float       nav_msgs_grid_cells_get_cell_height(const nav_msgs_grid_cells_t* view);
 
-size_t      ros_grid_cells_get_len(const ros_grid_cells_t* view);
+size_t      nav_msgs_grid_cells_get_len(const nav_msgs_grid_cells_t* view);
 
-int         ros_grid_cells_get_cell(const ros_grid_cells_t* view,
+int         nav_msgs_grid_cells_get_cell(const nav_msgs_grid_cells_t* view,
                                     size_t index,
                                     double* x, double* y, double* z);
 
-const uint8_t* ros_grid_cells_as_cdr(const ros_grid_cells_t* view, size_t* out_len);
+const uint8_t* nav_msgs_grid_cells_as_cdr(const nav_msgs_grid_cells_t* view, size_t* out_len);
 ```
 
-`ros_grid_cells_get_cell` returns 0 on success, -1 (errno: `EINVAL`) if `index >= len`. Output pointers `x`, `y`, `z` may be `NULL` to discard the corresponding component.
+`nav_msgs_grid_cells_get_cell` returns 0 on success, -1 (errno: `EINVAL`) if `index >= len`. Output pointers `x`, `y`, `z` may be `NULL` to discard the corresponding component.
 
 **Builder:**
 
 ```c
-ros_grid_cells_builder_t* ros_grid_cells_builder_new(void);
-void ros_grid_cells_builder_free(ros_grid_cells_builder_t* b);
+nav_msgs_grid_cells_builder_t* nav_msgs_grid_cells_builder_new(void);
+void nav_msgs_grid_cells_builder_free(nav_msgs_grid_cells_builder_t* b);
 
-void ros_grid_cells_builder_set_stamp(ros_grid_cells_builder_t* b,
+void nav_msgs_grid_cells_builder_set_stamp(nav_msgs_grid_cells_builder_t* b,
                                       int32_t sec, uint32_t nanosec);
-int  ros_grid_cells_builder_set_frame_id(ros_grid_cells_builder_t* b, const char* s);
-void ros_grid_cells_builder_set_cell_width(ros_grid_cells_builder_t* b, float v);
-void ros_grid_cells_builder_set_cell_height(ros_grid_cells_builder_t* b, float v);
+int  nav_msgs_grid_cells_builder_set_frame_id(nav_msgs_grid_cells_builder_t* b, const char* s);
+void nav_msgs_grid_cells_builder_set_cell_width(nav_msgs_grid_cells_builder_t* b, float v);
+void nav_msgs_grid_cells_builder_set_cell_height(nav_msgs_grid_cells_builder_t* b, float v);
 
-int  ros_grid_cells_builder_set_cells(ros_grid_cells_builder_t* b,
+int  nav_msgs_grid_cells_builder_set_cells(nav_msgs_grid_cells_builder_t* b,
                                       const double* xyz, size_t count);
 
-int  ros_grid_cells_builder_build(ros_grid_cells_builder_t* b,
+int  nav_msgs_grid_cells_builder_build(nav_msgs_grid_cells_builder_t* b,
                                   uint8_t** out_bytes, size_t* out_len);
-int  ros_grid_cells_builder_encode_into(ros_grid_cells_builder_t* b,
+int  nav_msgs_grid_cells_builder_encode_into(nav_msgs_grid_cells_builder_t* b,
                                         uint8_t* buf, size_t cap, size_t* out_len);
 ```
 
@@ -1084,123 +1093,123 @@ int  ros_grid_cells_builder_encode_into(ros_grid_cells_builder_t* b,
 #### OccupancyGrid
 
 ```c
-ros_occupancy_grid_t* ros_occupancy_grid_from_cdr(const uint8_t* data, size_t len);
-void                  ros_occupancy_grid_free(ros_occupancy_grid_t* view);
+nav_msgs_occupancy_grid_t* nav_msgs_occupancy_grid_from_cdr(const uint8_t* data, size_t len);
+void                  nav_msgs_occupancy_grid_free(nav_msgs_occupancy_grid_t* view);
 
-int32_t        ros_occupancy_grid_get_stamp_sec(const ros_occupancy_grid_t* view);
-uint32_t       ros_occupancy_grid_get_stamp_nanosec(const ros_occupancy_grid_t* view);
-const char*    ros_occupancy_grid_get_frame_id(const ros_occupancy_grid_t* view);
+int32_t        nav_msgs_occupancy_grid_get_stamp_sec(const nav_msgs_occupancy_grid_t* view);
+uint32_t       nav_msgs_occupancy_grid_get_stamp_nanosec(const nav_msgs_occupancy_grid_t* view);
+const char*    nav_msgs_occupancy_grid_get_frame_id(const nav_msgs_occupancy_grid_t* view);
 
-void ros_occupancy_grid_get_info(
-    const ros_occupancy_grid_t* view,
+void nav_msgs_occupancy_grid_get_info(
+    const nav_msgs_occupancy_grid_t* view,
     int32_t*  map_load_time_sec, uint32_t* map_load_time_nanosec,
     float*    resolution, uint32_t* width, uint32_t* height,
     double*   origin_px, double* origin_py, double* origin_pz,
     double*   origin_ox, double* origin_oy, double* origin_oz, double* origin_ow);
 
-size_t         ros_occupancy_grid_get_data_len(const ros_occupancy_grid_t* view);
-const int8_t*  ros_occupancy_grid_get_data(const ros_occupancy_grid_t* view);
+size_t         nav_msgs_occupancy_grid_get_data_len(const nav_msgs_occupancy_grid_t* view);
+const int8_t*  nav_msgs_occupancy_grid_get_data(const nav_msgs_occupancy_grid_t* view);
 
-const uint8_t* ros_occupancy_grid_as_cdr(const ros_occupancy_grid_t* view,
+const uint8_t* nav_msgs_occupancy_grid_as_cdr(const nav_msgs_occupancy_grid_t* view,
                                           size_t* out_len);
 ```
 
-`ros_occupancy_grid_get_info` takes the same field list as `ros_map_meta_data_decode`; any output pointer may be `NULL`. `ros_occupancy_grid_get_data` returns a zero-copy `int8_t*` to the occupancy data (`data_len` cells, row-major). Conventional occupancy values: 0 = free, 100 = occupied, -1 = unknown.
+`nav_msgs_occupancy_grid_get_info` takes the same field list as `nav_msgs_map_meta_data_decode`; any output pointer may be `NULL`. `nav_msgs_occupancy_grid_get_data` returns a zero-copy `int8_t*` to the occupancy data (`data_len` cells, row-major). Conventional occupancy values: 0 = free, 100 = occupied, -1 = unknown.
 
 **Builder:**
 
 ```c
-ros_occupancy_grid_builder_t* ros_occupancy_grid_builder_new(void);
-void ros_occupancy_grid_builder_free(ros_occupancy_grid_builder_t* b);
+nav_msgs_occupancy_grid_builder_t* nav_msgs_occupancy_grid_builder_new(void);
+void nav_msgs_occupancy_grid_builder_free(nav_msgs_occupancy_grid_builder_t* b);
 
-void ros_occupancy_grid_builder_set_stamp(ros_occupancy_grid_builder_t* b,
+void nav_msgs_occupancy_grid_builder_set_stamp(nav_msgs_occupancy_grid_builder_t* b,
                                           int32_t sec, uint32_t nanosec);
-int  ros_occupancy_grid_builder_set_frame_id(ros_occupancy_grid_builder_t* b,
+int  nav_msgs_occupancy_grid_builder_set_frame_id(nav_msgs_occupancy_grid_builder_t* b,
                                              const char* s);
-void ros_occupancy_grid_builder_set_info(
-    ros_occupancy_grid_builder_t* b,
+void nav_msgs_occupancy_grid_builder_set_info(
+    nav_msgs_occupancy_grid_builder_t* b,
     int32_t  map_load_time_sec, uint32_t map_load_time_nanosec,
     float    resolution, uint32_t width, uint32_t height,
     double   origin_px, double origin_py, double origin_pz,
     double   origin_ox, double origin_oy, double origin_oz, double origin_ow);
-int  ros_occupancy_grid_builder_set_data(ros_occupancy_grid_builder_t* b,
+int  nav_msgs_occupancy_grid_builder_set_data(nav_msgs_occupancy_grid_builder_t* b,
                                          const int8_t* data, size_t len);
 
-int  ros_occupancy_grid_builder_build(ros_occupancy_grid_builder_t* b,
+int  nav_msgs_occupancy_grid_builder_build(nav_msgs_occupancy_grid_builder_t* b,
                                       uint8_t** out_bytes, size_t* out_len);
-int  ros_occupancy_grid_builder_encode_into(ros_occupancy_grid_builder_t* b,
+int  nav_msgs_occupancy_grid_builder_encode_into(nav_msgs_occupancy_grid_builder_t* b,
                                             uint8_t* buf, size_t cap, size_t* out_len);
 ```
 
-`set_info` takes the same argument list as `ros_map_meta_data_encode`. `set_data` borrows `data`; the pointer must remain valid until `build` or `encode_into` is called.
+`set_info` takes the same argument list as `nav_msgs_map_meta_data_encode`. `set_data` borrows `data`; the pointer must remain valid until `build` or `encode_into` is called.
 
 #### Path
 
 ```c
-ros_path_t* ros_path_from_cdr(const uint8_t* data, size_t len);
-void        ros_path_free(ros_path_t* view);
+nav_msgs_path_t* nav_msgs_path_from_cdr(const uint8_t* data, size_t len);
+void        nav_msgs_path_free(nav_msgs_path_t* view);
 
-int32_t     ros_path_get_stamp_sec(const ros_path_t* view);
-uint32_t    ros_path_get_stamp_nanosec(const ros_path_t* view);
-const char* ros_path_get_frame_id(const ros_path_t* view);
+int32_t     nav_msgs_path_get_stamp_sec(const nav_msgs_path_t* view);
+uint32_t    nav_msgs_path_get_stamp_nanosec(const nav_msgs_path_t* view);
+const char* nav_msgs_path_get_frame_id(const nav_msgs_path_t* view);
 
-size_t      ros_path_get_len(const ros_path_t* view);
+size_t      nav_msgs_path_get_len(const nav_msgs_path_t* view);
 
-int         ros_path_get_pose(const ros_path_t* view,
+int         nav_msgs_path_get_pose(const nav_msgs_path_t* view,
                               size_t index,
                               int32_t*  stamp_sec, uint32_t* stamp_nanosec,
                               const char** pose_frame_id,
                               double* px, double* py, double* pz,
                               double* ox, double* oy, double* oz, double* ow);
 
-const uint8_t* ros_path_as_cdr(const ros_path_t* view, size_t* out_len);
+const uint8_t* nav_msgs_path_as_cdr(const nav_msgs_path_t* view, size_t* out_len);
 ```
 
-`ros_path_get_pose` returns 0 on success, -1 (errno: `EINVAL`) if `index >= len`. `pose_frame_id` is set to a zero-copy pointer into the CDR buffer (valid for the view lifetime); other out-params may be `NULL`. **Performance:** each call scans the variable-length PoseStamped sequence from its head to `index` — O(n) per call. A `0..len` loop over `ros_path_get_pose` is O(n²); use `ros_path_iter_*` for bulk traversal.
+`nav_msgs_path_get_pose` returns 0 on success, -1 (errno: `EINVAL`) if `index >= len`. `pose_frame_id` is set to a zero-copy pointer into the CDR buffer (valid for the view lifetime); other out-params may be `NULL`. **Performance:** each call scans the variable-length PoseStamped sequence from its head to `index` — O(n) per call. A `0..len` loop over `nav_msgs_path_get_pose` is O(n²); use `nav_msgs_path_iter_*` for bulk traversal.
 
 **Iterator (O(n) bulk traversal):**
 
 ```c
-ros_path_iter_t* ros_path_iter_new(const ros_path_t* view);
+nav_msgs_path_iter_t* nav_msgs_path_iter_new(const nav_msgs_path_t* view);
 
-int  ros_path_iter_next(ros_path_iter_t* it,
+int  nav_msgs_path_iter_next(nav_msgs_path_iter_t* it,
                         int32_t* out_sec, uint32_t* out_nanosec,
                         const char** out_frame_id,
                         double* out_px, double* out_py, double* out_pz,
                         double* out_ox, double* out_oy, double* out_oz, double* out_ow);
 
-void ros_path_iter_free(ros_path_iter_t* it);
+void nav_msgs_path_iter_free(nav_msgs_path_iter_t* it);
 ```
 
-`ros_path_iter_new` returns `NULL` (errno: `EINVAL`) if `view` is `NULL`. `ros_path_iter_next` returns 1 while elements remain, 0 when the sequence is exhausted. `out_frame_id` borrows the per-element string from the CDR buffer (valid while the buffer lives); all other out-params may be `NULL`. The iterator shares the view's CDR buffer and must not outlive the view.
+`nav_msgs_path_iter_new` returns `NULL` (errno: `EINVAL`) if `view` is `NULL`. `nav_msgs_path_iter_next` returns 1 while elements remain, 0 when the sequence is exhausted. `out_frame_id` borrows the per-element string from the CDR buffer (valid while the buffer lives); all other out-params may be `NULL`. The iterator shares the view's CDR buffer and must not outlive the view.
 
 **Builder (accumulator):**
 
 ```c
-ros_path_builder_t* ros_path_builder_new(void);
-void ros_path_builder_free(ros_path_builder_t* b);
+nav_msgs_path_builder_t* nav_msgs_path_builder_new(void);
+void nav_msgs_path_builder_free(nav_msgs_path_builder_t* b);
 
-void ros_path_builder_set_stamp(ros_path_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_path_builder_set_frame_id(ros_path_builder_t* b, const char* s);
+void nav_msgs_path_builder_set_stamp(nav_msgs_path_builder_t* b, int32_t sec, uint32_t nanosec);
+int  nav_msgs_path_builder_set_frame_id(nav_msgs_path_builder_t* b, const char* s);
 
-int  ros_path_builder_add_pose(ros_path_builder_t* b,
+int  nav_msgs_path_builder_add_pose(nav_msgs_path_builder_t* b,
                                int32_t sec, uint32_t nanosec, const char* frame_id,
                                double px, double py, double pz,
                                double ox, double oy, double oz, double ow);
 
-int  ros_path_builder_build(ros_path_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_path_builder_encode_into(ros_path_builder_t* b,
+int  nav_msgs_path_builder_build(nav_msgs_path_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  nav_msgs_path_builder_encode_into(nav_msgs_path_builder_t* b,
                                   uint8_t* buf, size_t cap, size_t* out_len);
 ```
 
-Unlike other builders, Path uses an accumulator: call `ros_path_builder_add_pose` once per waypoint before calling `build` or `encode_into`. Each call copies `frame_id` into the builder. Returns 0 on success, -1 (errno: `EINVAL`) if `b` is `NULL` or `frame_id` is `NULL` / not valid UTF-8.
+Unlike other builders, Path uses an accumulator: call `nav_msgs_path_builder_add_pose` once per waypoint before calling `build` or `encode_into`. Each call copies `frame_id` into the builder. Returns 0 on success, -1 (errno: `EINVAL`) if `b` is `NULL` or `frame_id` is `NULL` / not valid UTF-8.
 
 ---
 
 ### mavros_msgs — Buffer-backed
 
-All nine mavros buffer-backed types use the `ros_mavros_<type>_builder_*`
-prefix (not `ros_altitude_*`). There is no one-shot encode; use the builder
+All nine mavros buffer-backed types use the `mavros_msgs_<type>_…` prefix
+(e.g. `mavros_msgs_altitude_*`). There is no one-shot encode; use the builder
 stack with the same errno conventions as geometry builders.
 
 #### Altitude (template)
@@ -1210,42 +1219,42 @@ Other mavros types (`VfrHud`, `EstimatorStatus`, `ExtendedState`,
 same view + builder pattern; see `schemas.h` for the full setter list.
 
 ```c
-ros_mavros_altitude_t* ros_mavros_altitude_from_cdr(const uint8_t* data, size_t len);
-void                   ros_mavros_altitude_free(ros_mavros_altitude_t* view);
+mavros_msgs_altitude_t* mavros_msgs_altitude_from_cdr(const uint8_t* data, size_t len);
+void                   mavros_msgs_altitude_free(mavros_msgs_altitude_t* view);
 
-int32_t     ros_mavros_altitude_get_stamp_sec(const ros_mavros_altitude_t* view);
-uint32_t    ros_mavros_altitude_get_stamp_nanosec(const ros_mavros_altitude_t* view);
-const char* ros_mavros_altitude_get_frame_id(const ros_mavros_altitude_t* view);
-float       ros_mavros_altitude_get_monotonic(const ros_mavros_altitude_t* view);
-float       ros_mavros_altitude_get_amsl(const ros_mavros_altitude_t* view);
-float       ros_mavros_altitude_get_local(const ros_mavros_altitude_t* view);
-float       ros_mavros_altitude_get_relative(const ros_mavros_altitude_t* view);
-float       ros_mavros_altitude_get_terrain(const ros_mavros_altitude_t* view);
-float       ros_mavros_altitude_get_bottom_clearance(const ros_mavros_altitude_t* view);
+int32_t     mavros_msgs_altitude_get_stamp_sec(const mavros_msgs_altitude_t* view);
+uint32_t    mavros_msgs_altitude_get_stamp_nanosec(const mavros_msgs_altitude_t* view);
+const char* mavros_msgs_altitude_get_frame_id(const mavros_msgs_altitude_t* view);
+float       mavros_msgs_altitude_get_monotonic(const mavros_msgs_altitude_t* view);
+float       mavros_msgs_altitude_get_amsl(const mavros_msgs_altitude_t* view);
+float       mavros_msgs_altitude_get_local(const mavros_msgs_altitude_t* view);
+float       mavros_msgs_altitude_get_relative(const mavros_msgs_altitude_t* view);
+float       mavros_msgs_altitude_get_terrain(const mavros_msgs_altitude_t* view);
+float       mavros_msgs_altitude_get_bottom_clearance(const mavros_msgs_altitude_t* view);
 
-const uint8_t* ros_mavros_altitude_as_cdr(const ros_mavros_altitude_t* view, size_t* out_len);
+const uint8_t* mavros_msgs_altitude_as_cdr(const mavros_msgs_altitude_t* view, size_t* out_len);
 ```
 
 **Builder:**
 
 ```c
-ros_mavros_altitude_builder_t* ros_mavros_altitude_builder_new(void);
-void ros_mavros_altitude_builder_free(ros_mavros_altitude_builder_t* b);
+mavros_msgs_altitude_builder_t* mavros_msgs_altitude_builder_new(void);
+void mavros_msgs_altitude_builder_free(mavros_msgs_altitude_builder_t* b);
 
-void ros_mavros_altitude_builder_set_stamp(ros_mavros_altitude_builder_t* b,
+void mavros_msgs_altitude_builder_set_stamp(mavros_msgs_altitude_builder_t* b,
                                            int32_t sec, uint32_t nanosec);
-int  ros_mavros_altitude_builder_set_frame_id(ros_mavros_altitude_builder_t* b,
+int  mavros_msgs_altitude_builder_set_frame_id(mavros_msgs_altitude_builder_t* b,
                                               const char* s);
-void ros_mavros_altitude_builder_set_monotonic(ros_mavros_altitude_builder_t* b, float v);
-void ros_mavros_altitude_builder_set_amsl(ros_mavros_altitude_builder_t* b, float v);
-void ros_mavros_altitude_builder_set_local(ros_mavros_altitude_builder_t* b, float v);
-void ros_mavros_altitude_builder_set_relative(ros_mavros_altitude_builder_t* b, float v);
-void ros_mavros_altitude_builder_set_terrain(ros_mavros_altitude_builder_t* b, float v);
-void ros_mavros_altitude_builder_set_bottom_clearance(ros_mavros_altitude_builder_t* b, float v);
+void mavros_msgs_altitude_builder_set_monotonic(mavros_msgs_altitude_builder_t* b, float v);
+void mavros_msgs_altitude_builder_set_amsl(mavros_msgs_altitude_builder_t* b, float v);
+void mavros_msgs_altitude_builder_set_local(mavros_msgs_altitude_builder_t* b, float v);
+void mavros_msgs_altitude_builder_set_relative(mavros_msgs_altitude_builder_t* b, float v);
+void mavros_msgs_altitude_builder_set_terrain(mavros_msgs_altitude_builder_t* b, float v);
+void mavros_msgs_altitude_builder_set_bottom_clearance(mavros_msgs_altitude_builder_t* b, float v);
 
-int  ros_mavros_altitude_builder_build(ros_mavros_altitude_builder_t* b,
+int  mavros_msgs_altitude_builder_build(mavros_msgs_altitude_builder_t* b,
                                        uint8_t** out_bytes, size_t* out_len);
-int  ros_mavros_altitude_builder_encode_into(ros_mavros_altitude_builder_t* b,
+int  mavros_msgs_altitude_builder_encode_into(mavros_msgs_altitude_builder_t* b,
                                             uint8_t* buf, size_t cap, size_t* out_len);
 ```
 
@@ -1256,47 +1265,47 @@ int  ros_mavros_altitude_builder_encode_into(ros_mavros_altitude_builder_t* b,
 #### CompressedVideo
 
 ```c
-ros_compressed_video_t* ros_compressed_video_from_cdr(const uint8_t* data,
+foxglove_msgs_compressed_video_t* foxglove_msgs_compressed_video_from_cdr(const uint8_t* data,
                                                        size_t len);
-void ros_compressed_video_free(ros_compressed_video_t* view);
+void foxglove_msgs_compressed_video_free(foxglove_msgs_compressed_video_t* view);
 
-int32_t     ros_compressed_video_get_stamp_sec(const ros_compressed_video_t* view);
-uint32_t    ros_compressed_video_get_stamp_nanosec(const ros_compressed_video_t* view);
-const char* ros_compressed_video_get_frame_id(const ros_compressed_video_t* view);
-const uint8_t* ros_compressed_video_get_data(const ros_compressed_video_t* view,
+int32_t     foxglove_msgs_compressed_video_get_stamp_sec(const foxglove_msgs_compressed_video_t* view);
+uint32_t    foxglove_msgs_compressed_video_get_stamp_nanosec(const foxglove_msgs_compressed_video_t* view);
+const char* foxglove_msgs_compressed_video_get_frame_id(const foxglove_msgs_compressed_video_t* view);
+const uint8_t* foxglove_msgs_compressed_video_get_data(const foxglove_msgs_compressed_video_t* view,
                                               size_t* out_len);
-const char* ros_compressed_video_get_format(const ros_compressed_video_t* view);
+const char* foxglove_msgs_compressed_video_get_format(const foxglove_msgs_compressed_video_t* view);
 
-const uint8_t* ros_compressed_video_as_cdr(const ros_compressed_video_t* view,
+const uint8_t* foxglove_msgs_compressed_video_as_cdr(const foxglove_msgs_compressed_video_t* view,
                                             size_t* out_len);
 
-// Builder API: ros_foxglove_compressed_video_builder_new / _set_* / _build
+// Builder API: foxglove_msgs_compressed_video_builder_new / _set_* / _build
 ```
 
 #### CompressedImage
 
 Wire-identical to `CompressedVideo`; only the typename and the meaning of
 `format` differ (image media types such as `jpeg`/`png`/`webp` rather than
-video codecs). The short `ros_compressed_image_` prefix belongs to
+video codecs). The short `sensor_msgs_compressed_image_` prefix belongs to
 `sensor_msgs::CompressedImage`, so the Foxglove variant uses the
-`ros_foxglove_compressed_image_` prefix.
+`foxglove_msgs_compressed_image_` prefix.
 
 ```c
-ros_foxglove_compressed_image_t* ros_foxglove_compressed_image_from_cdr(const uint8_t* data,
+foxglove_msgs_compressed_image_t* foxglove_msgs_compressed_image_from_cdr(const uint8_t* data,
                                                                          size_t len);
-void ros_foxglove_compressed_image_free(ros_foxglove_compressed_image_t* view);
+void foxglove_msgs_compressed_image_free(foxglove_msgs_compressed_image_t* view);
 
-int32_t     ros_foxglove_compressed_image_get_stamp_sec(const ros_foxglove_compressed_image_t* view);
-uint32_t    ros_foxglove_compressed_image_get_stamp_nanosec(const ros_foxglove_compressed_image_t* view);
-const char* ros_foxglove_compressed_image_get_frame_id(const ros_foxglove_compressed_image_t* view);
-const uint8_t* ros_foxglove_compressed_image_get_data(const ros_foxglove_compressed_image_t* view,
+int32_t     foxglove_msgs_compressed_image_get_stamp_sec(const foxglove_msgs_compressed_image_t* view);
+uint32_t    foxglove_msgs_compressed_image_get_stamp_nanosec(const foxglove_msgs_compressed_image_t* view);
+const char* foxglove_msgs_compressed_image_get_frame_id(const foxglove_msgs_compressed_image_t* view);
+const uint8_t* foxglove_msgs_compressed_image_get_data(const foxglove_msgs_compressed_image_t* view,
                                                       size_t* out_len);
-const char* ros_foxglove_compressed_image_get_format(const ros_foxglove_compressed_image_t* view);
+const char* foxglove_msgs_compressed_image_get_format(const foxglove_msgs_compressed_image_t* view);
 
-const uint8_t* ros_foxglove_compressed_image_as_cdr(const ros_foxglove_compressed_image_t* view,
+const uint8_t* foxglove_msgs_compressed_image_as_cdr(const foxglove_msgs_compressed_image_t* view,
                                                     size_t* out_len);
 
-// Builder API: ros_foxglove_compressed_image_builder_new / _set_* / _build
+// Builder API: foxglove_msgs_compressed_image_builder_new / _set_* / _build
 ```
 
 ---
@@ -1306,41 +1315,41 @@ const uint8_t* ros_foxglove_compressed_image_as_cdr(const ros_foxglove_compresse
 #### Mask
 
 ```c
-ros_mask_t* ros_mask_from_cdr(const uint8_t* data, size_t len);
-void        ros_mask_free(ros_mask_t* view);
+edgefirst_msgs_mask_t* edgefirst_msgs_mask_from_cdr(const uint8_t* data, size_t len);
+void        edgefirst_msgs_mask_free(edgefirst_msgs_mask_t* view);
 
-uint32_t    ros_mask_get_height(const ros_mask_t* view);
-uint32_t    ros_mask_get_width(const ros_mask_t* view);
-uint32_t    ros_mask_get_length(const ros_mask_t* view);
-const char* ros_mask_get_encoding(const ros_mask_t* view);
-const uint8_t* ros_mask_get_data(const ros_mask_t* view, size_t* out_len);
-bool        ros_mask_get_boxed(const ros_mask_t* view);
+uint32_t    edgefirst_msgs_mask_get_height(const edgefirst_msgs_mask_t* view);
+uint32_t    edgefirst_msgs_mask_get_width(const edgefirst_msgs_mask_t* view);
+uint32_t    edgefirst_msgs_mask_get_length(const edgefirst_msgs_mask_t* view);
+const char* edgefirst_msgs_mask_get_encoding(const edgefirst_msgs_mask_t* view);
+const uint8_t* edgefirst_msgs_mask_get_data(const edgefirst_msgs_mask_t* view, size_t* out_len);
+bool        edgefirst_msgs_mask_get_boxed(const edgefirst_msgs_mask_t* view);
 ```
 
-> **Note:** `ros_mask_as_cdr` has been removed. Forwarding an embedded child mask
+> **Note:** `edgefirst_msgs_mask_as_cdr` has been removed. Forwarding an embedded child mask
 > as a standalone CDR would require re-encoding, which violates the zero-copy
-> contract. Child masks accessed via `ros_model_get_mask` are embedded in the
+> contract. Child masks accessed via `edgefirst_msgs_model_get_mask` are embedded in the
 > parent buffer and do not have an independent CDR form.
 
-// Builder API: ros_mask_builder_new / _set_* / _build / _encode_into
+// Builder API: edgefirst_msgs_mask_builder_new / _set_* / _build / _encode_into
 ```
 
 #### Tensor family
 
 `Tensor` is the payload; `TensorStamped` and `CameraFrame` are byte-identical
 wrappers around it. The C API mirrors that composition rather than flattening
-it — a wrapper hands out a borrowed `const ros_tensor_t*`, so the tensor
+it — a wrapper hands out a borrowed `const edgefirst_msgs_tensor_t*`, so the tensor
 accessors are shared rather than duplicated per wrapper.
 
 ```c
-ros_camera_frame_t*       f = ros_camera_frame_from_cdr(buf, len);
-const ros_tensor_t*       t = ros_camera_frame_get_tensor(f);
-const ros_tensor_plane_t* p = ros_tensor_get_plane(t, 0);
-int64_t                   h = ros_tensor_plane_get_handle(p);
-ros_camera_frame_free(f);   /* frees the borrowed tensor and planes too */
+edgefirst_msgs_camera_frame_t*       f = edgefirst_msgs_camera_frame_from_cdr(buf, len);
+const edgefirst_msgs_tensor_t*       t = edgefirst_msgs_camera_frame_get_tensor(f);
+const edgefirst_msgs_tensor_plane_t* p = edgefirst_msgs_tensor_get_plane(t, 0);
+int64_t                   h = edgefirst_msgs_tensor_plane_get_handle(p);
+edgefirst_msgs_camera_frame_free(f);   /* frees the borrowed tensor and planes too */
 ```
 
-**Ownership.** `ros_<wrapper>_get_tensor()` and `ros_tensor_get_plane()`
+**Ownership.** `<package>_<wrapper>_get_tensor()` and `edgefirst_msgs_tensor_get_plane()`
 return BORROWED pointers into the parent handle. Do not free them; they die
 with the parent. Freeing one anyway is a no-op that sets `errno = EINVAL`
 rather than a double free (Memory Management Rule 5).
@@ -1348,35 +1357,35 @@ rather than a double free (Memory Management Rule 5).
 ##### Tensor
 
 ```c
-ros_tensor_t* ros_tensor_from_cdr(const uint8_t* data, size_t len);
-void          ros_tensor_free(ros_tensor_t* view);
+edgefirst_msgs_tensor_t* edgefirst_msgs_tensor_from_cdr(const uint8_t* data, size_t len);
+void          edgefirst_msgs_tensor_free(edgefirst_msgs_tensor_t* view);
 
-uint32_t    ros_tensor_get_storage_kind(const ros_tensor_t* view);
-uint32_t    ros_tensor_get_pid(const ros_tensor_t* view);
-int32_t     ros_tensor_get_fence_fd(const ros_tensor_t* view);   /* -1 = none */
-uint32_t    ros_tensor_get_dtype(const ros_tensor_t* view);
-int32_t     ros_tensor_get_quant_axis(const ros_tensor_t* view); /* -2 = unquantized */
-uint32_t    ros_tensor_get_num_planes(const ros_tensor_t* view);
+uint32_t    edgefirst_msgs_tensor_get_storage_kind(const edgefirst_msgs_tensor_t* view);
+uint32_t    edgefirst_msgs_tensor_get_pid(const edgefirst_msgs_tensor_t* view);
+int32_t     edgefirst_msgs_tensor_get_fence_fd(const edgefirst_msgs_tensor_t* view);   /* -1 = none */
+uint32_t    edgefirst_msgs_tensor_get_dtype(const edgefirst_msgs_tensor_t* view);
+int32_t     edgefirst_msgs_tensor_get_quant_axis(const edgefirst_msgs_tensor_t* view); /* -2 = unquantized */
+uint32_t    edgefirst_msgs_tensor_get_num_planes(const edgefirst_msgs_tensor_t* view);
 
-const char* ros_tensor_get_format(const ros_tensor_t* view);
-const char* ros_tensor_get_color_space(const ros_tensor_t* view);
-const char* ros_tensor_get_color_transfer(const ros_tensor_t* view);
-const char* ros_tensor_get_color_encoding(const ros_tensor_t* view);
-const char* ros_tensor_get_color_range(const ros_tensor_t* view);
+const char* edgefirst_msgs_tensor_get_format(const edgefirst_msgs_tensor_t* view);
+const char* edgefirst_msgs_tensor_get_color_space(const edgefirst_msgs_tensor_t* view);
+const char* edgefirst_msgs_tensor_get_color_transfer(const edgefirst_msgs_tensor_t* view);
+const char* edgefirst_msgs_tensor_get_color_encoding(const edgefirst_msgs_tensor_t* view);
+const char* edgefirst_msgs_tensor_get_color_range(const edgefirst_msgs_tensor_t* view);
 
-uint32_t  ros_tensor_get_shape_len(const ros_tensor_t* view);
-uint32_t  ros_tensor_get_strides_len(const ros_tensor_t* view);
-int32_t   ros_tensor_get_shape_at(const ros_tensor_t* view, uint32_t i, uint64_t* out);
-int32_t   ros_tensor_get_strides_at(const ros_tensor_t* view, uint32_t i, int64_t* out);
-ptrdiff_t ros_tensor_copy_shape(const ros_tensor_t* view, uint64_t* out, size_t cap);
-ptrdiff_t ros_tensor_copy_strides(const ros_tensor_t* view, int64_t* out, size_t cap);
+uint32_t  edgefirst_msgs_tensor_get_shape_len(const edgefirst_msgs_tensor_t* view);
+uint32_t  edgefirst_msgs_tensor_get_strides_len(const edgefirst_msgs_tensor_t* view);
+int32_t   edgefirst_msgs_tensor_get_shape_at(const edgefirst_msgs_tensor_t* view, uint32_t i, uint64_t* out);
+int32_t   edgefirst_msgs_tensor_get_strides_at(const edgefirst_msgs_tensor_t* view, uint32_t i, int64_t* out);
+ptrdiff_t edgefirst_msgs_tensor_copy_shape(const edgefirst_msgs_tensor_t* view, uint64_t* out, size_t cap);
+ptrdiff_t edgefirst_msgs_tensor_copy_strides(const edgefirst_msgs_tensor_t* view, int64_t* out, size_t cap);
 
-const float*   ros_tensor_get_quant_scales(const ros_tensor_t* view, size_t* out_len);
-const int32_t* ros_tensor_get_quant_zero_points(const ros_tensor_t* view, size_t* out_len);
+const float*   edgefirst_msgs_tensor_get_quant_scales(const edgefirst_msgs_tensor_t* view, size_t* out_len);
+const int32_t* edgefirst_msgs_tensor_get_quant_zero_points(const edgefirst_msgs_tensor_t* view, size_t* out_len);
 
-const ros_tensor_plane_t* ros_tensor_get_plane(const ros_tensor_t* view, uint32_t index);
-const uint8_t* ros_tensor_get_tensor_bytes(const ros_tensor_t* view, size_t* out_len);
-int32_t ros_tensor_to_standalone_cdr(const ros_tensor_t* view,
+const edgefirst_msgs_tensor_plane_t* edgefirst_msgs_tensor_get_plane(const edgefirst_msgs_tensor_t* view, uint32_t index);
+const uint8_t* edgefirst_msgs_tensor_get_tensor_bytes(const edgefirst_msgs_tensor_t* view, size_t* out_len);
+int32_t edgefirst_msgs_tensor_to_standalone_cdr(const edgefirst_msgs_tensor_t* view,
                                      uint8_t** out_bytes, size_t* out_len);
 ```
 
@@ -1385,8 +1394,8 @@ is relative to the data start at absolute offset 4, so their elements land at
 absolute offset ≡ 4 (mod 8) and can never satisfy `alignof(uint64_t)`.
 Returning a `const uint64_t*` into the buffer would invite misaligned loads —
 undefined behaviour on strict-alignment targets. Access is index- or
-bulk-copy based instead. Prefer `ros_tensor_copy_shape()` to a loop of
-`ros_tensor_get_shape_at()`: the former is O(n) for the whole sequence, the
+bulk-copy based instead. Prefer `edgefirst_msgs_tensor_copy_shape()` to a loop of
+`edgefirst_msgs_tensor_get_shape_at()`: the former is O(n) for the whole sequence, the
 latter rescans and is O(n²).
 
 `quant_scales` / `quant_zero_points` are 4-byte elements whose CDR alignment
@@ -1399,18 +1408,18 @@ deliberately never validated against any buffer size. `strides` is in bytes.
 ##### TensorPlane
 
 ```c
-void ros_tensor_plane_free(ros_tensor_plane_t* view);   /* borrowed: no-op + EINVAL */
+void edgefirst_msgs_tensor_plane_free(edgefirst_msgs_tensor_plane_t* view);   /* borrowed: no-op + EINVAL */
 
-int64_t  ros_tensor_plane_get_handle(const ros_tensor_plane_t* view); /* -1 = inline */
-uint64_t ros_tensor_plane_get_offset(const ros_tensor_plane_t* view);
-uint64_t ros_tensor_plane_get_stride(const ros_tensor_plane_t* view);
-uint64_t ros_tensor_plane_get_size(const ros_tensor_plane_t* view);
-uint64_t ros_tensor_plane_get_used(const ros_tensor_plane_t* view);   /* <= size */
-uint64_t ros_tensor_plane_get_modifier(const ros_tensor_plane_t* view);
-bool     ros_tensor_plane_is_inline(const ros_tensor_plane_t* view);
+int64_t  edgefirst_msgs_tensor_plane_get_handle(const edgefirst_msgs_tensor_plane_t* view); /* -1 = inline */
+uint64_t edgefirst_msgs_tensor_plane_get_offset(const edgefirst_msgs_tensor_plane_t* view);
+uint64_t edgefirst_msgs_tensor_plane_get_stride(const edgefirst_msgs_tensor_plane_t* view);
+uint64_t edgefirst_msgs_tensor_plane_get_size(const edgefirst_msgs_tensor_plane_t* view);
+uint64_t edgefirst_msgs_tensor_plane_get_used(const edgefirst_msgs_tensor_plane_t* view);   /* <= size */
+uint64_t edgefirst_msgs_tensor_plane_get_modifier(const edgefirst_msgs_tensor_plane_t* view);
+bool     edgefirst_msgs_tensor_plane_is_inline(const edgefirst_msgs_tensor_plane_t* view);
 
-const uint8_t* ros_tensor_plane_get_handle_bytes(const ros_tensor_plane_t* view, size_t* out_len);
-const uint8_t* ros_tensor_plane_get_data(const ros_tensor_plane_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_tensor_plane_get_handle_bytes(const edgefirst_msgs_tensor_plane_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_tensor_plane_get_data(const edgefirst_msgs_tensor_plane_t* view, size_t* out_len);
 ```
 
 ##### TensorStamped and CameraFrame
@@ -1418,20 +1427,20 @@ const uint8_t* ros_tensor_plane_get_data(const ros_tensor_plane_t* view, size_t*
 Identical shapes; substitute `tensor_stamped` for `camera_frame` throughout.
 
 ```c
-ros_camera_frame_t* ros_camera_frame_from_cdr(const uint8_t* data, size_t len);
-void                ros_camera_frame_free(ros_camera_frame_t* view);
+edgefirst_msgs_camera_frame_t* edgefirst_msgs_camera_frame_from_cdr(const uint8_t* data, size_t len);
+void                edgefirst_msgs_camera_frame_free(edgefirst_msgs_camera_frame_t* view);
 
-int32_t     ros_camera_frame_get_stamp_sec(const ros_camera_frame_t* view);
-uint32_t    ros_camera_frame_get_stamp_nanosec(const ros_camera_frame_t* view);
-const char* ros_camera_frame_get_frame_id(const ros_camera_frame_t* view);
-uint64_t    ros_camera_frame_get_seq(const ros_camera_frame_t* view);
+int32_t     edgefirst_msgs_camera_frame_get_stamp_sec(const edgefirst_msgs_camera_frame_t* view);
+uint32_t    edgefirst_msgs_camera_frame_get_stamp_nanosec(const edgefirst_msgs_camera_frame_t* view);
+const char* edgefirst_msgs_camera_frame_get_frame_id(const edgefirst_msgs_camera_frame_t* view);
+uint64_t    edgefirst_msgs_camera_frame_get_seq(const edgefirst_msgs_camera_frame_t* view);
 
-const ros_tensor_t* ros_camera_frame_get_tensor(const ros_camera_frame_t* view);
-const uint8_t*      ros_camera_frame_get_cdr(const ros_camera_frame_t* view, size_t* out_len);
+const edgefirst_msgs_tensor_t* edgefirst_msgs_camera_frame_get_tensor(const edgefirst_msgs_camera_frame_t* view);
+const uint8_t*      edgefirst_msgs_camera_frame_get_cdr(const edgefirst_msgs_camera_frame_t* view, size_t* out_len);
 
 /* In-place header edits on a mutable CDR buffer */
-int32_t ros_camera_frame_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
-int32_t ros_camera_frame_set_seq(uint8_t* buf, size_t len, uint64_t v);
+int32_t edgefirst_msgs_camera_frame_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t edgefirst_msgs_camera_frame_set_seq(uint8_t* buf, size_t len, uint64_t v);
 ```
 
 ##### Builders
@@ -1440,32 +1449,32 @@ Build the payload with a tensor builder, then attach it to a wrapper builder.
 The tensor builder is BORROWED and must outlive the wrapper's build call.
 
 ```c
-ros_tensor_builder_t* tb = ros_tensor_builder_new();
-ros_tensor_builder_set_dtype(tb, 1);
-ros_tensor_builder_set_format(tb, "NV12");
-ros_tensor_builder_set_shape(tb, (const uint64_t[]){480, 640}, 2);
+edgefirst_msgs_tensor_builder_t* tb = edgefirst_msgs_tensor_builder_new();
+edgefirst_msgs_tensor_builder_set_dtype(tb, 1);
+edgefirst_msgs_tensor_builder_set_format(tb, "NV12");
+edgefirst_msgs_tensor_builder_set_shape(tb, (const uint64_t[]){480, 640}, 2);
 
-ros_tensor_plane_elem_t planes[2] = {
+edgefirst_msgs_tensor_plane_elem_t planes[2] = {
     { .handle = fd, .offset = 0,         .stride = 640,
       .size = 640 * 480,     .used = 640 * 480 },
     { .handle = fd, .offset = 640 * 480, .stride = 640,
       .size = 640 * 480 / 2, .used = 640 * 480 / 2 },
 };
-ros_tensor_builder_set_planes(tb, planes, 2);
+edgefirst_msgs_tensor_builder_set_planes(tb, planes, 2);
 
-ros_camera_frame_builder_t* fb = ros_camera_frame_builder_new();
-ros_camera_frame_builder_set_stamp(fb, 42, 0);
-ros_camera_frame_builder_set_frame_id(fb, "camera_0");
-ros_camera_frame_builder_set_seq(fb, 1);
-ros_camera_frame_builder_set_tensor(fb, tb);
+edgefirst_msgs_camera_frame_builder_t* fb = edgefirst_msgs_camera_frame_builder_new();
+edgefirst_msgs_camera_frame_builder_set_stamp(fb, 42, 0);
+edgefirst_msgs_camera_frame_builder_set_frame_id(fb, "camera_0");
+edgefirst_msgs_camera_frame_builder_set_seq(fb, 1);
+edgefirst_msgs_camera_frame_builder_set_tensor(fb, tb);
 
 uint8_t* bytes = NULL; size_t len = 0;
-if (ros_camera_frame_builder_build(fb, &bytes, &len) == 0) {
+if (edgefirst_msgs_camera_frame_builder_build(fb, &bytes, &len) == 0) {
     /* publish bytes[0..len) */
-    ros_bytes_free(bytes, len);
+    edgefirst_schemas_bytes_free(bytes, len);
 }
-ros_camera_frame_builder_free(fb);
-ros_tensor_builder_free(tb);
+edgefirst_msgs_camera_frame_builder_free(fb);
+edgefirst_msgs_tensor_builder_free(tb);
 ```
 
 Builder defaults are NOT all zero: `fence_fd` starts at `-1` (no fence) and
@@ -1481,21 +1490,21 @@ does not match `shape`, a `quant_scales` length that does not match
 #### RadarCube
 
 ```c
-ros_radar_cube_t* ros_radar_cube_from_cdr(const uint8_t* data, size_t len);
-void              ros_radar_cube_free(ros_radar_cube_t* view);
+edgefirst_msgs_radar_cube_t* edgefirst_msgs_radar_cube_from_cdr(const uint8_t* data, size_t len);
+void              edgefirst_msgs_radar_cube_free(edgefirst_msgs_radar_cube_t* view);
 
-int32_t     ros_radar_cube_get_stamp_sec(const ros_radar_cube_t* view);
-uint32_t    ros_radar_cube_get_stamp_nanosec(const ros_radar_cube_t* view);
-const char* ros_radar_cube_get_frame_id(const ros_radar_cube_t* view);
-uint64_t    ros_radar_cube_get_timestamp(const ros_radar_cube_t* view);
-const uint8_t* ros_radar_cube_get_layout(const ros_radar_cube_t* view,
+int32_t     edgefirst_msgs_radar_cube_get_stamp_sec(const edgefirst_msgs_radar_cube_t* view);
+uint32_t    edgefirst_msgs_radar_cube_get_stamp_nanosec(const edgefirst_msgs_radar_cube_t* view);
+const char* edgefirst_msgs_radar_cube_get_frame_id(const edgefirst_msgs_radar_cube_t* view);
+uint64_t    edgefirst_msgs_radar_cube_get_timestamp(const edgefirst_msgs_radar_cube_t* view);
+const uint8_t* edgefirst_msgs_radar_cube_get_layout(const edgefirst_msgs_radar_cube_t* view,
                                           size_t* out_len);
-const uint8_t* ros_radar_cube_get_cube_raw(const ros_radar_cube_t* view,
+const uint8_t* edgefirst_msgs_radar_cube_get_cube_raw(const edgefirst_msgs_radar_cube_t* view,
                                             size_t* out_len);
-uint32_t    ros_radar_cube_get_cube_len(const ros_radar_cube_t* view);
-bool        ros_radar_cube_get_is_complex(const ros_radar_cube_t* view);
+uint32_t    edgefirst_msgs_radar_cube_get_cube_len(const edgefirst_msgs_radar_cube_t* view);
+bool        edgefirst_msgs_radar_cube_get_is_complex(const edgefirst_msgs_radar_cube_t* view);
 
-const uint8_t* ros_radar_cube_as_cdr(const ros_radar_cube_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_radar_cube_as_cdr(const edgefirst_msgs_radar_cube_t* view, size_t* out_len);
 ```
 
 The cube data is raw bytes. For `i16` radar samples, use `memcpy` for
@@ -1503,7 +1512,7 @@ portable access:
 
 ```c
 size_t raw_len;
-const uint8_t* raw = ros_radar_cube_get_cube_raw(cube, &raw_len);
+const uint8_t* raw = edgefirst_msgs_radar_cube_get_cube_raw(cube, &raw_len);
 size_t n_samples = raw_len / sizeof(int16_t);
 
 // Portable: copy to aligned buffer
@@ -1523,122 +1532,122 @@ so no byte-swapping is needed after copying.
 #### RadarInfo
 
 ```c
-ros_radar_info_t* ros_radar_info_from_cdr(const uint8_t* data, size_t len);
-void              ros_radar_info_free(ros_radar_info_t* view);
+edgefirst_msgs_radar_info_t* edgefirst_msgs_radar_info_from_cdr(const uint8_t* data, size_t len);
+void              edgefirst_msgs_radar_info_free(edgefirst_msgs_radar_info_t* view);
 
-int32_t     ros_radar_info_get_stamp_sec(const ros_radar_info_t* view);
-uint32_t    ros_radar_info_get_stamp_nanosec(const ros_radar_info_t* view);
-const char* ros_radar_info_get_frame_id(const ros_radar_info_t* view);
-const char* ros_radar_info_get_center_frequency(const ros_radar_info_t* view);
-const char* ros_radar_info_get_frequency_sweep(const ros_radar_info_t* view);
-const char* ros_radar_info_get_range_toggle(const ros_radar_info_t* view);
-const char* ros_radar_info_get_detection_sensitivity(const ros_radar_info_t* view);
-bool        ros_radar_info_get_cube(const ros_radar_info_t* view);
+int32_t     edgefirst_msgs_radar_info_get_stamp_sec(const edgefirst_msgs_radar_info_t* view);
+uint32_t    edgefirst_msgs_radar_info_get_stamp_nanosec(const edgefirst_msgs_radar_info_t* view);
+const char* edgefirst_msgs_radar_info_get_frame_id(const edgefirst_msgs_radar_info_t* view);
+const char* edgefirst_msgs_radar_info_get_center_frequency(const edgefirst_msgs_radar_info_t* view);
+const char* edgefirst_msgs_radar_info_get_frequency_sweep(const edgefirst_msgs_radar_info_t* view);
+const char* edgefirst_msgs_radar_info_get_range_toggle(const edgefirst_msgs_radar_info_t* view);
+const char* edgefirst_msgs_radar_info_get_detection_sensitivity(const edgefirst_msgs_radar_info_t* view);
+bool        edgefirst_msgs_radar_info_get_cube(const edgefirst_msgs_radar_info_t* view);
 
-const uint8_t* ros_radar_info_as_cdr(const ros_radar_info_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_radar_info_as_cdr(const edgefirst_msgs_radar_info_t* view, size_t* out_len);
 ```
 
 #### Detect
 
 ```c
-ros_detect_t* ros_detect_from_cdr(const uint8_t* data, size_t len);
-void          ros_detect_free(ros_detect_t* view);
+edgefirst_msgs_detect_t* edgefirst_msgs_detect_from_cdr(const uint8_t* data, size_t len);
+void          edgefirst_msgs_detect_free(edgefirst_msgs_detect_t* view);
 
-int32_t     ros_detect_get_stamp_sec(const ros_detect_t* view);
-uint32_t    ros_detect_get_stamp_nanosec(const ros_detect_t* view);
-const char* ros_detect_get_frame_id(const ros_detect_t* view);
-uint32_t    ros_detect_get_boxes_len(const ros_detect_t* view);
+int32_t     edgefirst_msgs_detect_get_stamp_sec(const edgefirst_msgs_detect_t* view);
+uint32_t    edgefirst_msgs_detect_get_stamp_nanosec(const edgefirst_msgs_detect_t* view);
+const char* edgefirst_msgs_detect_get_frame_id(const edgefirst_msgs_detect_t* view);
+uint32_t    edgefirst_msgs_detect_get_boxes_len(const edgefirst_msgs_detect_t* view);
 // Returns a borrowed pointer; do NOT free. See Rule 5.
-const ros_box_t* ros_detect_get_box(const ros_detect_t* view, uint32_t index);
+const edgefirst_msgs_box_t* edgefirst_msgs_detect_get_box(const edgefirst_msgs_detect_t* view, uint32_t index);
 
-const uint8_t* ros_detect_as_cdr(const ros_detect_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_detect_as_cdr(const edgefirst_msgs_detect_t* view, size_t* out_len);
 ```
 
 #### Model
 
 ```c
-ros_model_t* ros_model_from_cdr(const uint8_t* data, size_t len);
-void         ros_model_free(ros_model_t* view);
+edgefirst_msgs_model_t* edgefirst_msgs_model_from_cdr(const uint8_t* data, size_t len);
+void         edgefirst_msgs_model_free(edgefirst_msgs_model_t* view);
 
-int32_t     ros_model_get_stamp_sec(const ros_model_t* view);
-uint32_t    ros_model_get_stamp_nanosec(const ros_model_t* view);
-const char* ros_model_get_frame_id(const ros_model_t* view);
-uint32_t    ros_model_get_boxes_len(const ros_model_t* view);
-uint32_t    ros_model_get_masks_len(const ros_model_t* view);
+int32_t     edgefirst_msgs_model_get_stamp_sec(const edgefirst_msgs_model_t* view);
+uint32_t    edgefirst_msgs_model_get_stamp_nanosec(const edgefirst_msgs_model_t* view);
+const char* edgefirst_msgs_model_get_frame_id(const edgefirst_msgs_model_t* view);
+uint32_t    edgefirst_msgs_model_get_boxes_len(const edgefirst_msgs_model_t* view);
+uint32_t    edgefirst_msgs_model_get_masks_len(const edgefirst_msgs_model_t* view);
 // Returns borrowed pointers; do NOT free. See Rule 5.
-const ros_box_t*  ros_model_get_box(const ros_model_t* view, uint32_t index);
-const ros_mask_t* ros_model_get_mask(const ros_model_t* view, uint32_t index);
+const edgefirst_msgs_box_t*  edgefirst_msgs_model_get_box(const edgefirst_msgs_model_t* view, uint32_t index);
+const edgefirst_msgs_mask_t* edgefirst_msgs_model_get_mask(const edgefirst_msgs_model_t* view, uint32_t index);
 
-const uint8_t* ros_model_as_cdr(const ros_model_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_model_as_cdr(const edgefirst_msgs_model_t* view, size_t* out_len);
 ```
 
 #### ModelInfo
 
 ```c
-ros_model_info_t* ros_model_info_from_cdr(const uint8_t* data, size_t len);
-void              ros_model_info_free(ros_model_info_t* view);
+edgefirst_msgs_model_info_t* edgefirst_msgs_model_info_from_cdr(const uint8_t* data, size_t len);
+void              edgefirst_msgs_model_info_free(edgefirst_msgs_model_info_t* view);
 
-int32_t     ros_model_info_get_stamp_sec(const ros_model_info_t* view);
-uint32_t    ros_model_info_get_stamp_nanosec(const ros_model_info_t* view);
-const char* ros_model_info_get_frame_id(const ros_model_info_t* view);
-const char* ros_model_info_get_model_type(const ros_model_info_t* view);
-const char* ros_model_info_get_model_format(const ros_model_info_t* view);
-const char* ros_model_info_get_model_name(const ros_model_info_t* view);
-uint8_t     ros_model_info_get_input_type(const ros_model_info_t* view);
-uint8_t     ros_model_info_get_output_type(const ros_model_info_t* view);
+int32_t     edgefirst_msgs_model_info_get_stamp_sec(const edgefirst_msgs_model_info_t* view);
+uint32_t    edgefirst_msgs_model_info_get_stamp_nanosec(const edgefirst_msgs_model_info_t* view);
+const char* edgefirst_msgs_model_info_get_frame_id(const edgefirst_msgs_model_info_t* view);
+const char* edgefirst_msgs_model_info_get_model_type(const edgefirst_msgs_model_info_t* view);
+const char* edgefirst_msgs_model_info_get_model_format(const edgefirst_msgs_model_info_t* view);
+const char* edgefirst_msgs_model_info_get_model_name(const edgefirst_msgs_model_info_t* view);
+uint8_t     edgefirst_msgs_model_info_get_input_type(const edgefirst_msgs_model_info_t* view);
+uint8_t     edgefirst_msgs_model_info_get_output_type(const edgefirst_msgs_model_info_t* view);
 
-const uint8_t* ros_model_info_as_cdr(const ros_model_info_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_model_info_as_cdr(const edgefirst_msgs_model_info_t* view, size_t* out_len);
 ```
 
 #### Track
 
 ```c
-ros_track_t* ros_track_from_cdr(const uint8_t* data, size_t len);
-void         ros_track_free(ros_track_t* view);
+edgefirst_msgs_track_t* edgefirst_msgs_track_from_cdr(const uint8_t* data, size_t len);
+void         edgefirst_msgs_track_free(edgefirst_msgs_track_t* view);
 
-const char* ros_track_get_id(const ros_track_t* view);
-int32_t     ros_track_get_lifetime(const ros_track_t* view);
+const char* edgefirst_msgs_track_get_id(const edgefirst_msgs_track_t* view);
+int32_t     edgefirst_msgs_track_get_lifetime(const edgefirst_msgs_track_t* view);
 
-const uint8_t* ros_track_as_cdr(const ros_track_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_track_as_cdr(const edgefirst_msgs_track_t* view, size_t* out_len);
 ```
 
 #### DetectBox
 
 ```c
-ros_box_t* ros_box_from_cdr(const uint8_t* data, size_t len);
-void       ros_box_free(ros_box_t* view);
+edgefirst_msgs_box_t* edgefirst_msgs_box_from_cdr(const uint8_t* data, size_t len);
+void       edgefirst_msgs_box_free(edgefirst_msgs_box_t* view);
 
-float       ros_box_get_center_x(const ros_box_t* view);
-float       ros_box_get_center_y(const ros_box_t* view);
-float       ros_box_get_width(const ros_box_t* view);
-float       ros_box_get_height(const ros_box_t* view);
-const char* ros_box_get_label(const ros_box_t* view);
-float       ros_box_get_score(const ros_box_t* view);
-float       ros_box_get_distance(const ros_box_t* view);
-float       ros_box_get_speed(const ros_box_t* view);
-const char* ros_box_get_track_id(const ros_box_t* view);
-int32_t     ros_box_get_track_lifetime(const ros_box_t* view);
-int32_t     ros_box_get_track_created_sec(const ros_box_t* view);
-uint32_t    ros_box_get_track_created_nanosec(const ros_box_t* view);
+float       edgefirst_msgs_box_get_center_x(const edgefirst_msgs_box_t* view);
+float       edgefirst_msgs_box_get_center_y(const edgefirst_msgs_box_t* view);
+float       edgefirst_msgs_box_get_width(const edgefirst_msgs_box_t* view);
+float       edgefirst_msgs_box_get_height(const edgefirst_msgs_box_t* view);
+const char* edgefirst_msgs_box_get_label(const edgefirst_msgs_box_t* view);
+float       edgefirst_msgs_box_get_score(const edgefirst_msgs_box_t* view);
+float       edgefirst_msgs_box_get_distance(const edgefirst_msgs_box_t* view);
+float       edgefirst_msgs_box_get_speed(const edgefirst_msgs_box_t* view);
+const char* edgefirst_msgs_box_get_track_id(const edgefirst_msgs_box_t* view);
+int32_t     edgefirst_msgs_box_get_track_lifetime(const edgefirst_msgs_box_t* view);
+int32_t     edgefirst_msgs_box_get_track_created_sec(const edgefirst_msgs_box_t* view);
+uint32_t    edgefirst_msgs_box_get_track_created_nanosec(const edgefirst_msgs_box_t* view);
 ```
 
-> **Note:** `ros_box_as_cdr` has been removed. Forwarding an embedded child box
+> **Note:** `edgefirst_msgs_box_as_cdr` has been removed. Forwarding an embedded child box
 > as a standalone CDR would require re-encoding, which violates the zero-copy
-> contract. Child boxes accessed via `ros_detect_get_box`/`ros_model_get_box`
+> contract. Child boxes accessed via `edgefirst_msgs_detect_get_box`/`edgefirst_msgs_model_get_box`
 > are embedded in the parent buffer and do not have an independent CDR form.
 
 #### LocalTime
 
 ```c
-ros_local_time_t* ros_local_time_from_cdr(const uint8_t* data, size_t len);
-void              ros_local_time_free(ros_local_time_t* view);
+edgefirst_msgs_local_time_t* edgefirst_msgs_local_time_from_cdr(const uint8_t* data, size_t len);
+void              edgefirst_msgs_local_time_free(edgefirst_msgs_local_time_t* view);
 
-int32_t     ros_local_time_get_stamp_sec(const ros_local_time_t* view);
-uint32_t    ros_local_time_get_stamp_nanosec(const ros_local_time_t* view);
-const char* ros_local_time_get_frame_id(const ros_local_time_t* view);
-int16_t     ros_local_time_get_timezone(const ros_local_time_t* view);
+int32_t     edgefirst_msgs_local_time_get_stamp_sec(const edgefirst_msgs_local_time_t* view);
+uint32_t    edgefirst_msgs_local_time_get_stamp_nanosec(const edgefirst_msgs_local_time_t* view);
+const char* edgefirst_msgs_local_time_get_frame_id(const edgefirst_msgs_local_time_t* view);
+int16_t     edgefirst_msgs_local_time_get_timezone(const edgefirst_msgs_local_time_t* view);
 
-const uint8_t* ros_local_time_as_cdr(const ros_local_time_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_local_time_as_cdr(const edgefirst_msgs_local_time_t* view, size_t* out_len);
 ```
 
 ---
@@ -1656,7 +1665,7 @@ int main(void) {
     size_t written;
 
     // Encode
-    if (ros_time_encode(buf, sizeof(buf), &written, 1234567890, 123456789) != 0) {
+    if (builtin_interfaces_time_encode(buf, sizeof(buf), &written, 1234567890, 123456789) != 0) {
         perror("encode");
         return 1;
     }
@@ -1665,7 +1674,7 @@ int main(void) {
     // Decode
     int32_t sec;
     uint32_t nanosec;
-    if (ros_time_decode(buf, written, &sec, &nanosec) != 0) {
+    if (builtin_interfaces_time_decode(buf, written, &sec, &nanosec) != 0) {
         perror("decode");
         return 1;
     }
@@ -1679,9 +1688,9 @@ int main(void) {
 ```c
 // Pass buf=NULL to query the required size
 size_t needed;
-ros_pose_encode(NULL, 0, &needed, 0, 0, 0, 0, 0, 0, 0);
+geometry_msgs_pose_encode(NULL, 0, &needed, 0, 0, 0, 0, 0, 0, 0);
 uint8_t* buf = malloc(needed);
-ros_pose_encode(buf, needed, &needed, 1.0, 2.0, 0.5, 0.0, 0.0, 0.707, 0.707);
+geometry_msgs_pose_encode(buf, needed, &needed, 1.0, 2.0, 0.5, 0.0, 0.0, 0.707, 0.707);
 // ... use buf ...
 free(buf);
 ```
@@ -1693,23 +1702,23 @@ free(buf);
 #include <stdio.h>
 
 void process_image(const uint8_t* cdr_data, size_t cdr_len) {
-    ros_image_t* img = ros_image_from_cdr(cdr_data, cdr_len);
+    sensor_msgs_image_t* img = sensor_msgs_image_from_cdr(cdr_data, cdr_len);
     if (!img) {
-        perror("ros_image_from_cdr");
+        perror("sensor_msgs_image_from_cdr");
         return;
     }
 
     printf("Image: %ux%u %s\n",
-           ros_image_get_width(img),
-           ros_image_get_height(img),
-           ros_image_get_encoding(img));  // borrowed pointer
+           sensor_msgs_image_get_width(img),
+           sensor_msgs_image_get_height(img),
+           sensor_msgs_image_get_encoding(img));  // borrowed pointer
 
     size_t data_len;
-    const uint8_t* pixels = ros_image_get_data(img, &data_len);
+    const uint8_t* pixels = sensor_msgs_image_get_data(img, &data_len);
     printf("Pixel data: %zu bytes at %p\n", data_len, (const void*)pixels);
-    // pixels is borrowed — valid until ros_image_free(img)
+    // pixels is borrowed — valid until sensor_msgs_image_free(img)
 
-    ros_image_free(img);
+    sensor_msgs_image_free(img);
     // pixels is now dangling
 }
 ```
@@ -1724,23 +1733,23 @@ int main(void) {
     uint8_t* bytes = NULL;
     size_t len = 0;
 
-    ros_header_builder_t* b = ros_header_builder_new();
-    ros_header_builder_set_stamp(b, 42, 0);
-    if (ros_header_builder_set_frame_id(b, "camera_frame") != 0 ||
-        ros_header_builder_build(b, &bytes, &len) != 0) {
-        perror("ros_header_builder");
-        ros_header_builder_free(b);
+    std_msgs_header_builder_t* b = std_msgs_header_builder_new();
+    std_msgs_header_builder_set_stamp(b, 42, 0);
+    if (std_msgs_header_builder_set_frame_id(b, "camera_frame") != 0 ||
+        std_msgs_header_builder_build(b, &bytes, &len) != 0) {
+        perror("std_msgs_header_builder");
+        std_msgs_header_builder_free(b);
         return 1;
     }
-    ros_header_builder_free(b);
+    std_msgs_header_builder_free(b);
     printf("Encoded Header: %zu CDR bytes\n", len);
 
     // Verify round-trip
-    ros_header_t* hdr = ros_header_from_cdr(bytes, len);
-    printf("frame_id = %s\n", ros_header_get_frame_id(hdr));
+    std_msgs_header_t* hdr = std_msgs_header_from_cdr(bytes, len);
+    printf("frame_id = %s\n", std_msgs_header_get_frame_id(hdr));
 
-    ros_header_free(hdr);
-    ros_bytes_free(bytes, len);  // NOT free(bytes)
+    std_msgs_header_free(hdr);
+    edgefirst_schemas_bytes_free(bytes, len);  // NOT free(bytes)
     return 0;
 }
 ```
@@ -1752,21 +1761,21 @@ and forwarding the raw bytes unchanged:
 
 ```c
 void on_message(const uint8_t* cdr_data, size_t cdr_len) {
-    ros_image_t* img = ros_image_from_cdr(cdr_data, cdr_len);
+    sensor_msgs_image_t* img = sensor_msgs_image_from_cdr(cdr_data, cdr_len);
     if (!img) return;
 
     // Inspect metadata
-    int32_t sec = ros_image_get_stamp_sec(img);
-    const char* frame = ros_image_get_frame_id(img);
+    int32_t sec = sensor_msgs_image_get_stamp_sec(img);
+    const char* frame = sensor_msgs_image_get_frame_id(img);
     printf("[%d] %s: %ux%u\n", sec, frame,
-           ros_image_get_width(img), ros_image_get_height(img));
+           sensor_msgs_image_get_width(img), sensor_msgs_image_get_height(img));
 
     // Forward the original CDR bytes (no re-serialization needed)
     size_t fwd_len;
-    const uint8_t* fwd = ros_image_as_cdr(img, &fwd_len);
+    const uint8_t* fwd = sensor_msgs_image_as_cdr(img, &fwd_len);
     // zenoh_publish(topic, fwd, fwd_len);
 
-    ros_image_free(img);
+    sensor_msgs_image_free(img);
 }
 ```
 
@@ -1783,14 +1792,14 @@ extern "C" {
 #include <stdexcept>
 
 class ImageView {
-    ros_image_t* view_;
+    sensor_msgs_image_t* view_;
 public:
     explicit ImageView(const uint8_t* cdr, size_t len)
-        : view_(ros_image_from_cdr(cdr, len))
+        : view_(sensor_msgs_image_from_cdr(cdr, len))
     {
-        if (!view_) throw std::runtime_error("ros_image_from_cdr failed");
+        if (!view_) throw std::runtime_error("sensor_msgs_image_from_cdr failed");
     }
-    ~ImageView() { ros_image_free(view_); }
+    ~ImageView() { sensor_msgs_image_free(view_); }
 
     // Non-copyable
     ImageView(const ImageView&) = delete;
@@ -1799,17 +1808,17 @@ public:
     // Movable
     ImageView(ImageView&& o) noexcept : view_(o.view_) { o.view_ = nullptr; }
     ImageView& operator=(ImageView&& o) noexcept {
-        if (this != &o) { ros_image_free(view_); view_ = o.view_; o.view_ = nullptr; }
+        if (this != &o) { sensor_msgs_image_free(view_); view_ = o.view_; o.view_ = nullptr; }
         return *this;
     }
 
-    uint32_t width() const  { return ros_image_get_width(view_); }
-    uint32_t height() const { return ros_image_get_height(view_); }
-    const char* encoding() const { return ros_image_get_encoding(view_); }
+    uint32_t width() const  { return sensor_msgs_image_get_width(view_); }
+    uint32_t height() const { return sensor_msgs_image_get_height(view_); }
+    const char* encoding() const { return sensor_msgs_image_get_encoding(view_); }
 
     std::pair<const uint8_t*, size_t> data() const {
         size_t len;
-        auto* p = ros_image_get_data(view_, &len);
+        auto* p = sensor_msgs_image_get_data(view_, &len);
         return {p, len};
     }
 };
@@ -1828,23 +1837,23 @@ void on_image(z_loaned_sample_t* sample, void* arg) {
     const uint8_t* data = z_slice_data(&payload);
     size_t len = z_slice_len(&payload);
 
-    ros_image_t* img = ros_image_from_cdr(data, len);
+    sensor_msgs_image_t* img = sensor_msgs_image_from_cdr(data, len);
     if (!img) return;
 
     printf("[%d.%09u] %s: %ux%u %s\n",
-           ros_image_get_stamp_sec(img),
-           ros_image_get_stamp_nanosec(img),
-           ros_image_get_frame_id(img),
-           ros_image_get_width(img),
-           ros_image_get_height(img),
-           ros_image_get_encoding(img));
+           sensor_msgs_image_get_stamp_sec(img),
+           sensor_msgs_image_get_stamp_nanosec(img),
+           sensor_msgs_image_get_frame_id(img),
+           sensor_msgs_image_get_width(img),
+           sensor_msgs_image_get_height(img),
+           sensor_msgs_image_get_encoding(img));
 
     // Forward the original CDR bytes (zero re-serialization cost)
     size_t cdr_len;
-    const uint8_t* cdr = ros_image_as_cdr(img, &cdr_len);
+    const uint8_t* cdr = sensor_msgs_image_as_cdr(img, &cdr_len);
     // z_publisher_put(pub, cdr, cdr_len, NULL);
 
-    ros_image_free(img);
+    sensor_msgs_image_free(img);
 }
 ```
 
@@ -1855,17 +1864,17 @@ void publish_header(z_loaned_publisher_t* pub) {
     uint8_t* bytes = NULL;
     size_t len = 0;
 
-    ros_header_builder_t* b = ros_header_builder_new();
-    ros_header_builder_set_stamp(b, 42, 0);
-    if (ros_header_builder_set_frame_id(b, "camera_frame") != 0 ||
-        ros_header_builder_build(b, &bytes, &len) != 0) {
-        ros_header_builder_free(b);
+    std_msgs_header_builder_t* b = std_msgs_header_builder_new();
+    std_msgs_header_builder_set_stamp(b, 42, 0);
+    if (std_msgs_header_builder_set_frame_id(b, "camera_frame") != 0 ||
+        std_msgs_header_builder_build(b, &bytes, &len) != 0) {
+        std_msgs_header_builder_free(b);
         return;
     }
-    ros_header_builder_free(b);
+    std_msgs_header_builder_free(b);
 
     z_publisher_put(pub, bytes, len, NULL);
-    ros_bytes_free(bytes, len);  // NOT free(bytes)
+    edgefirst_schemas_bytes_free(bytes, len);  // NOT free(bytes)
 }
 ```
 
@@ -1887,7 +1896,7 @@ otool -L myapp | grep edgefirst
 
 ```bash
 # Verify the library exports the expected symbols
-nm -D target/release/libedgefirst_schemas.so | grep ros_header
+nm -D target/release/libedgefirst_schemas.so | grep std_msgs_header
 # If empty, rebuild: make lib
 ```
 
@@ -1921,9 +1930,9 @@ Common causes:
 1. **Use-after-free** — Using a borrowed pointer (`get_frame_id`, `get_data`,
    `as_cdr`) after calling `_free` on the handle.
 2. **Double-free** — Calling `free()` on a borrowed pointer. Only call `_free`
-   on handles, and `ros_bytes_free` on encode output.
+   on handles, and `edgefirst_schemas_bytes_free` on encode output.
 3. **Wrong free function** — Using `free()` on encode output instead of
-   `ros_bytes_free(bytes, len)`. The memory is allocated by Rust's allocator.
+   `edgefirst_schemas_bytes_free(bytes, len)`. The memory is allocated by Rust's allocator.
 4. **NULL handle** — Getters return 0 or `NULL` for NULL handles rather than
    crashing, but always check `from_cdr` return values.
 
@@ -1931,16 +1940,19 @@ Common causes:
 
 A header-only C++17 wrapper is available at
 `crates/capi/include/edgefirst/schemas.hpp`. It provides RAII-managed view and owning
-types for every C handle type — `ImageView`/`Image`, `HeaderView`/`Header`,
-`DetectView`, `ModelView`, `MaskView`/`Mask`, and so on — together with
+types under nested package namespaces — e.g.
+`sensor_msgs::ImageView`/`Image`, `std_msgs::HeaderView`/`Header`,
+`edgefirst_msgs::DetectView`, `edgefirst_msgs::ModelView`,
+`edgefirst_msgs::MaskView`/`Mask` — together with
 `expected<T, Error>` error handling (no exceptions) and range-based iteration
 for array children:
 
 ```cpp
 namespace ef = edgefirst::schemas;
+using ef::edgefirst_msgs::DetectView;
 
 // Decode a Detect message and iterate its boxes
-auto det = ef::DetectView::from_cdr(payload);
+auto det = DetectView::from_cdr(payload);
 for (auto box : det->boxes()) {
     std::cout << "label=" << box.label() << " score=" << box.score() << "\n";
 }
@@ -1948,8 +1960,8 @@ for (auto box : det->boxes()) {
 
 The range adaptors (`boxes()`, `masks()`) use the same indexed accessor
 functions documented in Rule 5 of the [Memory Management](#memory-management)
-section above (`ros_detect_get_box`, `ros_model_get_box`,
-`ros_model_get_mask`). Child views returned from the range are parent-borrowed
+section above (`edgefirst_msgs_detect_get_box`, `edgefirst_msgs_model_get_box`,
+`edgefirst_msgs_model_get_mask`). Child views returned from the range are parent-borrowed
 and must not be freed independently — exactly the same lifetime rule that
 makes zero-copy iteration possible.
 

@@ -39,7 +39,7 @@ gone. See the Migration section below.
   `StatusText`, `GpsRaw`, `TimesyncStatus`), completing the builder-only
   construction convention across every buffer-backed namespace.
 - **C/C++ builders** for the 15 buffer-backed `geometry_msgs` types, `nav_msgs/Odometry`,
-  and all nine `mavros_msgs` types (`ros_*_builder_{new,free,set_*,build,encode_into}`
+  and all nine `mavros_msgs` types (`<package>_*_builder_{new,free,set_*,build,encode_into}`
   and matching C++ `*Builder` classes), so every previously decode-only handle
   can be written with the same RelativeHumidity-style stack.
 - **Golden CDR fixtures** for the remaining geometry stamped/sequence types and
@@ -85,21 +85,27 @@ gone. See the Migration section below.
   on types added after the 3.2.0 sweep (`nav_msgs`, `mavros_msgs`,
   `RelativeHumidity`, `TimeReference`) and on the 15 buffer-backed
   `geometry_msgs` types, for a single construction path in 4.0.
-- **Legacy buffer-backed C one-shot encoders** (`ros_header_encode`,
-  `ros_image_encode`, `ros_compressed_image_encode`, `ros_compressed_video_encode`,
-  `ros_foxglove_compressed_image_encode`, `ros_mask_encode`; deprecated since 3.2.0).
-  Use the `ros_*_builder_*` handle-based API instead. Fixed-size
-  `ros_<type>_encode(buf, cap, &written, …)` for `CdrFixed` types (e.g.
-  `ros_time_encode`) are unchanged.
+- **Legacy buffer-backed C one-shot encoders** (`std_msgs_header_encode`,
+  `sensor_msgs_image_encode`, `sensor_msgs_compressed_image_encode`, `foxglove_msgs_compressed_video_encode`,
+  `foxglove_msgs_compressed_image_encode`, `edgefirst_msgs_mask_encode`; deprecated since 3.2.0).
+  Use the `<package>_*_builder_*` handle-based API instead. Fixed-size
+  `<package>_<type>_encode(buf, cap, &written, …)` for `CdrFixed` types (e.g.
+  `builtin_interfaces_time_encode`) are unchanged under the new package prefix.
 
 ### Changed
 
 - **Linux SOVERSION bumps to `.so.4`** when the crate version becomes 4.0.0
   (automatic via `crates/capi/build.rs`). Downstream linkers must rebuild
   against `libedgefirst_schemas.so.4`.
-- **C API prefix rename (`ros_*` → per-namespace prefixes) is still planned**
-  for a follow-up before the 4.0 tag (~1,200 symbols; `sensor_*`,
-  `edgefirst_*`, `foxglove_*`, etc.).
+- **C API prefix rename completed.** Every C symbol now uses the ROS package
+  name as its prefix (`sensor_msgs_`, `edgefirst_msgs_`, `foxglove_msgs_`,
+  `geometry_msgs_`, `std_msgs_`, `nav_msgs_`, `mavros_msgs_`,
+  `builtin_interfaces_`). Library helpers use `edgefirst_schemas_*` (e.g.
+  `edgefirst_schemas_bytes_free`). There are **no** `ros_*` aliases.
+  C++ wrappers move into matching nested namespaces
+  (`edgefirst::schemas::sensor_msgs::Image`); Foxglove/Mavros class-name
+  collision prefixes are dropped (`FoxgloveCompressedImage` →
+  `foxglove_msgs::CompressedImage`).
 
 - **`make lib` and `make install` are platform-aware.** They previously
   hardcoded the GNU/Linux `.so` naming, so both failed outright on macOS even
@@ -171,7 +177,7 @@ standalone: bytes = frame.tensor.to_standalone_cdr()
 
 ```c
 uint8_t *bytes = NULL; size_t len = 0;
-ros_tensor_to_standalone_cdr(ros_camera_frame_get_tensor(f), &bytes, &len);
+edgefirst_msgs_tensor_to_standalone_cdr(edgefirst_msgs_camera_frame_get_tensor(f), &bytes, &len);
 ```
 
 #### Rust API migration
@@ -192,31 +198,62 @@ let msg = sensor_msgs::Image::builder()
 
 #### C API migration
 
-Buffer-backed one-shot encoders (`ros_header_encode`, `ros_image_encode`, …)
+Buffer-backed one-shot encoders (`std_msgs_header_encode`, `sensor_msgs_image_encode`, …)
 are removed. Use the builder handle API:
 
 ```c
-ros_image_builder_t *b = ros_image_builder_new();
-ros_image_builder_set_stamp(b, sec, nsec);
-ros_image_builder_set_frame_id(b, "camera");
+sensor_msgs_image_builder_t *b = sensor_msgs_image_builder_new();
+sensor_msgs_image_builder_set_stamp(b, sec, nsec);
+sensor_msgs_image_builder_set_frame_id(b, "camera");
 /* … */
 uint8_t *bytes = NULL; size_t len = 0;
-ros_image_builder_build(b, &bytes, &len);
-ros_image_builder_free(b);
-ros_bytes_free(bytes, len);
+sensor_msgs_image_builder_build(b, &bytes, &len);
+sensor_msgs_image_builder_free(b);
+edgefirst_schemas_bytes_free(bytes, len);
 ```
 
-Fixed-size `CdrFixed` encoders such as `ros_time_encode(buf, cap, &written, …)`
-are unchanged.
+Fixed-size `CdrFixed` encoders such as
+`builtin_interfaces_time_encode(buf, cap, &written, …)` keep their encode API
+under the new package prefix.
+
+#### C++ API migration
+
+Types move into package namespaces; collision prefixes are dropped:
+
+```cpp
+namespace ef = edgefirst::schemas;
+using ef::sensor_msgs::Image;
+using ef::foxglove_msgs::CompressedImage;  // was FoxgloveCompressedImage
+using ef::mavros_msgs::AltitudeView;       // was MavrosAltitudeView
+```
+
+#### C prefix map
+
+| Package | C prefix | C++ namespace |
+|---------|----------|----------------|
+| builtin_interfaces | `builtin_interfaces_` | `edgefirst::schemas::builtin_interfaces` |
+| std_msgs | `std_msgs_` | `edgefirst::schemas::std_msgs` |
+| sensor_msgs | `sensor_msgs_` | `edgefirst::schemas::sensor_msgs` |
+| geometry_msgs | `geometry_msgs_` | `edgefirst::schemas::geometry_msgs` |
+| nav_msgs | `nav_msgs_` | `edgefirst::schemas::nav_msgs` |
+| foxglove_msgs | `foxglove_msgs_` | `edgefirst::schemas::foxglove_msgs` |
+| edgefirst_msgs | `edgefirst_msgs_` | `edgefirst::schemas::edgefirst_msgs` |
+| mavros_msgs | `mavros_msgs_` | `edgefirst::schemas::mavros_msgs` |
+| (library helpers) | `edgefirst_schemas_` | n/a |
+
+Stem cleanup examples: `ros_foxglove_compressed_image_*` →
+`foxglove_msgs_compressed_image_*`; `ros_mavros_altitude_*` →
+`mavros_msgs_altitude_*`; `ros_bytes_free` → `edgefirst_schemas_bytes_free`.
 
 #### Downstream checklist
 
 - Upgrade producers and consumers of `rt/camera/*` topics together
 - Rebuild against `libedgefirst_schemas.so.4` when cutting 4.0
 - Migrate Rust code from `Foo::new()` to `Foo::builder()`
-- Migrate C code from buffer-backed `ros_*_encode(&bytes, …)` to
-  `ros_*_builder_*`
-- Complete C API prefix rename before the 4.0 tag
+- Migrate C code from buffer-backed one-shot encode to
+  `<package>_*_builder_*`
+- Migrate C/C++ call sites from `ros_*` to package-name prefixes / nested
+  namespaces (no `ros_*` aliases)
 
 ## [3.5.0] - 2026-06-29
 
@@ -493,7 +530,7 @@ are unchanged.
   removed in 4.0. Use `Foo::builder()` instead.
 
 - **All legacy `ros_*_encode(...)` C FFI functions** continue to work
-  but route through the builder internally. The `ros_*_builder_*` API
+  but route through the builder internally. The `<package>_*_builder_*` API
   is the recommended replacement.
 
 ### Migration

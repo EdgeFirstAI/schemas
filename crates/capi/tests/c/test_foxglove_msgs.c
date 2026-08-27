@@ -3,8 +3,8 @@
  * @brief Criterion tests for Foxglove messages (FoxgloveCompressedVideo)
  *
  * Buffer-backed type: FoxgloveCompressedVideo
- *   ros_foxglove_compressed_video_builder_* / ros_compressed_video_from_cdr
- *   ros_compressed_video_get_* / ros_compressed_video_free
+ *   foxglove_msgs_compressed_video_builder_* / foxglove_msgs_compressed_video_from_cdr
+ *   foxglove_msgs_compressed_video_get_* / foxglove_msgs_compressed_video_free
  *
  * SPDX-License-Identifier: Apache-2.0
  * Copyright 2025 Au-Zone Technologies. All Rights Reserved.
@@ -22,18 +22,18 @@ static int build_compressed_video(uint8_t **bytes, size_t *len,
                                   const char *frame_id,
                                   const uint8_t *data, size_t data_len,
                                   const char *format) {
-    ros_foxglove_compressed_video_builder_t *b =
-        ros_foxglove_compressed_video_builder_new();
+    foxglove_msgs_compressed_video_builder_t *b =
+        foxglove_msgs_compressed_video_builder_new();
     if (!b) return -1;
-    ros_foxglove_compressed_video_builder_set_stamp(b, sec, nsec);
-    if (ros_foxglove_compressed_video_builder_set_frame_id(b, frame_id) != 0 ||
-        ros_foxglove_compressed_video_builder_set_data(b, data, data_len) != 0 ||
-        ros_foxglove_compressed_video_builder_set_format(b, format) != 0) {
-        ros_foxglove_compressed_video_builder_free(b);
+    foxglove_msgs_compressed_video_builder_set_stamp(b, sec, nsec);
+    if (foxglove_msgs_compressed_video_builder_set_frame_id(b, frame_id) != 0 ||
+        foxglove_msgs_compressed_video_builder_set_data(b, data, data_len) != 0 ||
+        foxglove_msgs_compressed_video_builder_set_format(b, format) != 0) {
+        foxglove_msgs_compressed_video_builder_free(b);
         return -1;
     }
-    int ret = ros_foxglove_compressed_video_builder_build(b, bytes, len);
-    ros_foxglove_compressed_video_builder_free(b);
+    int ret = foxglove_msgs_compressed_video_builder_build(b, bytes, len);
+    foxglove_msgs_compressed_video_builder_free(b);
     return ret;
 }
 
@@ -42,18 +42,18 @@ static int build_foxglove_compressed_image(uint8_t **bytes, size_t *len,
                                            const char *frame_id,
                                            const uint8_t *data, size_t data_len,
                                            const char *format) {
-    ros_foxglove_compressed_image_builder_t *b =
-        ros_foxglove_compressed_image_builder_new();
+    foxglove_msgs_compressed_image_builder_t *b =
+        foxglove_msgs_compressed_image_builder_new();
     if (!b) return -1;
-    ros_foxglove_compressed_image_builder_set_stamp(b, sec, nsec);
-    if (ros_foxglove_compressed_image_builder_set_frame_id(b, frame_id) != 0 ||
-        ros_foxglove_compressed_image_builder_set_data(b, data, data_len) != 0 ||
-        ros_foxglove_compressed_image_builder_set_format(b, format) != 0) {
-        ros_foxglove_compressed_image_builder_free(b);
+    foxglove_msgs_compressed_image_builder_set_stamp(b, sec, nsec);
+    if (foxglove_msgs_compressed_image_builder_set_frame_id(b, frame_id) != 0 ||
+        foxglove_msgs_compressed_image_builder_set_data(b, data, data_len) != 0 ||
+        foxglove_msgs_compressed_image_builder_set_format(b, format) != 0) {
+        foxglove_msgs_compressed_image_builder_free(b);
         return -1;
     }
-    int ret = ros_foxglove_compressed_image_builder_build(b, bytes, len);
-    ros_foxglove_compressed_image_builder_free(b);
+    int ret = foxglove_msgs_compressed_image_builder_build(b, bytes, len);
+    foxglove_msgs_compressed_image_builder_free(b);
     return ret;
 }
 
@@ -75,27 +75,27 @@ Test(foxglove_msgs, compressed_video_encode_from_cdr_roundtrip) {
     cr_assert_not_null(bytes);
     cr_assert_gt(len, 0);
 
-    ros_compressed_video_t *handle = ros_compressed_video_from_cdr(bytes, len);
+    foxglove_msgs_compressed_video_t *handle = foxglove_msgs_compressed_video_from_cdr(bytes, len);
     cr_assert_not_null(handle, "from_cdr should succeed");
 
     // Verify header
-    cr_assert_eq(ros_compressed_video_get_stamp_sec(handle), 1234567890);
-    cr_assert_eq(ros_compressed_video_get_stamp_nanosec(handle), 123456789);
-    cr_assert_str_eq(ros_compressed_video_get_frame_id(handle), "video_stream");
+    cr_assert_eq(foxglove_msgs_compressed_video_get_stamp_sec(handle), 1234567890);
+    cr_assert_eq(foxglove_msgs_compressed_video_get_stamp_nanosec(handle), 123456789);
+    cr_assert_str_eq(foxglove_msgs_compressed_video_get_frame_id(handle), "video_stream");
 
     // Verify format
-    cr_assert_str_eq(ros_compressed_video_get_format(handle), "h264");
+    cr_assert_str_eq(foxglove_msgs_compressed_video_get_format(handle), "h264");
 
     // Verify data
     size_t data_len = 0;
-    const uint8_t *data = ros_compressed_video_get_data(handle, &data_len);
+    const uint8_t *data = foxglove_msgs_compressed_video_get_data(handle, &data_len);
     cr_assert_eq(data_len, sizeof(test_data));
     for (size_t i = 0; i < data_len; i++) {
         cr_assert_eq(data[i], test_data[i]);
     }
 
-    ros_compressed_video_free(handle);
-    ros_bytes_free(bytes, len);
+    foxglove_msgs_compressed_video_free(handle);
+    edgefirst_schemas_bytes_free(bytes, len);
 }
 
 Test(foxglove_msgs, compressed_video_encode_h265) {
@@ -105,12 +105,12 @@ Test(foxglove_msgs, compressed_video_encode_h265) {
     int ret = build_compressed_video(&bytes, &len, 0, 0, "cam0", NULL, 0, "h265");
     cr_assert_eq(ret, 0);
 
-    ros_compressed_video_t *handle = ros_compressed_video_from_cdr(bytes, len);
+    foxglove_msgs_compressed_video_t *handle = foxglove_msgs_compressed_video_from_cdr(bytes, len);
     cr_assert_not_null(handle);
-    cr_assert_str_eq(ros_compressed_video_get_format(handle), "h265");
+    cr_assert_str_eq(foxglove_msgs_compressed_video_get_format(handle), "h265");
 
-    ros_compressed_video_free(handle);
-    ros_bytes_free(bytes, len);
+    foxglove_msgs_compressed_video_free(handle);
+    edgefirst_schemas_bytes_free(bytes, len);
 }
 
 Test(foxglove_msgs, compressed_video_encode_empty_data) {
@@ -120,16 +120,16 @@ Test(foxglove_msgs, compressed_video_encode_empty_data) {
     int ret = build_compressed_video(&bytes, &len, 0, 0, "", NULL, 0, "");
     cr_assert_eq(ret, 0);
 
-    ros_compressed_video_t *handle = ros_compressed_video_from_cdr(bytes, len);
+    foxglove_msgs_compressed_video_t *handle = foxglove_msgs_compressed_video_from_cdr(bytes, len);
     cr_assert_not_null(handle);
 
     size_t data_len = 0;
-    const uint8_t *data = ros_compressed_video_get_data(handle, &data_len);
+    const uint8_t *data = foxglove_msgs_compressed_video_get_data(handle, &data_len);
     (void)data;
     cr_assert_eq(data_len, 0, "Default data length should be 0");
 
-    ros_compressed_video_free(handle);
-    ros_bytes_free(bytes, len);
+    foxglove_msgs_compressed_video_free(handle);
+    edgefirst_schemas_bytes_free(bytes, len);
 }
 
 Test(foxglove_msgs, compressed_video_large_data) {
@@ -149,23 +149,23 @@ Test(foxglove_msgs, compressed_video_large_data) {
                                      large_data, frame_size, "h264");
     cr_assert_eq(ret, 0);
 
-    ros_compressed_video_t *handle = ros_compressed_video_from_cdr(bytes, len);
+    foxglove_msgs_compressed_video_t *handle = foxglove_msgs_compressed_video_from_cdr(bytes, len);
     cr_assert_not_null(handle);
 
     size_t data_len = 0;
-    const uint8_t *data = ros_compressed_video_get_data(handle, &data_len);
+    const uint8_t *data = foxglove_msgs_compressed_video_get_data(handle, &data_len);
     cr_assert_eq(data_len, frame_size);
     cr_assert_eq(data[0], 0);
     cr_assert_eq(data[frame_size - 1], (uint8_t)((frame_size - 1) & 0xFF));
 
     free(large_data);
-    ros_compressed_video_free(handle);
-    ros_bytes_free(bytes, len);
+    foxglove_msgs_compressed_video_free(handle);
+    edgefirst_schemas_bytes_free(bytes, len);
 }
 
 Test(foxglove_msgs, compressed_video_from_cdr_null) {
     errno = 0;
-    ros_compressed_video_t *handle = ros_compressed_video_from_cdr(NULL, 100);
+    foxglove_msgs_compressed_video_t *handle = foxglove_msgs_compressed_video_from_cdr(NULL, 100);
     cr_assert_null(handle, "Should return NULL for NULL data");
     cr_assert_eq(errno, EINVAL, "errno should be EINVAL");
 }
@@ -173,29 +173,29 @@ Test(foxglove_msgs, compressed_video_from_cdr_null) {
 Test(foxglove_msgs, compressed_video_from_cdr_invalid) {
     uint8_t garbage[] = {0xDE, 0xAD, 0xBE, 0xEF};
     errno = 0;
-    ros_compressed_video_t *handle = ros_compressed_video_from_cdr(garbage, sizeof(garbage));
+    foxglove_msgs_compressed_video_t *handle = foxglove_msgs_compressed_video_from_cdr(garbage, sizeof(garbage));
     cr_assert_null(handle, "Should return NULL for invalid CDR data");
     cr_assert_eq(errno, EBADMSG, "errno should be EBADMSG");
 }
 
 Test(foxglove_msgs, compressed_video_free_null) {
     // Should not crash
-    ros_compressed_video_free(NULL);
+    foxglove_msgs_compressed_video_free(NULL);
 }
 
 Test(foxglove_msgs, compressed_video_getters_null) {
-    cr_assert_eq(ros_compressed_video_get_stamp_sec(NULL), 0);
-    cr_assert_eq(ros_compressed_video_get_stamp_nanosec(NULL), 0);
-    cr_assert_null(ros_compressed_video_get_frame_id(NULL));
-    cr_assert_null(ros_compressed_video_get_format(NULL));
-    cr_assert_null(ros_compressed_video_get_data(NULL, NULL));
+    cr_assert_eq(foxglove_msgs_compressed_video_get_stamp_sec(NULL), 0);
+    cr_assert_eq(foxglove_msgs_compressed_video_get_stamp_nanosec(NULL), 0);
+    cr_assert_null(foxglove_msgs_compressed_video_get_frame_id(NULL));
+    cr_assert_null(foxglove_msgs_compressed_video_get_format(NULL));
+    cr_assert_null(foxglove_msgs_compressed_video_get_data(NULL, NULL));
 }
 
 // ============================================================================
 // FoxgloveCompressedImage Tests
 //
-// Wire-identical to CompressedVideo; uses the ros_foxglove_compressed_image_
-// prefix (the short ros_compressed_image_ belongs to sensor_msgs).
+// Wire-identical to CompressedVideo; uses the foxglove_msgs_compressed_image_
+// prefix (the short sensor_msgs_compressed_image_ belongs to sensor_msgs).
 // ============================================================================
 
 Test(foxglove_msgs, compressed_image_encode_from_cdr_roundtrip) {
@@ -212,60 +212,60 @@ Test(foxglove_msgs, compressed_image_encode_from_cdr_roundtrip) {
     cr_assert_not_null(bytes);
     cr_assert_gt(len, 0);
 
-    ros_foxglove_compressed_image_t *handle =
-        ros_foxglove_compressed_image_from_cdr(bytes, len);
+    foxglove_msgs_compressed_image_t *handle =
+        foxglove_msgs_compressed_image_from_cdr(bytes, len);
     cr_assert_not_null(handle, "from_cdr should succeed");
 
-    cr_assert_eq(ros_foxglove_compressed_image_get_stamp_sec(handle), 1234567890);
-    cr_assert_eq(ros_foxglove_compressed_image_get_stamp_nanosec(handle), 123456789);
+    cr_assert_eq(foxglove_msgs_compressed_image_get_stamp_sec(handle), 1234567890);
+    cr_assert_eq(foxglove_msgs_compressed_image_get_stamp_nanosec(handle), 123456789);
     // timestamp alias getters must agree with stamp getters.
-    cr_assert_eq(ros_foxglove_compressed_image_get_timestamp_sec(handle), 1234567890);
-    cr_assert_eq(ros_foxglove_compressed_image_get_timestamp_nanosec(handle), 123456789);
-    cr_assert_str_eq(ros_foxglove_compressed_image_get_frame_id(handle), "image_stream");
-    cr_assert_str_eq(ros_foxglove_compressed_image_get_format(handle), "jpeg");
+    cr_assert_eq(foxglove_msgs_compressed_image_get_timestamp_sec(handle), 1234567890);
+    cr_assert_eq(foxglove_msgs_compressed_image_get_timestamp_nanosec(handle), 123456789);
+    cr_assert_str_eq(foxglove_msgs_compressed_image_get_frame_id(handle), "image_stream");
+    cr_assert_str_eq(foxglove_msgs_compressed_image_get_format(handle), "jpeg");
 
     size_t data_len = 0;
-    const uint8_t *data = ros_foxglove_compressed_image_get_data(handle, &data_len);
+    const uint8_t *data = foxglove_msgs_compressed_image_get_data(handle, &data_len);
     cr_assert_eq(data_len, sizeof(test_data));
     for (size_t i = 0; i < data_len; i++) {
         cr_assert_eq(data[i], test_data[i]);
     }
 
-    ros_foxglove_compressed_image_free(handle);
-    ros_bytes_free(bytes, len);
+    foxglove_msgs_compressed_image_free(handle);
+    edgefirst_schemas_bytes_free(bytes, len);
 }
 
 Test(foxglove_msgs, compressed_image_builder_roundtrip) {
     uint8_t test_data[] = {0x89, 0x50, 0x4E, 0x47}; // PNG signature prefix
-    ros_foxglove_compressed_image_builder_t *b =
-        ros_foxglove_compressed_image_builder_new();
+    foxglove_msgs_compressed_image_builder_t *b =
+        foxglove_msgs_compressed_image_builder_new();
     cr_assert_not_null(b);
 
-    ros_foxglove_compressed_image_builder_set_timestamp(b, 7, 9);
-    cr_assert_eq(ros_foxglove_compressed_image_builder_set_frame_id(b, "cam0"), 0);
-    cr_assert_eq(ros_foxglove_compressed_image_builder_set_data(b, test_data, sizeof(test_data)), 0);
-    cr_assert_eq(ros_foxglove_compressed_image_builder_set_format(b, "png"), 0);
+    foxglove_msgs_compressed_image_builder_set_timestamp(b, 7, 9);
+    cr_assert_eq(foxglove_msgs_compressed_image_builder_set_frame_id(b, "cam0"), 0);
+    cr_assert_eq(foxglove_msgs_compressed_image_builder_set_data(b, test_data, sizeof(test_data)), 0);
+    cr_assert_eq(foxglove_msgs_compressed_image_builder_set_format(b, "png"), 0);
 
     uint8_t *bytes = NULL;
     size_t len = 0;
-    cr_assert_eq(ros_foxglove_compressed_image_builder_build(b, &bytes, &len), 0);
-    ros_foxglove_compressed_image_builder_free(b);
+    cr_assert_eq(foxglove_msgs_compressed_image_builder_build(b, &bytes, &len), 0);
+    foxglove_msgs_compressed_image_builder_free(b);
 
-    ros_foxglove_compressed_image_t *handle =
-        ros_foxglove_compressed_image_from_cdr(bytes, len);
+    foxglove_msgs_compressed_image_t *handle =
+        foxglove_msgs_compressed_image_from_cdr(bytes, len);
     cr_assert_not_null(handle);
-    cr_assert_eq(ros_foxglove_compressed_image_get_stamp_sec(handle), 7);
-    cr_assert_str_eq(ros_foxglove_compressed_image_get_format(handle), "png");
+    cr_assert_eq(foxglove_msgs_compressed_image_get_stamp_sec(handle), 7);
+    cr_assert_str_eq(foxglove_msgs_compressed_image_get_format(handle), "png");
 
     // In-place stamp setter rewrites the buffer.
-    cr_assert_eq(ros_foxglove_compressed_image_set_stamp(bytes, len, 100, 200), 0);
-    ros_foxglove_compressed_image_free(handle);
-    handle = ros_foxglove_compressed_image_from_cdr(bytes, len);
-    cr_assert_eq(ros_foxglove_compressed_image_get_stamp_sec(handle), 100);
-    cr_assert_eq(ros_foxglove_compressed_image_get_stamp_nanosec(handle), 200);
+    cr_assert_eq(foxglove_msgs_compressed_image_set_stamp(bytes, len, 100, 200), 0);
+    foxglove_msgs_compressed_image_free(handle);
+    handle = foxglove_msgs_compressed_image_from_cdr(bytes, len);
+    cr_assert_eq(foxglove_msgs_compressed_image_get_stamp_sec(handle), 100);
+    cr_assert_eq(foxglove_msgs_compressed_image_get_stamp_nanosec(handle), 200);
 
-    ros_foxglove_compressed_image_free(handle);
-    ros_bytes_free(bytes, len);
+    foxglove_msgs_compressed_image_free(handle);
+    edgefirst_schemas_bytes_free(bytes, len);
 }
 
 Test(foxglove_msgs, compressed_image_wire_identical_to_video) {
@@ -282,14 +282,14 @@ Test(foxglove_msgs, compressed_image_wire_identical_to_video) {
     cr_assert_eq(img_len, vid_len, "wire sizes must match");
     cr_assert_eq(memcmp(img, vid, img_len), 0, "CDR bytes must be identical");
 
-    ros_bytes_free(img, img_len);
-    ros_bytes_free(vid, vid_len);
+    edgefirst_schemas_bytes_free(img, img_len);
+    edgefirst_schemas_bytes_free(vid, vid_len);
 }
 
 Test(foxglove_msgs, compressed_image_from_cdr_null) {
     errno = 0;
-    ros_foxglove_compressed_image_t *handle =
-        ros_foxglove_compressed_image_from_cdr(NULL, 100);
+    foxglove_msgs_compressed_image_t *handle =
+        foxglove_msgs_compressed_image_from_cdr(NULL, 100);
     cr_assert_null(handle, "Should return NULL for NULL data");
     cr_assert_eq(errno, EINVAL, "errno should be EINVAL");
 }
@@ -297,16 +297,16 @@ Test(foxglove_msgs, compressed_image_from_cdr_null) {
 Test(foxglove_msgs, compressed_image_from_cdr_invalid) {
     uint8_t garbage[] = {0xDE, 0xAD, 0xBE, 0xEF};
     errno = 0;
-    ros_foxglove_compressed_image_t *handle =
-        ros_foxglove_compressed_image_from_cdr(garbage, sizeof(garbage));
+    foxglove_msgs_compressed_image_t *handle =
+        foxglove_msgs_compressed_image_from_cdr(garbage, sizeof(garbage));
     cr_assert_null(handle, "Should return NULL for invalid CDR data");
     cr_assert_eq(errno, EBADMSG, "errno should be EBADMSG");
 }
 
 Test(foxglove_msgs, compressed_image_getters_null) {
-    cr_assert_eq(ros_foxglove_compressed_image_get_stamp_sec(NULL), 0);
-    cr_assert_eq(ros_foxglove_compressed_image_get_stamp_nanosec(NULL), 0);
-    cr_assert_null(ros_foxglove_compressed_image_get_frame_id(NULL));
-    cr_assert_null(ros_foxglove_compressed_image_get_format(NULL));
-    cr_assert_null(ros_foxglove_compressed_image_get_data(NULL, NULL));
+    cr_assert_eq(foxglove_msgs_compressed_image_get_stamp_sec(NULL), 0);
+    cr_assert_eq(foxglove_msgs_compressed_image_get_stamp_nanosec(NULL), 0);
+    cr_assert_null(foxglove_msgs_compressed_image_get_frame_id(NULL));
+    cr_assert_null(foxglove_msgs_compressed_image_get_format(NULL));
+    cr_assert_null(foxglove_msgs_compressed_image_get_data(NULL, NULL));
 }

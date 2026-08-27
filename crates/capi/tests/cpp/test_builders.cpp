@@ -20,15 +20,154 @@
 #include <vector>
 
 namespace ef = edgefirst::schemas;
+using ef::builtin_interfaces::Time;
+using ef::builtin_interfaces::Duration;
+using ef::geometry_msgs::Vector3;
+using ef::geometry_msgs::Point;
+using ef::geometry_msgs::Point32;
+using ef::geometry_msgs::Quaternion;
+using ef::geometry_msgs::Pose;
+using ef::geometry_msgs::Transform;
+using ef::geometry_msgs::Twist;
+using ef::geometry_msgs::Accel;
+using ef::geometry_msgs::Wrench;
+using ef::geometry_msgs::PoseWithCovariance;
+using ef::geometry_msgs::TwistWithCovariance;
+using ef::geometry_msgs::AccelWithCovariance;
+using ef::geometry_msgs::AccelStampedView;
+using ef::geometry_msgs::AccelStampedBuilder;
+using ef::geometry_msgs::TwistStampedView;
+using ef::geometry_msgs::TwistStampedBuilder;
+using ef::geometry_msgs::WrenchStampedView;
+using ef::geometry_msgs::WrenchStampedBuilder;
+using ef::geometry_msgs::PointStampedView;
+using ef::geometry_msgs::PointStampedBuilder;
+using ef::geometry_msgs::InertiaStampedView;
+using ef::geometry_msgs::InertiaStampedBuilder;
+using ef::geometry_msgs::Vector3StampedView;
+using ef::geometry_msgs::Vector3StampedBuilder;
+using ef::geometry_msgs::PoseStampedView;
+using ef::geometry_msgs::PoseStampedBuilder;
+using ef::geometry_msgs::QuaternionStampedView;
+using ef::geometry_msgs::QuaternionStampedBuilder;
+using ef::geometry_msgs::PoseWithCovarianceStampedView;
+using ef::geometry_msgs::PoseWithCovarianceStampedBuilder;
+using ef::geometry_msgs::TwistWithCovarianceStampedView;
+using ef::geometry_msgs::TwistWithCovarianceStampedBuilder;
+using ef::geometry_msgs::AccelWithCovarianceStampedView;
+using ef::geometry_msgs::AccelWithCovarianceStampedBuilder;
+using ef::geometry_msgs::PolygonView;
+using ef::geometry_msgs::PolygonBuilder;
+using ef::geometry_msgs::PolygonStampedView;
+using ef::geometry_msgs::PolygonStampedBuilder;
+using ef::geometry_msgs::PoseArrayView;
+using ef::geometry_msgs::PoseArrayBuilder;
+using ef::geometry_msgs::TransformStampedView;
+using ef::geometry_msgs::TransformStampedBuilder;
+using ef::std_msgs::Header;
+using ef::std_msgs::HeaderView;
+using ef::std_msgs::HeaderBuilder;
+using ef::sensor_msgs::NavSatStatus;
+using ef::sensor_msgs::CompressedImage;
+using ef::sensor_msgs::CompressedImageView;
+using ef::sensor_msgs::CompressedImageBuilder;
+using ef::sensor_msgs::Image;
+using ef::sensor_msgs::ImageView;
+using ef::sensor_msgs::ImageBuilder;
+using ef::sensor_msgs::ImuView;
+using ef::sensor_msgs::ImuBuilder;
+using ef::sensor_msgs::NavSatFixView;
+using ef::sensor_msgs::NavSatFixBuilder;
+using ef::sensor_msgs::CameraInfoView;
+using ef::sensor_msgs::CameraInfoBuilder;
+using ef::sensor_msgs::PointCloud2View;
+using ef::sensor_msgs::PointCloud2Builder;
+using ef::sensor_msgs::PointFieldBuilder;
+using ef::sensor_msgs::MagneticFieldView;
+using ef::sensor_msgs::MagneticFieldBuilder;
+using ef::sensor_msgs::FluidPressureView;
+using ef::sensor_msgs::FluidPressureBuilder;
+using ef::sensor_msgs::TemperatureView;
+using ef::sensor_msgs::TemperatureBuilder;
+using ef::sensor_msgs::BatteryStateView;
+using ef::sensor_msgs::BatteryStateBuilder;
+using ef::sensor_msgs::RelativeHumidityView;
+using ef::sensor_msgs::RelativeHumidityBuilder;
+using ef::sensor_msgs::TimeReferenceView;
+using ef::sensor_msgs::TimeReferenceBuilder;
+using ef::nav_msgs::MapMetaData;
+using ef::nav_msgs::OdometryView;
+using ef::nav_msgs::OdometryBuilder;
+using ef::nav_msgs::GridCellsView;
+using ef::nav_msgs::GridCellsBuilder;
+using ef::nav_msgs::OccupancyGridView;
+using ef::nav_msgs::OccupancyGridBuilder;
+using ef::nav_msgs::PathView;
+using ef::nav_msgs::PathBuilder;
+using ef::foxglove_msgs::CompressedVideo;
+using ef::foxglove_msgs::CompressedVideoView;
+using ef::foxglove_msgs::CompressedVideoBuilder;
+using ef::foxglove_msgs::TextAnnotationBuilder;
+using ef::foxglove_msgs::PointAnnotationBuilder;
+using ef::foxglove_msgs::ImageAnnotationBuilder;
+using ef::mavros_msgs::AltitudeView;
+using ef::mavros_msgs::AltitudeBuilder;
+using ef::mavros_msgs::VfrHudView;
+using ef::mavros_msgs::VfrHudBuilder;
+using ef::mavros_msgs::EstimatorStatusView;
+using ef::mavros_msgs::EstimatorStatusBuilder;
+using ef::mavros_msgs::ExtendedStateView;
+using ef::mavros_msgs::ExtendedStateBuilder;
+using ef::mavros_msgs::SysStatusView;
+using ef::mavros_msgs::SysStatusBuilder;
+using ef::mavros_msgs::StateView;
+using ef::mavros_msgs::StateBuilder;
+using ef::mavros_msgs::StatusTextView;
+using ef::mavros_msgs::StatusTextBuilder;
+using ef::mavros_msgs::GpsRawView;
+using ef::mavros_msgs::GpsRawBuilder;
+using ef::mavros_msgs::TimesyncStatusView;
+using ef::mavros_msgs::TimesyncStatusBuilder;
+using ef::edgefirst_msgs::Mask;
+using ef::edgefirst_msgs::MaskView;
+using ef::edgefirst_msgs::MaskBuilder;
+using ef::edgefirst_msgs::LocalTimeView;
+using ef::edgefirst_msgs::LocalTimeBuilder;
+using ef::edgefirst_msgs::TrackView;
+using ef::edgefirst_msgs::TrackBuilder;
+using ef::edgefirst_msgs::BoxView;
+using ef::edgefirst_msgs::DetectView;
+using ef::edgefirst_msgs::DetectBuilder;
+using ef::edgefirst_msgs::DetectBoxBuilder;
+using ef::edgefirst_msgs::ModelView;
+using ef::edgefirst_msgs::ModelBuilder;
+using ef::edgefirst_msgs::ModelInfoView;
+using ef::edgefirst_msgs::ModelInfoBuilder;
+using ef::edgefirst_msgs::RadarCubeView;
+using ef::edgefirst_msgs::RadarCubeBuilder;
+using ef::edgefirst_msgs::RadarInfoView;
+using ef::edgefirst_msgs::RadarInfoBuilder;
+using ef::edgefirst_msgs::VibrationView;
+using ef::edgefirst_msgs::VibrationBuilder;
+using ef::edgefirst_msgs::TensorView;
+using ef::edgefirst_msgs::TensorBuilder;
+using ef::edgefirst_msgs::TensorStampedView;
+using ef::edgefirst_msgs::TensorStampedBuilder;
+using ef::edgefirst_msgs::CameraFrameView;
+using ef::edgefirst_msgs::CameraFrameBuilder;
+using FoxgloveCompressedImage = ef::foxglove_msgs::CompressedImage;
+using FoxgloveCompressedImageView = ef::foxglove_msgs::CompressedImageView;
+using FoxgloveCompressedImageBuilder = ef::foxglove_msgs::CompressedImageBuilder;
+
 
 // ============================================================================
 // Helpers
 // ============================================================================
 
-/// Free a Released buffer (wraps ros_bytes_free).
+/// Free a Released buffer (wraps edgefirst_schemas_bytes_free).
 static void free_released(ef::Released& r) {
     if (r.data) {
-        ros_bytes_free(r.data, r.size);
+        edgefirst_schemas_bytes_free(r.data, r.size);
         r.data = nullptr;
         r.size = 0;
     }
@@ -39,7 +178,7 @@ static void free_released(ef::Released& r) {
 // ============================================================================
 
 TEST_CASE("HeaderBuilder create + build round-trip", "[builder][header]") {
-    auto b = ef::HeaderBuilder::create();
+    auto b = HeaderBuilder::create();
     REQUIRE(b.has_value());
 
     // Fluent chaining
@@ -54,7 +193,7 @@ TEST_CASE("HeaderBuilder create + build round-trip", "[builder][header]") {
     REQUIRE(rel.size > 0);
 
     // Round-trip: parse the CDR and verify fields
-    auto view = ef::HeaderView::from_cdr({rel.data, rel.size});
+    auto view = HeaderView::from_cdr({rel.data, rel.size});
     REQUIRE(view.has_value());
     CHECK(view->stamp().sec == 100);
     CHECK(view->stamp().nanosec == 200);
@@ -64,7 +203,7 @@ TEST_CASE("HeaderBuilder create + build round-trip", "[builder][header]") {
 }
 
 TEST_CASE("HeaderBuilder encode_into", "[builder][header][encode_into]") {
-    auto b = ef::HeaderBuilder::create();
+    auto b = HeaderBuilder::create();
     REQUIRE(b.has_value());
     b->stamp({42, 0});
     auto fid = b->frame_id("enc");
@@ -77,14 +216,14 @@ TEST_CASE("HeaderBuilder encode_into", "[builder][header][encode_into]") {
     REQUIRE(*len > 0);
     REQUIRE(*len <= buf.size());
 
-    auto view = ef::HeaderView::from_cdr({buf.data(), *len});
+    auto view = HeaderView::from_cdr({buf.data(), *len});
     REQUIRE(view.has_value());
     CHECK(view->stamp().sec == 42);
     CHECK(view->frame_id() == "enc");
 }
 
 TEST_CASE("HeaderBuilder encode_into too-small buffer", "[builder][header][error]") {
-    auto b = ef::HeaderBuilder::create();
+    auto b = HeaderBuilder::create();
     REQUIRE(b.has_value());
     b->stamp({1, 2});
     auto fid = b->frame_id("tiny");
@@ -100,7 +239,7 @@ TEST_CASE("HeaderBuilder encode_into too-small buffer", "[builder][header][error
 // ============================================================================
 
 TEST_CASE("ImuBuilder full round-trip", "[builder][imu]") {
-    auto b = ef::ImuBuilder::create();
+    auto b = ImuBuilder::create();
     REQUIRE(b.has_value());
 
     b->stamp({10, 20})
@@ -120,7 +259,7 @@ TEST_CASE("ImuBuilder full round-trip", "[builder][imu]") {
     REQUIRE(result.has_value());
     auto rel = *result;
 
-    auto view = ef::ImuView::from_cdr({rel.data, rel.size});
+    auto view = ImuView::from_cdr({rel.data, rel.size});
     REQUIRE(view.has_value());
     CHECK(view->stamp().sec == 10);
     CHECK(view->stamp().nanosec == 20);
@@ -156,7 +295,7 @@ TEST_CASE("ImuBuilder full round-trip", "[builder][imu]") {
 // ============================================================================
 
 TEST_CASE("TemperatureBuilder round-trip", "[builder][temperature]") {
-    auto b = ef::TemperatureBuilder::create();
+    auto b = TemperatureBuilder::create();
     REQUIRE(b.has_value());
 
     b->stamp({300, 0}).temperature(25.5).variance(0.01);
@@ -166,7 +305,7 @@ TEST_CASE("TemperatureBuilder round-trip", "[builder][temperature]") {
     REQUIRE(result.has_value());
     auto rel = *result;
 
-    auto view = ef::TemperatureView::from_cdr({rel.data, rel.size});
+    auto view = TemperatureView::from_cdr({rel.data, rel.size});
     REQUIRE(view.has_value());
     CHECK(view->stamp().sec == 300);
     CHECK(view->frame_id() == "therm");
@@ -181,7 +320,7 @@ TEST_CASE("TemperatureBuilder round-trip", "[builder][temperature]") {
 // ============================================================================
 
 TEST_CASE("NavSatFixBuilder round-trip", "[builder][navsatfix]") {
-    auto b = ef::NavSatFixBuilder::create();
+    auto b = NavSatFixBuilder::create();
     REQUIRE(b.has_value());
 
     b->stamp({500, 100})
@@ -199,7 +338,7 @@ TEST_CASE("NavSatFixBuilder round-trip", "[builder][navsatfix]") {
     REQUIRE(result.has_value());
     auto rel = *result;
 
-    auto view = ef::NavSatFixView::from_cdr({rel.data, rel.size});
+    auto view = NavSatFixView::from_cdr({rel.data, rel.size});
     REQUIRE(view.has_value());
     CHECK(view->stamp().sec == 500);
     CHECK(view->frame_id() == "gps");
@@ -215,7 +354,7 @@ TEST_CASE("NavSatFixBuilder round-trip", "[builder][navsatfix]") {
 // ============================================================================
 
 TEST_CASE("DetectBuilder with boxes round-trip", "[builder][detect]") {
-    auto b = ef::DetectBuilder::create();
+    auto b = DetectBuilder::create();
     REQUIRE(b.has_value());
 
     b->stamp({700, 0})
@@ -225,7 +364,7 @@ TEST_CASE("DetectBuilder with boxes round-trip", "[builder][detect]") {
     REQUIRE(b->frame_id("cam0").has_value());
 
     // Build a box descriptor — the elem struct is borrowed by the builder.
-    ros_detect_box_elem_t box{};
+    edgefirst_msgs_detect_box_elem_t box{};
     box.center_x = 0.5f;
     box.center_y = 0.5f;
     box.width    = 0.2f;
@@ -239,14 +378,14 @@ TEST_CASE("DetectBuilder with boxes round-trip", "[builder][detect]") {
     box.track_created_sec = 600;
     box.track_created_nanosec = 0;
 
-    ef::span<const ros_detect_box_elem_t> boxes_span(&box, 1);
+    ef::span<const edgefirst_msgs_detect_box_elem_t> boxes_span(&box, 1);
     REQUIRE(b->boxes(boxes_span).has_value());
 
     auto result = b->build();
     REQUIRE(result.has_value());
     auto rel = *result;
 
-    auto view = ef::DetectView::from_cdr({rel.data, rel.size});
+    auto view = DetectView::from_cdr({rel.data, rel.size});
     REQUIRE(view.has_value());
     CHECK(view->stamp().sec == 700);
     CHECK(view->frame_id() == "cam0");
@@ -272,15 +411,15 @@ TEST_CASE("DetectBuilder with boxes round-trip", "[builder][detect]") {
 // ============================================================================
 
 TEST_CASE("VibrationBuilder round-trip", "[builder][vibration]") {
-    auto b = ef::VibrationBuilder::create();
+    auto b = VibrationBuilder::create();
     REQUIRE(b.has_value());
 
     b->stamp({800, 0})
       .vibration({1.0, 2.0, 3.0})
       .band_lower_hz(10.0f)
       .band_upper_hz(1000.0f)
-      .measurement_type(ef::VibrationView::MEASUREMENT_RMS)
-      .unit(ef::VibrationView::UNIT_ACCEL_G);
+      .measurement_type(VibrationView::MEASUREMENT_RMS)
+      .unit(VibrationView::UNIT_ACCEL_G);
     REQUIRE(b->frame_id("accel0").has_value());
 
     std::array<std::uint32_t, 3> clip = {0, 0, 1};
@@ -290,7 +429,7 @@ TEST_CASE("VibrationBuilder round-trip", "[builder][vibration]") {
     REQUIRE(result.has_value());
     auto rel = *result;
 
-    auto view = ef::VibrationView::from_cdr({rel.data, rel.size});
+    auto view = VibrationView::from_cdr({rel.data, rel.size});
     REQUIRE(view.has_value());
     CHECK(view->stamp().sec == 800);
     CHECK(view->frame_id() == "accel0");
@@ -299,8 +438,8 @@ TEST_CASE("VibrationBuilder round-trip", "[builder][vibration]") {
     CHECK(view->vibration().z == Approx(3.0));
     CHECK(view->band_lower_hz() == Approx(10.0f));
     CHECK(view->band_upper_hz() == Approx(1000.0f));
-    CHECK(view->measurement_type() == ef::VibrationView::MEASUREMENT_RMS);
-    CHECK(view->unit() == ef::VibrationView::UNIT_ACCEL_G);
+    CHECK(view->measurement_type() == VibrationView::MEASUREMENT_RMS);
+    CHECK(view->unit() == VibrationView::UNIT_ACCEL_G);
     CHECK(view->clipping_len() == 3);
 
     std::array<std::uint32_t, 3> clip_out{};
@@ -317,7 +456,7 @@ TEST_CASE("VibrationBuilder round-trip", "[builder][vibration]") {
 // ============================================================================
 
 TEST_CASE("ImageBuilder round-trip", "[builder][image]") {
-    auto b = ef::ImageBuilder::create();
+    auto b = ImageBuilder::create();
     REQUIRE(b.has_value());
 
     std::vector<std::uint8_t> pixels(320 * 240 * 3, 0xAB);
@@ -335,7 +474,7 @@ TEST_CASE("ImageBuilder round-trip", "[builder][image]") {
     REQUIRE(result.has_value());
     auto rel = *result;
 
-    auto view = ef::ImageView::from_cdr({rel.data, rel.size});
+    auto view = ImageView::from_cdr({rel.data, rel.size});
     REQUIRE(view.has_value());
     CHECK(view->stamp().sec == 1000);
     CHECK(view->stamp().nanosec == 500);
@@ -350,11 +489,11 @@ TEST_CASE("ImageBuilder round-trip", "[builder][image]") {
 }
 
 // ============================================================================
-// foxglove_msgs — FoxgloveTextAnnotationBuilder (builder-only, no view)
+// foxglove_msgs — TextAnnotationBuilder (builder-only, no view)
 // ============================================================================
 
-TEST_CASE("FoxgloveTextAnnotationBuilder build succeeds", "[builder][foxglove]") {
-    auto b = ef::FoxgloveTextAnnotationBuilder::create();
+TEST_CASE("TextAnnotationBuilder build succeeds", "[builder][foxglove]") {
+    auto b = TextAnnotationBuilder::create();
     REQUIRE(b.has_value());
 
     b->timestamp({1100, 0})
@@ -370,11 +509,11 @@ TEST_CASE("FoxgloveTextAnnotationBuilder build succeeds", "[builder][foxglove]")
     CHECK(result->size > 0);
 
     // No view type available — just verify we can build
-    ros_bytes_free(result->data, result->size);
+    edgefirst_schemas_bytes_free(result->data, result->size);
 }
 
-TEST_CASE("FoxgloveTextAnnotationBuilder encode_into", "[builder][foxglove][encode_into]") {
-    auto b = ef::FoxgloveTextAnnotationBuilder::create();
+TEST_CASE("TextAnnotationBuilder encode_into", "[builder][foxglove][encode_into]") {
+    auto b = TextAnnotationBuilder::create();
     REQUIRE(b.has_value());
 
     b->timestamp({0, 0}).position(0, 0).font_size(12.0);
@@ -387,11 +526,11 @@ TEST_CASE("FoxgloveTextAnnotationBuilder encode_into", "[builder][foxglove][enco
 }
 
 // ============================================================================
-// foxglove_msgs — FoxglovePointAnnotationBuilder (builder-only)
+// foxglove_msgs — PointAnnotationBuilder (builder-only)
 // ============================================================================
 
-TEST_CASE("FoxglovePointAnnotationBuilder build succeeds", "[builder][foxglove]") {
-    auto b = ef::FoxglovePointAnnotationBuilder::create();
+TEST_CASE("PointAnnotationBuilder build succeeds", "[builder][foxglove]") {
+    auto b = PointAnnotationBuilder::create();
     REQUIRE(b.has_value());
 
     b->timestamp({1200, 0})
@@ -400,28 +539,28 @@ TEST_CASE("FoxglovePointAnnotationBuilder build succeeds", "[builder][foxglove]"
       .fill_color(0.0, 0.5, 0.0, 0.5)
       .thickness(2.0);
 
-    ros_foxglove_point2_elem_t pts[] = {{10.0, 20.0}, {30.0, 40.0}};
+    foxglove_msgs_point2_elem_t pts[] = {{10.0, 20.0}, {30.0, 40.0}};
     REQUIRE(b->points({pts, 2}).has_value());
 
     auto result = b->build();
     REQUIRE(result.has_value());
     CHECK(result->data != nullptr);
-    ros_bytes_free(result->data, result->size);
+    edgefirst_schemas_bytes_free(result->data, result->size);
 }
 
 // ============================================================================
-// foxglove_msgs — FoxgloveImageAnnotationBuilder (builder-only)
+// foxglove_msgs — ImageAnnotationBuilder (builder-only)
 // ============================================================================
 
-TEST_CASE("FoxgloveImageAnnotationBuilder build succeeds", "[builder][foxglove]") {
-    auto b = ef::FoxgloveImageAnnotationBuilder::create();
+TEST_CASE("ImageAnnotationBuilder build succeeds", "[builder][foxglove]") {
+    auto b = ImageAnnotationBuilder::create();
     REQUIRE(b.has_value());
 
     // Build with empty arrays — valid message with no annotations
     auto result = b->build();
     REQUIRE(result.has_value());
     CHECK(result->data != nullptr);
-    ros_bytes_free(result->data, result->size);
+    edgefirst_schemas_bytes_free(result->data, result->size);
 }
 
 // ============================================================================
@@ -429,19 +568,19 @@ TEST_CASE("FoxgloveImageAnnotationBuilder build succeeds", "[builder][foxglove]"
 // ============================================================================
 
 TEST_CASE("Builder move constructor", "[builder][move]") {
-    auto b1 = ef::HeaderBuilder::create();
+    auto b1 = HeaderBuilder::create();
     REQUIRE(b1.has_value());
     b1->stamp({1, 2});
 
     // Move construct
-    ef::HeaderBuilder b2 = std::move(*b1);
+    HeaderBuilder b2 = std::move(*b1);
 
     // The moved-to builder should still work
     REQUIRE(b2.frame_id("moved").has_value());
     auto result = b2.build();
     REQUIRE(result.has_value());
 
-    auto view = ef::HeaderView::from_cdr({result->data, result->size});
+    auto view = HeaderView::from_cdr({result->data, result->size});
     REQUIRE(view.has_value());
     CHECK(view->stamp().sec == 1);
     CHECK(view->frame_id() == "moved");
@@ -450,8 +589,8 @@ TEST_CASE("Builder move constructor", "[builder][move]") {
 }
 
 TEST_CASE("Builder move assignment", "[builder][move]") {
-    auto b1 = ef::HeaderBuilder::create();
-    auto b2 = ef::HeaderBuilder::create();
+    auto b1 = HeaderBuilder::create();
+    auto b2 = HeaderBuilder::create();
     REQUIRE(b1.has_value());
     REQUIRE(b2.has_value());
 
@@ -465,7 +604,7 @@ TEST_CASE("Builder move assignment", "[builder][move]") {
     auto result = b2->build();
     REQUIRE(result.has_value());
 
-    auto view = ef::HeaderView::from_cdr({result->data, result->size});
+    auto view = HeaderView::from_cdr({result->data, result->size});
     REQUIRE(view.has_value());
     CHECK(view->stamp().sec == 10);
     CHECK(view->frame_id() == "reassigned");
@@ -478,7 +617,7 @@ TEST_CASE("Builder move assignment", "[builder][move]") {
 // ============================================================================
 
 TEST_CASE("ModelInfoBuilder round-trip", "[builder][model_info]") {
-    auto b = ef::ModelInfoBuilder::create();
+    auto b = ModelInfoBuilder::create();
     REQUIRE(b.has_value());
 
     b->stamp({1300, 0}).input_type(1).output_type(1);
@@ -499,7 +638,7 @@ TEST_CASE("ModelInfoBuilder round-trip", "[builder][model_info]") {
     REQUIRE(result.has_value());
     auto rel = *result;
 
-    auto view = ef::ModelInfoView::from_cdr({rel.data, rel.size});
+    auto view = ModelInfoView::from_cdr({rel.data, rel.size});
     REQUIRE(view.has_value());
     CHECK(view->stamp().sec == 1300);
     CHECK(view->frame_id() == "model0");
@@ -516,7 +655,7 @@ TEST_CASE("ModelInfoBuilder round-trip", "[builder][model_info]") {
 // ============================================================================
 
 TEST_CASE("CompressedImageBuilder round-trip", "[builder][compressed_image]") {
-    auto b = ef::CompressedImageBuilder::create();
+    auto b = CompressedImageBuilder::create();
     REQUIRE(b.has_value());
 
     std::vector<std::uint8_t> jpeg_data(1000, 0xFF);
@@ -530,7 +669,7 @@ TEST_CASE("CompressedImageBuilder round-trip", "[builder][compressed_image]") {
     REQUIRE(result.has_value());
     auto rel = *result;
 
-    auto view = ef::CompressedImageView::from_cdr({rel.data, rel.size});
+    auto view = CompressedImageView::from_cdr({rel.data, rel.size});
     REQUIRE(view.has_value());
     CHECK(view->stamp().sec == 400);
     CHECK(view->frame_id() == "cam1");
@@ -545,7 +684,7 @@ TEST_CASE("CompressedImageBuilder round-trip", "[builder][compressed_image]") {
 // ============================================================================
 
 TEST_CASE("PointCloud2Builder round-trip", "[builder][pointcloud2]") {
-    auto b = ef::PointCloud2Builder::create();
+    auto b = PointCloud2Builder::create();
     REQUIRE(b.has_value());
 
     b->stamp({600, 0})
@@ -558,7 +697,7 @@ TEST_CASE("PointCloud2Builder round-trip", "[builder][pointcloud2]") {
     REQUIRE(b->frame_id("lidar").has_value());
 
     // Point fields
-    ros_point_field_elem_t fields[] = {
+    sensor_msgs_point_field_elem_t fields[] = {
         {"x", 0, 7, 1},
         {"y", 4, 7, 1},
         {"z", 8, 7, 1},
@@ -573,7 +712,7 @@ TEST_CASE("PointCloud2Builder round-trip", "[builder][pointcloud2]") {
     REQUIRE(result.has_value());
     auto rel = *result;
 
-    auto view = ef::PointCloud2View::from_cdr({rel.data, rel.size});
+    auto view = PointCloud2View::from_cdr({rel.data, rel.size});
     REQUIRE(view.has_value());
     CHECK(view->stamp().sec == 600);
     CHECK(view->frame_id() == "lidar");

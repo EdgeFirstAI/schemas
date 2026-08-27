@@ -5,21 +5,21 @@
 //!
 //! `Tensor` is the payload; `TensorStamped` and `CameraFrame` are byte-identical
 //! wrappers around it. The C API mirrors that composition rather than flattening
-//! it: a wrapper hands out a borrowed `ros_tensor_t*`, and every tensor accessor
+//! it: a wrapper hands out a borrowed `edgefirst_msgs_tensor_t*`, and every tensor accessor
 //! is written once and reused by both wrappers.
 //!
 //! ```c
-//! ros_camera_frame_t *f = ros_camera_frame_from_cdr(buf, len);
-//! const ros_tensor_t *t = ros_camera_frame_get_tensor(f);
-//! uint32_t dtype = ros_tensor_get_dtype(t);
-//! const ros_tensor_plane_t *p = ros_tensor_get_plane(t, 0);
-//! int64_t handle = ros_tensor_plane_get_handle(p);
-//! ros_camera_frame_free(f);   /* frees the borrowed tensor and planes too */
+//! edgefirst_msgs_camera_frame_t *f = edgefirst_msgs_camera_frame_from_cdr(buf, len);
+//! const edgefirst_msgs_tensor_t *t = edgefirst_msgs_camera_frame_get_tensor(f);
+//! uint32_t dtype = edgefirst_msgs_tensor_get_dtype(t);
+//! const edgefirst_msgs_tensor_plane_t *p = edgefirst_msgs_tensor_get_plane(t, 0);
+//! int64_t handle = edgefirst_msgs_tensor_plane_get_handle(p);
+//! edgefirst_msgs_camera_frame_free(f);   /* frees the borrowed tensor and planes too */
 //! ```
 //!
 //! ## Ownership
 //!
-//! `ros_tensor_get_plane` and `ros_<wrapper>_get_tensor` return *borrowed*
+//! `edgefirst_msgs_tensor_get_plane` and `<package>_<wrapper>_get_tensor` return *borrowed*
 //! pointers into the parent handle. They must not be freed, and they die with
 //! the parent. Each child carries an `owned` flag so that a mistaken
 //! `_free()` on a borrowed child is a no-op with `errno = EINVAL` rather than
@@ -62,9 +62,9 @@ use edgefirst_schemas::tensor::{Tensor, TensorFields, TensorPlaneView};
 
 /// Opaque handle for a single `TensorPlane` view.
 ///
-/// Always borrowed from a parent `ros_tensor_t` today; `owned` exists so that
-/// `ros_tensor_plane_free` stays safe if a caller frees a borrowed child.
-pub struct ros_tensor_plane_t {
+/// Always borrowed from a parent `edgefirst_msgs_tensor_t` today; `owned` exists so that
+/// `edgefirst_msgs_tensor_plane_free` stays safe if a caller frees a borrowed child.
+pub struct edgefirst_msgs_tensor_plane_t {
     view: TensorPlaneView<'static>,
     owned: bool,
 }
@@ -73,9 +73,9 @@ pub struct ros_tensor_plane_t {
 ///
 /// Child planes are materialized once at parse time, mirroring the
 /// `Detect` → `Box` pattern used elsewhere in this FFI.
-pub struct ros_tensor_t {
+pub struct edgefirst_msgs_tensor_t {
     inner: Tensor<&'static [u8]>,
-    child_planes: Vec<ros_tensor_plane_t>,
+    child_planes: Vec<edgefirst_msgs_tensor_plane_t>,
     owned: bool,
 }
 
@@ -83,12 +83,12 @@ pub struct ros_tensor_t {
 ///
 /// Uses `planes_borrowed`, whose views carry the buffer's lifetime rather than
 /// a borrow of the `Tensor` — no lifetime widening, no `transmute`.
-fn make_tensor(inner: Tensor<&'static [u8]>, owned: bool) -> ros_tensor_t {
+fn make_tensor(inner: Tensor<&'static [u8]>, owned: bool) -> edgefirst_msgs_tensor_t {
     let child_planes = inner
         .planes_borrowed()
-        .map(|view| ros_tensor_plane_t { view, owned: false })
+        .map(|view| edgefirst_msgs_tensor_plane_t { view, owned: false })
         .collect();
-    ros_tensor_t {
+    edgefirst_msgs_tensor_t {
         inner,
         child_planes,
         owned,
@@ -104,7 +104,10 @@ fn make_tensor(inner: Tensor<&'static [u8]>, owned: bool) -> ros_tensor_t {
 /// @param len Length of data
 /// @return Opaque handle or NULL on error (errno set to EINVAL or EBADMSG)
 #[no_mangle]
-pub extern "C" fn ros_tensor_from_cdr(data: *const u8, len: usize) -> *mut ros_tensor_t {
+pub extern "C" fn edgefirst_msgs_tensor_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut edgefirst_msgs_tensor_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match Tensor::from_cdr(unsafe { erase_lifetime(slice) }) {
@@ -119,10 +122,10 @@ pub extern "C" fn ros_tensor_from_cdr(data: *const u8, len: usize) -> *mut ros_t
 /// @brief Free a Tensor handle.
 ///
 /// Safe to call with NULL. If the handle is parent-borrowed (via
-/// `ros_tensor_stamped_get_tensor` / `ros_camera_frame_get_tensor`), this
+/// `edgefirst_msgs_tensor_stamped_get_tensor` / `edgefirst_msgs_camera_frame_get_tensor`), this
 /// no-ops with `errno = EINVAL` — the parent owns it.
 #[no_mangle]
-pub extern "C" fn ros_tensor_free(view: *mut ros_tensor_t) {
+pub extern "C" fn edgefirst_msgs_tensor_free(view: *mut edgefirst_msgs_tensor_t) {
     if view.is_null() {
         return;
     }
@@ -138,7 +141,7 @@ pub extern "C" fn ros_tensor_free(view: *mut ros_tensor_t) {
 macro_rules! tensor_scalar_getter {
     ($name:ident, $method:ident, $ty:ty, $default:expr) => {
         #[no_mangle]
-        pub extern "C" fn $name(view: *const ros_tensor_t) -> $ty {
+        pub extern "C" fn $name(view: *const edgefirst_msgs_tensor_t) -> $ty {
             if view.is_null() {
                 return $default;
             }
@@ -147,17 +150,17 @@ macro_rules! tensor_scalar_getter {
     };
 }
 
-tensor_scalar_getter!(ros_tensor_get_storage_kind, storage_kind, u32, 0);
-tensor_scalar_getter!(ros_tensor_get_pid, pid, u32, 0);
-tensor_scalar_getter!(ros_tensor_get_fence_fd, fence_fd, i32, -1);
-tensor_scalar_getter!(ros_tensor_get_dtype, dtype, u32, 0);
-tensor_scalar_getter!(ros_tensor_get_quant_axis, quant_axis, i32, -2);
-tensor_scalar_getter!(ros_tensor_get_num_planes, num_planes, u32, 0);
+tensor_scalar_getter!(edgefirst_msgs_tensor_get_storage_kind, storage_kind, u32, 0);
+tensor_scalar_getter!(edgefirst_msgs_tensor_get_pid, pid, u32, 0);
+tensor_scalar_getter!(edgefirst_msgs_tensor_get_fence_fd, fence_fd, i32, -1);
+tensor_scalar_getter!(edgefirst_msgs_tensor_get_dtype, dtype, u32, 0);
+tensor_scalar_getter!(edgefirst_msgs_tensor_get_quant_axis, quant_axis, i32, -2);
+tensor_scalar_getter!(edgefirst_msgs_tensor_get_num_planes, num_planes, u32, 0);
 
 macro_rules! tensor_string_getter {
     ($name:ident, $method:ident) => {
         #[no_mangle]
-        pub extern "C" fn $name(view: *const ros_tensor_t) -> *const c_char {
+        pub extern "C" fn $name(view: *const edgefirst_msgs_tensor_t) -> *const c_char {
             if view.is_null() {
                 return ptr::null();
             }
@@ -166,11 +169,11 @@ macro_rules! tensor_string_getter {
     };
 }
 
-tensor_string_getter!(ros_tensor_get_format, format);
-tensor_string_getter!(ros_tensor_get_color_space, color_space);
-tensor_string_getter!(ros_tensor_get_color_transfer, color_transfer);
-tensor_string_getter!(ros_tensor_get_color_encoding, color_encoding);
-tensor_string_getter!(ros_tensor_get_color_range, color_range);
+tensor_string_getter!(edgefirst_msgs_tensor_get_format, format);
+tensor_string_getter!(edgefirst_msgs_tensor_get_color_space, color_space);
+tensor_string_getter!(edgefirst_msgs_tensor_get_color_transfer, color_transfer);
+tensor_string_getter!(edgefirst_msgs_tensor_get_color_encoding, color_encoding);
+tensor_string_getter!(edgefirst_msgs_tensor_get_color_range, color_range);
 
 // ── shape / strides ─────────────────────────────────────────────────
 //
@@ -183,7 +186,7 @@ tensor_string_getter!(ros_tensor_get_color_range, color_range);
 // reads go through `from_le_bytes`, which is alignment-safe by construction.
 
 #[no_mangle]
-pub extern "C" fn ros_tensor_get_shape_len(view: *const ros_tensor_t) -> u32 {
+pub extern "C" fn edgefirst_msgs_tensor_get_shape_len(view: *const edgefirst_msgs_tensor_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -191,7 +194,9 @@ pub extern "C" fn ros_tensor_get_shape_len(view: *const ros_tensor_t) -> u32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_tensor_get_strides_len(view: *const ros_tensor_t) -> u32 {
+pub extern "C" fn edgefirst_msgs_tensor_get_strides_len(
+    view: *const edgefirst_msgs_tensor_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -202,8 +207,8 @@ pub extern "C" fn ros_tensor_get_strides_len(view: *const ros_tensor_t) -> u32 {
 /// @param out Receives the dimension.
 /// @return 0 on success, -1 on NULL/out-of-range (errno = EINVAL).
 #[no_mangle]
-pub extern "C" fn ros_tensor_get_shape_at(
-    view: *const ros_tensor_t,
+pub extern "C" fn edgefirst_msgs_tensor_get_shape_at(
+    view: *const edgefirst_msgs_tensor_t,
     index: u32,
     out: *mut u64,
 ) -> i32 {
@@ -227,8 +232,8 @@ pub extern "C" fn ros_tensor_get_shape_at(
 /// @param out Receives the stride.
 /// @return 0 on success, -1 on NULL/out-of-range (errno = EINVAL).
 #[no_mangle]
-pub extern "C" fn ros_tensor_get_strides_at(
-    view: *const ros_tensor_t,
+pub extern "C" fn edgefirst_msgs_tensor_get_strides_at(
+    view: *const edgefirst_msgs_tensor_t,
     index: u32,
     out: *mut i64,
 ) -> i32 {
@@ -255,10 +260,10 @@ pub extern "C" fn ros_tensor_get_strides_at(
 ///         ENOBUFS when `cap` is smaller than `shape_len`).
 ///
 /// O(n) for the whole sequence — prefer this to calling
-/// `ros_tensor_get_shape_at` in a loop, which rescans and is O(n²).
+/// `edgefirst_msgs_tensor_get_shape_at` in a loop, which rescans and is O(n²).
 #[no_mangle]
-pub extern "C" fn ros_tensor_copy_shape(
-    view: *const ros_tensor_t,
+pub extern "C" fn edgefirst_msgs_tensor_copy_shape(
+    view: *const edgefirst_msgs_tensor_t,
     out: *mut u64,
     cap: usize,
 ) -> isize {
@@ -284,8 +289,8 @@ pub extern "C" fn ros_tensor_copy_shape(
 /// @return Number of elements written, or -1 on error (EINVAL for NULL,
 ///         ENOBUFS when `cap` is smaller than `strides_len`).
 #[no_mangle]
-pub extern "C" fn ros_tensor_copy_strides(
-    view: *const ros_tensor_t,
+pub extern "C" fn edgefirst_msgs_tensor_copy_strides(
+    view: *const edgefirst_msgs_tensor_t,
     out: *mut i64,
     cap: usize,
 ) -> isize {
@@ -314,8 +319,8 @@ pub extern "C" fn ros_tensor_copy_strides(
 /// @param out_len Receives the element count (may be NULL).
 /// @return Pointer into the CDR buffer, or NULL when empty.
 #[no_mangle]
-pub extern "C" fn ros_tensor_get_quant_scales(
-    view: *const ros_tensor_t,
+pub extern "C" fn edgefirst_msgs_tensor_get_quant_scales(
+    view: *const edgefirst_msgs_tensor_t,
     out_len: *mut usize,
 ) -> *const f32 {
     if view.is_null() {
@@ -339,8 +344,8 @@ pub extern "C" fn ros_tensor_get_quant_scales(
 /// @param out_len Receives the element count (may be NULL).
 /// @return Pointer into the CDR buffer, or NULL when empty.
 #[no_mangle]
-pub extern "C" fn ros_tensor_get_quant_zero_points(
-    view: *const ros_tensor_t,
+pub extern "C" fn edgefirst_msgs_tensor_get_quant_zero_points(
+    view: *const edgefirst_msgs_tensor_t,
     out_len: *mut usize,
 ) -> *const i32 {
     if view.is_null() {
@@ -365,13 +370,13 @@ pub extern "C" fn ros_tensor_get_quant_zero_points(
 /// @brief Get a borrowed view of the i-th plane.
 ///
 /// The returned pointer is NOT a separately-owned handle: do NOT pass it to
-/// `ros_tensor_plane_free()`. It becomes invalid when the owning tensor (or
+/// `edgefirst_msgs_tensor_plane_free()`. It becomes invalid when the owning tensor (or
 /// its parent wrapper) is freed, and the CDR buffer must remain valid too.
 #[no_mangle]
-pub extern "C" fn ros_tensor_get_plane(
-    view: *const ros_tensor_t,
+pub extern "C" fn edgefirst_msgs_tensor_get_plane(
+    view: *const edgefirst_msgs_tensor_t,
     index: u32,
-) -> *const ros_tensor_plane_t {
+) -> *const edgefirst_msgs_tensor_plane_t {
     if view.is_null() {
         set_errno(EINVAL);
         return ptr::null();
@@ -382,14 +387,14 @@ pub extern "C" fn ros_tensor_get_plane(
         set_errno(EINVAL);
         return ptr::null();
     }
-    &v.child_planes[idx] as *const ros_tensor_plane_t
+    &v.child_planes[idx] as *const edgefirst_msgs_tensor_plane_t
 }
 
 /// @brief This tensor's own bytes, from its base to the end of the buffer.
 /// @param out_len Receives the byte length (may be NULL).
 #[no_mangle]
-pub extern "C" fn ros_tensor_get_tensor_bytes(
-    view: *const ros_tensor_t,
+pub extern "C" fn edgefirst_msgs_tensor_get_tensor_bytes(
+    view: *const edgefirst_msgs_tensor_t,
     out_len: *mut usize,
 ) -> *const u8 {
     if view.is_null() {
@@ -407,12 +412,12 @@ pub extern "C" fn ros_tensor_get_tensor_bytes(
 
 /// @brief Re-head an embedded tensor as a standalone Tensor CDR message.
 ///
-/// Allocates; free with `ros_bytes_free`. Copies metadata only — plane
+/// Allocates; free with `edgefirst_schemas_bytes_free`. Copies metadata only — plane
 /// payloads stay behind their handles. This is the republish path.
 /// @return 0 on success, -1 on error (errno = EINVAL).
 #[no_mangle]
-pub extern "C" fn ros_tensor_to_standalone_cdr(
-    view: *const ros_tensor_t,
+pub extern "C" fn edgefirst_msgs_tensor_to_standalone_cdr(
+    view: *const edgefirst_msgs_tensor_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -430,10 +435,10 @@ pub extern "C" fn ros_tensor_to_standalone_cdr(
 
 /// @brief Free a TensorPlane handle.
 ///
-/// Safe to call with NULL. Plane handles obtained from `ros_tensor_get_plane`
+/// Safe to call with NULL. Plane handles obtained from `edgefirst_msgs_tensor_get_plane`
 /// are parent-borrowed, so this no-ops with `errno = EINVAL`.
 #[no_mangle]
-pub extern "C" fn ros_tensor_plane_free(view: *mut ros_tensor_plane_t) {
+pub extern "C" fn edgefirst_msgs_tensor_plane_free(view: *mut edgefirst_msgs_tensor_plane_t) {
     if view.is_null() {
         return;
     }
@@ -449,7 +454,7 @@ pub extern "C" fn ros_tensor_plane_free(view: *mut ros_tensor_plane_t) {
 macro_rules! plane_scalar_getter {
     ($name:ident, $field:ident, $ty:ty, $default:expr) => {
         #[no_mangle]
-        pub extern "C" fn $name(view: *const ros_tensor_plane_t) -> $ty {
+        pub extern "C" fn $name(view: *const edgefirst_msgs_tensor_plane_t) -> $ty {
             if view.is_null() {
                 return $default;
             }
@@ -458,16 +463,18 @@ macro_rules! plane_scalar_getter {
     };
 }
 
-plane_scalar_getter!(ros_tensor_plane_get_handle, handle, i64, -1);
-plane_scalar_getter!(ros_tensor_plane_get_offset, offset, u64, 0);
-plane_scalar_getter!(ros_tensor_plane_get_stride, stride, u64, 0);
-plane_scalar_getter!(ros_tensor_plane_get_size, size, u64, 0);
-plane_scalar_getter!(ros_tensor_plane_get_used, used, u64, 0);
-plane_scalar_getter!(ros_tensor_plane_get_modifier, modifier, u64, 0);
+plane_scalar_getter!(edgefirst_msgs_tensor_plane_get_handle, handle, i64, -1);
+plane_scalar_getter!(edgefirst_msgs_tensor_plane_get_offset, offset, u64, 0);
+plane_scalar_getter!(edgefirst_msgs_tensor_plane_get_stride, stride, u64, 0);
+plane_scalar_getter!(edgefirst_msgs_tensor_plane_get_size, size, u64, 0);
+plane_scalar_getter!(edgefirst_msgs_tensor_plane_get_used, used, u64, 0);
+plane_scalar_getter!(edgefirst_msgs_tensor_plane_get_modifier, modifier, u64, 0);
 
 /// @brief True when this plane's bytes travel inline rather than by handle.
 #[no_mangle]
-pub extern "C" fn ros_tensor_plane_is_inline(view: *const ros_tensor_plane_t) -> bool {
+pub extern "C" fn edgefirst_msgs_tensor_plane_is_inline(
+    view: *const edgefirst_msgs_tensor_plane_t,
+) -> bool {
     if view.is_null() {
         return false;
     }
@@ -478,7 +485,10 @@ macro_rules! plane_bytes_getter {
     ($name:ident, $field:ident, $doc:literal) => {
         #[doc = $doc]
         #[no_mangle]
-        pub extern "C" fn $name(view: *const ros_tensor_plane_t, out_len: *mut usize) -> *const u8 {
+        pub extern "C" fn $name(
+            view: *const edgefirst_msgs_tensor_plane_t,
+            out_len: *mut usize,
+        ) -> *const u8 {
             if view.is_null() {
                 if !out_len.is_null() {
                     unsafe { *out_len = 0 };
@@ -499,12 +509,12 @@ macro_rules! plane_bytes_getter {
 }
 
 plane_bytes_getter!(
-    ros_tensor_plane_get_handle_bytes,
+    edgefirst_msgs_tensor_plane_get_handle_bytes,
     handle_bytes,
     "@brief Opaque platform handle bytes (empty for an inline plane).\n@param out_len Receives the byte length (may be NULL)."
 );
 plane_bytes_getter!(
-    ros_tensor_plane_get_data,
+    edgefirst_msgs_tensor_plane_get_data,
     data,
     "@brief Inlined plane bytes (only populated when handle == -1).\n@param out_len Receives the byte length (may be NULL)."
 );
@@ -532,7 +542,7 @@ macro_rules! stamped_tensor_ffi {
         #[doc = concat!("Opaque handle for a `", $name, "` view.")]
         pub struct $handle {
             inner: $rust,
-            child: ros_tensor_t,
+            child: edgefirst_msgs_tensor_t,
         }
 
         #[doc = concat!("@brief Create a ", $name, " view from CDR bytes.\n",
@@ -602,14 +612,14 @@ macro_rules! stamped_tensor_ffi {
 
         #[doc = concat!("@brief Borrowed view of the embedded tensor.\n\n",
                         "The returned pointer is owned by the parent: do NOT pass it to\n",
-                        "`ros_tensor_free()`. It dies with the parent handle.")]
+                        "`edgefirst_msgs_tensor_free()`. It dies with the parent handle.")]
         #[no_mangle]
-        pub extern "C" fn $get_tensor(view: *const $handle) -> *const ros_tensor_t {
+        pub extern "C" fn $get_tensor(view: *const $handle) -> *const edgefirst_msgs_tensor_t {
             if view.is_null() {
                 set_errno(EINVAL);
                 return ptr::null();
             }
-            unsafe { &(*view).child as *const ros_tensor_t }
+            unsafe { &(*view).child as *const edgefirst_msgs_tensor_t }
         }
 
         #[doc = concat!("@brief Borrow the whole CDR buffer backing this ", $name, ".\n",
@@ -682,34 +692,34 @@ macro_rules! stamped_tensor_ffi {
 }
 
 stamped_tensor_ffi!(
-    ros_tensor_stamped_t,
+    edgefirst_msgs_tensor_stamped_t,
     TensorStamped<&'static [u8]>,
-    ros_tensor_stamped_from_cdr,
-    ros_tensor_stamped_free,
-    ros_tensor_stamped_get_stamp_sec,
-    ros_tensor_stamped_get_stamp_nanosec,
-    ros_tensor_stamped_get_frame_id,
-    ros_tensor_stamped_get_seq,
-    ros_tensor_stamped_get_tensor,
-    ros_tensor_stamped_get_cdr,
-    ros_tensor_stamped_set_stamp,
-    ros_tensor_stamped_set_seq,
+    edgefirst_msgs_tensor_stamped_from_cdr,
+    edgefirst_msgs_tensor_stamped_free,
+    edgefirst_msgs_tensor_stamped_get_stamp_sec,
+    edgefirst_msgs_tensor_stamped_get_stamp_nanosec,
+    edgefirst_msgs_tensor_stamped_get_frame_id,
+    edgefirst_msgs_tensor_stamped_get_seq,
+    edgefirst_msgs_tensor_stamped_get_tensor,
+    edgefirst_msgs_tensor_stamped_get_cdr,
+    edgefirst_msgs_tensor_stamped_set_stamp,
+    edgefirst_msgs_tensor_stamped_set_seq,
     "TensorStamped"
 );
 
 stamped_tensor_ffi!(
-    ros_camera_frame_t,
+    edgefirst_msgs_camera_frame_t,
     CameraFrame<&'static [u8]>,
-    ros_camera_frame_from_cdr,
-    ros_camera_frame_free,
-    ros_camera_frame_get_stamp_sec,
-    ros_camera_frame_get_stamp_nanosec,
-    ros_camera_frame_get_frame_id,
-    ros_camera_frame_get_seq,
-    ros_camera_frame_get_tensor,
-    ros_camera_frame_get_cdr,
-    ros_camera_frame_set_stamp,
-    ros_camera_frame_set_seq,
+    edgefirst_msgs_camera_frame_from_cdr,
+    edgefirst_msgs_camera_frame_free,
+    edgefirst_msgs_camera_frame_get_stamp_sec,
+    edgefirst_msgs_camera_frame_get_stamp_nanosec,
+    edgefirst_msgs_camera_frame_get_frame_id,
+    edgefirst_msgs_camera_frame_get_seq,
+    edgefirst_msgs_camera_frame_get_tensor,
+    edgefirst_msgs_camera_frame_get_cdr,
+    edgefirst_msgs_camera_frame_set_stamp,
+    edgefirst_msgs_camera_frame_set_seq,
     "CameraFrame"
 );
 
@@ -732,7 +742,7 @@ stamped_tensor_ffi!(
 /// * `handle == -1` — bytes are inline in `data`; `size` must equal
 ///   `data_len`, `modifier` must be 0, and `handle_bytes` must be empty.
 #[repr(C)]
-pub struct ros_tensor_plane_elem_t {
+pub struct edgefirst_msgs_tensor_plane_elem_t {
     pub handle: i64,
     pub offset: u64,
     pub stride: u64,
@@ -752,7 +762,7 @@ pub struct ros_tensor_plane_elem_t {
 /// stated lengths (or NULL when the length is 0), and the backing storage must
 /// outlive the returned Vec.
 unsafe fn tensor_plane_descs_to_views(
-    descs: *const ros_tensor_plane_elem_t,
+    descs: *const edgefirst_msgs_tensor_plane_elem_t,
     count: usize,
 ) -> Vec<TensorPlaneView<'static>> {
     if descs.is_null() || count == 0 {
@@ -801,7 +811,7 @@ struct TensorBuilderOwned {
     color_transfer: String,
     color_encoding: String,
     color_range: String,
-    planes: *const ros_tensor_plane_elem_t,
+    planes: *const edgefirst_msgs_tensor_plane_elem_t,
     planes_count: usize,
 }
 
@@ -865,15 +875,17 @@ impl TensorBuilderOwned {
     }
 }
 
-pub struct ros_tensor_builder_t(TensorBuilderOwned);
+pub struct edgefirst_msgs_tensor_builder_t(TensorBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_tensor_builder_new() -> *mut ros_tensor_builder_t {
-    Box::into_raw(Box::new(ros_tensor_builder_t(TensorBuilderOwned::new())))
+pub extern "C" fn edgefirst_msgs_tensor_builder_new() -> *mut edgefirst_msgs_tensor_builder_t {
+    Box::into_raw(Box::new(edgefirst_msgs_tensor_builder_t(
+        TensorBuilderOwned::new(),
+    )))
 }
 
 #[no_mangle]
-pub extern "C" fn ros_tensor_builder_free(b: *mut ros_tensor_builder_t) {
+pub extern "C" fn edgefirst_msgs_tensor_builder_free(b: *mut edgefirst_msgs_tensor_builder_t) {
     if !b.is_null() {
         unsafe {
             drop(Box::from_raw(b));
@@ -884,7 +896,7 @@ pub extern "C" fn ros_tensor_builder_free(b: *mut ros_tensor_builder_t) {
 macro_rules! tensor_builder_scalar_setter {
     ($name:ident, $field:ident, $ty:ty) => {
         #[no_mangle]
-        pub extern "C" fn $name(b: *mut ros_tensor_builder_t, v: $ty) {
+        pub extern "C" fn $name(b: *mut edgefirst_msgs_tensor_builder_t, v: $ty) {
             if b.is_null() {
                 set_errno(EINVAL);
                 return;
@@ -896,17 +908,25 @@ macro_rules! tensor_builder_scalar_setter {
     };
 }
 
-tensor_builder_scalar_setter!(ros_tensor_builder_set_storage_kind, storage_kind, u32);
-tensor_builder_scalar_setter!(ros_tensor_builder_set_pid, pid, u32);
-tensor_builder_scalar_setter!(ros_tensor_builder_set_fence_fd, fence_fd, i32);
-tensor_builder_scalar_setter!(ros_tensor_builder_set_dtype, dtype, u32);
-tensor_builder_scalar_setter!(ros_tensor_builder_set_quant_axis, quant_axis, i32);
+tensor_builder_scalar_setter!(
+    edgefirst_msgs_tensor_builder_set_storage_kind,
+    storage_kind,
+    u32
+);
+tensor_builder_scalar_setter!(edgefirst_msgs_tensor_builder_set_pid, pid, u32);
+tensor_builder_scalar_setter!(edgefirst_msgs_tensor_builder_set_fence_fd, fence_fd, i32);
+tensor_builder_scalar_setter!(edgefirst_msgs_tensor_builder_set_dtype, dtype, u32);
+tensor_builder_scalar_setter!(
+    edgefirst_msgs_tensor_builder_set_quant_axis,
+    quant_axis,
+    i32
+);
 
 macro_rules! tensor_builder_string_setter {
     ($name:ident, $field:ident) => {
         /// @return 0 on success, -1 on NULL/invalid UTF-8 (errno = EINVAL).
         #[no_mangle]
-        pub extern "C" fn $name(b: *mut ros_tensor_builder_t, s: *const c_char) -> i32 {
+        pub extern "C" fn $name(b: *mut edgefirst_msgs_tensor_builder_t, s: *const c_char) -> i32 {
             if b.is_null() {
                 set_errno(EINVAL);
                 return -1;
@@ -924,17 +944,27 @@ macro_rules! tensor_builder_string_setter {
     };
 }
 
-tensor_builder_string_setter!(ros_tensor_builder_set_format, format);
-tensor_builder_string_setter!(ros_tensor_builder_set_color_space, color_space);
-tensor_builder_string_setter!(ros_tensor_builder_set_color_transfer, color_transfer);
-tensor_builder_string_setter!(ros_tensor_builder_set_color_encoding, color_encoding);
-tensor_builder_string_setter!(ros_tensor_builder_set_color_range, color_range);
+tensor_builder_string_setter!(edgefirst_msgs_tensor_builder_set_format, format);
+tensor_builder_string_setter!(edgefirst_msgs_tensor_builder_set_color_space, color_space);
+tensor_builder_string_setter!(
+    edgefirst_msgs_tensor_builder_set_color_transfer,
+    color_transfer
+);
+tensor_builder_string_setter!(
+    edgefirst_msgs_tensor_builder_set_color_encoding,
+    color_encoding
+);
+tensor_builder_string_setter!(edgefirst_msgs_tensor_builder_set_color_range, color_range);
 
 macro_rules! tensor_builder_seq_setter {
     ($name:ident, $ptr_field:ident, $len_field:ident, $ty:ty, $doc:literal) => {
         #[doc = $doc]
         #[no_mangle]
-        pub extern "C" fn $name(b: *mut ros_tensor_builder_t, v: *const $ty, len: usize) -> i32 {
+        pub extern "C" fn $name(
+            b: *mut edgefirst_msgs_tensor_builder_t,
+            v: *const $ty,
+            len: usize,
+        ) -> i32 {
             if b.is_null() || (v.is_null() && len > 0) {
                 set_errno(EINVAL);
                 return -1;
@@ -949,28 +979,28 @@ macro_rules! tensor_builder_seq_setter {
 }
 
 tensor_builder_seq_setter!(
-    ros_tensor_builder_set_shape,
+    edgefirst_msgs_tensor_builder_set_shape,
     shape,
     shape_len,
     u64,
     "@brief Set the addressing grid. Borrowed until build/free.\n\n@note `shape` is the addressing grid, NOT the byte layout: an NV12 frame\ncarries shape [h, w] with dtype U8 against an h*w*3/2 allocation. It is\ndeliberately never validated against any buffer size.\n@return 0 on success, -1 on error (errno = EINVAL)."
 );
 tensor_builder_seq_setter!(
-    ros_tensor_builder_set_strides,
+    edgefirst_msgs_tensor_builder_set_strides,
     strides,
     strides_len,
     i64,
     "@brief Set strides, in BYTES (not elements). Borrowed until build/free.\n\nEither empty, or exactly as long as `shape`.\n@return 0 on success, -1 on error (errno = EINVAL)."
 );
 tensor_builder_seq_setter!(
-    ros_tensor_builder_set_quant_scales,
+    edgefirst_msgs_tensor_builder_set_quant_scales,
     quant_scales,
     quant_scales_len,
     f32,
     "@brief Set quantization scales. Borrowed until build/free.\n@return 0 on success, -1 on error (errno = EINVAL)."
 );
 tensor_builder_seq_setter!(
-    ros_tensor_builder_set_quant_zero_points,
+    edgefirst_msgs_tensor_builder_set_quant_zero_points,
     quant_zero_points,
     quant_zero_points_len,
     i32,
@@ -980,9 +1010,9 @@ tensor_builder_seq_setter!(
 /// @brief Set the plane array. Borrowed until build/free.
 /// @return 0 on success, -1 on error (errno = EINVAL).
 #[no_mangle]
-pub extern "C" fn ros_tensor_builder_set_planes(
-    b: *mut ros_tensor_builder_t,
-    planes: *const ros_tensor_plane_elem_t,
+pub extern "C" fn edgefirst_msgs_tensor_builder_set_planes(
+    b: *mut edgefirst_msgs_tensor_builder_t,
+    planes: *const edgefirst_msgs_tensor_plane_elem_t,
     count: usize,
 ) -> i32 {
     if b.is_null() || (planes.is_null() && count > 0) {
@@ -998,12 +1028,12 @@ pub extern "C" fn ros_tensor_builder_set_planes(
 
 /// @brief Encode a standalone Tensor message.
 ///
-/// Allocates; free with `ros_bytes_free`.
+/// Allocates; free with `edgefirst_schemas_bytes_free`.
 /// @return 0 on success, -1 on error (errno = EINVAL for NULL, EBADMSG when
 ///         the plane set fails validation).
 #[no_mangle]
-pub extern "C" fn ros_tensor_builder_build(
-    b: *mut ros_tensor_builder_t,
+pub extern "C" fn edgefirst_msgs_tensor_builder_build(
+    b: *mut edgefirst_msgs_tensor_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -1029,8 +1059,8 @@ pub extern "C" fn ros_tensor_builder_build(
 /// @param out_written Receives the number of bytes written (may be NULL).
 /// @return 0 on success, -1 on error (errno = EINVAL, ENOBUFS or EBADMSG).
 #[no_mangle]
-pub extern "C" fn ros_tensor_builder_encode_into(
-    b: *mut ros_tensor_builder_t,
+pub extern "C" fn edgefirst_msgs_tensor_builder_encode_into(
+    b: *mut edgefirst_msgs_tensor_builder_t,
     buf: *mut u8,
     cap: usize,
     out_written: *mut usize,
@@ -1090,7 +1120,7 @@ fn apply_fields<'a>(b: &mut edgefirst_schemas::tensor::TensorBuilder<'a>, f: &Te
 // ── stamped wrapper builders ────────────────────────────────────────
 //
 // A wrapper builder carries the header fields plus a pointer to a
-// `ros_tensor_builder_t` holding the payload. Composing the two builders
+// `edgefirst_msgs_tensor_builder_t` holding the payload. Composing the two builders
 // mirrors the message composition, and means the seventeen tensor setters
 // exist once rather than once per wrapper.
 
@@ -1099,7 +1129,7 @@ struct StampedBuilderOwned {
     stamp_nanosec: u32,
     frame_id: String,
     seq: u64,
-    tensor: *const ros_tensor_builder_t,
+    tensor: *const edgefirst_msgs_tensor_builder_t,
 }
 
 impl StampedBuilderOwned {
@@ -1185,7 +1215,7 @@ macro_rules! stamped_tensor_builder_ffi {
                         "`build`/`encode_into` call and must not be freed before then.\n",
                         "@return 0 on success, -1 on error (errno = EINVAL).")]
         #[no_mangle]
-        pub extern "C" fn $set_tensor(b: *mut $handle, t: *const ros_tensor_builder_t) -> i32 {
+        pub extern "C" fn $set_tensor(b: *mut $handle, t: *const edgefirst_msgs_tensor_builder_t) -> i32 {
             if b.is_null() || t.is_null() {
                 set_errno(EINVAL);
                 return -1;
@@ -1197,7 +1227,7 @@ macro_rules! stamped_tensor_builder_ffi {
         }
 
         #[doc = concat!("@brief Encode a ", $name, " message.\n\n",
-                        "Allocates; free with `ros_bytes_free`.\n",
+                        "Allocates; free with `edgefirst_schemas_bytes_free`.\n",
                         "@return 0 on success, -1 on error (errno = EINVAL when no tensor\n",
                         "        payload was attached, EBADMSG on validation failure).")]
         #[no_mangle]
@@ -1283,29 +1313,29 @@ macro_rules! stamped_tensor_builder_ffi {
 }
 
 stamped_tensor_builder_ffi!(
-    ros_tensor_stamped_builder_t,
+    edgefirst_msgs_tensor_stamped_builder_t,
     TensorStamped<Vec<u8>>,
-    ros_tensor_stamped_builder_new,
-    ros_tensor_stamped_builder_free,
-    ros_tensor_stamped_builder_set_stamp,
-    ros_tensor_stamped_builder_set_frame_id,
-    ros_tensor_stamped_builder_set_seq,
-    ros_tensor_stamped_builder_set_tensor,
-    ros_tensor_stamped_builder_build,
-    ros_tensor_stamped_builder_encode_into,
+    edgefirst_msgs_tensor_stamped_builder_new,
+    edgefirst_msgs_tensor_stamped_builder_free,
+    edgefirst_msgs_tensor_stamped_builder_set_stamp,
+    edgefirst_msgs_tensor_stamped_builder_set_frame_id,
+    edgefirst_msgs_tensor_stamped_builder_set_seq,
+    edgefirst_msgs_tensor_stamped_builder_set_tensor,
+    edgefirst_msgs_tensor_stamped_builder_build,
+    edgefirst_msgs_tensor_stamped_builder_encode_into,
     "TensorStamped"
 );
 
 stamped_tensor_builder_ffi!(
-    ros_camera_frame_builder_t,
+    edgefirst_msgs_camera_frame_builder_t,
     CameraFrame<Vec<u8>>,
-    ros_camera_frame_builder_new,
-    ros_camera_frame_builder_free,
-    ros_camera_frame_builder_set_stamp,
-    ros_camera_frame_builder_set_frame_id,
-    ros_camera_frame_builder_set_seq,
-    ros_camera_frame_builder_set_tensor,
-    ros_camera_frame_builder_build,
-    ros_camera_frame_builder_encode_into,
+    edgefirst_msgs_camera_frame_builder_new,
+    edgefirst_msgs_camera_frame_builder_free,
+    edgefirst_msgs_camera_frame_builder_set_stamp,
+    edgefirst_msgs_camera_frame_builder_set_frame_id,
+    edgefirst_msgs_camera_frame_builder_set_seq,
+    edgefirst_msgs_camera_frame_builder_set_tensor,
+    edgefirst_msgs_camera_frame_builder_build,
+    edgefirst_msgs_camera_frame_builder_encode_into,
     "CameraFrame"
 );

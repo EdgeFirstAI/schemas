@@ -1,9 +1,6 @@
-#!/bin/bash
-# Script to rename C API from EdgeFirst to Ros prefix for ROS2 common interfaces
-set -e
-echo "C API Naming Update - Run this from repository root"
-echo "Creating backups..."
-cp include/edgefirst/schemas.h include/edgefirst/schemas.h.backup
-cp src/ffi.rs src/ffi.rs.backup  
-cp examples/c/example.c examples/c/example.c.backup
-echo "Done. Run manual sed commands next."
+#!/usr/bin/env bash
+# Compatibility wrapper — the C API prefix rename is driven by
+# scripts/c_prefix_rename_map.py (package-name prefixes per the 4.0 design).
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+exec python3 "$ROOT/scripts/c_prefix_rename_map.py" "$@"
