@@ -1030,3 +1030,5 @@ fn ros_mavros_timesync_status_builder_encode_into_matches_rust_builder() {
 
 OUT.write_text(HEADER + OPAQUES + EXTERN + TESTS)
 print(f"Wrote {OUT} ({OUT.stat().st_size} bytes)")
+import subprocess
+subprocess.run(["cargo", "fmt", "-p", "edgefirst-schemas-capi"], check=True)
