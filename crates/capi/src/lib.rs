@@ -17318,3 +17318,7 @@ mod builder_ffi_smoke;
 #[cfg(test)]
 #[path = "../tests/in_place_setters_smoke.rs"]
 mod in_place_setters_smoke;
+
+#[cfg(test)]
+#[path = "../tests/geometry_mavros_builder_smoke.rs"]
+mod geometry_mavros_builder_smoke;
