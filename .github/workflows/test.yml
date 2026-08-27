@@ -240,22 +240,28 @@ jobs:
 
           workspace = Path(os.environ.get("GITHUB_WORKSPACE", os.getcwd())).resolve()
 
-          def normalize(path: str) -> str:
+          def normalize(path: str):
               p = Path(path)
               try:
-                  return str(p.resolve().relative_to(workspace))
+                  rel = str(p.resolve().relative_to(workspace))
               except Exception:
-                  # Fall back: strip a leading absolute workspace prefix.
-                  s = str(p)
                   prefix = str(workspace) + "/"
+                  s = str(p)
                   if s.startswith(prefix):
-                      return s[len(prefix) :]
-                  return s
+                      rel = s[len(prefix) :]
+                  else:
+                      return None
+              # Drop toolchain / registry noise from llvm-cov export.
+              if not (rel.startswith("crates/") or rel.startswith("src/")):
+                  return None
+              return rel
 
           merged = defaultdict(dict)
           for src in (Path("lcov-rust.info"), Path("lcov-c.info")):
               for sf, das in parse(src).items():
                   key = normalize(sf)
+                  if key is None:
+                      continue
                   slot = merged[key]
                   for ln, hits in das.items():
                       slot[ln] = max(slot.get(ln, 0), hits)
@@ -458,7 +464,7 @@ jobs:
           # Prefer cargo-llvm-cov report (historically ~85% on python/src/lib.rs).
           # Fall back to a direct llvm-cov export from the loaded extension if
           # report cannot find objects (external-test bookkeeping).
-          if ! cargo llvm-cov report --lcov --output-path coverage-python.lcov; then
+          if ! cargo llvm-cov report --lcov --output-path coverage-python.raw.lcov; then
             echo "cargo llvm-cov report failed; falling back to direct llvm-cov export"
             HOST=$(rustc -vV | sed -n 's/^host: //p')
             SYSROOT=$(rustc --print sysroot)
@@ -470,11 +476,67 @@ jobs:
             "${LLVM_COV}" export -format=lcov \
               -instr-profile="${COV_DIR}/py.profdata" \
               "${EXT_SO}" \
-              --ignore-filename-regex='/\.cargo/' \
-              > coverage-python.lcov
+              --ignore-filename-regex='/\.cargo/|/rustc/|/rustlib/' \
+              > coverage-python.raw.lcov
           fi
 
-          sed -i "s|SF:$PWD/|SF:|g" coverage-python.lcov
+          # Keep only workspace crates/* sources and rewrite to relative SF:
+          # paths. Direct llvm-cov export otherwise includes /rustc/... stdlib
+          # entries that Sonar cannot map (and that trip absolute-path checks).
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          workspace = Path(os.environ.get("GITHUB_WORKSPACE", os.getcwd())).resolve()
+          out = []
+          keep = False
+          buf = []
+
+          def flush():
+              global keep, buf
+              if keep and buf:
+                  out.extend(buf)
+              keep = False
+              buf = []
+
+          def normalize(sf: str) -> str | None:
+              p = Path(sf)
+              try:
+                  rel = p.resolve().relative_to(workspace)
+              except Exception:
+                  prefix = str(workspace) + "/"
+                  if sf.startswith(prefix):
+                      rel = Path(sf[len(prefix) :])
+                  else:
+                      return None
+              rel_s = str(rel)
+              if not rel_s.startswith("crates/"):
+                  return None
+              return rel_s
+
+          for line in Path("coverage-python.raw.lcov").read_text().splitlines():
+              if line.startswith("SF:"):
+                  flush()
+                  norm = normalize(line[3:])
+                  if norm is None:
+                      keep = False
+                      buf = []
+                  else:
+                      keep = True
+                      buf = [f"SF:{norm}"]
+              elif line == "end_of_record":
+                  if keep:
+                      buf.append(line)
+                      flush()
+                  else:
+                      buf = []
+                      keep = False
+              elif keep:
+                  buf.append(line)
+          flush()
+          Path("coverage-python.lcov").write_text("\n".join(out) + ("\n" if out else ""))
+          print(f"Filtered LCOV: {sum(1 for l in out if l.startswith('SF:'))} workspace files")
+          PY
 
           echo "=== Python-driven Rust source coverage written to coverage-python.lcov ==="
           python3 - <<'PY'
@@ -483,7 +545,7 @@ jobs:
           in_file = False
           for line in Path("coverage-python.lcov").read_text().splitlines():
               if line.startswith("SF:"):
-                  in_file = line.rstrip().endswith("crates/python/src/lib.rs")
+                  in_file = line.rstrip() == "SF:crates/python/src/lib.rs"
               elif in_file and line.startswith("DA:"):
                   _, hits = line[3:].split(",")[:2]
                   total += 1
@@ -499,14 +561,15 @@ jobs:
                   f"crates/python/src/lib.rs coverage >= 50% with >=1000 "
                   f"instrumented lines (got {covered}/{total} = {pct:.1f}%)"
               )
-          abs_paths = [
-              l for l in Path("coverage-python.lcov").read_text().splitlines()
+          abs_workspace = [
+              l
+              for l in Path("coverage-python.lcov").read_text().splitlines()
               if l.startswith("SF:/")
           ]
-          if abs_paths:
+          if abs_workspace:
               raise SystemExit(
                   "coverage-python.lcov still has absolute SF: paths; "
-                  f"Sonar will not merge them (sample: {abs_paths[0]})"
+                  f"Sonar will not merge them (sample: {abs_workspace[0]})"
               )
           PY
 
