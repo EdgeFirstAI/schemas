@@ -51,10 +51,8 @@ pip install pytest pytest-cov pytest-benchmark mypy hypothesis
 cargo llvm-cov --all-features --workspace --html
 open target/llvm-cov/html/index.html
 
-# C tests with coverage
-cd tests/c
-make test-coverage
-open coverage-html/index.html
+# C tests (repo root Makefile; sources under crates/capi/tests/c/)
+make test-c
 
 # Python tests with coverage
 pytest tests/python/ --cov=edgefirst --cov-report=html
@@ -67,11 +65,8 @@ open htmlcov/index.html
 # Rust benchmarks (optimized + debug symbols)
 cargo bench
 
-# C benchmarks
-cd tests/c
-make bench
-
-# Python benchmarks
+# C benchmarks (if present under crates/capi/benches/)
+# See Makefile / CI for current bench targets
 pytest benches/python/bench_native.py --benchmark-only
 ```
 
@@ -358,11 +353,12 @@ Test(builtin_interfaces, time_encode_decode_roundtrip) {
     cr_assert_eq(nanosec, 67890);
 }
 
-Test(builtin_interfaces, time_encode_null_buf_returns_einval) {
+Test(builtin_interfaces, time_encode_size_query) {
+    // NULL buffer is the supported size-query path (returns 0 regardless of cap).
     size_t written = 0;
-    int ret = builtin_interfaces_time_encode(NULL, 64, &written, 1, 2);
-    cr_assert_eq(ret, -1);
-    cr_assert_eq(errno, EINVAL);
+    int ret = builtin_interfaces_time_encode(NULL, 0, &written, 1, 2);
+    cr_assert_eq(ret, 0, "Size query should succeed");
+    cr_assert_gt(written, 0, "Required size should be > 0");
 }
 ```
 
@@ -395,26 +391,24 @@ RELEASE=0 make test-c
 
 ### Build System (Makefile)
 
+C tests are built and run from the **repository root** via `make test-c`.
+Sources live under `crates/capi/tests/c/`; the Makefile links against the
+Rust `edgefirst_schemas` cdylib in `target/`.
+
 ```makefile
-# Makefile (repo root) / crates/capi/tests/c/
-CC = gcc
-CFLAGS = -Wall -Wextra -std=c11 -I../../include
-LDFLAGS = -L../../target/release -ledgefirst_schemas -lcriterion
+# Makefile (repo root) — excerpt
+test-c: $(TEST_BINARIES)
+	@for test in $(TEST_BINARIES); do ./$$test --verbose || exit 1; done
 
-test: build/test_runner
-	./build/test_runner
-
-test-coverage: CFLAGS += --coverage -fprofile-arcs -ftest-coverage
-test-coverage: test
-	lcov --capture --directory . --output-file coverage.info
-	genhtml coverage.info --output-directory coverage-html
-
-test-valgrind: build/test_runner
-	valgrind --leak-check=full --error-exitcode=1 ./build/test_runner
-
-clean:
-	rm -rf build/ *.gcda *.gcno coverage.info coverage-html/
+test-c-xml: $(TEST_BINARIES)
+	@for test in $(TEST_BINARIES); do \
+	  ./$$test --output=xml:build/test-results/$$(basename $$test).xml || exit 1; \
+	done
 ```
+
+Combined Rust+C coverage for SonarCloud is generated in CI (see
+`.github/workflows/test.yml`): instrument the cdylib with `cargo llvm-cov
+show-env`, run `make test-c`, then merge LCOV from the loaded `.so`.
 
 ---
 
@@ -888,14 +882,11 @@ open target/llvm-cov/html/index.html
 cargo llvm-cov --all-features --workspace --lcov --output-path lcov-rust.info
 ```
 
-**C:**
+**C (functional tests only; coverage merged in CI):**
 ```bash
-cd tests/c
-make test-coverage
-open coverage-html/index.html
-
-# Generate LCOV
-make coverage.info
+make test-c
+# For instrumented coverage merge, follow the rust-and-c job in
+# .github/workflows/test.yml (cargo llvm-cov show-env + make test-c).
 ```
 
 **Python:**
@@ -910,7 +901,7 @@ pytest tests/python/ --cov=edgefirst --cov-report=xml
 
 ### GitHub Actions Workflow
 
-**Workflow: `.github/workflows/test-and-coverage.yml`**
+**Workflow: `.github/workflows/test.yml`**
 
 ```yaml
 name: Test and Coverage
@@ -940,27 +931,41 @@ jobs:
           files: lcov-rust.info
           flags: rust
 
-  test-c:
+  test-rust-and-c:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install Criterion
-        run: sudo apt-get install -y libcriterion-dev lcov
-        
-      - name: Build Rust library
-        run: cargo build --release
-        
-      - name: Run C tests with coverage
-        run: |
-          cd tests/c
-          make test-coverage
-          
-      - name: Upload to Codecov
-        uses: codecov/codecov-action@v3
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          files: lcov.info  # combined Rust+C via cargo-llvm-cov
-          flags: c
+          components: llvm-tools-preview
+        
+      - name: Install cargo-llvm-cov and cargo-nextest
+        uses: taiki-e/install-action@cargo-llvm-cov,cargo-nextest
+        
+      - name: Run Rust tests with coverage
+        run: |
+          cargo llvm-cov nextest --all-features --workspace --no-report
+          
+      - name: Run C API tests (instrumented cdylib)
+        run: |
+          source <(cargo llvm-cov show-env --export-prefix)
+          export LLVM_PROFILE_FILE="${PWD}/target/llvm-cov-target/schemas-c-%p-%m.profraw"
+          CARGO_TARGET_DIR="${PWD}/target/llvm-cov-target" \
+            cargo build -p edgefirst-schemas-capi --all-features
+          make test-c RELEASE=0
+          
+      - name: Generate combined LCOV
+        run: |
+          cargo llvm-cov report --lcov --output-path lcov-rust.info
+          # Merge C cdylib coverage (see .github/workflows/test.yml)
+          
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-coverage
+          path: lcov.info
 
   test-python:
     runs-on: ubuntu-latest
@@ -1007,24 +1012,22 @@ jobs:
 
 ### SonarCloud Configuration
 
-**File: `sonar-project.properties`**
+**File: `sonar-project.properties`** (coverage paths are passed in CI via
+`-Dsonar.rust.lcov.reportPaths=…`; see `.github/workflows/test.yml`)
 
 ```properties
-sonar.organization=edgefirst
-sonar.projectKey=edgefirst_schemas
+sonar.organization=edgefirstai
+sonar.projectKey=EdgeFirstAI_schemas
 
-# Coverage paths
+# Coverage paths (set in CI; merged Rust+C + Python-driven Rust LCOV)
 sonar.coverage.exclusions=**/tests/**,**/benches/**,**/examples/**
-sonar.rust.lcov.reportPaths=lcov-rust.info
-sonar.coverage.reportPaths=lcov.info
-sonar.python.coverage.reportPaths=coverage.xml
 
 # Test exclusions
 sonar.test.inclusions=**/tests/**,**/test_*.rs,**/test_*.c,**/test_*.py
 
-# Rust-specific
-sonar.sources=src/,include/
-sonar.tests=tests/,benches/
+# Sources (Rust crate roots; C/C++ headers are API declarations only)
+sonar.sources=crates/schemas/src,crates/capi/src,crates/python/src,crates/python/python
+sonar.tests=crates/schemas/tests,crates/capi/tests,tests/python
 ```
 
 ---
@@ -1131,22 +1134,14 @@ RUSTFLAGS="-C instrument-coverage" cargo bench --profile bench
 ### C
 
 ```bash
-cd tests/c
+# Quick test (repo root)
+make test-c
 
-# Quick test
-make test
+# JUnit XML (CI)
+make test-c-xml
 
-# With coverage
-make test-coverage
-
-# Memory check
-make test-valgrind
-
-# Benchmarks
-make bench
-
-# Clean
-make clean
+# Debug/instrumented library (coverage workflows)
+RELEASE=0 make test-c
 ```
 
 ### Python
@@ -1171,13 +1166,15 @@ pytest benches/python/bench_native.py --benchmark-only --benchmark-json=results.
 ### Full CI/CD Simulation
 
 ```bash
-# Run everything locally before pushing
-./scripts/run_all_tests.sh
-
-# Or manually:
-cargo llvm-cov --all-features --workspace --lcov --output-path lcov-rust.info
-cd tests/c && make test-coverage && cd ../..
-pytest tests/python/ --cov=edgefirst --cov-report=xml
+# Run the main suites locally before pushing (mirrors .github/workflows/test.yml)
+cargo llvm-cov nextest --all-features --workspace --no-report
+source <(cargo llvm-cov show-env --export-prefix)
+export LLVM_PROFILE_FILE="${PWD}/target/llvm-cov-target/schemas-c-%p-%m.profraw"
+CARGO_TARGET_DIR="${PWD}/target/llvm-cov-target" cargo build -p edgefirst-schemas-capi --all-features
+make test-c RELEASE=0
+cargo llvm-cov report --lcov --output-path lcov.info
+pytest tests/python/ -m "not benchmark" --cov=edgefirst --cov-report=xml
+make test-cpp
 ```
 
 ---

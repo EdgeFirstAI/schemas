@@ -85,12 +85,13 @@ gone. See the Migration section below.
   on types added after the 3.2.0 sweep (`nav_msgs`, `mavros_msgs`,
   `RelativeHumidity`, `TimeReference`) and on the 15 buffer-backed
   `geometry_msgs` types, for a single construction path in 4.0.
-- **Legacy buffer-backed C one-shot encoders** (`std_msgs_header_encode`,
-  `sensor_msgs_image_encode`, `sensor_msgs_compressed_image_encode`, `foxglove_msgs_compressed_video_encode`,
-  `foxglove_msgs_compressed_image_encode`, `edgefirst_msgs_mask_encode`; deprecated since 3.2.0).
+- **Legacy buffer-backed C one-shot encoders** (`ros_header_encode`,
+  `ros_image_encode`, `ros_compressed_image_encode`, `ros_compressed_video_encode`,
+  `ros_foxglove_compressed_image_encode`, `ros_mask_encode`; deprecated since 3.2.0).
   Use the `<package>_*_builder_*` handle-based API instead. Fixed-size
-  `<package>_<type>_encode(buf, cap, &written, …)` for `CdrFixed` types (e.g.
-  `builtin_interfaces_time_encode`) are unchanged under the new package prefix.
+  `CdrFixed` `<package>_<type>_encode(buf, cap, &written, …)` (e.g.
+  `builtin_interfaces_time_encode`, formerly `ros_time_encode`) are unchanged
+  apart from the package prefix rename.
 
 ### Changed
 
@@ -105,7 +106,10 @@ gone. See the Migration section below.
   C++ wrappers move into matching nested namespaces
   (`edgefirst::schemas::sensor_msgs::Image`); Foxglove/Mavros class-name
   collision prefixes are dropped (`FoxgloveCompressedImage` →
-  `foxglove_msgs::CompressedImage`).
+  `foxglove_msgs::CompressedImage`). Shared tensor accessor types
+  (`BorrowedTensorView`, `BorrowedTensorPlaneView`, `TensorView`) remain at
+  `edgefirst::schemas` because they are parent-borrowed helpers reused by
+  multiple package wrappers (`CameraFrame`, `TensorStamped`, …).
 
 - **`make lib` and `make install` are platform-aware.** They previously
   hardcoded the GNU/Linux `.so` naming, so both failed outright on macOS even
@@ -198,7 +202,7 @@ let msg = sensor_msgs::Image::builder()
 
 #### C API migration
 
-Buffer-backed one-shot encoders (`std_msgs_header_encode`, `sensor_msgs_image_encode`, …)
+Buffer-backed one-shot encoders (`ros_header_encode`, `ros_image_encode`, …)
 are removed. Use the builder handle API:
 
 ```c
@@ -250,7 +254,7 @@ Stem cleanup examples: `ros_foxglove_compressed_image_*` →
 - Upgrade producers and consumers of `rt/camera/*` topics together
 - Rebuild against `libedgefirst_schemas.so.4` when cutting 4.0
 - Migrate Rust code from `Foo::new()` to `Foo::builder()`
-- Migrate C code from buffer-backed one-shot encode to
+- Migrate C code from buffer-backed `ros_*_encode(&bytes, …)` to
   `<package>_*_builder_*`
 - Migrate C/C++ call sites from `ros_*` to package-name prefixes / nested
   namespaces (no `ros_*` aliases)
@@ -530,7 +534,7 @@ Stem cleanup examples: `ros_foxglove_compressed_image_*` →
   removed in 4.0. Use `Foo::builder()` instead.
 
 - **All legacy `ros_*_encode(...)` C FFI functions** continue to work
-  but route through the builder internally. The `<package>_*_builder_*` API
+  but route through the builder internally. The `ros_*_builder_*` API
   is the recommended replacement.
 
 ### Migration
