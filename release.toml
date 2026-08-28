@@ -3,8 +3,9 @@
 # Release Process (using cargo-release steps):
 # 1. cargo release version <patch|minor|major|<version>> --execute
 #    - Updates version in Cargo.toml only
-# 2. cargo release replace --execute  
-#    - Runs pre-release-replacements to update __init__.py, package.xml, and CHANGELOG.md
+# 2. cargo release replace --execute
+#    - Runs pre-release-replacements to update crates/python/pyproject.toml,
+#      package.xml, and CHANGELOG.md
 # 3. cargo release commit --execute
 #    - Commits all version changes
 # 4. cargo release tag --execute

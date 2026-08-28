@@ -1,16 +1,24 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright © 2026 Au-Zone Technologies. All Rights Reserved.
 
-# Build Python wheels for every supported platform.
+# Build Python wheels for every supported platform and both stable-ABI
+# floors.
 #
-# The pyo3 module ships as a CPython 3.11+ stable-ABI (abi3) wheel: one wheel
-# per OS/architecture covers every Python 3.11+ on that platform. Linux uses
-# zig + manylinux2014 for portable GLIBC <= 2.17 wheels (runs on Debian
-# bullseye, Ubuntu 18.04, RHEL 7+, embedded Yocto/Buildroot images). macOS
-# uses the native runner toolchain (Apple-signed binaries); the x86_64 wheel
-# is cross-compiled from the arm64 runner since macos-13 x86_64 runners are
-# no longer available. Windows uses the MSVC toolchain via the windows-latest
-# runner.
+# Two abi3 families are published per OS/architecture:
+#   * cp38-abi3  — Python 3.8+  (`--no-default-features --features abi3-py38`)
+#   * cp311-abi3 — Python 3.11+ (default `[tool.maturin] features`)
+#
+# Pip on 3.8–3.10 can only select cp38-abi3. Pip on 3.11+ matches both
+# and prefers the higher tag, so current Python keeps the zero-copy
+# Py_buffer path. The cp38-abi3 wheel copies on construct and
+# BorrowedBuf.view() returns bytes — documented in crates/python/README.md.
+#
+# Linux uses zig + manylinux2014 for portable GLIBC <= 2.17 wheels (runs
+# on Debian bullseye, Ubuntu 18.04, RHEL 7+, embedded Yocto/Buildroot
+# images). macOS uses the native runner toolchain (Apple-signed
+# binaries); the x86_64 wheel is cross-compiled from the arm64 runner
+# since macos-13 x86_64 runners are no longer available. Windows uses
+# the MSVC toolchain via the windows-latest runner.
 #
 # Trigger model:
 #   * push to main / PR — builds wheels for verification, uploads as
@@ -20,9 +28,9 @@
 #   * workflow_dispatch — manual rebuild for ad-hoc smoke testing.
 #
 # Pattern mirrors Studio/client's build.yml: each matrix job uploads a
-# uniquely-named artifact (wheels-<platform>-<arch>); the aggregation
-# job 'Verify Wheels' confirms every matrix entry succeeded so release.yml
-# can wait on a single check name.
+# uniquely-named artifact (wheels-<platform>-<arch>-<abi>); the
+# aggregation job 'Verify Wheels' confirms every matrix entry succeeded
+# so release.yml can wait on a single check name.
 
 name: Wheels
 
@@ -43,12 +51,19 @@ env:
 
 jobs:
   build-wheels:
-    name: Build Wheel - ${{ matrix.target }}
-    runs-on: ${{ matrix.os }}
+    name: Build Wheel - ${{ matrix.plat.target }} (${{ matrix.abi.name }})
+    runs-on: ${{ matrix.plat.os }}
     strategy:
       fail-fast: false
       matrix:
-        include:
+        abi:
+          - name: py38
+            tag: cp38-abi3
+            extra-args: "--no-default-features --features abi3-py38"
+          - name: py311
+            tag: cp311-abi3
+            extra-args: ""
+        plat:
           # Linux x86_64 — manylinux2014 via zig.
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
@@ -93,12 +108,12 @@ jobs:
         uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9 # master
         with:
           toolchain: ${{ env.RUST_STABLE_VERSION }}
-          targets: ${{ matrix.target }}
+          targets: ${{ matrix.plat.target }}
 
       - name: Set up Python
         # 3.11 is the build-host interpreter for maturin; the produced
-        # wheels are abi3-py311 so they're compatible with every CPython
-        # 3.11+ at install time regardless of which version built them.
+        # wheel tag comes from the PyO3 abi3-py* feature, not from this
+        # interpreter, so both cp38-abi3 and cp311-abi3 are built here.
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.11'
@@ -106,14 +121,14 @@ jobs:
       - name: Cache Rust dependencies and build artifacts
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
-          key: ${{ matrix.target }}-wheels
+          key: ${{ matrix.plat.target }}-${{ matrix.abi.name }}-wheels
           shared-key: "wheels"
           save-if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
 
       - name: Install maturin (with zig extras for Linux)
         shell: bash
         env:
-          USE_ZIG: ${{ matrix.zig }}
+          USE_ZIG: ${{ matrix.plat.zig }}
         run: |
           if [ "$USE_ZIG" = "true" ]; then
             pip install 'maturin[zig]'
@@ -121,42 +136,56 @@ jobs:
             pip install maturin
           fi
 
-      # Build wheel. abi3-py311 makes one wheel cover Python 3.11+; the
-      # default features in pyproject.toml already enable this so a plain
-      # `maturin build --release` produces the right artifact.
       - name: Build wheel (Linux + zig + manylinux2014)
-        if: matrix.platform == 'linux'
+        if: matrix.plat.platform == 'linux'
+        shell: bash
         env:
-          TARGET: ${{ matrix.target }}
+          TARGET: ${{ matrix.plat.target }}
+          EXTRA_ARGS: ${{ matrix.abi.extra-args }}
         run: |
+          # EXTRA_ARGS is empty for cp311-abi3 (pyproject default features).
+          # shellcheck disable=SC2086
           maturin build --release --locked --zig \
             --compatibility manylinux2014 \
             --target "$TARGET" \
             -m crates/python/Cargo.toml \
-            -i python3.11
+            -i python3.11 \
+            $EXTRA_ARGS
 
       - name: Build wheel (macOS native)
-        if: matrix.platform == 'macos'
+        if: matrix.plat.platform == 'macos'
+        shell: bash
         env:
-          TARGET: ${{ matrix.target }}
+          TARGET: ${{ matrix.plat.target }}
+          EXTRA_ARGS: ${{ matrix.abi.extra-args }}
         run: |
+          # shellcheck disable=SC2086
           maturin build --release --locked \
             --target "$TARGET" \
             -m crates/python/Cargo.toml \
-            -i python3.11
+            -i python3.11 \
+            $EXTRA_ARGS
 
       - name: Build wheel (Windows native)
-        if: matrix.platform == 'windows'
-        run: maturin build --release --locked -m crates/python/Cargo.toml -i python3.11
+        if: matrix.plat.platform == 'windows'
+        shell: bash
+        env:
+          EXTRA_ARGS: ${{ matrix.abi.extra-args }}
+        run: |
+          # shellcheck disable=SC2086
+          maturin build --release --locked \
+            -m crates/python/Cargo.toml \
+            -i python3.11 \
+            $EXTRA_ARGS
 
       # Verify the wheel actually contains an abi3 .so/.pyd, the .pyi
-      # stubs, and the py.typed marker. Fail the matrix entry if any are
-      # missing — this catches build-config drift before it ships.
+      # stubs, the py.typed marker, and the expected PEP 425 tag.
       - name: Verify wheel contents
         shell: bash
         env:
-          PLATFORM: ${{ matrix.platform }}
-          TARGET: ${{ matrix.target }}
+          PLATFORM: ${{ matrix.plat.platform }}
+          TARGET: ${{ matrix.plat.target }}
+          EXPECTED_TAG: ${{ matrix.abi.tag }}
         run: |
           set -euo pipefail
           WHEEL=$(ls target/wheels/edgefirst_schemas-*.whl | head -1)
@@ -164,6 +193,12 @@ jobs:
             echo "::error::No wheel produced under target/wheels/" >&2
             exit 1
           fi
+          echo "Built: $(basename "$WHEEL")"
+          if ! echo "$(basename "$WHEEL")" | grep -q "$EXPECTED_TAG"; then
+            echo "::error::expected $EXPECTED_TAG in $(basename "$WHEEL")"
+            exit 1
+          fi
+          echo "OK PEP 425 tag: $EXPECTED_TAG"
 
           TMP=$(mktemp -d)
           unzip -q "$WHEEL" -d "$TMP"
@@ -228,7 +263,7 @@ jobs:
       - name: Upload wheel artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: wheels-${{ matrix.platform }}-${{ matrix.arch }}
+          name: wheels-${{ matrix.plat.platform }}-${{ matrix.plat.arch }}-${{ matrix.abi.name }}
           path: target/wheels/*.whl
           if-no-files-found: error
 
@@ -286,10 +321,17 @@ jobs:
       - name: Confirm artifact count
         run: |
           set -euo pipefail
-          # 5 wheels (linux x86_64/aarch64, macos x86_64/aarch64, windows x86_64) + 1 sdist.
+          # 10 wheels: 5 platforms × {cp38-abi3, cp311-abi3} + 1 sdist.
           COUNT=$(find artifacts -name "*.whl" | wc -l)
-          if [ "$COUNT" -lt 5 ]; then
-            echo "::error::expected >=5 wheels, got $COUNT"
+          if [ "$COUNT" -lt 10 ]; then
+            echo "::error::expected >=10 wheels, got $COUNT"
+            find artifacts -name "*.whl"
+            exit 1
+          fi
+          CP38=$(find artifacts -name '*cp38-abi3*.whl' | wc -l)
+          CP311=$(find artifacts -name '*cp311-abi3*.whl' | wc -l)
+          if [ "$CP38" -lt 5 ] || [ "$CP311" -lt 5 ]; then
+            echo "::error::expected >=5 cp38-abi3 and >=5 cp311-abi3, got $CP38 / $CP311"
             find artifacts -name "*.whl"
             exit 1
           fi
@@ -298,4 +340,4 @@ jobs:
             echo "::error::expected >=1 sdist, got $SDIST"
             exit 1
           fi
-          echo "$COUNT wheels + $SDIST sdist"
+          echo "$COUNT wheels ($CP38 cp38-abi3, $CP311 cp311-abi3) + $SDIST sdist"

@@ -7,8 +7,8 @@
 # minimal pyproject so `pip install .` and `maturin develop` from the
 # repo root both work.
 #
-# The actual project metadata (name, version, classifiers, the cp311-abi3
-# feature flag, .pyi includes) lives in `crates/python/pyproject.toml`.
+# The actual project metadata (name, version, classifiers, dual abi3
+# wheel features, .pyi includes) lives in `crates/python/pyproject.toml`.
 
 [project]
 name = "edgefirst-schemas"

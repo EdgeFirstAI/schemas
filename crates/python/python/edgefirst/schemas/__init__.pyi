@@ -12,9 +12,8 @@ zero-copy access:
   buffer protocol — ``np.frombuffer(buf, dtype=...)`` returns a typed
   ndarray aliasing the parent's bytes, no copy.
 * On ``abi3-py38`` builds, the buffer protocol isn't in the limited API;
-  use ``buf.view()`` to get a ``memoryview`` instead. The same zero-copy
-  semantics apply, but you have to specify the dtype manually when
-  reshaping into a numpy array.
+  ``buf.view()`` returns ``bytes`` (one copy). Pass ``arr.tobytes()`` for
+  typed numpy constructor inputs.
 
 Every CDR message type is either a ``CdrFixed`` value (small struct,
 fixed wire size, exposed as a frozen pyclass with ``to_bytes()`` /

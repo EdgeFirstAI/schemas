@@ -7,9 +7,12 @@ Zero-copy CDR message types for EdgeFirst Perception. Wraps the
 pip install edgefirst-schemas
 ```
 
-The wheel ships as `cp311-abi3` (Python 3.11+, single wheel per OS/arch).
-For an older Python floor, build from source with `--no-default-features
---features abi3-py38` — see [Build from source](#build-from-source).
+The wheel ships two stable-ABI families per OS/architecture:
+
+- `cp311-abi3` — Python 3.11+, zero-copy `Py_buffer` path (pip prefers this on 3.11+)
+- `cp38-abi3` — Python 3.8–3.10 (and 3.11+ if the other wheel is absent); constructors copy and `BorrowedBuf.view()` returns `bytes`
+
+See [abi3-py38 builds](#abi3-py38-builds--typed-numpy-caveats) for the older-ABI tradeoffs.
 
 ## Quick start
 
@@ -108,13 +111,14 @@ img2 = Image.deserialize(buf)            buf = img.to_bytes()
 
 ### abi3-py38 builds — typed numpy caveats
 
-The default wheel is `cp311-abi3`, where the buffer protocol is in the
-limited API and typed numpy arrays (`np.uint16`, `np.float32`, …) work
-zero-copy as constructor inputs. On the opt-in `abi3-py38` build the
-buffer protocol isn't available; pass `arr.tobytes()` for typed arrays,
-and `BorrowedBuf.view()` returns `bytes` (one copy) instead of a
-parent-anchored memoryview. Plain `bytes` / `bytearray` / `np.uint8`
-arrays work on either build.
+The default published wheel on Python 3.11+ is `cp311-abi3`, where the
+buffer protocol is in the limited API and typed numpy arrays
+(`np.uint16`, `np.float32`, …) work zero-copy as constructor inputs.
+On the `cp38-abi3` wheel (Python 3.8–3.10, or a source build with
+`--features abi3-py38`) the buffer protocol isn't available; pass
+`arr.tobytes()` for typed arrays, and `BorrowedBuf.view()` returns
+`bytes` (one copy) instead of a parent-anchored memoryview. Plain
+`bytes` / `bytearray` / `np.uint8` arrays work on either build.
 
 ```python
 shape = np.array([2, 128, 12, 128], dtype=np.uint16)
@@ -128,13 +132,13 @@ RadarCube(..., shape=shape.tobytes(), ...)
 
 ## Build from source
 
-Default (cp311-abi3 wheel for Python 3.11+):
+Default local develop (cp311-abi3, Python 3.11+ zero-copy):
 
 ```bash
 maturin develop --release --manifest-path crates/python/Cargo.toml
 ```
 
-abi3-py38 wheel (for embedded targets pinning an older Python):
+cp38-abi3 wheel (Python 3.8+; copy-fallback on typed buffers):
 
 ```bash
 maturin build --release \

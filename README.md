@@ -37,6 +37,8 @@ cargo add edgefirst-schemas
 pip install edgefirst-schemas
 ```
 
+Wheels cover Python 3.8+ (`cp38-abi3`) and Python 3.11+ (`cp311-abi3`, zero-copy). Pip on 3.11+ selects the 3.11 wheel automatically.
+
 For detailed installation instructions and troubleshooting, see the [Developer Guide](https://doc.edgefirst.ai/latest/perception/dev/).
 
 ### Consuming Messages (Primary Use Case)
@@ -46,16 +48,13 @@ Most applications consume messages from EdgeFirst Perception services. Here's ho
 **Python Example - Consuming PointCloud2:**
 
 ```python
-from edgefirst.schemas import PointCloud2, decode_pcd
+from edgefirst.schemas.sensor_msgs import PointCloud2
 
-# Receive a point cloud message from EdgeFirst Perception
-# (via Zenoh subscriber - see samples for complete examples)
-points = decode_pcd(point_cloud_msg)
-
-# Access point data
-for point in points:
-    x, y, z = point.x, point.y, point.z
-    # Process point data...
+# Receive CDR bytes from EdgeFirst Perception (Zenoh subscriber, etc.)
+pcd = PointCloud2.from_cdr(cdr_bytes)
+print(pcd.width, pcd.height, pcd.point_step)
+# Packed payload is a zero-copy BorrowedBuf (memoryview on Python 3.11+)
+payload = pcd.data
 ```
 
 **Rust Example - Consuming PointCloud2 (Zero-Copy):**
@@ -83,13 +82,11 @@ fn process_pointcloud(cdr_bytes: &[u8]) {
 
 ```rust
 use edgefirst_schemas::edgefirst_msgs::Detect;
-use edgefirst_schemas::sensor_msgs::Image;
 
-fn process_detections(detect_msg: Detect) {
-    for bbox in detect_msg.boxes {
-        println!("Class: {}, Confidence: {:.2}",
-                 bbox.class_id, bbox.confidence);
-        // Process detection...
+fn process_detections(cdr_bytes: &[u8]) {
+    let detect = Detect::from_cdr(cdr_bytes).unwrap();
+    for bbox in detect.boxes() {
+        println!("label={} score={:.2}", bbox.label, bbox.score);
     }
 }
 ```
@@ -116,23 +113,29 @@ pose = Pose(
 **Rust Example - Building Detection Messages:**
 
 ```rust
-use edgefirst_schemas::edgefirst_msgs::{Detect, Box as BBox, Track};
-use edgefirst_schemas::std_msgs::Header;
+use edgefirst_schemas::builtin_interfaces::Time;
+use edgefirst_schemas::edgefirst_msgs::{Detect, DetectBoxView};
 
-fn create_detection() -> Detect {
-    Detect {
-        header: Header::default(),
-        boxes: vec![
-            BBox {
-                class_id: 1,
-                confidence: 0.95,
-                x: 100, y: 100, w: 50, h: 50,
-                ..Default::default()
-            }
-        ],
-        tracks: vec![],
-        model_info: Default::default(),
-    }
+fn create_detection() -> Detect<Vec<u8>> {
+    let boxes = [DetectBoxView {
+        center_x: 0.5,
+        center_y: 0.5,
+        width: 0.1,
+        height: 0.2,
+        label: "car",
+        score: 0.95,
+        distance: 10.0,
+        speed: 0.0,
+        track_id: "",
+        track_lifetime: 0,
+        track_created: Time::new(0, 0),
+    }];
+    Detect::builder()
+        .stamp(Time::new(1, 0))
+        .frame_id("camera")
+        .boxes(&boxes)
+        .build()
+        .unwrap()
 }
 ```
 

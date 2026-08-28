@@ -207,8 +207,9 @@ jobs:
   # ===========================================================================
   # Wait for the wheel matrix to finish on this same commit, then download
   # the produced artifacts. Mirrors Studio/client's release.yml flow:
-  # wheels.yml has already run on the tag push and uploaded one wheel per
-  # platform plus an sdist; we just collect them and ship.
+  # wheels.yml has already run on the tag push and uploaded two abi3
+  # wheels (cp38-abi3 and cp311-abi3) per platform plus an sdist; we
+  # just collect them and ship.
   # ===========================================================================
   wait-for-wheels:
     name: Wait for Wheels
@@ -222,9 +223,8 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           wait-interval: 15
           # 'Verify Wheels' only registers after every matrix entry
-          # finishes (Linux x86_64/aarch64, macOS x86_64/aarch64,
-          # Windows x86_64). Allow up to 10 min for the aggregate check
-          # to appear before failing.
+          # finishes (5 platforms × 2 abi3 families). Allow up to 10 min
+          # for the aggregate check to appear before failing.
           checks-discovery-timeout: 600
 
   # ===========================================================================

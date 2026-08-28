@@ -35,8 +35,9 @@ crate-type = ["cdylib"]
 #           isn't available; we fall back to a Vec<u8>::extract copy on
 #           construct (rejecting typed numpy with a clear error) and
 #           return `bytes` (not memoryview) from BorrowedBuf::view().
-#           Opt-in only — for embedded targets that pin an older Python.
-#           Build with: maturin build --no-default-features --features abi3-py38.
+#           Published to PyPI alongside cp311-abi3 so embedded images
+#           that pin 3.8–3.10 can `pip install`. Build with:
+#           maturin build --no-default-features --features abi3-py38.
 [features]
 default = []
 abi3-py38 = ["pyo3/abi3-py38"]
