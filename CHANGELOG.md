@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-08-28
+
 This release replaces the `DmaBuffer` and `CameraFrame`/`CameraPlane` messages
 with a composed tensor family, and redefines `CameraFrame` as a thin wrapper
 around a shared `Tensor` payload. It is **wire-incompatible**: `CameraFrame`
@@ -1288,7 +1290,8 @@ CDR serialization. No migration required.
 - Python build issues with wheel generation
 - Removed auxiliary files from ROS2 schemas not required for this project
 
-[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v3.5.0...HEAD
+[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v4.0.0...HEAD
+[4.0.0]: https://github.com/EdgeFirstAI/schemas/compare/v3.5.0...v4.0.0
 [3.5.0]: https://github.com/EdgeFirstAI/schemas/compare/v3.4.3...v3.5.0
 [3.4.3]: https://github.com/EdgeFirstAI/schemas/compare/v3.4.2...v3.4.3
 [3.4.2]: https://github.com/EdgeFirstAI/schemas/compare/v3.4.1...v3.4.2

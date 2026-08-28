@@ -1,6 +1,6 @@
 # EdgeFirst Perception Schemas - Architecture
 
-**Version:** 3.5.0
+**Version:** 4.0.0
 **Last Updated:** August 2026
 **Target Audience:** Developers implementing or integrating EdgeFirst Perception
 

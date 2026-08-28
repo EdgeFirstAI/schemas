@@ -573,7 +573,7 @@ fakeroot debian/rules build
 2. `crates/python/pyproject.toml` — Python package version
 3. `edgefirst_msgs/package.xml` — ROS2 package version
 
-**Current version:** 3.5.0
+**Current version:** 4.0.0
 
 **Semantic Versioning (SemVer 2.0.0):**
 - **MAJOR**: Breaking CDR wire format changes, removed message types, incompatible API changes
