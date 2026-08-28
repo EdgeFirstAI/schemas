@@ -167,7 +167,7 @@ class TestTensor:
         )
         got = Tensor.from_cdr(t.to_bytes())
         view = got.plane_data(0)
-        arr = np.frombuffer(view, dtype=np.uint8)
+        arr = np.frombuffer(view.view(), dtype=np.uint8)
         assert arr.tobytes() == payload
         # numpy did not take ownership; the view still refers to the message.
         assert len(view) == len(payload)
@@ -426,7 +426,7 @@ class TestGoldenFixtures:
         p = t.planes[0]
         assert p.is_inline
         assert p.data == bytes(range(8))
-        assert np.frombuffer(t.plane_data(0), dtype=np.uint8).tolist() == list(range(8))
+        assert np.frombuffer(t.plane_data(0).view(), dtype=np.uint8).tolist() == list(range(8))
 
     def test_tensor_quantized(self):
         t = Tensor.from_cdr(self.golden("Tensor_quantized"))
