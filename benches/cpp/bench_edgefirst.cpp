@@ -8,6 +8,145 @@
 #include <memory>
 
 namespace ef = edgefirst::schemas;
+using ef::builtin_interfaces::Time;
+using ef::builtin_interfaces::Duration;
+using ef::geometry_msgs::Vector3;
+using ef::geometry_msgs::Point;
+using ef::geometry_msgs::Point32;
+using ef::geometry_msgs::Quaternion;
+using ef::geometry_msgs::Pose;
+using ef::geometry_msgs::Transform;
+using ef::geometry_msgs::Twist;
+using ef::geometry_msgs::Accel;
+using ef::geometry_msgs::Wrench;
+using ef::geometry_msgs::PoseWithCovariance;
+using ef::geometry_msgs::TwistWithCovariance;
+using ef::geometry_msgs::AccelWithCovariance;
+using ef::geometry_msgs::AccelStampedView;
+using ef::geometry_msgs::AccelStampedBuilder;
+using ef::geometry_msgs::TwistStampedView;
+using ef::geometry_msgs::TwistStampedBuilder;
+using ef::geometry_msgs::WrenchStampedView;
+using ef::geometry_msgs::WrenchStampedBuilder;
+using ef::geometry_msgs::PointStampedView;
+using ef::geometry_msgs::PointStampedBuilder;
+using ef::geometry_msgs::InertiaStampedView;
+using ef::geometry_msgs::InertiaStampedBuilder;
+using ef::geometry_msgs::Vector3StampedView;
+using ef::geometry_msgs::Vector3StampedBuilder;
+using ef::geometry_msgs::PoseStampedView;
+using ef::geometry_msgs::PoseStampedBuilder;
+using ef::geometry_msgs::QuaternionStampedView;
+using ef::geometry_msgs::QuaternionStampedBuilder;
+using ef::geometry_msgs::PoseWithCovarianceStampedView;
+using ef::geometry_msgs::PoseWithCovarianceStampedBuilder;
+using ef::geometry_msgs::TwistWithCovarianceStampedView;
+using ef::geometry_msgs::TwistWithCovarianceStampedBuilder;
+using ef::geometry_msgs::AccelWithCovarianceStampedView;
+using ef::geometry_msgs::AccelWithCovarianceStampedBuilder;
+using ef::geometry_msgs::PolygonView;
+using ef::geometry_msgs::PolygonBuilder;
+using ef::geometry_msgs::PolygonStampedView;
+using ef::geometry_msgs::PolygonStampedBuilder;
+using ef::geometry_msgs::PoseArrayView;
+using ef::geometry_msgs::PoseArrayBuilder;
+using ef::geometry_msgs::TransformStampedView;
+using ef::geometry_msgs::TransformStampedBuilder;
+using ef::std_msgs::Header;
+using ef::std_msgs::HeaderView;
+using ef::std_msgs::HeaderBuilder;
+using ef::sensor_msgs::NavSatStatus;
+using ef::sensor_msgs::CompressedImage;
+using ef::sensor_msgs::CompressedImageView;
+using ef::sensor_msgs::CompressedImageBuilder;
+using ef::sensor_msgs::Image;
+using ef::sensor_msgs::ImageView;
+using ef::sensor_msgs::ImageBuilder;
+using ef::sensor_msgs::ImuView;
+using ef::sensor_msgs::ImuBuilder;
+using ef::sensor_msgs::NavSatFixView;
+using ef::sensor_msgs::NavSatFixBuilder;
+using ef::sensor_msgs::CameraInfoView;
+using ef::sensor_msgs::CameraInfoBuilder;
+using ef::sensor_msgs::PointCloud2View;
+using ef::sensor_msgs::PointCloud2Builder;
+using ef::sensor_msgs::PointFieldBuilder;
+using ef::sensor_msgs::MagneticFieldView;
+using ef::sensor_msgs::MagneticFieldBuilder;
+using ef::sensor_msgs::FluidPressureView;
+using ef::sensor_msgs::FluidPressureBuilder;
+using ef::sensor_msgs::TemperatureView;
+using ef::sensor_msgs::TemperatureBuilder;
+using ef::sensor_msgs::BatteryStateView;
+using ef::sensor_msgs::BatteryStateBuilder;
+using ef::sensor_msgs::RelativeHumidityView;
+using ef::sensor_msgs::RelativeHumidityBuilder;
+using ef::sensor_msgs::TimeReferenceView;
+using ef::sensor_msgs::TimeReferenceBuilder;
+using ef::nav_msgs::MapMetaData;
+using ef::nav_msgs::OdometryView;
+using ef::nav_msgs::OdometryBuilder;
+using ef::nav_msgs::GridCellsView;
+using ef::nav_msgs::GridCellsBuilder;
+using ef::nav_msgs::OccupancyGridView;
+using ef::nav_msgs::OccupancyGridBuilder;
+using ef::nav_msgs::PathView;
+using ef::nav_msgs::PathBuilder;
+using ef::foxglove_msgs::CompressedVideo;
+using ef::foxglove_msgs::CompressedVideoView;
+using ef::foxglove_msgs::CompressedVideoBuilder;
+using ef::foxglove_msgs::TextAnnotationBuilder;
+using ef::foxglove_msgs::PointAnnotationBuilder;
+using ef::foxglove_msgs::ImageAnnotationBuilder;
+using ef::mavros_msgs::AltitudeView;
+using ef::mavros_msgs::AltitudeBuilder;
+using ef::mavros_msgs::VfrHudView;
+using ef::mavros_msgs::VfrHudBuilder;
+using ef::mavros_msgs::EstimatorStatusView;
+using ef::mavros_msgs::EstimatorStatusBuilder;
+using ef::mavros_msgs::ExtendedStateView;
+using ef::mavros_msgs::ExtendedStateBuilder;
+using ef::mavros_msgs::SysStatusView;
+using ef::mavros_msgs::SysStatusBuilder;
+using ef::mavros_msgs::StateView;
+using ef::mavros_msgs::StateBuilder;
+using ef::mavros_msgs::StatusTextView;
+using ef::mavros_msgs::StatusTextBuilder;
+using ef::mavros_msgs::GpsRawView;
+using ef::mavros_msgs::GpsRawBuilder;
+using ef::mavros_msgs::TimesyncStatusView;
+using ef::mavros_msgs::TimesyncStatusBuilder;
+using ef::edgefirst_msgs::Mask;
+using ef::edgefirst_msgs::MaskView;
+using ef::edgefirst_msgs::MaskBuilder;
+using ef::edgefirst_msgs::LocalTimeView;
+using ef::edgefirst_msgs::LocalTimeBuilder;
+using ef::edgefirst_msgs::TrackView;
+using ef::edgefirst_msgs::TrackBuilder;
+using ef::edgefirst_msgs::BoxView;
+using ef::edgefirst_msgs::DetectView;
+using ef::edgefirst_msgs::DetectBuilder;
+using ef::edgefirst_msgs::DetectBoxBuilder;
+using ef::edgefirst_msgs::ModelView;
+using ef::edgefirst_msgs::ModelBuilder;
+using ef::edgefirst_msgs::ModelInfoView;
+using ef::edgefirst_msgs::ModelInfoBuilder;
+using ef::edgefirst_msgs::RadarCubeView;
+using ef::edgefirst_msgs::RadarCubeBuilder;
+using ef::edgefirst_msgs::RadarInfoView;
+using ef::edgefirst_msgs::RadarInfoBuilder;
+using ef::edgefirst_msgs::VibrationView;
+using ef::edgefirst_msgs::VibrationBuilder;
+using ef::edgefirst_msgs::TensorView;
+using ef::edgefirst_msgs::TensorBuilder;
+using ef::edgefirst_msgs::TensorStampedView;
+using ef::edgefirst_msgs::TensorStampedBuilder;
+using ef::edgefirst_msgs::CameraFrameView;
+using ef::edgefirst_msgs::CameraFrameBuilder;
+using FoxgloveCompressedImage = ef::foxglove_msgs::CompressedImage;
+using FoxgloveCompressedImageView = ef::foxglove_msgs::CompressedImageView;
+using FoxgloveCompressedImageBuilder = ef::foxglove_msgs::CompressedImageBuilder;
+
 
 // ===========================================================================
 // Helpers
@@ -21,7 +160,7 @@ static std::vector<std::uint8_t> ef_build_to_bytes(BuildFn&& build_fn) {
     if (!result) return {};
     auto& r = *result;
     std::vector<std::uint8_t> v(r.data, r.data + r.size);
-    ros_bytes_free(r.data, r.size);
+    edgefirst_schemas_bytes_free(r.data, r.size);
     return v;
 }
 
@@ -32,7 +171,7 @@ static std::vector<std::uint8_t> ef_build_to_bytes(BuildFn&& build_fn) {
 // RSS to grow per iteration on large messages.
 template <typename ReleasedExpected>
 static inline void ef_release(const ReleasedExpected& r) {
-    if (r) ros_bytes_free(r->data, r->size);
+    if (r) edgefirst_schemas_bytes_free(r->data, r->size);
 }
 
 // ===========================================================================
@@ -42,9 +181,9 @@ static inline void ef_release(const ReleasedExpected& r) {
 static void Header_encode_new(benchmark::State& state) {
     bench::fixtures::HeaderFixture f;
     for (auto _ : state) {
-        auto b = ef::HeaderBuilder::create();
+        auto b = HeaderBuilder::create();
         if (!b) { state.SkipWithError("HeaderBuilder::create failed"); break; }
-        b->stamp(ef::Time{f.stamp_sec, f.stamp_nanos});
+        b->stamp(Time{f.stamp_sec, f.stamp_nanos});
         auto fi = b->frame_id(f.frame_id.c_str());
         (void)fi;
         auto result = b->build();
@@ -57,12 +196,12 @@ static void Header_encode_new(benchmark::State& state) {
 static const std::vector<std::uint8_t>& header_wire_bytes() {
     static const std::vector<std::uint8_t> bytes = [] {
         bench::fixtures::HeaderFixture f;
-        auto b = ef::HeaderBuilder::create();
-        b->stamp(ef::Time{f.stamp_sec, f.stamp_nanos});
+        auto b = HeaderBuilder::create();
+        b->stamp(Time{f.stamp_sec, f.stamp_nanos});
         (void)b->frame_id(f.frame_id.c_str());
         auto r = b->build();
         std::vector<std::uint8_t> v(r->data, r->data + r->size);
-        ros_bytes_free(r->data, r->size);
+        edgefirst_schemas_bytes_free(r->data, r->size);
         return v;
     }();
     return bytes;
@@ -71,7 +210,7 @@ static const std::vector<std::uint8_t>& header_wire_bytes() {
 static void Header_decode_decode(benchmark::State& state) {
     auto& bytes = header_wire_bytes();
     for (auto _ : state) {
-        auto v = ef::HeaderView::from_cdr({bytes.data(), bytes.size()});
+        auto v = HeaderView::from_cdr({bytes.data(), bytes.size()});
         benchmark::DoNotOptimize(v);
     }
 }
@@ -79,7 +218,7 @@ static void Header_decode_decode(benchmark::State& state) {
 static void Header_access_one_field(benchmark::State& state) {
     auto& bytes = header_wire_bytes();
     for (auto _ : state) {
-        auto v = ef::HeaderView::from_cdr({bytes.data(), bytes.size()});
+        auto v = HeaderView::from_cdr({bytes.data(), bytes.size()});
         auto sec = v->stamp().sec;
         benchmark::DoNotOptimize(sec);
     }
@@ -88,7 +227,7 @@ static void Header_access_one_field(benchmark::State& state) {
 static void Header_access_half_fields(benchmark::State& state) {
     auto& bytes = header_wire_bytes();
     for (auto _ : state) {
-        auto v = ef::HeaderView::from_cdr({bytes.data(), bytes.size()});
+        auto v = HeaderView::from_cdr({bytes.data(), bytes.size()});
         auto t = v->stamp();
         auto sec   = t.sec;
         auto nanos = t.nanosec;
@@ -100,7 +239,7 @@ static void Header_access_half_fields(benchmark::State& state) {
 static void Header_access_all_fields(benchmark::State& state) {
     auto& bytes = header_wire_bytes();
     for (auto _ : state) {
-        auto v = ef::HeaderView::from_cdr({bytes.data(), bytes.size()});
+        auto v = HeaderView::from_cdr({bytes.data(), bytes.size()});
         auto t     = v->stamp();
         auto sec   = t.sec;
         auto nanos = t.nanosec;
@@ -136,7 +275,7 @@ static void register_header_benchmarks() {
 static const std::vector<std::uint8_t>& time_wire_bytes() {
     static const std::vector<std::uint8_t> bytes = [] {
         bench::fixtures::TimeFixture f;
-        ef::Time t{f.sec, f.nanos};
+        Time t{f.sec, f.nanos};
         auto sz = t.encoded_size();
         std::vector<std::uint8_t> buf(*sz);
         (void)t.encode({buf.data(), buf.size()});
@@ -148,7 +287,7 @@ static const std::vector<std::uint8_t>& time_wire_bytes() {
 static void Time_encode_new(benchmark::State& state) {
     bench::fixtures::TimeFixture f;
     for (auto _ : state) {
-        ef::Time t{f.sec, f.nanos};
+        Time t{f.sec, f.nanos};
         auto sz = t.encoded_size();
         std::vector<std::uint8_t> buf(*sz);
         auto result = t.encode({buf.data(), buf.size()});
@@ -160,7 +299,7 @@ static void Time_encode_new(benchmark::State& state) {
 static void Time_decode_decode(benchmark::State& state) {
     auto& bytes = time_wire_bytes();
     for (auto _ : state) {
-        auto v = ef::Time::decode({bytes.data(), bytes.size()});
+        auto v = Time::decode({bytes.data(), bytes.size()});
         benchmark::DoNotOptimize(v);
     }
 }
@@ -168,7 +307,7 @@ static void Time_decode_decode(benchmark::State& state) {
 static void Time_access_one_field(benchmark::State& state) {
     auto& bytes = time_wire_bytes();
     for (auto _ : state) {
-        auto v = ef::Time::decode({bytes.data(), bytes.size()});
+        auto v = Time::decode({bytes.data(), bytes.size()});
         auto sec = v->sec;
         benchmark::DoNotOptimize(sec);
     }
@@ -177,7 +316,7 @@ static void Time_access_one_field(benchmark::State& state) {
 static void Time_access_half_fields(benchmark::State& state) {
     auto& bytes = time_wire_bytes();
     for (auto _ : state) {
-        auto v = ef::Time::decode({bytes.data(), bytes.size()});
+        auto v = Time::decode({bytes.data(), bytes.size()});
         auto sec = v->sec;
         benchmark::DoNotOptimize(sec);
     }
@@ -186,7 +325,7 @@ static void Time_access_half_fields(benchmark::State& state) {
 static void Time_access_all_fields(benchmark::State& state) {
     auto& bytes = time_wire_bytes();
     for (auto _ : state) {
-        auto v = ef::Time::decode({bytes.data(), bytes.size()});
+        auto v = Time::decode({bytes.data(), bytes.size()});
         auto sec   = v->sec;
         auto nanos = v->nanosec;
         benchmark::DoNotOptimize(sec);
@@ -214,7 +353,7 @@ static void register_small_type_benchmarks() {
     // ---- Vector3 ----
     static const std::vector<std::uint8_t> v3_bytes = [] {
         bench::fixtures::Vector3Fixture f;
-        ef::Vector3 v{f.x, f.y, f.z};
+        Vector3 v{f.x, f.y, f.z};
         auto sz = v.encoded_size();
         std::vector<std::uint8_t> buf(*sz);
         (void)v.encode({buf.data(), buf.size()});
@@ -226,7 +365,7 @@ static void register_small_type_benchmarks() {
         [](benchmark::State& state) {
             bench::fixtures::Vector3Fixture f;
             for (auto _ : state) {
-                ef::Vector3 v{f.x, f.y, f.z};
+                Vector3 v{f.x, f.y, f.z};
                 auto sz = v.encoded_size();
                 std::vector<std::uint8_t> buf(*sz);
                 auto result = v.encode({buf.data(), buf.size()});
@@ -238,7 +377,7 @@ static void register_small_type_benchmarks() {
         bench::bench_name("Vector3", bench::op::decode_decode, "default").c_str(),
         [](benchmark::State& state) {
             for (auto _ : state) {
-                auto v = ef::Vector3::decode({v3_bytes.data(), v3_bytes.size()});
+                auto v = Vector3::decode({v3_bytes.data(), v3_bytes.size()});
                 benchmark::DoNotOptimize(v);
             }
         });
@@ -246,7 +385,7 @@ static void register_small_type_benchmarks() {
         bench::bench_name("Vector3", bench::op::access_one_field, "default").c_str(),
         [](benchmark::State& state) {
             for (auto _ : state) {
-                auto v = ef::Vector3::decode({v3_bytes.data(), v3_bytes.size()});
+                auto v = Vector3::decode({v3_bytes.data(), v3_bytes.size()});
                 auto x = v->x;
                 benchmark::DoNotOptimize(x);
             }
@@ -255,7 +394,7 @@ static void register_small_type_benchmarks() {
         bench::bench_name("Vector3", bench::op::access_half_fields, "default").c_str(),
         [](benchmark::State& state) {
             for (auto _ : state) {
-                auto v = ef::Vector3::decode({v3_bytes.data(), v3_bytes.size()});
+                auto v = Vector3::decode({v3_bytes.data(), v3_bytes.size()});
                 auto x = v->x; auto y = v->y;
                 benchmark::DoNotOptimize(x); benchmark::DoNotOptimize(y);
             }
@@ -264,7 +403,7 @@ static void register_small_type_benchmarks() {
         bench::bench_name("Vector3", bench::op::access_all_fields, "default").c_str(),
         [](benchmark::State& state) {
             for (auto _ : state) {
-                auto v = ef::Vector3::decode({v3_bytes.data(), v3_bytes.size()});
+                auto v = Vector3::decode({v3_bytes.data(), v3_bytes.size()});
                 auto x = v->x; auto y = v->y; auto z = v->z;
                 benchmark::DoNotOptimize(x); benchmark::DoNotOptimize(y);
                 benchmark::DoNotOptimize(z);
@@ -274,7 +413,7 @@ static void register_small_type_benchmarks() {
     // ---- Pose ----
     static const std::vector<std::uint8_t> pose_bytes = [] {
         bench::fixtures::PoseFixture f;
-        ef::Pose p{f.px, f.py, f.pz, f.qx, f.qy, f.qz, f.qw};
+        Pose p{f.px, f.py, f.pz, f.qx, f.qy, f.qz, f.qw};
         auto sz = p.encoded_size();
         std::vector<std::uint8_t> buf(*sz);
         (void)p.encode({buf.data(), buf.size()});
@@ -286,7 +425,7 @@ static void register_small_type_benchmarks() {
         [](benchmark::State& state) {
             bench::fixtures::PoseFixture f;
             for (auto _ : state) {
-                ef::Pose p{f.px, f.py, f.pz, f.qx, f.qy, f.qz, f.qw};
+                Pose p{f.px, f.py, f.pz, f.qx, f.qy, f.qz, f.qw};
                 auto sz = p.encoded_size();
                 std::vector<std::uint8_t> buf(*sz);
                 auto result = p.encode({buf.data(), buf.size()});
@@ -298,7 +437,7 @@ static void register_small_type_benchmarks() {
         bench::bench_name("Pose", bench::op::decode_decode, "default").c_str(),
         [](benchmark::State& state) {
             for (auto _ : state) {
-                auto v = ef::Pose::decode({pose_bytes.data(), pose_bytes.size()});
+                auto v = Pose::decode({pose_bytes.data(), pose_bytes.size()});
                 benchmark::DoNotOptimize(v);
             }
         });
@@ -306,7 +445,7 @@ static void register_small_type_benchmarks() {
         bench::bench_name("Pose", bench::op::access_one_field, "default").c_str(),
         [](benchmark::State& state) {
             for (auto _ : state) {
-                auto v = ef::Pose::decode({pose_bytes.data(), pose_bytes.size()});
+                auto v = Pose::decode({pose_bytes.data(), pose_bytes.size()});
                 auto px = v->px;
                 benchmark::DoNotOptimize(px);
             }
@@ -315,7 +454,7 @@ static void register_small_type_benchmarks() {
         bench::bench_name("Pose", bench::op::access_half_fields, "default").c_str(),
         [](benchmark::State& state) {
             for (auto _ : state) {
-                auto v = ef::Pose::decode({pose_bytes.data(), pose_bytes.size()});
+                auto v = Pose::decode({pose_bytes.data(), pose_bytes.size()});
                 auto px = v->px; auto py = v->py; auto pz = v->pz;
                 benchmark::DoNotOptimize(px); benchmark::DoNotOptimize(py);
                 benchmark::DoNotOptimize(pz);
@@ -325,7 +464,7 @@ static void register_small_type_benchmarks() {
         bench::bench_name("Pose", bench::op::access_all_fields, "default").c_str(),
         [](benchmark::State& state) {
             for (auto _ : state) {
-                auto v = ef::Pose::decode({pose_bytes.data(), pose_bytes.size()});
+                auto v = Pose::decode({pose_bytes.data(), pose_bytes.size()});
                 auto px = v->px; auto py = v->py; auto pz = v->pz;
                 auto ox = v->ox; auto oy = v->oy; auto oz = v->oz; auto ow = v->ow;
                 benchmark::DoNotOptimize(px); benchmark::DoNotOptimize(py);
@@ -351,8 +490,8 @@ static void register_image_benchmarks() {
         // Pre-encode wire bytes for decode/access ops
         auto wire_ptr = std::make_shared<std::vector<std::uint8_t>>([&]() {
             std::uint32_t step = v.width * v.step_bpp;
-            auto r = ef::Image::encode(
-                ef::Time{1234567890, 123456789},
+            auto r = Image::encode(
+                Time{1234567890, 123456789},
                 "cam",
                 v.height, v.width,
                 std::string(v.encoding),
@@ -370,8 +509,8 @@ static void register_image_benchmarks() {
             [v, payload_ptr](benchmark::State& state) {
                 std::uint32_t step = v.width * v.step_bpp;
                 for (auto _ : state) {
-                    auto r = ef::Image::encode(
-                        ef::Time{1234567890, 123456789},
+                    auto r = Image::encode(
+                        Time{1234567890, 123456789},
                         "cam",
                         v.height, v.width,
                         std::string(v.encoding),
@@ -390,7 +529,7 @@ static void register_image_benchmarks() {
             bench::bench_name("Image", bench::op::decode_decode, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw = ef::ImageView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw = ImageView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     benchmark::DoNotOptimize(vw);
                 }
                 state.SetBytesProcessed(
@@ -403,7 +542,7 @@ static void register_image_benchmarks() {
             bench::bench_name("Image", bench::op::access_one_field, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw  = ef::ImageView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw  = ImageView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto sec = vw->stamp().sec;
                     benchmark::DoNotOptimize(sec);
                 }
@@ -414,7 +553,7 @@ static void register_image_benchmarks() {
             bench::bench_name("Image", bench::op::access_half_fields, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw  = ef::ImageView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw  = ImageView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto sec = vw->stamp().sec;
                     auto h   = vw->height();
                     auto w   = vw->width();
@@ -429,7 +568,7 @@ static void register_image_benchmarks() {
             bench::bench_name("Image", bench::op::access_all_fields, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw  = ef::ImageView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw  = ImageView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto t   = vw->stamp();
                     auto sec = t.sec; auto ns = t.nanosec;
                     auto fid = vw->frame_id();
@@ -452,7 +591,7 @@ static void register_image_benchmarks() {
             bench::bench_name("Image", bench::op::access_payload_iter, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw   = ef::ImageView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw   = ImageView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto data = vw->data();
                     std::uint64_t sum = 0;
                     for (auto b : data) sum += b;
@@ -487,9 +626,9 @@ static void register_radarcube_benchmarks() {
 
         // Pre-encode wire bytes
         auto wire_ptr = std::make_shared<std::vector<std::uint8_t>>([&]() {
-            auto b = ef::RadarCubeBuilder::create();
+            auto b = RadarCubeBuilder::create();
             if (!b) return std::vector<std::uint8_t>{};
-            b->stamp(ef::Time{1234567890, 0});
+            b->stamp(Time{1234567890, 0});
             (void)b->frame_id("radar");
             b->timestamp(0);
             (void)b->shape({shape_arr.data(), shape_arr.size()});
@@ -498,7 +637,7 @@ static void register_radarcube_benchmarks() {
             auto r = b->build();
             if (!r) return std::vector<std::uint8_t>{};
             std::vector<std::uint8_t> out(r->data, r->data + r->size);
-            ros_bytes_free(r->data, r->size);
+            edgefirst_schemas_bytes_free(r->data, r->size);
             return out;
         }());
 
@@ -507,9 +646,9 @@ static void register_radarcube_benchmarks() {
             bench::bench_name("RadarCube", bench::op::encode_new, v.name).c_str(),
             [shape_ptr, cube_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto b = ef::RadarCubeBuilder::create();
+                    auto b = RadarCubeBuilder::create();
                     if (!b) { state.SkipWithError("create failed"); break; }
-                    b->stamp(ef::Time{1234567890, 0});
+                    b->stamp(Time{1234567890, 0});
                     (void)b->frame_id("radar");
                     b->timestamp(0);
                     (void)b->shape({shape_ptr->data(), shape_ptr->size()});
@@ -529,7 +668,7 @@ static void register_radarcube_benchmarks() {
             bench::bench_name("RadarCube", bench::op::decode_decode, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw = ef::RadarCubeView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw = RadarCubeView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     benchmark::DoNotOptimize(vw);
                 }
                 state.SetBytesProcessed(
@@ -542,7 +681,7 @@ static void register_radarcube_benchmarks() {
             bench::bench_name("RadarCube", bench::op::access_one_field, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw  = ef::RadarCubeView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw  = RadarCubeView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto sec = vw->stamp().sec;
                     benchmark::DoNotOptimize(sec);
                 }
@@ -553,7 +692,7 @@ static void register_radarcube_benchmarks() {
             bench::bench_name("RadarCube", bench::op::access_half_fields, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw  = ef::RadarCubeView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw  = RadarCubeView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto sec = vw->stamp().sec;
                     auto ts  = vw->timestamp();
                     auto clen = vw->cube_len();
@@ -567,7 +706,7 @@ static void register_radarcube_benchmarks() {
             bench::bench_name("RadarCube", bench::op::access_all_fields, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw   = ef::RadarCubeView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw   = RadarCubeView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto t    = vw->stamp();
                     auto sec  = t.sec; auto ns = t.nanosec;
                     auto fid  = vw->frame_id();
@@ -587,7 +726,7 @@ static void register_radarcube_benchmarks() {
             bench::bench_name("RadarCube", bench::op::access_payload_iter, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw   = ef::RadarCubeView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw   = RadarCubeView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto data = vw->cube_raw();
                     std::uint64_t sum = 0;
                     for (auto b : data) sum += b;
@@ -613,7 +752,7 @@ static void register_mask_benchmarks() {
 
         // Pre-encode wire bytes
         auto wire_ptr = std::make_shared<std::vector<std::uint8_t>>([&]() {
-            auto r = ef::Mask::encode(
+            auto r = Mask::encode(
                 v.height, v.width,
                 static_cast<std::uint32_t>(payload_size),
                 "mono8",
@@ -631,7 +770,7 @@ static void register_mask_benchmarks() {
                 std::size_t ps = static_cast<std::size_t>(v.width) *
                                  static_cast<std::size_t>(v.height);
                 for (auto _ : state) {
-                    auto r = ef::Mask::encode(
+                    auto r = Mask::encode(
                         v.height, v.width,
                         static_cast<std::uint32_t>(ps),
                         "mono8",
@@ -649,7 +788,7 @@ static void register_mask_benchmarks() {
             bench::bench_name("Mask", bench::op::decode_decode, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw = ef::MaskView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw = MaskView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     benchmark::DoNotOptimize(vw);
                 }
                 state.SetBytesProcessed(
@@ -662,7 +801,7 @@ static void register_mask_benchmarks() {
             bench::bench_name("Mask", bench::op::access_one_field, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw = ef::MaskView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw = MaskView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto h  = vw->height();
                     benchmark::DoNotOptimize(h);
                 }
@@ -673,7 +812,7 @@ static void register_mask_benchmarks() {
             bench::bench_name("Mask", bench::op::access_half_fields, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw  = ef::MaskView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw  = MaskView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto h   = vw->height();
                     auto w   = vw->width();
                     auto len = vw->length();
@@ -688,7 +827,7 @@ static void register_mask_benchmarks() {
             bench::bench_name("Mask", bench::op::access_all_fields, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw   = ef::MaskView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw   = MaskView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto h    = vw->height();
                     auto w    = vw->width();
                     auto len  = vw->length();
@@ -706,7 +845,7 @@ static void register_mask_benchmarks() {
             bench::bench_name("Mask", bench::op::access_payload_iter, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw   = ef::MaskView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw   = MaskView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto data = vw->data();
                     std::uint64_t sum = 0;
                     for (auto b : data) sum += b;
@@ -730,8 +869,8 @@ static void register_compressedvideo_benchmarks() {
 
         // Pre-encode wire bytes
         auto wire_ptr = std::make_shared<std::vector<std::uint8_t>>([&]() {
-            auto r = ef::CompressedVideo::encode(
-                ef::Time{1234567890, 123456789},
+            auto r = CompressedVideo::encode(
+                Time{1234567890, 123456789},
                 "cam",
                 {payload_ptr->data(), payload_ptr->size()},
                 "h264");
@@ -745,8 +884,8 @@ static void register_compressedvideo_benchmarks() {
             bench::bench_name("CompressedVideo", bench::op::encode_new, v.name).c_str(),
             [payload_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto r = ef::CompressedVideo::encode(
-                        ef::Time{1234567890, 123456789},
+                    auto r = CompressedVideo::encode(
+                        Time{1234567890, 123456789},
                         "cam",
                         {payload_ptr->data(), payload_ptr->size()},
                         "h264");
@@ -762,7 +901,7 @@ static void register_compressedvideo_benchmarks() {
             bench::bench_name("CompressedVideo", bench::op::decode_decode, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw = ef::CompressedVideoView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw = CompressedVideoView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     benchmark::DoNotOptimize(vw);
                 }
                 state.SetBytesProcessed(
@@ -775,7 +914,7 @@ static void register_compressedvideo_benchmarks() {
             bench::bench_name("CompressedVideo", bench::op::access_one_field, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw  = ef::CompressedVideoView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw  = CompressedVideoView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto sec = vw->stamp().sec;
                     benchmark::DoNotOptimize(sec);
                 }
@@ -786,7 +925,7 @@ static void register_compressedvideo_benchmarks() {
             bench::bench_name("CompressedVideo", bench::op::access_half_fields, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw  = ef::CompressedVideoView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw  = CompressedVideoView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto sec = vw->stamp().sec;
                     auto fid = vw->frame_id();
                     auto fmt = vw->format();
@@ -800,7 +939,7 @@ static void register_compressedvideo_benchmarks() {
             bench::bench_name("CompressedVideo", bench::op::access_all_fields, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw   = ef::CompressedVideoView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw   = CompressedVideoView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto t    = vw->stamp();
                     auto sec  = t.sec; auto ns = t.nanosec;
                     auto fid  = vw->frame_id();
@@ -817,7 +956,7 @@ static void register_compressedvideo_benchmarks() {
             bench::bench_name("CompressedVideo", bench::op::access_payload_iter, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw   = ef::CompressedVideoView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw   = CompressedVideoView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto data = vw->data();
                     std::uint64_t sum = 0;
                     for (auto b : data) sum += b;
@@ -836,8 +975,8 @@ static void register_compressedvideo_benchmarks() {
 
 static void register_pointcloud2_benchmarks() {
     // 4 fields: x, y, z, intensity (each float32 = 4 bytes, offset 0/4/8/12)
-    // datatype 7 = FLOAT32 per ros_point_field_builder_set_datatype doc
-    static const ros_point_field_elem_t kFields[] = {
+    // datatype 7 = FLOAT32 per sensor_msgs_point_field_builder_set_datatype doc
+    static const sensor_msgs_point_field_elem_t kFields[] = {
         {"x",         0,  7, 1},
         {"y",         4,  7, 1},
         {"z",         8,  7, 1},
@@ -853,9 +992,9 @@ static void register_pointcloud2_benchmarks() {
 
         // Pre-encode wire bytes
         auto wire_ptr = std::make_shared<std::vector<std::uint8_t>>([&]() {
-            auto b = ef::PointCloud2Builder::create();
+            auto b = PointCloud2Builder::create();
             if (!b) return std::vector<std::uint8_t>{};
-            b->stamp(ef::Time{1234567890, 123456789});
+            b->stamp(Time{1234567890, 123456789});
             (void)b->frame_id("lidar");
             b->height(1);
             b->width(v.num_points);
@@ -868,7 +1007,7 @@ static void register_pointcloud2_benchmarks() {
             auto r = b->build();
             if (!r) return std::vector<std::uint8_t>{};
             std::vector<std::uint8_t> out(r->data, r->data + r->size);
-            ros_bytes_free(r->data, r->size);
+            edgefirst_schemas_bytes_free(r->data, r->size);
             return out;
         }());
 
@@ -877,9 +1016,9 @@ static void register_pointcloud2_benchmarks() {
             bench::bench_name("PointCloud2", bench::op::encode_new, v.name).c_str(),
             [v, payload_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto b = ef::PointCloud2Builder::create();
+                    auto b = PointCloud2Builder::create();
                     if (!b) { state.SkipWithError("create failed"); break; }
-                    b->stamp(ef::Time{1234567890, 123456789});
+                    b->stamp(Time{1234567890, 123456789});
                     (void)b->frame_id("lidar");
                     b->height(1);
                     b->width(v.num_points);
@@ -903,7 +1042,7 @@ static void register_pointcloud2_benchmarks() {
             bench::bench_name("PointCloud2", bench::op::decode_decode, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw = ef::PointCloud2View::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw = PointCloud2View::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     benchmark::DoNotOptimize(vw);
                 }
                 state.SetBytesProcessed(
@@ -916,7 +1055,7 @@ static void register_pointcloud2_benchmarks() {
             bench::bench_name("PointCloud2", bench::op::access_one_field, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw  = ef::PointCloud2View::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw  = PointCloud2View::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto sec = vw->stamp().sec;
                     benchmark::DoNotOptimize(sec);
                 }
@@ -927,7 +1066,7 @@ static void register_pointcloud2_benchmarks() {
             bench::bench_name("PointCloud2", bench::op::access_half_fields, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw  = ef::PointCloud2View::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw  = PointCloud2View::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto sec = vw->stamp().sec;
                     auto h   = vw->height();
                     auto w   = vw->width();
@@ -944,7 +1083,7 @@ static void register_pointcloud2_benchmarks() {
             bench::bench_name("PointCloud2", bench::op::access_all_fields, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw  = ef::PointCloud2View::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw  = PointCloud2View::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto t   = vw->stamp();
                     auto sec = t.sec; auto ns = t.nanosec;
                     auto fid = vw->frame_id();
@@ -970,7 +1109,7 @@ static void register_pointcloud2_benchmarks() {
             bench::bench_name("PointCloud2", bench::op::access_payload_iter, v.name).c_str(),
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw   = ef::PointCloud2View::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw   = PointCloud2View::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto data = vw->data();
                     std::uint64_t sum = 0;
                     for (auto b : data) sum += b;
@@ -991,12 +1130,12 @@ static void register_pointcloud2_benchmarks() {
 // Mask/640x640_8class, CompressedVideo/100KB, PointCloud2/medium_10K
 //
 // In-place setter availability:
-//   Header           : YES  - ros_header_set_stamp
-//   Image            : YES  - ros_image_set_stamp
-//   RadarCube        : YES  - ros_radar_cube_set_stamp
-//   CompressedVideo  : YES  - ros_foxglove_compressed_video_set_stamp
-//   PointCloud2      : YES  - ros_point_cloud2_set_stamp
-//   Mask             : YES  - no stamp on Mask itself, but ros_mask_set_height/
+//   Header           : YES  - std_msgs_header_set_stamp
+//   Image            : YES  - sensor_msgs_image_set_stamp
+//   RadarCube        : YES  - edgefirst_msgs_radar_cube_set_stamp
+//   CompressedVideo  : YES  - foxglove_msgs_compressed_video_set_stamp
+//   PointCloud2      : YES  - sensor_msgs_point_cloud2_set_stamp
+//   Mask             : YES  - no stamp on Mask itself, but edgefirst_msgs_mask_set_height/
 //                             width/length/boxed update fixed-size fields in place
 
 static void register_workflow_benchmarks() {
@@ -1007,12 +1146,12 @@ static void register_workflow_benchmarks() {
         // Pre-encoded wire bytes shared across sub/pub ops
         static const std::vector<std::uint8_t> hdr_wire = [] {
             bench::fixtures::HeaderFixture f;
-            auto b = ef::HeaderBuilder::create();
-            b->stamp(ef::Time{f.stamp_sec, f.stamp_nanos});
+            auto b = HeaderBuilder::create();
+            b->stamp(Time{f.stamp_sec, f.stamp_nanos});
             (void)b->frame_id(f.frame_id.c_str());
             auto r = b->build();
             std::vector<std::uint8_t> v(r->data, r->data + r->size);
-            ros_bytes_free(r->data, r->size);
+            edgefirst_schemas_bytes_free(r->data, r->size);
             return v;
         }();
 
@@ -1021,10 +1160,10 @@ static void register_workflow_benchmarks() {
             bench::bench_name("Header", bench::op::workflow_smp, "default").c_str(),
             [](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto v = ef::HeaderView::from_cdr({hdr_wire.data(), hdr_wire.size()});
+                    auto v = HeaderView::from_cdr({hdr_wire.data(), hdr_wire.size()});
                     auto fid = v->frame_id();               // caller-side metadata
-                    auto b = ef::HeaderBuilder::create();
-                    b->stamp(ef::Time{1234567891, 0});       // updated timestamp
+                    auto b = HeaderBuilder::create();
+                    b->stamp(Time{1234567891, 0});       // updated timestamp
                     (void)b->frame_id(fid.data());
                     auto r = b->build();
                     benchmark::DoNotOptimize(r);
@@ -1038,8 +1177,8 @@ static void register_workflow_benchmarks() {
             [](benchmark::State& state) {
                 for (auto _ : state) {
                     for (int i = 0; i < 1000; ++i) {
-                        auto b = ef::HeaderBuilder::create();
-                        b->stamp(ef::Time{1234567890 + i, 0});
+                        auto b = HeaderBuilder::create();
+                        b->stamp(Time{1234567890 + i, 0});
                         (void)b->frame_id("cam");
                         auto r = b->build();
                         benchmark::DoNotOptimize(r);
@@ -1054,16 +1193,16 @@ static void register_workflow_benchmarks() {
             bench::bench_name("Header", bench::op::workflow_pub_inplace, "default").c_str(),
             [](benchmark::State& state) {
                 // Build the initial buffer once outside the timed loop
-                auto b = ef::HeaderBuilder::create();
-                b->stamp(ef::Time{1234567890, 0});
+                auto b = HeaderBuilder::create();
+                b->stamp(Time{1234567890, 0});
                 (void)b->frame_id("cam");
                 auto r0 = b->build();
                 std::vector<std::uint8_t> buf(r0->data, r0->data + r0->size);
-                ros_bytes_free(r0->data, r0->size);
+                edgefirst_schemas_bytes_free(r0->data, r0->size);
                 for (auto _ : state) {
                     for (int i = 0; i < 1000; ++i) {
                         // In-place update of stamp; buf layout is stable
-                        ros_header_set_stamp(buf.data(), buf.size(),
+                        std_msgs_header_set_stamp(buf.data(), buf.size(),
                                              1234567890 + i, static_cast<uint32_t>(i));
                         benchmark::DoNotOptimize(buf.data());
                     }
@@ -1077,7 +1216,7 @@ static void register_workflow_benchmarks() {
             [](benchmark::State& state) {
                 for (auto _ : state) {
                     for (int i = 0; i < 1000; ++i) {
-                        auto v   = ef::HeaderView::from_cdr({hdr_wire.data(), hdr_wire.size()});
+                        auto v   = HeaderView::from_cdr({hdr_wire.data(), hdr_wire.size()});
                         auto sec = v->stamp().sec;
                         auto fid = v->frame_id();
                         benchmark::DoNotOptimize(sec);
@@ -1105,8 +1244,8 @@ static void register_workflow_benchmarks() {
 
         auto wire_ptr = std::make_shared<std::vector<std::uint8_t>>([&]() {
             std::uint32_t step = iv.width * iv.step_bpp;
-            auto r = ef::Image::encode(
-                ef::Time{1234567890, 123456789}, "cam",
+            auto r = Image::encode(
+                Time{1234567890, 123456789}, "cam",
                 iv.height, iv.width, std::string(iv.encoding), false, step,
                 {payload_ptr->data(), payload_ptr->size()});
             if (!r) return std::vector<std::uint8_t>{};
@@ -1120,10 +1259,10 @@ static void register_workflow_benchmarks() {
             [wire_ptr, payload_ptr, iv](benchmark::State& state) {
                 std::uint32_t step = iv.width * iv.step_bpp;
                 for (auto _ : state) {
-                    auto vw   = ef::ImageView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw   = ImageView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto enc  = vw->encoding();
-                    auto r    = ef::Image::encode(
-                        ef::Time{1234567891, 0}, "cam",
+                    auto r    = Image::encode(
+                        Time{1234567891, 0}, "cam",
                         vw->height(), vw->width(),
                         std::string(enc), false, step,
                         {payload_ptr->data(), payload_ptr->size()});
@@ -1138,8 +1277,8 @@ static void register_workflow_benchmarks() {
                 std::uint32_t step = iv.width * iv.step_bpp;
                 for (auto _ : state) {
                     for (int i = 0; i < 1000; ++i) {
-                        auto r = ef::Image::encode(
-                            ef::Time{1234567890 + i, 0}, "cam",
+                        auto r = Image::encode(
+                            Time{1234567890 + i, 0}, "cam",
                             iv.height, iv.width, std::string(iv.encoding), false, step,
                             {payload_ptr->data(), payload_ptr->size()});
                         benchmark::DoNotOptimize(r);
@@ -1148,7 +1287,7 @@ static void register_workflow_benchmarks() {
                 state.SetItemsProcessed(state.iterations() * 1000);
             });
 
-        // workflow/pub_loop_inplace: ros_image_set_stamp updates stamp in-place
+        // workflow/pub_loop_inplace: sensor_msgs_image_set_stamp updates stamp in-place
         benchmark::RegisterBenchmark(
             bench::bench_name("Image", bench::op::workflow_pub_inplace, "HD_rgb8").c_str(),
             [payload_ptr, iv, wire_ptr](benchmark::State& state) {
@@ -1156,7 +1295,7 @@ static void register_workflow_benchmarks() {
                 std::vector<std::uint8_t> buf(*wire_ptr);
                 for (auto _ : state) {
                     for (int i = 0; i < 1000; ++i) {
-                        ros_image_set_stamp(buf.data(), buf.size(),
+                        sensor_msgs_image_set_stamp(buf.data(), buf.size(),
                                             1234567890 + i, static_cast<uint32_t>(i));
                         benchmark::DoNotOptimize(buf.data());
                     }
@@ -1170,7 +1309,7 @@ static void register_workflow_benchmarks() {
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
                     for (int i = 0; i < 1000; ++i) {
-                        auto vw  = ef::ImageView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                        auto vw  = ImageView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                         auto sec = vw->stamp().sec;
                         auto h   = vw->height();
                         auto w   = vw->width();
@@ -1205,9 +1344,9 @@ static void register_workflow_benchmarks() {
         auto shape_ptr = std::make_shared<std::array<std::uint16_t, 4>>(shape_arr);
 
         auto wire_ptr = std::make_shared<std::vector<std::uint8_t>>([&]() {
-            auto b = ef::RadarCubeBuilder::create();
+            auto b = RadarCubeBuilder::create();
             if (!b) return std::vector<std::uint8_t>{};
-            b->stamp(ef::Time{1234567890, 0});
+            b->stamp(Time{1234567890, 0});
             (void)b->frame_id("radar");
             b->timestamp(0);
             (void)b->shape({shape_arr.data(), shape_arr.size()});
@@ -1216,7 +1355,7 @@ static void register_workflow_benchmarks() {
             auto r = b->build();
             if (!r) return std::vector<std::uint8_t>{};
             std::vector<std::uint8_t> out(r->data, r->data + r->size);
-            ros_bytes_free(r->data, r->size);
+            edgefirst_schemas_bytes_free(r->data, r->size);
             return out;
         }());
 
@@ -1225,11 +1364,11 @@ static void register_workflow_benchmarks() {
             bench::bench_name("RadarCube", bench::op::workflow_smp, "DRVEGRD169_short").c_str(),
             [wire_ptr, cube_ptr, shape_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw = ef::RadarCubeView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw = RadarCubeView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto ts = vw->timestamp();
-                    auto b  = ef::RadarCubeBuilder::create();
+                    auto b  = RadarCubeBuilder::create();
                     if (!b) { state.SkipWithError("create failed"); break; }
-                    b->stamp(ef::Time{1234567891, 0});
+                    b->stamp(Time{1234567891, 0});
                     (void)b->frame_id("radar");
                     b->timestamp(ts + 1);
                     (void)b->shape({shape_ptr->data(), shape_ptr->size()});
@@ -1247,9 +1386,9 @@ static void register_workflow_benchmarks() {
             [cube_ptr, shape_ptr](benchmark::State& state) {
                 for (auto _ : state) {
                     for (int i = 0; i < 1000; ++i) {
-                        auto b = ef::RadarCubeBuilder::create();
+                        auto b = RadarCubeBuilder::create();
                         if (!b) { state.SkipWithError("create failed"); break; }
-                        b->stamp(ef::Time{1234567890 + i, 0});
+                        b->stamp(Time{1234567890 + i, 0});
                         (void)b->frame_id("radar");
                         b->timestamp(static_cast<uint64_t>(i));
                         (void)b->shape({shape_ptr->data(), shape_ptr->size()});
@@ -1263,14 +1402,14 @@ static void register_workflow_benchmarks() {
                 state.SetItemsProcessed(state.iterations() * 1000);
             });
 
-        // workflow/pub_loop_inplace: ros_radar_cube_set_stamp updates stamp in-place
+        // workflow/pub_loop_inplace: edgefirst_msgs_radar_cube_set_stamp updates stamp in-place
         benchmark::RegisterBenchmark(
             bench::bench_name("RadarCube", bench::op::workflow_pub_inplace, "DRVEGRD169_short").c_str(),
             [wire_ptr](benchmark::State& state) {
                 std::vector<std::uint8_t> buf(*wire_ptr);
                 for (auto _ : state) {
                     for (int i = 0; i < 1000; ++i) {
-                        ros_radar_cube_set_stamp(buf.data(), buf.size(),
+                        edgefirst_msgs_radar_cube_set_stamp(buf.data(), buf.size(),
                                                  1234567890 + i, static_cast<uint32_t>(i));
                         benchmark::DoNotOptimize(buf.data());
                     }
@@ -1284,7 +1423,7 @@ static void register_workflow_benchmarks() {
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
                     for (int i = 0; i < 1000; ++i) {
-                        auto vw  = ef::RadarCubeView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                        auto vw  = RadarCubeView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                         auto sec = vw->stamp().sec;
                         auto ts  = vw->timestamp();
                         auto clen = vw->cube_len();
@@ -1300,7 +1439,7 @@ static void register_workflow_benchmarks() {
     // ========================================================
     // Mask / 640x640_8class
     // NOTE: Mask has no header/stamp field. pub_loop_inplace exercises the
-    //       fixed-size in-place setters (ros_mask_set_length / set_boxed).
+    //       fixed-size in-place setters (edgefirst_msgs_mask_set_length / set_boxed).
     // ========================================================
     {
         const bench::fixtures::MaskVariant* mp = nullptr;
@@ -1315,7 +1454,7 @@ static void register_workflow_benchmarks() {
             bench::make_payload(payload_size));
 
         auto wire_ptr = std::make_shared<std::vector<std::uint8_t>>([&]() {
-            auto r = ef::Mask::encode(
+            auto r = Mask::encode(
                 mv.height, mv.width,
                 static_cast<std::uint32_t>(payload_size),
                 "mono8",
@@ -1333,10 +1472,10 @@ static void register_workflow_benchmarks() {
                 std::size_t ps = static_cast<std::size_t>(mv.width) *
                                  static_cast<std::size_t>(mv.height);
                 for (auto _ : state) {
-                    auto vw  = ef::MaskView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw  = MaskView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto h   = vw->height();
                     auto w   = vw->width();
-                    auto r   = ef::Mask::encode(
+                    auto r   = Mask::encode(
                         h, w,
                         static_cast<std::uint32_t>(ps),
                         "mono8",
@@ -1354,7 +1493,7 @@ static void register_workflow_benchmarks() {
                                  static_cast<std::size_t>(mv.height);
                 for (auto _ : state) {
                     for (int i = 0; i < 1000; ++i) {
-                        auto r = ef::Mask::encode(
+                        auto r = Mask::encode(
                             mv.height, mv.width,
                             static_cast<std::uint32_t>(ps),
                             "mono8",
@@ -1366,7 +1505,7 @@ static void register_workflow_benchmarks() {
                 state.SetItemsProcessed(state.iterations() * 1000);
             });
 
-        // workflow/pub_loop_inplace: ros_mask_set_length / set_boxed update fields
+        // workflow/pub_loop_inplace: edgefirst_msgs_mask_set_length / set_boxed update fields
         // in-place on a single shared buffer (no stamp on Mask, but length/boxed
         // are the natural per-iteration mutables).
         benchmark::RegisterBenchmark(
@@ -1377,9 +1516,9 @@ static void register_workflow_benchmarks() {
                 std::uint32_t base_length = mv.width * mv.height;
                 for (auto _ : state) {
                     for (int i = 0; i < 1000; ++i) {
-                        ros_mask_set_length(buf.data(), buf.size(),
+                        edgefirst_msgs_mask_set_length(buf.data(), buf.size(),
                                             base_length + static_cast<std::uint32_t>(i));
-                        ros_mask_set_boxed(buf.data(), buf.size(),
+                        edgefirst_msgs_mask_set_boxed(buf.data(), buf.size(),
                                            static_cast<std::uint8_t>(i & 1));
                         benchmark::DoNotOptimize(buf.data());
                     }
@@ -1393,7 +1532,7 @@ static void register_workflow_benchmarks() {
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
                     for (int i = 0; i < 1000; ++i) {
-                        auto vw  = ef::MaskView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                        auto vw  = MaskView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                         auto h   = vw->height();
                         auto w   = vw->width();
                         auto enc = vw->encoding();
@@ -1420,8 +1559,8 @@ static void register_workflow_benchmarks() {
             bench::make_payload(cvv.payload_bytes));
 
         auto wire_ptr = std::make_shared<std::vector<std::uint8_t>>([&]() {
-            auto r = ef::CompressedVideo::encode(
-                ef::Time{1234567890, 123456789}, "cam",
+            auto r = CompressedVideo::encode(
+                Time{1234567890, 123456789}, "cam",
                 {payload_ptr->data(), payload_ptr->size()}, "h264");
             if (!r) return std::vector<std::uint8_t>{};
             auto sp = r->as_cdr();
@@ -1433,10 +1572,10 @@ static void register_workflow_benchmarks() {
             bench::bench_name("CompressedVideo", bench::op::workflow_smp, "100KB").c_str(),
             [wire_ptr, payload_ptr](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw  = ef::CompressedVideoView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw  = CompressedVideoView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto fmt = vw->format();
-                    auto r   = ef::CompressedVideo::encode(
-                        ef::Time{1234567891, 0}, "cam",
+                    auto r   = CompressedVideo::encode(
+                        Time{1234567891, 0}, "cam",
                         {payload_ptr->data(), payload_ptr->size()},
                         std::string(fmt));
                     benchmark::DoNotOptimize(r);
@@ -1449,8 +1588,8 @@ static void register_workflow_benchmarks() {
             [payload_ptr](benchmark::State& state) {
                 for (auto _ : state) {
                     for (int i = 0; i < 1000; ++i) {
-                        auto r = ef::CompressedVideo::encode(
-                            ef::Time{1234567890 + i, 0}, "cam",
+                        auto r = CompressedVideo::encode(
+                            Time{1234567890 + i, 0}, "cam",
                             {payload_ptr->data(), payload_ptr->size()}, "h264");
                         benchmark::DoNotOptimize(r);
                     }
@@ -1458,14 +1597,14 @@ static void register_workflow_benchmarks() {
                 state.SetItemsProcessed(state.iterations() * 1000);
             });
 
-        // workflow/pub_loop_inplace: ros_foxglove_compressed_video_set_stamp
+        // workflow/pub_loop_inplace: foxglove_msgs_compressed_video_set_stamp
         benchmark::RegisterBenchmark(
             bench::bench_name("CompressedVideo", bench::op::workflow_pub_inplace, "100KB").c_str(),
             [wire_ptr](benchmark::State& state) {
                 std::vector<std::uint8_t> buf(*wire_ptr);
                 for (auto _ : state) {
                     for (int i = 0; i < 1000; ++i) {
-                        ros_foxglove_compressed_video_set_stamp(
+                        foxglove_msgs_compressed_video_set_stamp(
                             buf.data(), buf.size(),
                             1234567890 + i, static_cast<uint32_t>(i));
                         benchmark::DoNotOptimize(buf.data());
@@ -1480,7 +1619,7 @@ static void register_workflow_benchmarks() {
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
                     for (int i = 0; i < 1000; ++i) {
-                        auto vw  = ef::CompressedVideoView::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                        auto vw  = CompressedVideoView::from_cdr({wire_ptr->data(), wire_ptr->size()});
                         auto sec = vw->stamp().sec;
                         auto fmt = vw->format();
                         benchmark::DoNotOptimize(sec);
@@ -1501,7 +1640,7 @@ static void register_workflow_benchmarks() {
         }
         const auto& pcv = *pcp;
 
-        static const ros_point_field_elem_t kFields[] = {
+        static const sensor_msgs_point_field_elem_t kFields[] = {
             {"x",         0,  7, 1},
             {"y",         4,  7, 1},
             {"z",         8,  7, 1},
@@ -1515,9 +1654,9 @@ static void register_workflow_benchmarks() {
             bench::make_payload(payload_size));
 
         auto wire_ptr = std::make_shared<std::vector<std::uint8_t>>([&]() {
-            auto b = ef::PointCloud2Builder::create();
+            auto b = PointCloud2Builder::create();
             if (!b) return std::vector<std::uint8_t>{};
-            b->stamp(ef::Time{1234567890, 123456789});
+            b->stamp(Time{1234567890, 123456789});
             (void)b->frame_id("lidar");
             b->height(1);
             b->width(pcv.num_points);
@@ -1530,7 +1669,7 @@ static void register_workflow_benchmarks() {
             auto r = b->build();
             if (!r) return std::vector<std::uint8_t>{};
             std::vector<std::uint8_t> out(r->data, r->data + r->size);
-            ros_bytes_free(r->data, r->size);
+            edgefirst_schemas_bytes_free(r->data, r->size);
             return out;
         }());
 
@@ -1539,11 +1678,11 @@ static void register_workflow_benchmarks() {
             bench::bench_name("PointCloud2", bench::op::workflow_smp, "robosense_e1r").c_str(),
             [wire_ptr, payload_ptr, pcv](benchmark::State& state) {
                 for (auto _ : state) {
-                    auto vw  = ef::PointCloud2View::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                    auto vw  = PointCloud2View::from_cdr({wire_ptr->data(), wire_ptr->size()});
                     auto w   = vw->width();
-                    auto b   = ef::PointCloud2Builder::create();
+                    auto b   = PointCloud2Builder::create();
                     if (!b) { state.SkipWithError("create failed"); break; }
-                    b->stamp(ef::Time{1234567891, 0});
+                    b->stamp(Time{1234567891, 0});
                     (void)b->frame_id("lidar");
                     b->height(1);
                     b->width(w);
@@ -1565,9 +1704,9 @@ static void register_workflow_benchmarks() {
             [payload_ptr, pcv](benchmark::State& state) {
                 for (auto _ : state) {
                     for (int i = 0; i < 1000; ++i) {
-                        auto b = ef::PointCloud2Builder::create();
+                        auto b = PointCloud2Builder::create();
                         if (!b) { state.SkipWithError("create failed"); break; }
-                        b->stamp(ef::Time{1234567890 + i, 0});
+                        b->stamp(Time{1234567890 + i, 0});
                         (void)b->frame_id("lidar");
                         b->height(1);
                         b->width(pcv.num_points);
@@ -1585,14 +1724,14 @@ static void register_workflow_benchmarks() {
                 state.SetItemsProcessed(state.iterations() * 1000);
             });
 
-        // workflow/pub_loop_inplace: ros_point_cloud2_set_stamp
+        // workflow/pub_loop_inplace: sensor_msgs_point_cloud2_set_stamp
         benchmark::RegisterBenchmark(
             bench::bench_name("PointCloud2", bench::op::workflow_pub_inplace, "robosense_e1r").c_str(),
             [wire_ptr](benchmark::State& state) {
                 std::vector<std::uint8_t> buf(*wire_ptr);
                 for (auto _ : state) {
                     for (int i = 0; i < 1000; ++i) {
-                        ros_point_cloud2_set_stamp(buf.data(), buf.size(),
+                        sensor_msgs_point_cloud2_set_stamp(buf.data(), buf.size(),
                                                    1234567890 + i, static_cast<uint32_t>(i));
                         benchmark::DoNotOptimize(buf.data());
                     }
@@ -1606,7 +1745,7 @@ static void register_workflow_benchmarks() {
             [wire_ptr](benchmark::State& state) {
                 for (auto _ : state) {
                     for (int i = 0; i < 1000; ++i) {
-                        auto vw  = ef::PointCloud2View::from_cdr({wire_ptr->data(), wire_ptr->size()});
+                        auto vw  = PointCloud2View::from_cdr({wire_ptr->data(), wire_ptr->size()});
                         auto sec = vw->stamp().sec;
                         auto w   = vw->width();
                         auto ps  = vw->point_step();

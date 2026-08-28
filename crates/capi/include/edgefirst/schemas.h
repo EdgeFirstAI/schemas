@@ -14,24 +14,24 @@
  * - Opaque buffer-backed view handles for variable-size types (Image, Detect, etc.)
  * - O(1) field accessors on view handles (string pointers borrow into the CDR buffer)
  * - Encode functions that allocate and return serialized CDR bytes
- * - Memory management via ros_bytes_free() for encode output
+ * - Memory management via edgefirst_schemas_bytes_free() for encode output
  *
  * @section API Patterns
  *
  * **CdrFixed types** (Time, Duration, Vector3, Point, Quaternion, Pose, Transform,
  * Twist, Accel, NavSatStatus):
- *   - `ros_<type>_encode(buf, cap, &written, ...fields)` -- write CDR to caller buffer
- *   - `ros_<type>_decode(data, len, ...out_fields)` -- read fields from CDR
+ *   - `<package>_<type>_encode(buf, cap, &written, ...fields)` -- write CDR to caller buffer
+ *   - `<package>_<type>_decode(data, len, ...out_fields)` -- read fields from CDR
  *   - Pass `buf = NULL` to query the required size via `written`.
  *
  * **Buffer-backed types** (Header, Image, CompressedImage, CompressedVideo, Mask,
  * Imu, NavSatFix, TransformStamped, RadarCube, RadarInfo, Detect,
  * Model, ModelInfo, PointCloud2, CameraInfo, Track, Box, LocalTime):
- *   - `ros_<type>_from_cdr(data, len)` -- create an opaque handle from CDR bytes
- *   - `ros_<type>_get_<field>(handle)` -- O(1) field access
- *   - `ros_<type>_as_cdr(handle, &out_len)` -- borrow the raw CDR bytes
- *   - `ros_<type>_free(handle)` -- release the handle
- *   - `ros_<type>_builder_build(b, &out_bytes, &out_len)` -- allocate + write CDR
+ *   - `<package>_<type>_from_cdr(data, len)` -- create an opaque handle from CDR bytes
+ *   - `<package>_<type>_get_<field>(handle)` -- O(1) field access
+ *   - `<package>_<type>_as_cdr(handle, &out_len)` -- borrow the raw CDR bytes
+ *   - `<package>_<type>_free(handle)` -- release the handle
+ *   - `<package>_<type>_builder_build(b, &out_bytes, &out_len)` -- allocate + write CDR
  *
  * @section Error Handling
  *
@@ -49,19 +49,19 @@
  *
  * @section Memory
  *
- * - View handles are owned by the caller and must be freed with `ros_<type>_free()`.
+ * - View handles are owned by the caller and must be freed with `<package>_<type>_free()`.
  * - String getters return `const char*` pointing into the CDR buffer (zero-copy,
  *   valid as long as the handle lives). Callers must NOT free these pointers.
  * - Byte blob getters return `const uint8_t*` with an `out_len` parameter,
  *   also borrowing into the CDR buffer.
  * - Builder `build()` output is allocated via `uint8_t**` and
- *   `size_t*`; callers must free with `ros_bytes_free()`.
+ *   `size_t*`; callers must free with `edgefirst_schemas_bytes_free()`.
  *
- * **Parent-borrowed child handles.** Functions like ros_detect_get_box() and
- * ros_model_get_box() / ros_model_get_mask() return borrowed child handles whose
+ * **Parent-borrowed child handles.** Functions like edgefirst_msgs_detect_get_box() and
+ * edgefirst_msgs_model_get_box() / edgefirst_msgs_model_get_mask() return borrowed child handles whose
  * lifetime is tied to the parent handle. These pointers become invalid when
  * the parent is freed via its corresponding _free function. Do NOT pass them
- * to ros_box_free() / ros_mask_free() — the parent owns their storage. The
+ * to edgefirst_msgs_box_free() / edgefirst_msgs_mask_free() — the parent owns their storage. The
  * parent's underlying CDR buffer (passed to the parent's _from_cdr function)
  * must also remain valid for as long as the child pointers are used.
  *
@@ -73,35 +73,35 @@
  * #include <string.h>
  *
  * // Build a Header to CDR
- * ros_header_builder_t* b = ros_header_builder_new();
- * ros_header_builder_set_stamp(b, 1234, 0);
- * ros_header_builder_set_frame_id(b, "camera");
+ * std_msgs_header_builder_t* b = std_msgs_header_builder_new();
+ * std_msgs_header_builder_set_stamp(b, 1234, 0);
+ * std_msgs_header_builder_set_frame_id(b, "camera");
  * uint8_t* bytes = NULL;
  * size_t len = 0;
- * if (ros_header_builder_build(b, &bytes, &len) != 0) {
- *     perror("ros_header_builder_build");
- *     ros_header_builder_free(b);
+ * if (std_msgs_header_builder_build(b, &bytes, &len) != 0) {
+ *     perror("std_msgs_header_builder_build");
+ *     std_msgs_header_builder_free(b);
  *     return 1;
  * }
- * ros_header_builder_free(b);
+ * std_msgs_header_builder_free(b);
  *
  * // Decode from CDR
- * ros_header_t* hdr = ros_header_from_cdr(bytes, len);
+ * std_msgs_header_t* hdr = std_msgs_header_from_cdr(bytes, len);
  * if (!hdr) {
- *     perror("ros_header_from_cdr");
- *     ros_bytes_free(bytes, len);
+ *     perror("std_msgs_header_from_cdr");
+ *     edgefirst_schemas_bytes_free(bytes, len);
  *     return 1;
  * }
  *
  * // Access fields (zero-copy, borrowed pointer)
- * const char* frame_id = ros_header_get_frame_id(hdr);
+ * const char* frame_id = std_msgs_header_get_frame_id(hdr);
  * printf("Frame ID: %s\n", frame_id);
- * printf("Stamp: %d.%u\n", ros_header_get_stamp_sec(hdr),
- *        ros_header_get_stamp_nanosec(hdr));
+ * printf("Stamp: %d.%u\n", std_msgs_header_get_stamp_sec(hdr),
+ *        std_msgs_header_get_stamp_nanosec(hdr));
  *
  * // Cleanup
- * ros_header_free(hdr);
- * ros_bytes_free(bytes, len);
+ * std_msgs_header_free(hdr);
+ * edgefirst_schemas_bytes_free(bytes, len);
  * @endcode
  */
 
@@ -122,130 +122,130 @@ extern "C" {
 
 /* std_msgs */
 /** @brief Opaque buffer-backed view handle for std_msgs::Header. */
-typedef struct ros_header_t ros_header_t;
+typedef struct std_msgs_header_t std_msgs_header_t;
 
 /* sensor_msgs */
 /** @brief Opaque buffer-backed view handle for sensor_msgs::Image. */
-typedef struct ros_image_t ros_image_t;
+typedef struct sensor_msgs_image_t sensor_msgs_image_t;
 /** @brief Opaque buffer-backed view handle for sensor_msgs::CompressedImage. */
-typedef struct ros_compressed_image_t ros_compressed_image_t;
+typedef struct sensor_msgs_compressed_image_t sensor_msgs_compressed_image_t;
 /** @brief Opaque buffer-backed view handle for sensor_msgs::Imu. */
-typedef struct ros_imu_t ros_imu_t;
+typedef struct sensor_msgs_imu_t sensor_msgs_imu_t;
 /** @brief Opaque buffer-backed view handle for sensor_msgs::NavSatFix. */
-typedef struct ros_nav_sat_fix_t ros_nav_sat_fix_t;
+typedef struct sensor_msgs_nav_sat_fix_t sensor_msgs_nav_sat_fix_t;
 /** @brief Opaque buffer-backed view handle for sensor_msgs::PointCloud2. */
-typedef struct ros_point_cloud2_t ros_point_cloud2_t;
+typedef struct sensor_msgs_point_cloud2_t sensor_msgs_point_cloud2_t;
 /** @brief Opaque buffer-backed view handle for sensor_msgs::CameraInfo. */
-typedef struct ros_camera_info_t ros_camera_info_t;
+typedef struct sensor_msgs_camera_info_t sensor_msgs_camera_info_t;
 
 /* geometry_msgs */
 /** @brief Opaque buffer-backed view handle for geometry_msgs::TransformStamped. */
-typedef struct ros_transform_stamped_t ros_transform_stamped_t;
+typedef struct geometry_msgs_transform_stamped_t geometry_msgs_transform_stamped_t;
 /** @brief Opaque buffer-backed view handle for geometry_msgs::TwistStamped. */
-typedef struct ros_twist_stamped_t ros_twist_stamped_t;
+typedef struct geometry_msgs_twist_stamped_t geometry_msgs_twist_stamped_t;
 /** @brief Opaque buffer-backed view handle for geometry_msgs::AccelStamped. */
-typedef struct ros_accel_stamped_t ros_accel_stamped_t;
+typedef struct geometry_msgs_accel_stamped_t geometry_msgs_accel_stamped_t;
 /** @brief Opaque buffer-backed view handle for geometry_msgs::PointStamped. */
-typedef struct ros_point_stamped_t ros_point_stamped_t;
+typedef struct geometry_msgs_point_stamped_t geometry_msgs_point_stamped_t;
 /** @brief Opaque buffer-backed view handle for geometry_msgs::InertiaStamped. */
-typedef struct ros_inertia_stamped_t ros_inertia_stamped_t;
+typedef struct geometry_msgs_inertia_stamped_t geometry_msgs_inertia_stamped_t;
 /** @brief Opaque buffer-backed view handle for geometry_msgs::Vector3Stamped. */
-typedef struct ros_vector3_stamped_t ros_vector3_stamped_t;
+typedef struct geometry_msgs_vector3_stamped_t geometry_msgs_vector3_stamped_t;
 /** @brief Opaque buffer-backed view handle for geometry_msgs::PoseStamped. */
-typedef struct ros_pose_stamped_t ros_pose_stamped_t;
+typedef struct geometry_msgs_pose_stamped_t geometry_msgs_pose_stamped_t;
 /** @brief Opaque buffer-backed view handle for geometry_msgs::QuaternionStamped. */
-typedef struct ros_quaternion_stamped_t ros_quaternion_stamped_t;
+typedef struct geometry_msgs_quaternion_stamped_t geometry_msgs_quaternion_stamped_t;
 /** @brief Opaque buffer-backed view handle for geometry_msgs::WrenchStamped. */
-typedef struct ros_wrench_stamped_t ros_wrench_stamped_t;
+typedef struct geometry_msgs_wrench_stamped_t geometry_msgs_wrench_stamped_t;
 /** @brief Opaque buffer-backed view handle for geometry_msgs::PoseWithCovarianceStamped. */
-typedef struct ros_pose_with_covariance_stamped_t ros_pose_with_covariance_stamped_t;
+typedef struct geometry_msgs_pose_with_covariance_stamped_t geometry_msgs_pose_with_covariance_stamped_t;
 /** @brief Opaque buffer-backed view handle for geometry_msgs::TwistWithCovarianceStamped. */
-typedef struct ros_twist_with_covariance_stamped_t ros_twist_with_covariance_stamped_t;
+typedef struct geometry_msgs_twist_with_covariance_stamped_t geometry_msgs_twist_with_covariance_stamped_t;
 /** @brief Opaque buffer-backed view handle for geometry_msgs::AccelWithCovarianceStamped. */
-typedef struct ros_accel_with_covariance_stamped_t ros_accel_with_covariance_stamped_t;
+typedef struct geometry_msgs_accel_with_covariance_stamped_t geometry_msgs_accel_with_covariance_stamped_t;
 /** @brief Opaque buffer-backed view handle for geometry_msgs::Polygon. */
-typedef struct ros_polygon_t ros_polygon_t;
+typedef struct geometry_msgs_polygon_t geometry_msgs_polygon_t;
 /** @brief Opaque buffer-backed view handle for geometry_msgs::PolygonStamped. */
-typedef struct ros_polygon_stamped_t ros_polygon_stamped_t;
+typedef struct geometry_msgs_polygon_stamped_t geometry_msgs_polygon_stamped_t;
 /** @brief Opaque buffer-backed view handle for geometry_msgs::PoseArray. */
-typedef struct ros_pose_array_t ros_pose_array_t;
+typedef struct geometry_msgs_pose_array_t geometry_msgs_pose_array_t;
 
 /* foxglove_msgs */
 /** @brief Opaque buffer-backed view handle for foxglove_msgs::CompressedVideo. */
-typedef struct ros_compressed_video_t ros_compressed_video_t;
+typedef struct foxglove_msgs_compressed_video_t foxglove_msgs_compressed_video_t;
 /** @brief Opaque buffer-backed view handle for foxglove_msgs::CompressedImage. */
-typedef struct ros_foxglove_compressed_image_t ros_foxglove_compressed_image_t;
+typedef struct foxglove_msgs_compressed_image_t foxglove_msgs_compressed_image_t;
 
 /* edgefirst_msgs */
 /**
  * @brief Opaque view handle for an edgefirst_msgs::Mask.
  *
  * Handles may be either standalone-owned (returned by
- * ros_mask_from_cdr() and freed via ros_mask_free()) or parent-borrowed
- * (returned by ros_model_get_mask() — lifetime tied to the parent
- * ros_model_t, must NOT be passed to ros_mask_free(); see Memory
- * Management Rule 5). The same typedef covers both cases; ros_mask_free()
+ * edgefirst_msgs_mask_from_cdr() and freed via edgefirst_msgs_mask_free()) or parent-borrowed
+ * (returned by edgefirst_msgs_model_get_mask() — lifetime tied to the parent
+ * edgefirst_msgs_model_t, must NOT be passed to edgefirst_msgs_mask_free(); see Memory
+ * Management Rule 5). The same typedef covers both cases; edgefirst_msgs_mask_free()
  * internally detects borrowed handles and safely no-ops with errno=EINVAL
  * instead of corrupting the parent's internal storage.
  */
-typedef struct ros_mask_t ros_mask_t;
+typedef struct edgefirst_msgs_mask_t edgefirst_msgs_mask_t;
 /** @brief Opaque buffer-backed view handle for edgefirst_msgs::RadarCube. */
-typedef struct ros_radar_cube_t ros_radar_cube_t;
+typedef struct edgefirst_msgs_radar_cube_t edgefirst_msgs_radar_cube_t;
 /** @brief Opaque buffer-backed view handle for edgefirst_msgs::RadarInfo. */
-typedef struct ros_radar_info_t ros_radar_info_t;
+typedef struct edgefirst_msgs_radar_info_t edgefirst_msgs_radar_info_t;
 /** @brief Opaque buffer-backed view handle for edgefirst_msgs::Detect. */
-typedef struct ros_detect_t ros_detect_t;
+typedef struct edgefirst_msgs_detect_t edgefirst_msgs_detect_t;
 /** @brief Opaque buffer-backed view handle for edgefirst_msgs::Model. */
-typedef struct ros_model_t ros_model_t;
+typedef struct edgefirst_msgs_model_t edgefirst_msgs_model_t;
 /** @brief Opaque buffer-backed view handle for edgefirst_msgs::ModelInfo. */
-typedef struct ros_model_info_t ros_model_info_t;
+typedef struct edgefirst_msgs_model_info_t edgefirst_msgs_model_info_t;
 /** @brief Opaque buffer-backed view handle for edgefirst_msgs::Track. */
-typedef struct ros_track_t ros_track_t;
+typedef struct edgefirst_msgs_track_t edgefirst_msgs_track_t;
 /**
  * @brief Opaque view handle for an edgefirst_msgs::DetectBox.
  *
- * Handles may be either standalone-owned (returned by ros_box_from_cdr()
- * and freed via ros_box_free()) or parent-borrowed (returned by
- * ros_detect_get_box() / ros_model_get_box() — lifetime tied to the parent
- * ros_detect_t / ros_model_t, must NOT be passed to ros_box_free(); see
+ * Handles may be either standalone-owned (returned by edgefirst_msgs_box_from_cdr()
+ * and freed via edgefirst_msgs_box_free()) or parent-borrowed (returned by
+ * edgefirst_msgs_detect_get_box() / edgefirst_msgs_model_get_box() — lifetime tied to the parent
+ * edgefirst_msgs_detect_t / edgefirst_msgs_model_t, must NOT be passed to edgefirst_msgs_box_free(); see
  * Memory Management Rule 5). The same typedef covers both cases;
- * ros_box_free() internally detects borrowed handles and safely no-ops
+ * edgefirst_msgs_box_free() internally detects borrowed handles and safely no-ops
  * with errno=EINVAL instead of corrupting the parent's internal storage.
  */
-typedef struct ros_box_t ros_box_t;
+typedef struct edgefirst_msgs_box_t edgefirst_msgs_box_t;
 /** @brief Opaque buffer-backed view handle for edgefirst_msgs::LocalTime. */
-typedef struct ros_local_time_t ros_local_time_t;
+typedef struct edgefirst_msgs_local_time_t edgefirst_msgs_local_time_t;
 /** @brief Opaque buffer-backed view handle for edgefirst_msgs::Tensor. */
-typedef struct ros_tensor_t ros_tensor_t;
+typedef struct edgefirst_msgs_tensor_t edgefirst_msgs_tensor_t;
 /**
  * @brief Opaque view handle for a single edgefirst_msgs::TensorPlane.
  *
- * Returned by ros_tensor_get_plane() as a parent-borrowed handle: its
- * lifetime is tied to the owning ros_tensor_t (and, for an embedded
+ * Returned by edgefirst_msgs_tensor_get_plane() as a parent-borrowed handle: its
+ * lifetime is tied to the owning edgefirst_msgs_tensor_t (and, for an embedded
  * tensor, to that tensor's wrapper). It must NOT be passed to
- * ros_tensor_plane_free(); see Memory Management Rule 5. That function
+ * edgefirst_msgs_tensor_plane_free(); see Memory Management Rule 5. That function
  * detects borrowed handles and safely no-ops with errno=EINVAL rather
  * than corrupting the parent's storage.
  */
-typedef struct ros_tensor_plane_t ros_tensor_plane_t;
+typedef struct edgefirst_msgs_tensor_plane_t edgefirst_msgs_tensor_plane_t;
 /** @brief Opaque buffer-backed view handle for edgefirst_msgs::TensorStamped. */
-typedef struct ros_tensor_stamped_t ros_tensor_stamped_t;
+typedef struct edgefirst_msgs_tensor_stamped_t edgefirst_msgs_tensor_stamped_t;
 /** @brief Opaque buffer-backed view handle for edgefirst_msgs::CameraFrame. */
-typedef struct ros_camera_frame_t ros_camera_frame_t;
+typedef struct edgefirst_msgs_camera_frame_t edgefirst_msgs_camera_frame_t;
 
 /* ============================================================================
  * Memory Management
  * ========================================================================= */
 
 /**
- * @brief Free a byte buffer returned by any ros_*_encode() function.
+ * @brief Free a byte buffer returned by any <package>_*_encode() function.
  * @param bytes Pointer previously returned by an encode function (NULL is safe)
  * @param len Length that was returned alongside the pointer
  *
  * Passing NULL is a no-op. Passing any pointer not returned by an encode
  * function is undefined behaviour.
  */
-void ros_bytes_free(uint8_t* bytes, size_t len);
+void edgefirst_schemas_bytes_free(uint8_t* bytes, size_t len);
 
 /* ============================================================================
  * builtin_interfaces - Time (CdrFixed)
@@ -264,7 +264,7 @@ void ros_bytes_free(uint8_t* bytes, size_t len);
  * - ENOBUFS: buf is non-NULL but cap is too small
  * - EBADMSG: Encoding failure
  */
-int ros_time_encode(uint8_t* buf, size_t cap, size_t* written,
+int builtin_interfaces_time_encode(uint8_t* buf, size_t cap, size_t* written,
                     int32_t sec, uint32_t nanosec);
 
 /**
@@ -278,7 +278,7 @@ int ros_time_encode(uint8_t* buf, size_t cap, size_t* written,
  * @par Errors (errno):
  * - EBADMSG: Decoding failure
  */
-int ros_time_decode(const uint8_t* data, size_t len,
+int builtin_interfaces_time_decode(const uint8_t* data, size_t len,
                     int32_t* sec, uint32_t* nanosec);
 
 /* ============================================================================
@@ -298,7 +298,7 @@ int ros_time_decode(const uint8_t* data, size_t len,
  * - ENOBUFS: buf is non-NULL but cap is too small
  * - EBADMSG: Encoding failure
  */
-int ros_duration_encode(uint8_t* buf, size_t cap, size_t* written,
+int builtin_interfaces_duration_encode(uint8_t* buf, size_t cap, size_t* written,
                         int32_t sec, uint32_t nanosec);
 
 /**
@@ -312,7 +312,7 @@ int ros_duration_encode(uint8_t* buf, size_t cap, size_t* written,
  * @par Errors (errno):
  * - EBADMSG: Decoding failure
  */
-int ros_duration_decode(const uint8_t* data, size_t len,
+int builtin_interfaces_duration_decode(const uint8_t* data, size_t len,
                         int32_t* sec, uint32_t* nanosec);
 
 /* ============================================================================
@@ -329,7 +329,7 @@ int ros_duration_decode(const uint8_t* data, size_t len,
  * @param z Z component
  * @return 0 on success, -1 on error
  */
-int ros_vector3_encode(uint8_t* buf, size_t cap, size_t* written,
+int geometry_msgs_vector3_encode(uint8_t* buf, size_t cap, size_t* written,
                        double x, double y, double z);
 
 /**
@@ -341,7 +341,7 @@ int ros_vector3_encode(uint8_t* buf, size_t cap, size_t* written,
  * @param z Receives Z (may be NULL)
  * @return 0 on success, -1 on error
  */
-int ros_vector3_decode(const uint8_t* data, size_t len,
+int geometry_msgs_vector3_decode(const uint8_t* data, size_t len,
                        double* x, double* y, double* z);
 
 /* ============================================================================
@@ -358,7 +358,7 @@ int ros_vector3_decode(const uint8_t* data, size_t len,
  * @param z Z coordinate
  * @return 0 on success, -1 on error
  */
-int ros_point_encode(uint8_t* buf, size_t cap, size_t* written,
+int geometry_msgs_point_encode(uint8_t* buf, size_t cap, size_t* written,
                      double x, double y, double z);
 
 /**
@@ -370,7 +370,7 @@ int ros_point_encode(uint8_t* buf, size_t cap, size_t* written,
  * @param z Receives Z (may be NULL)
  * @return 0 on success, -1 on error
  */
-int ros_point_decode(const uint8_t* data, size_t len,
+int geometry_msgs_point_decode(const uint8_t* data, size_t len,
                      double* x, double* y, double* z);
 
 /* ============================================================================
@@ -388,7 +388,7 @@ int ros_point_decode(const uint8_t* data, size_t len,
  * @param w W component
  * @return 0 on success, -1 on error
  */
-int ros_quaternion_encode(uint8_t* buf, size_t cap, size_t* written,
+int geometry_msgs_quaternion_encode(uint8_t* buf, size_t cap, size_t* written,
                           double x, double y, double z, double w);
 
 /**
@@ -401,7 +401,7 @@ int ros_quaternion_encode(uint8_t* buf, size_t cap, size_t* written,
  * @param w Receives W (may be NULL)
  * @return 0 on success, -1 on error
  */
-int ros_quaternion_decode(const uint8_t* data, size_t len,
+int geometry_msgs_quaternion_decode(const uint8_t* data, size_t len,
                           double* x, double* y, double* z, double* w);
 
 /* ============================================================================
@@ -422,7 +422,7 @@ int ros_quaternion_decode(const uint8_t* data, size_t len,
  * @param ow Orientation W
  * @return 0 on success, -1 on error
  */
-int ros_pose_encode(uint8_t* buf, size_t cap, size_t* written,
+int geometry_msgs_pose_encode(uint8_t* buf, size_t cap, size_t* written,
                     double px, double py, double pz,
                     double ox, double oy, double oz, double ow);
 
@@ -439,7 +439,7 @@ int ros_pose_encode(uint8_t* buf, size_t cap, size_t* written,
  * @param ow Receives orientation W (may be NULL)
  * @return 0 on success, -1 on error
  */
-int ros_pose_decode(const uint8_t* data, size_t len,
+int geometry_msgs_pose_decode(const uint8_t* data, size_t len,
                     double* px, double* py, double* pz,
                     double* ox, double* oy, double* oz, double* ow);
 
@@ -461,7 +461,7 @@ int ros_pose_decode(const uint8_t* data, size_t len,
  * @param rw Rotation W
  * @return 0 on success, -1 on error
  */
-int ros_transform_encode(uint8_t* buf, size_t cap, size_t* written,
+int geometry_msgs_transform_encode(uint8_t* buf, size_t cap, size_t* written,
                          double tx, double ty, double tz,
                          double rx, double ry, double rz, double rw);
 
@@ -478,7 +478,7 @@ int ros_transform_encode(uint8_t* buf, size_t cap, size_t* written,
  * @param rw Receives rotation W (may be NULL)
  * @return 0 on success, -1 on error
  */
-int ros_transform_decode(const uint8_t* data, size_t len,
+int geometry_msgs_transform_decode(const uint8_t* data, size_t len,
                          double* tx, double* ty, double* tz,
                          double* rx, double* ry, double* rz, double* rw);
 
@@ -499,7 +499,7 @@ int ros_transform_decode(const uint8_t* data, size_t len,
  * @param az Angular velocity Z
  * @return 0 on success, -1 on error
  */
-int ros_twist_encode(uint8_t* buf, size_t cap, size_t* written,
+int geometry_msgs_twist_encode(uint8_t* buf, size_t cap, size_t* written,
                      double lx, double ly, double lz,
                      double ax, double ay, double az);
 
@@ -515,7 +515,7 @@ int ros_twist_encode(uint8_t* buf, size_t cap, size_t* written,
  * @param az Receives angular Z (may be NULL)
  * @return 0 on success, -1 on error
  */
-int ros_twist_decode(const uint8_t* data, size_t len,
+int geometry_msgs_twist_decode(const uint8_t* data, size_t len,
                      double* lx, double* ly, double* lz,
                      double* ax, double* ay, double* az);
 
@@ -536,7 +536,7 @@ int ros_twist_decode(const uint8_t* data, size_t len,
  * @param az Angular acceleration Z
  * @return 0 on success, -1 on error
  */
-int ros_accel_encode(uint8_t* buf, size_t cap, size_t* written,
+int geometry_msgs_accel_encode(uint8_t* buf, size_t cap, size_t* written,
                      double lx, double ly, double lz,
                      double ax, double ay, double az);
 
@@ -552,7 +552,7 @@ int ros_accel_encode(uint8_t* buf, size_t cap, size_t* written,
  * @param az Receives angular Z (may be NULL)
  * @return 0 on success, -1 on error
  */
-int ros_accel_decode(const uint8_t* data, size_t len,
+int geometry_msgs_accel_decode(const uint8_t* data, size_t len,
                      double* lx, double* ly, double* lz,
                      double* ax, double* ay, double* az);
 
@@ -573,7 +573,7 @@ int ros_accel_decode(const uint8_t* data, size_t len,
  * @param tz Torque Z
  * @return 0 on success, -1 on error
  */
-int ros_wrench_encode(uint8_t* buf, size_t cap, size_t* written,
+int geometry_msgs_wrench_encode(uint8_t* buf, size_t cap, size_t* written,
                       double fx, double fy, double fz,
                       double tx, double ty, double tz);
 
@@ -589,7 +589,7 @@ int ros_wrench_encode(uint8_t* buf, size_t cap, size_t* written,
  * @param tz Receives torque Z (may be NULL)
  * @return 0 on success, -1 on error
  */
-int ros_wrench_decode(const uint8_t* data, size_t len,
+int geometry_msgs_wrench_decode(const uint8_t* data, size_t len,
                       double* fx, double* fy, double* fz,
                       double* tx, double* ty, double* tz);
 
@@ -611,7 +611,7 @@ int ros_wrench_decode(const uint8_t* data, size_t len,
  * @param covariance Pointer to 36 doubles (row-major 6x6 covariance)
  * @return 0 on success, -1 on error (sets errno to EINVAL if covariance is NULL)
  */
-int ros_accel_with_covariance_encode(uint8_t* buf, size_t cap, size_t* written,
+int geometry_msgs_accel_with_covariance_encode(uint8_t* buf, size_t cap, size_t* written,
                                      double lx, double ly, double lz,
                                      double ax, double ay, double az,
                                      const double* covariance);
@@ -629,7 +629,7 @@ int ros_accel_with_covariance_encode(uint8_t* buf, size_t cap, size_t* written,
  * @param covariance_out Receives 36 doubles of covariance (may be NULL)
  * @return 0 on success, -1 on error
  */
-int ros_accel_with_covariance_decode(const uint8_t* data, size_t len,
+int geometry_msgs_accel_with_covariance_decode(const uint8_t* data, size_t len,
                                      double* lx, double* ly, double* lz,
                                      double* ax, double* ay, double* az,
                                      double* covariance_out);
@@ -647,7 +647,7 @@ int ros_accel_with_covariance_decode(const uint8_t* data, size_t len,
  * @param service Service bitmask (uint16)
  * @return 0 on success, -1 on error
  */
-int ros_nav_sat_status_encode(uint8_t* buf, size_t cap, size_t* written,
+int sensor_msgs_nav_sat_status_encode(uint8_t* buf, size_t cap, size_t* written,
                               int8_t status, uint16_t service);
 
 /**
@@ -658,7 +658,7 @@ int ros_nav_sat_status_encode(uint8_t* buf, size_t cap, size_t* written,
  * @param service Receives service bitmask (may be NULL)
  * @return 0 on success, -1 on error
  */
-int ros_nav_sat_status_decode(const uint8_t* data, size_t len,
+int sensor_msgs_nav_sat_status_decode(const uint8_t* data, size_t len,
                               int8_t* status, uint16_t* service);
 
 /* ============================================================================
@@ -675,26 +675,26 @@ int ros_nav_sat_status_decode(const uint8_t* data, size_t len,
  * - EINVAL: data is NULL
  * - EBADMSG: CDR decoding failed
  */
-ros_header_t* ros_header_from_cdr(const uint8_t* data, size_t len);
+std_msgs_header_t* std_msgs_header_from_cdr(const uint8_t* data, size_t len);
 
 /**
  * @brief Free a Header view handle.
  * @param view Handle to free (NULL is safe)
  */
-void ros_header_free(ros_header_t* view);
+void std_msgs_header_free(std_msgs_header_t* view);
 
 /** @brief Get stamp seconds. */
-int32_t ros_header_get_stamp_sec(const ros_header_t* view);
+int32_t std_msgs_header_get_stamp_sec(const std_msgs_header_t* view);
 
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_header_get_stamp_nanosec(const ros_header_t* view);
+uint32_t std_msgs_header_get_stamp_nanosec(const std_msgs_header_t* view);
 
 /**
  * @brief Get frame_id string (borrowed, valid while handle lives).
  * @param view Header handle
  * @return C string pointer or NULL if view is NULL
  */
-const char* ros_header_get_frame_id(const ros_header_t* view);
+const char* std_msgs_header_get_frame_id(const std_msgs_header_t* view);
 
 /**
  * @brief Borrow the raw CDR bytes from the handle.
@@ -702,27 +702,27 @@ const char* ros_header_get_frame_id(const ros_header_t* view);
  * @param out_len Receives byte count
  * @return Pointer to CDR bytes (valid while handle lives) or NULL
  */
-const uint8_t* ros_header_as_cdr(const ros_header_t* view, size_t* out_len);
+const uint8_t* std_msgs_header_as_cdr(const std_msgs_header_t* view, size_t* out_len);
 
 /* ----------------------------------------------------------------------------
  * std_msgs - Header (builder, 3.2.0+)
  * --------------------------------------------------------------------------*/
 
-/** @brief Opaque builder handle for ros_header_t messages. */
-typedef struct ros_header_builder_s ros_header_builder_t;
+/** @brief Opaque builder handle for std_msgs_header_t messages. */
+typedef struct std_msgs_header_builder_s std_msgs_header_builder_t;
 
 /**
  * @brief Create a new Header builder with zero-valued defaults.
  * @return Opaque handle, or NULL on allocation failure. Free with
- *         ros_header_builder_free.
+ *         std_msgs_header_builder_free.
  */
-ros_header_builder_t* ros_header_builder_new(void);
+std_msgs_header_builder_t* std_msgs_header_builder_new(void);
 
 /** @brief Free a Header builder handle. NULL-safe. */
-void ros_header_builder_free(ros_header_builder_t* b);
+void std_msgs_header_builder_free(std_msgs_header_builder_t* b);
 
 /** @brief Set the stamp field. */
-void ros_header_builder_set_stamp(ros_header_builder_t* b,
+void std_msgs_header_builder_set_stamp(std_msgs_header_builder_t* b,
                                   int32_t sec, uint32_t nsec);
 
 /**
@@ -730,14 +730,14 @@ void ros_header_builder_set_stamp(ros_header_builder_t* b,
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
  *         NULL `s`, or non-UTF-8 `s`).
  */
-int  ros_header_builder_set_frame_id(ros_header_builder_t* b, const char* s);
+int  std_msgs_header_builder_set_frame_id(std_msgs_header_builder_t* b, const char* s);
 
 /**
  * @brief Allocate a fresh CDR buffer and encode the message.
- * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ * @return 0 on success (out_bytes/out_len written; free via edgefirst_schemas_bytes_free),
  *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
  */
-int  ros_header_builder_build(ros_header_builder_t* b,
+int  std_msgs_header_builder_build(std_msgs_header_builder_t* b,
                               uint8_t** out_bytes, size_t* out_len);
 
 /**
@@ -745,7 +745,7 @@ int  ros_header_builder_build(ros_header_builder_t* b,
  * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
  *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
  */
-int  ros_header_builder_encode_into(ros_header_builder_t* b,
+int  std_msgs_header_builder_encode_into(std_msgs_header_builder_t* b,
                                     uint8_t* buf, size_t cap,
                                     size_t* out_len);
 
@@ -759,34 +759,34 @@ int  ros_header_builder_encode_into(ros_header_builder_t* b,
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
-ros_image_t* ros_image_from_cdr(const uint8_t* data, size_t len);
+sensor_msgs_image_t* sensor_msgs_image_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free an Image view handle. */
-void ros_image_free(ros_image_t* view);
+void sensor_msgs_image_free(sensor_msgs_image_t* view);
 
 /** @brief Get stamp seconds. */
-int32_t ros_image_get_stamp_sec(const ros_image_t* view);
+int32_t sensor_msgs_image_get_stamp_sec(const sensor_msgs_image_t* view);
 
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_image_get_stamp_nanosec(const ros_image_t* view);
+uint32_t sensor_msgs_image_get_stamp_nanosec(const sensor_msgs_image_t* view);
 
 /** @brief Get frame_id (borrowed). */
-const char* ros_image_get_frame_id(const ros_image_t* view);
+const char* sensor_msgs_image_get_frame_id(const sensor_msgs_image_t* view);
 
 /** @brief Get image height in pixels. */
-uint32_t ros_image_get_height(const ros_image_t* view);
+uint32_t sensor_msgs_image_get_height(const sensor_msgs_image_t* view);
 
 /** @brief Get image width in pixels. */
-uint32_t ros_image_get_width(const ros_image_t* view);
+uint32_t sensor_msgs_image_get_width(const sensor_msgs_image_t* view);
 
 /** @brief Get encoding string (borrowed), e.g. "rgb8", "bgr8". */
-const char* ros_image_get_encoding(const ros_image_t* view);
+const char* sensor_msgs_image_get_encoding(const sensor_msgs_image_t* view);
 
 /** @brief Get big-endian flag. */
-uint8_t ros_image_get_is_bigendian(const ros_image_t* view);
+uint8_t sensor_msgs_image_get_is_bigendian(const sensor_msgs_image_t* view);
 
 /** @brief Get row step (bytes per row). */
-uint32_t ros_image_get_step(const ros_image_t* view);
+uint32_t sensor_msgs_image_get_step(const sensor_msgs_image_t* view);
 
 /**
  * @brief Get image pixel data (borrowed).
@@ -794,30 +794,30 @@ uint32_t ros_image_get_step(const ros_image_t* view);
  * @param out_len Receives byte count
  * @return Pointer to pixel data or NULL
  */
-const uint8_t* ros_image_get_data(const ros_image_t* view, size_t* out_len);
+const uint8_t* sensor_msgs_image_get_data(const sensor_msgs_image_t* view, size_t* out_len);
 
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_image_as_cdr(const ros_image_t* view, size_t* out_len);
+const uint8_t* sensor_msgs_image_as_cdr(const sensor_msgs_image_t* view, size_t* out_len);
 
 /* ----------------------------------------------------------------------------
  * sensor_msgs - Image (builder, 3.2.0+)
  * --------------------------------------------------------------------------*/
 
-/** @brief Opaque builder handle for ros_image_t messages. */
-typedef struct ros_image_builder_s ros_image_builder_t;
+/** @brief Opaque builder handle for sensor_msgs_image_t messages. */
+typedef struct sensor_msgs_image_builder_s sensor_msgs_image_builder_t;
 
 /**
  * @brief Create a new Image builder with zero-valued defaults.
  * @return Opaque handle, or NULL on allocation failure. Free with
- *         ros_image_builder_free.
+ *         sensor_msgs_image_builder_free.
  */
-ros_image_builder_t* ros_image_builder_new(void);
+sensor_msgs_image_builder_t* sensor_msgs_image_builder_new(void);
 
 /** @brief Free an Image builder handle. NULL-safe. */
-void ros_image_builder_free(ros_image_builder_t* b);
+void sensor_msgs_image_builder_free(sensor_msgs_image_builder_t* b);
 
 /** @brief Set the stamp field. */
-void ros_image_builder_set_stamp(ros_image_builder_t* b,
+void sensor_msgs_image_builder_set_stamp(sensor_msgs_image_builder_t* b,
                                  int32_t sec, uint32_t nsec);
 
 /**
@@ -825,26 +825,26 @@ void ros_image_builder_set_stamp(ros_image_builder_t* b,
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
  *         NULL `s`, or non-UTF-8 `s`).
  */
-int  ros_image_builder_set_frame_id(ros_image_builder_t* b, const char* s);
+int  sensor_msgs_image_builder_set_frame_id(sensor_msgs_image_builder_t* b, const char* s);
 
 /** @brief Set the height field. */
-void ros_image_builder_set_height(ros_image_builder_t* b, uint32_t v);
+void sensor_msgs_image_builder_set_height(sensor_msgs_image_builder_t* b, uint32_t v);
 
 /** @brief Set the width field. */
-void ros_image_builder_set_width(ros_image_builder_t* b, uint32_t v);
+void sensor_msgs_image_builder_set_width(sensor_msgs_image_builder_t* b, uint32_t v);
 
 /**
  * @brief Set the encoding field (string is copied into the builder).
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
  *         NULL `s`, or non-UTF-8 `s`).
  */
-int  ros_image_builder_set_encoding(ros_image_builder_t* b, const char* s);
+int  sensor_msgs_image_builder_set_encoding(sensor_msgs_image_builder_t* b, const char* s);
 
 /** @brief Set the is_bigendian field. */
-void ros_image_builder_set_is_bigendian(ros_image_builder_t* b, uint8_t v);
+void sensor_msgs_image_builder_set_is_bigendian(sensor_msgs_image_builder_t* b, uint8_t v);
 
 /** @brief Set the step (row stride in bytes) field. */
-void ros_image_builder_set_step(ros_image_builder_t* b, uint32_t v);
+void sensor_msgs_image_builder_set_step(sensor_msgs_image_builder_t* b, uint32_t v);
 
 /**
  * @brief Set the data bulk byte sequence (BORROWED — must remain valid
@@ -852,15 +852,15 @@ void ros_image_builder_set_step(ros_image_builder_t* b, uint32_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_image_builder_set_data(ros_image_builder_t* b,
+int  sensor_msgs_image_builder_set_data(sensor_msgs_image_builder_t* b,
                                 const uint8_t* data, size_t len);
 
 /**
  * @brief Allocate a fresh CDR buffer and encode the message.
- * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ * @return 0 on success (out_bytes/out_len written; free via edgefirst_schemas_bytes_free),
  *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
  */
-int  ros_image_builder_build(ros_image_builder_t* b,
+int  sensor_msgs_image_builder_build(sensor_msgs_image_builder_t* b,
                              uint8_t** out_bytes, size_t* out_len);
 
 /**
@@ -868,7 +868,7 @@ int  ros_image_builder_build(ros_image_builder_t* b,
  * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
  *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
  */
-int  ros_image_builder_encode_into(ros_image_builder_t* b,
+int  sensor_msgs_image_builder_encode_into(sensor_msgs_image_builder_t* b,
                                    uint8_t* buf, size_t cap,
                                    size_t* out_len);
 
@@ -882,22 +882,22 @@ int  ros_image_builder_encode_into(ros_image_builder_t* b,
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
-ros_compressed_image_t* ros_compressed_image_from_cdr(const uint8_t* data, size_t len);
+sensor_msgs_compressed_image_t* sensor_msgs_compressed_image_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a CompressedImage view handle. */
-void ros_compressed_image_free(ros_compressed_image_t* view);
+void sensor_msgs_compressed_image_free(sensor_msgs_compressed_image_t* view);
 
 /** @brief Get stamp seconds. */
-int32_t ros_compressed_image_get_stamp_sec(const ros_compressed_image_t* view);
+int32_t sensor_msgs_compressed_image_get_stamp_sec(const sensor_msgs_compressed_image_t* view);
 
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_compressed_image_get_stamp_nanosec(const ros_compressed_image_t* view);
+uint32_t sensor_msgs_compressed_image_get_stamp_nanosec(const sensor_msgs_compressed_image_t* view);
 
 /** @brief Get frame_id (borrowed). */
-const char* ros_compressed_image_get_frame_id(const ros_compressed_image_t* view);
+const char* sensor_msgs_compressed_image_get_frame_id(const sensor_msgs_compressed_image_t* view);
 
 /** @brief Get format string (borrowed), e.g. "jpeg", "png". */
-const char* ros_compressed_image_get_format(const ros_compressed_image_t* view);
+const char* sensor_msgs_compressed_image_get_format(const sensor_msgs_compressed_image_t* view);
 
 /**
  * @brief Get compressed image data (borrowed).
@@ -905,30 +905,30 @@ const char* ros_compressed_image_get_format(const ros_compressed_image_t* view);
  * @param out_len Receives byte count
  * @return Pointer to compressed data or NULL
  */
-const uint8_t* ros_compressed_image_get_data(const ros_compressed_image_t* view, size_t* out_len);
+const uint8_t* sensor_msgs_compressed_image_get_data(const sensor_msgs_compressed_image_t* view, size_t* out_len);
 
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_compressed_image_as_cdr(const ros_compressed_image_t* view, size_t* out_len);
+const uint8_t* sensor_msgs_compressed_image_as_cdr(const sensor_msgs_compressed_image_t* view, size_t* out_len);
 
 /* ----------------------------------------------------------------------------
  * sensor_msgs - CompressedImage (builder, 3.2.0+)
  * --------------------------------------------------------------------------*/
 
-/** @brief Opaque builder handle for ros_compressed_image_t messages. */
-typedef struct ros_compressed_image_builder_s ros_compressed_image_builder_t;
+/** @brief Opaque builder handle for sensor_msgs_compressed_image_t messages. */
+typedef struct sensor_msgs_compressed_image_builder_s sensor_msgs_compressed_image_builder_t;
 
 /**
  * @brief Create a new CompressedImage builder with zero-valued defaults.
  * @return Opaque handle, or NULL on allocation failure. Free with
- *         ros_compressed_image_builder_free.
+ *         sensor_msgs_compressed_image_builder_free.
  */
-ros_compressed_image_builder_t* ros_compressed_image_builder_new(void);
+sensor_msgs_compressed_image_builder_t* sensor_msgs_compressed_image_builder_new(void);
 
 /** @brief Free a CompressedImage builder handle. NULL-safe. */
-void ros_compressed_image_builder_free(ros_compressed_image_builder_t* b);
+void sensor_msgs_compressed_image_builder_free(sensor_msgs_compressed_image_builder_t* b);
 
 /** @brief Set the stamp field. */
-void ros_compressed_image_builder_set_stamp(ros_compressed_image_builder_t* b,
+void sensor_msgs_compressed_image_builder_set_stamp(sensor_msgs_compressed_image_builder_t* b,
                                             int32_t sec, uint32_t nsec);
 
 /**
@@ -936,16 +936,16 @@ void ros_compressed_image_builder_set_stamp(ros_compressed_image_builder_t* b,
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
  *         NULL `s`, or non-UTF-8 `s`).
  */
-int  ros_compressed_image_builder_set_frame_id(
-    ros_compressed_image_builder_t* b, const char* s);
+int  sensor_msgs_compressed_image_builder_set_frame_id(
+    sensor_msgs_compressed_image_builder_t* b, const char* s);
 
 /**
  * @brief Set the format field (string is copied), e.g. "jpeg", "png".
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
  *         NULL `s`, or non-UTF-8 `s`).
  */
-int  ros_compressed_image_builder_set_format(
-    ros_compressed_image_builder_t* b, const char* s);
+int  sensor_msgs_compressed_image_builder_set_format(
+    sensor_msgs_compressed_image_builder_t* b, const char* s);
 
 /**
  * @brief Set the compressed data bulk byte sequence (BORROWED — must remain
@@ -953,15 +953,15 @@ int  ros_compressed_image_builder_set_format(
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_compressed_image_builder_set_data(ros_compressed_image_builder_t* b,
+int  sensor_msgs_compressed_image_builder_set_data(sensor_msgs_compressed_image_builder_t* b,
                                            const uint8_t* data, size_t len);
 
 /**
  * @brief Allocate a fresh CDR buffer and encode the message.
- * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ * @return 0 on success (out_bytes/out_len written; free via edgefirst_schemas_bytes_free),
  *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
  */
-int  ros_compressed_image_builder_build(ros_compressed_image_builder_t* b,
+int  sensor_msgs_compressed_image_builder_build(sensor_msgs_compressed_image_builder_t* b,
                                         uint8_t** out_bytes, size_t* out_len);
 
 /**
@@ -969,8 +969,8 @@ int  ros_compressed_image_builder_build(ros_compressed_image_builder_t* b,
  * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
  *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
  */
-int  ros_compressed_image_builder_encode_into(
-    ros_compressed_image_builder_t* b, uint8_t* buf, size_t cap,
+int  sensor_msgs_compressed_image_builder_encode_into(
+    sensor_msgs_compressed_image_builder_t* b, uint8_t* buf, size_t cap,
     size_t* out_len);
 
 /* ============================================================================
@@ -983,25 +983,25 @@ int  ros_compressed_image_builder_encode_into(
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
-ros_compressed_video_t* ros_compressed_video_from_cdr(const uint8_t* data, size_t len);
+foxglove_msgs_compressed_video_t* foxglove_msgs_compressed_video_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a CompressedVideo view handle. */
-void ros_compressed_video_free(ros_compressed_video_t* view);
+void foxglove_msgs_compressed_video_free(foxglove_msgs_compressed_video_t* view);
 
 /** @brief Get stamp seconds. */
-int32_t ros_compressed_video_get_stamp_sec(const ros_compressed_video_t* view);
+int32_t foxglove_msgs_compressed_video_get_stamp_sec(const foxglove_msgs_compressed_video_t* view);
 
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_compressed_video_get_stamp_nanosec(const ros_compressed_video_t* view);
+uint32_t foxglove_msgs_compressed_video_get_stamp_nanosec(const foxglove_msgs_compressed_video_t* view);
 
-/** @brief Alias for ros_compressed_video_get_stamp_sec; matches Foxglove schema naming. */
-int32_t ros_compressed_video_get_timestamp_sec(const ros_compressed_video_t* view);
+/** @brief Alias for foxglove_msgs_compressed_video_get_stamp_sec; matches Foxglove schema naming. */
+int32_t foxglove_msgs_compressed_video_get_timestamp_sec(const foxglove_msgs_compressed_video_t* view);
 
-/** @brief Alias for ros_compressed_video_get_stamp_nanosec; matches Foxglove schema naming. */
-uint32_t ros_compressed_video_get_timestamp_nanosec(const ros_compressed_video_t* view);
+/** @brief Alias for foxglove_msgs_compressed_video_get_stamp_nanosec; matches Foxglove schema naming. */
+uint32_t foxglove_msgs_compressed_video_get_timestamp_nanosec(const foxglove_msgs_compressed_video_t* view);
 
 /** @brief Get frame_id (borrowed). */
-const char* ros_compressed_video_get_frame_id(const ros_compressed_video_t* view);
+const char* foxglove_msgs_compressed_video_get_frame_id(const foxglove_msgs_compressed_video_t* view);
 
 /**
  * @brief Get compressed video data (borrowed).
@@ -1009,13 +1009,13 @@ const char* ros_compressed_video_get_frame_id(const ros_compressed_video_t* view
  * @param out_len Receives byte count
  * @return Pointer to video data or NULL
  */
-const uint8_t* ros_compressed_video_get_data(const ros_compressed_video_t* view, size_t* out_len);
+const uint8_t* foxglove_msgs_compressed_video_get_data(const foxglove_msgs_compressed_video_t* view, size_t* out_len);
 
 /** @brief Get format string (borrowed), e.g. "h264", "h265". */
-const char* ros_compressed_video_get_format(const ros_compressed_video_t* view);
+const char* foxglove_msgs_compressed_video_get_format(const foxglove_msgs_compressed_video_t* view);
 
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_compressed_video_as_cdr(const ros_compressed_video_t* view, size_t* out_len);
+const uint8_t* foxglove_msgs_compressed_video_as_cdr(const foxglove_msgs_compressed_video_t* view, size_t* out_len);
 
 /* ============================================================================
  * foxglove_msgs - CompressedImage (buffer-backed)
@@ -1029,28 +1029,28 @@ const uint8_t* ros_compressed_video_as_cdr(const ros_compressed_video_t* view, s
  *
  * @note Wire-identical to CompressedVideo; only the typename and the meaning
  *       of `format` differ (image media types vs. video codecs). The short
- *       `ros_compressed_image_` prefix belongs to sensor_msgs::CompressedImage,
- *       so the Foxglove variant uses the `ros_foxglove_compressed_image_` prefix.
+ *       `sensor_msgs_compressed_image_` prefix belongs to sensor_msgs::CompressedImage,
+ *       so the Foxglove variant uses the `foxglove_msgs_compressed_image_` prefix.
  */
-ros_foxglove_compressed_image_t* ros_foxglove_compressed_image_from_cdr(const uint8_t* data, size_t len);
+foxglove_msgs_compressed_image_t* foxglove_msgs_compressed_image_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a Foxglove CompressedImage view handle. */
-void ros_foxglove_compressed_image_free(ros_foxglove_compressed_image_t* view);
+void foxglove_msgs_compressed_image_free(foxglove_msgs_compressed_image_t* view);
 
 /** @brief Get stamp seconds. */
-int32_t ros_foxglove_compressed_image_get_stamp_sec(const ros_foxglove_compressed_image_t* view);
+int32_t foxglove_msgs_compressed_image_get_stamp_sec(const foxglove_msgs_compressed_image_t* view);
 
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_foxglove_compressed_image_get_stamp_nanosec(const ros_foxglove_compressed_image_t* view);
+uint32_t foxglove_msgs_compressed_image_get_stamp_nanosec(const foxglove_msgs_compressed_image_t* view);
 
-/** @brief Alias for ros_foxglove_compressed_image_get_stamp_sec; matches Foxglove schema naming. */
-int32_t ros_foxglove_compressed_image_get_timestamp_sec(const ros_foxglove_compressed_image_t* view);
+/** @brief Alias for foxglove_msgs_compressed_image_get_stamp_sec; matches Foxglove schema naming. */
+int32_t foxglove_msgs_compressed_image_get_timestamp_sec(const foxglove_msgs_compressed_image_t* view);
 
-/** @brief Alias for ros_foxglove_compressed_image_get_stamp_nanosec; matches Foxglove schema naming. */
-uint32_t ros_foxglove_compressed_image_get_timestamp_nanosec(const ros_foxglove_compressed_image_t* view);
+/** @brief Alias for foxglove_msgs_compressed_image_get_stamp_nanosec; matches Foxglove schema naming. */
+uint32_t foxglove_msgs_compressed_image_get_timestamp_nanosec(const foxglove_msgs_compressed_image_t* view);
 
 /** @brief Get frame_id (borrowed). */
-const char* ros_foxglove_compressed_image_get_frame_id(const ros_foxglove_compressed_image_t* view);
+const char* foxglove_msgs_compressed_image_get_frame_id(const foxglove_msgs_compressed_image_t* view);
 
 /**
  * @brief Get compressed image data (borrowed).
@@ -1058,13 +1058,13 @@ const char* ros_foxglove_compressed_image_get_frame_id(const ros_foxglove_compre
  * @param out_len Receives byte count
  * @return Pointer to image data or NULL
  */
-const uint8_t* ros_foxglove_compressed_image_get_data(const ros_foxglove_compressed_image_t* view, size_t* out_len);
+const uint8_t* foxglove_msgs_compressed_image_get_data(const foxglove_msgs_compressed_image_t* view, size_t* out_len);
 
 /** @brief Get format string (borrowed), e.g. "jpeg", "png", "webp". */
-const char* ros_foxglove_compressed_image_get_format(const ros_foxglove_compressed_image_t* view);
+const char* foxglove_msgs_compressed_image_get_format(const foxglove_msgs_compressed_image_t* view);
 
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_foxglove_compressed_image_as_cdr(const ros_foxglove_compressed_image_t* view, size_t* out_len);
+const uint8_t* foxglove_msgs_compressed_image_as_cdr(const foxglove_msgs_compressed_image_t* view, size_t* out_len);
 
 /* ============================================================================
  * edgefirst_msgs - Mask (buffer-backed)
@@ -1076,22 +1076,22 @@ const uint8_t* ros_foxglove_compressed_image_as_cdr(const ros_foxglove_compresse
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
-ros_mask_t* ros_mask_from_cdr(const uint8_t* data, size_t len);
+edgefirst_msgs_mask_t* edgefirst_msgs_mask_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a Mask view handle. */
-void ros_mask_free(ros_mask_t* view);
+void edgefirst_msgs_mask_free(edgefirst_msgs_mask_t* view);
 
 /** @brief Get mask height. */
-uint32_t ros_mask_get_height(const ros_mask_t* view);
+uint32_t edgefirst_msgs_mask_get_height(const edgefirst_msgs_mask_t* view);
 
 /** @brief Get mask width. */
-uint32_t ros_mask_get_width(const ros_mask_t* view);
+uint32_t edgefirst_msgs_mask_get_width(const edgefirst_msgs_mask_t* view);
 
 /** @brief Get mask length. */
-uint32_t ros_mask_get_length(const ros_mask_t* view);
+uint32_t edgefirst_msgs_mask_get_length(const edgefirst_msgs_mask_t* view);
 
 /** @brief Get encoding string (borrowed). */
-const char* ros_mask_get_encoding(const ros_mask_t* view);
+const char* edgefirst_msgs_mask_get_encoding(const edgefirst_msgs_mask_t* view);
 
 /**
  * @brief Get mask data (borrowed).
@@ -1099,10 +1099,10 @@ const char* ros_mask_get_encoding(const ros_mask_t* view);
  * @param out_len Receives byte count
  * @return Pointer to mask data or NULL
  */
-const uint8_t* ros_mask_get_data(const ros_mask_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_mask_get_data(const edgefirst_msgs_mask_t* view, size_t* out_len);
 
 /** @brief Get boxed flag. */
-bool ros_mask_get_boxed(const ros_mask_t* view);
+bool edgefirst_msgs_mask_get_boxed(const edgefirst_msgs_mask_t* view);
 
 /* ============================================================================
  * sensor_msgs - Imu (buffer-backed)
@@ -1114,19 +1114,19 @@ bool ros_mask_get_boxed(const ros_mask_t* view);
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
-ros_imu_t* ros_imu_from_cdr(const uint8_t* data, size_t len);
+sensor_msgs_imu_t* sensor_msgs_imu_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free an Imu view handle. */
-void ros_imu_free(ros_imu_t* view);
+void sensor_msgs_imu_free(sensor_msgs_imu_t* view);
 
 /** @brief Get stamp seconds. */
-int32_t ros_imu_get_stamp_sec(const ros_imu_t* view);
+int32_t sensor_msgs_imu_get_stamp_sec(const sensor_msgs_imu_t* view);
 
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_imu_get_stamp_nanosec(const ros_imu_t* view);
+uint32_t sensor_msgs_imu_get_stamp_nanosec(const sensor_msgs_imu_t* view);
 
 /** @brief Get frame_id (borrowed). */
-const char* ros_imu_get_frame_id(const ros_imu_t* view);
+const char* sensor_msgs_imu_get_frame_id(const sensor_msgs_imu_t* view);
 
 /**
  * @brief Get orientation quaternion (x, y, z, w).
@@ -1136,7 +1136,7 @@ const char* ros_imu_get_frame_id(const ros_imu_t* view);
  * @param z Receives Z (may be NULL)
  * @param w Receives W (may be NULL)
  */
-void ros_imu_get_orientation(const ros_imu_t* view,
+void sensor_msgs_imu_get_orientation(const sensor_msgs_imu_t* view,
                              double* x, double* y, double* z, double* w);
 
 /**
@@ -1144,7 +1144,7 @@ void ros_imu_get_orientation(const ros_imu_t* view,
  * @param view Imu handle
  * @param out Pointer to double[9] array to receive covariance values
  */
-void ros_imu_get_orientation_covariance(const ros_imu_t* view, double* out);
+void sensor_msgs_imu_get_orientation_covariance(const sensor_msgs_imu_t* view, double* out);
 
 /**
  * @brief Get angular velocity (x, y, z).
@@ -1153,7 +1153,7 @@ void ros_imu_get_orientation_covariance(const ros_imu_t* view, double* out);
  * @param y Receives Y (may be NULL)
  * @param z Receives Z (may be NULL)
  */
-void ros_imu_get_angular_velocity(const ros_imu_t* view,
+void sensor_msgs_imu_get_angular_velocity(const sensor_msgs_imu_t* view,
                                   double* x, double* y, double* z);
 
 /**
@@ -1161,7 +1161,7 @@ void ros_imu_get_angular_velocity(const ros_imu_t* view,
  * @param view Imu handle
  * @param out Pointer to double[9] array to receive covariance values
  */
-void ros_imu_get_angular_velocity_covariance(const ros_imu_t* view, double* out);
+void sensor_msgs_imu_get_angular_velocity_covariance(const sensor_msgs_imu_t* view, double* out);
 
 /**
  * @brief Get linear acceleration (x, y, z).
@@ -1170,7 +1170,7 @@ void ros_imu_get_angular_velocity_covariance(const ros_imu_t* view, double* out)
  * @param y Receives Y (may be NULL)
  * @param z Receives Z (may be NULL)
  */
-void ros_imu_get_linear_acceleration(const ros_imu_t* view,
+void sensor_msgs_imu_get_linear_acceleration(const sensor_msgs_imu_t* view,
                                      double* x, double* y, double* z);
 
 /**
@@ -1178,30 +1178,30 @@ void ros_imu_get_linear_acceleration(const ros_imu_t* view,
  * @param view Imu handle
  * @param out Pointer to double[9] array to receive covariance values
  */
-void ros_imu_get_linear_acceleration_covariance(const ros_imu_t* view, double* out);
+void sensor_msgs_imu_get_linear_acceleration_covariance(const sensor_msgs_imu_t* view, double* out);
 
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_imu_as_cdr(const ros_imu_t* view, size_t* out_len);
+const uint8_t* sensor_msgs_imu_as_cdr(const sensor_msgs_imu_t* view, size_t* out_len);
 
 /* ----------------------------------------------------------------------------
  * sensor_msgs - Imu (builder, 3.2.0+)
  * --------------------------------------------------------------------------*/
 
-/** @brief Opaque builder handle for ros_imu_t messages. */
-typedef struct ros_imu_builder_s ros_imu_builder_t;
+/** @brief Opaque builder handle for sensor_msgs_imu_t messages. */
+typedef struct sensor_msgs_imu_builder_s sensor_msgs_imu_builder_t;
 
 /**
  * @brief Create a new Imu builder with zero-valued defaults.
  * @return Opaque handle, or NULL on allocation failure. Free with
- *         ros_imu_builder_free.
+ *         sensor_msgs_imu_builder_free.
  */
-ros_imu_builder_t* ros_imu_builder_new(void);
+sensor_msgs_imu_builder_t* sensor_msgs_imu_builder_new(void);
 
 /** @brief Free an Imu builder handle. NULL-safe. */
-void ros_imu_builder_free(ros_imu_builder_t* b);
+void sensor_msgs_imu_builder_free(sensor_msgs_imu_builder_t* b);
 
 /** @brief Set the stamp field. */
-void ros_imu_builder_set_stamp(ros_imu_builder_t* b,
+void sensor_msgs_imu_builder_set_stamp(sensor_msgs_imu_builder_t* b,
                                int32_t sec, uint32_t nsec);
 
 /**
@@ -1209,10 +1209,10 @@ void ros_imu_builder_set_stamp(ros_imu_builder_t* b,
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
  *         NULL `s`, or non-UTF-8 `s`).
  */
-int  ros_imu_builder_set_frame_id(ros_imu_builder_t* b, const char* s);
+int  sensor_msgs_imu_builder_set_frame_id(sensor_msgs_imu_builder_t* b, const char* s);
 
 /** @brief Set the orientation quaternion (x, y, z, w). */
-void ros_imu_builder_set_orientation(ros_imu_builder_t* b,
+void sensor_msgs_imu_builder_set_orientation(sensor_msgs_imu_builder_t* b,
                                      double x, double y, double z, double w);
 
 /**
@@ -1222,37 +1222,37 @@ void ros_imu_builder_set_orientation(ros_imu_builder_t* b,
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_imu_builder_set_orientation_covariance(ros_imu_builder_t* b,
+int  sensor_msgs_imu_builder_set_orientation_covariance(sensor_msgs_imu_builder_t* b,
                                                 const double* cov);
 
 /** @brief Set the angular_velocity (rad/s, x, y, z). */
-void ros_imu_builder_set_angular_velocity(ros_imu_builder_t* b,
+void sensor_msgs_imu_builder_set_angular_velocity(sensor_msgs_imu_builder_t* b,
                                           double x, double y, double z);
 
 /** @brief Copy 9 f64 covariance values for angular velocity.
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_imu_builder_set_angular_velocity_covariance(ros_imu_builder_t* b,
+int  sensor_msgs_imu_builder_set_angular_velocity_covariance(sensor_msgs_imu_builder_t* b,
                                                      const double* cov);
 
 /** @brief Set the linear_acceleration (m/s², x, y, z). */
-void ros_imu_builder_set_linear_acceleration(ros_imu_builder_t* b,
+void sensor_msgs_imu_builder_set_linear_acceleration(sensor_msgs_imu_builder_t* b,
                                              double x, double y, double z);
 
 /** @brief Copy 9 f64 covariance values for linear acceleration.
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_imu_builder_set_linear_acceleration_covariance(ros_imu_builder_t* b,
+int  sensor_msgs_imu_builder_set_linear_acceleration_covariance(sensor_msgs_imu_builder_t* b,
                                                         const double* cov);
 
 /**
  * @brief Allocate a fresh CDR buffer and encode the message.
- * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ * @return 0 on success (out_bytes/out_len written; free via edgefirst_schemas_bytes_free),
  *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
  */
-int  ros_imu_builder_build(ros_imu_builder_t* b,
+int  sensor_msgs_imu_builder_build(sensor_msgs_imu_builder_t* b,
                            uint8_t** out_bytes, size_t* out_len);
 
 /**
@@ -1260,7 +1260,7 @@ int  ros_imu_builder_build(ros_imu_builder_t* b,
  * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
  *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
  */
-int  ros_imu_builder_encode_into(ros_imu_builder_t* b,
+int  sensor_msgs_imu_builder_encode_into(sensor_msgs_imu_builder_t* b,
                                  uint8_t* buf, size_t cap,
                                  size_t* out_len);
 
@@ -1274,51 +1274,51 @@ int  ros_imu_builder_encode_into(ros_imu_builder_t* b,
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
-ros_nav_sat_fix_t* ros_nav_sat_fix_from_cdr(const uint8_t* data, size_t len);
+sensor_msgs_nav_sat_fix_t* sensor_msgs_nav_sat_fix_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a NavSatFix view handle. */
-void ros_nav_sat_fix_free(ros_nav_sat_fix_t* view);
+void sensor_msgs_nav_sat_fix_free(sensor_msgs_nav_sat_fix_t* view);
 
 /** @brief Get stamp seconds. */
-int32_t ros_nav_sat_fix_get_stamp_sec(const ros_nav_sat_fix_t* view);
+int32_t sensor_msgs_nav_sat_fix_get_stamp_sec(const sensor_msgs_nav_sat_fix_t* view);
 
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_nav_sat_fix_get_stamp_nanosec(const ros_nav_sat_fix_t* view);
+uint32_t sensor_msgs_nav_sat_fix_get_stamp_nanosec(const sensor_msgs_nav_sat_fix_t* view);
 
 /** @brief Get frame_id (borrowed). */
-const char* ros_nav_sat_fix_get_frame_id(const ros_nav_sat_fix_t* view);
+const char* sensor_msgs_nav_sat_fix_get_frame_id(const sensor_msgs_nav_sat_fix_t* view);
 
 /** @brief Get latitude in degrees. */
-double ros_nav_sat_fix_get_latitude(const ros_nav_sat_fix_t* view);
+double sensor_msgs_nav_sat_fix_get_latitude(const sensor_msgs_nav_sat_fix_t* view);
 
 /** @brief Get longitude in degrees. */
-double ros_nav_sat_fix_get_longitude(const ros_nav_sat_fix_t* view);
+double sensor_msgs_nav_sat_fix_get_longitude(const sensor_msgs_nav_sat_fix_t* view);
 
 /** @brief Get altitude in metres. */
-double ros_nav_sat_fix_get_altitude(const ros_nav_sat_fix_t* view);
+double sensor_msgs_nav_sat_fix_get_altitude(const sensor_msgs_nav_sat_fix_t* view);
 
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_nav_sat_fix_as_cdr(const ros_nav_sat_fix_t* view, size_t* out_len);
+const uint8_t* sensor_msgs_nav_sat_fix_as_cdr(const sensor_msgs_nav_sat_fix_t* view, size_t* out_len);
 
 /* ----------------------------------------------------------------------------
  * sensor_msgs - NavSatFix (builder, 3.2.0+)
  * --------------------------------------------------------------------------*/
 
-/** @brief Opaque builder handle for ros_nav_sat_fix_t messages. */
-typedef struct ros_nav_sat_fix_builder_s ros_nav_sat_fix_builder_t;
+/** @brief Opaque builder handle for sensor_msgs_nav_sat_fix_t messages. */
+typedef struct sensor_msgs_nav_sat_fix_builder_s sensor_msgs_nav_sat_fix_builder_t;
 
 /**
  * @brief Create a new NavSatFix builder with zero-valued defaults.
  * @return Opaque handle, or NULL on allocation failure. Free with
- *         ros_nav_sat_fix_builder_free.
+ *         sensor_msgs_nav_sat_fix_builder_free.
  */
-ros_nav_sat_fix_builder_t* ros_nav_sat_fix_builder_new(void);
+sensor_msgs_nav_sat_fix_builder_t* sensor_msgs_nav_sat_fix_builder_new(void);
 
 /** @brief Free a NavSatFix builder handle. NULL-safe. */
-void ros_nav_sat_fix_builder_free(ros_nav_sat_fix_builder_t* b);
+void sensor_msgs_nav_sat_fix_builder_free(sensor_msgs_nav_sat_fix_builder_t* b);
 
 /** @brief Set the stamp field. */
-void ros_nav_sat_fix_builder_set_stamp(ros_nav_sat_fix_builder_t* b,
+void sensor_msgs_nav_sat_fix_builder_set_stamp(sensor_msgs_nav_sat_fix_builder_t* b,
                                        int32_t sec, uint32_t nsec);
 
 /**
@@ -1326,44 +1326,44 @@ void ros_nav_sat_fix_builder_set_stamp(ros_nav_sat_fix_builder_t* b,
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
  *         NULL `s`, or non-UTF-8 `s`).
  */
-int  ros_nav_sat_fix_builder_set_frame_id(ros_nav_sat_fix_builder_t* b,
+int  sensor_msgs_nav_sat_fix_builder_set_frame_id(sensor_msgs_nav_sat_fix_builder_t* b,
                                           const char* s);
 
 /**
  * @brief Set the status field (NavSatStatus: int8 status + uint16 service).
  */
-void ros_nav_sat_fix_builder_set_status(ros_nav_sat_fix_builder_t* b,
+void sensor_msgs_nav_sat_fix_builder_set_status(sensor_msgs_nav_sat_fix_builder_t* b,
                                         int8_t status, uint16_t service);
 
 /** @brief Set the latitude field (degrees). */
-void ros_nav_sat_fix_builder_set_latitude(ros_nav_sat_fix_builder_t* b,
+void sensor_msgs_nav_sat_fix_builder_set_latitude(sensor_msgs_nav_sat_fix_builder_t* b,
                                           double v);
 
 /** @brief Set the longitude field (degrees). */
-void ros_nav_sat_fix_builder_set_longitude(ros_nav_sat_fix_builder_t* b,
+void sensor_msgs_nav_sat_fix_builder_set_longitude(sensor_msgs_nav_sat_fix_builder_t* b,
                                            double v);
 
 /** @brief Set the altitude field (metres). */
-void ros_nav_sat_fix_builder_set_altitude(ros_nav_sat_fix_builder_t* b,
+void sensor_msgs_nav_sat_fix_builder_set_altitude(sensor_msgs_nav_sat_fix_builder_t* b,
                                           double v);
 
 /** @brief Copy 9 f64 position covariance values (row-major 3x3).
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_nav_sat_fix_builder_set_position_covariance(
-    ros_nav_sat_fix_builder_t* b, const double* cov);
+int  sensor_msgs_nav_sat_fix_builder_set_position_covariance(
+    sensor_msgs_nav_sat_fix_builder_t* b, const double* cov);
 
 /** @brief Set the position_covariance_type field. */
-void ros_nav_sat_fix_builder_set_position_covariance_type(
-    ros_nav_sat_fix_builder_t* b, uint8_t v);
+void sensor_msgs_nav_sat_fix_builder_set_position_covariance_type(
+    sensor_msgs_nav_sat_fix_builder_t* b, uint8_t v);
 
 /**
  * @brief Allocate a fresh CDR buffer and encode the message.
- * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ * @return 0 on success (out_bytes/out_len written; free via edgefirst_schemas_bytes_free),
  *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
  */
-int  ros_nav_sat_fix_builder_build(ros_nav_sat_fix_builder_t* b,
+int  sensor_msgs_nav_sat_fix_builder_build(sensor_msgs_nav_sat_fix_builder_t* b,
                                    uint8_t** out_bytes, size_t* out_len);
 
 /**
@@ -1371,7 +1371,7 @@ int  ros_nav_sat_fix_builder_build(ros_nav_sat_fix_builder_t* b,
  * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
  *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
  */
-int  ros_nav_sat_fix_builder_encode_into(ros_nav_sat_fix_builder_t* b,
+int  sensor_msgs_nav_sat_fix_builder_encode_into(sensor_msgs_nav_sat_fix_builder_t* b,
                                          uint8_t* buf, size_t cap,
                                          size_t* out_len);
 
@@ -1385,36 +1385,36 @@ int  ros_nav_sat_fix_builder_encode_into(ros_nav_sat_fix_builder_t* b,
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
-ros_transform_stamped_t* ros_transform_stamped_from_cdr(const uint8_t* data, size_t len);
+geometry_msgs_transform_stamped_t* geometry_msgs_transform_stamped_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a TransformStamped view handle. */
-void ros_transform_stamped_free(ros_transform_stamped_t* view);
+void geometry_msgs_transform_stamped_free(geometry_msgs_transform_stamped_t* view);
 
 /** @brief Get stamp seconds. */
-int32_t ros_transform_stamped_get_stamp_sec(const ros_transform_stamped_t* view);
+int32_t geometry_msgs_transform_stamped_get_stamp_sec(const geometry_msgs_transform_stamped_t* view);
 
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_transform_stamped_get_stamp_nanosec(const ros_transform_stamped_t* view);
+uint32_t geometry_msgs_transform_stamped_get_stamp_nanosec(const geometry_msgs_transform_stamped_t* view);
 
 /** @brief Get frame_id (borrowed). */
-const char* ros_transform_stamped_get_frame_id(const ros_transform_stamped_t* view);
+const char* geometry_msgs_transform_stamped_get_frame_id(const geometry_msgs_transform_stamped_t* view);
 
 /** @brief Get child_frame_id (borrowed). */
-const char* ros_transform_stamped_get_child_frame_id(const ros_transform_stamped_t* view);
+const char* geometry_msgs_transform_stamped_get_child_frame_id(const geometry_msgs_transform_stamped_t* view);
 
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_transform_stamped_as_cdr(const ros_transform_stamped_t* view, size_t* out_len);
-/** @brief Opaque builder handle for ros_transform_stamped_t messages. */
-typedef struct ros_transform_stamped_builder_s ros_transform_stamped_builder_t;
-ros_transform_stamped_builder_t* ros_transform_stamped_builder_new(void);
-void ros_transform_stamped_builder_free(ros_transform_stamped_builder_t* b);
-void ros_transform_stamped_builder_set_stamp(ros_transform_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_transform_stamped_builder_set_frame_id(ros_transform_stamped_builder_t* b, const char* s);
-int  ros_transform_stamped_builder_set_child_frame_id(ros_transform_stamped_builder_t* b, const char* s);
-void ros_transform_stamped_builder_set_translation(ros_transform_stamped_builder_t* b, double x, double y, double z);
-void ros_transform_stamped_builder_set_rotation(ros_transform_stamped_builder_t* b, double x, double y, double z, double w);
-int  ros_transform_stamped_builder_build(ros_transform_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_transform_stamped_builder_encode_into(ros_transform_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+const uint8_t* geometry_msgs_transform_stamped_as_cdr(const geometry_msgs_transform_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for geometry_msgs_transform_stamped_t messages. */
+typedef struct geometry_msgs_transform_stamped_builder_s geometry_msgs_transform_stamped_builder_t;
+geometry_msgs_transform_stamped_builder_t* geometry_msgs_transform_stamped_builder_new(void);
+void geometry_msgs_transform_stamped_builder_free(geometry_msgs_transform_stamped_builder_t* b);
+void geometry_msgs_transform_stamped_builder_set_stamp(geometry_msgs_transform_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  geometry_msgs_transform_stamped_builder_set_frame_id(geometry_msgs_transform_stamped_builder_t* b, const char* s);
+int  geometry_msgs_transform_stamped_builder_set_child_frame_id(geometry_msgs_transform_stamped_builder_t* b, const char* s);
+void geometry_msgs_transform_stamped_builder_set_translation(geometry_msgs_transform_stamped_builder_t* b, double x, double y, double z);
+void geometry_msgs_transform_stamped_builder_set_rotation(geometry_msgs_transform_stamped_builder_t* b, double x, double y, double z, double w);
+int  geometry_msgs_transform_stamped_builder_build(geometry_msgs_transform_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  geometry_msgs_transform_stamped_builder_encode_into(geometry_msgs_transform_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ============================================================================
@@ -1422,27 +1422,27 @@ int  ros_transform_stamped_builder_encode_into(ros_transform_stamped_builder_t* 
  * ========================================================================= */
 
 /** @brief Create a TwistStamped view from CDR bytes. */
-ros_twist_stamped_t* ros_twist_stamped_from_cdr(const uint8_t* data, size_t len);
+geometry_msgs_twist_stamped_t* geometry_msgs_twist_stamped_from_cdr(const uint8_t* data, size_t len);
 /** @brief Free a TwistStamped view handle. */
-void ros_twist_stamped_free(ros_twist_stamped_t* view);
+void geometry_msgs_twist_stamped_free(geometry_msgs_twist_stamped_t* view);
 /** @brief Get stamp seconds. */
-int32_t ros_twist_stamped_get_stamp_sec(const ros_twist_stamped_t* view);
+int32_t geometry_msgs_twist_stamped_get_stamp_sec(const geometry_msgs_twist_stamped_t* view);
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_twist_stamped_get_stamp_nanosec(const ros_twist_stamped_t* view);
+uint32_t geometry_msgs_twist_stamped_get_stamp_nanosec(const geometry_msgs_twist_stamped_t* view);
 /** @brief Get frame_id (borrowed). */
-const char* ros_twist_stamped_get_frame_id(const ros_twist_stamped_t* view);
+const char* geometry_msgs_twist_stamped_get_frame_id(const geometry_msgs_twist_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_twist_stamped_as_cdr(const ros_twist_stamped_t* view, size_t* out_len);
-/** @brief Opaque builder handle for ros_twist_stamped_t messages. */
-typedef struct ros_twist_stamped_builder_s ros_twist_stamped_builder_t;
-ros_twist_stamped_builder_t* ros_twist_stamped_builder_new(void);
-void ros_twist_stamped_builder_free(ros_twist_stamped_builder_t* b);
-void ros_twist_stamped_builder_set_stamp(ros_twist_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_twist_stamped_builder_set_frame_id(ros_twist_stamped_builder_t* b, const char* s);
-void ros_twist_stamped_builder_set_linear(ros_twist_stamped_builder_t* b, double x, double y, double z);
-void ros_twist_stamped_builder_set_angular(ros_twist_stamped_builder_t* b, double x, double y, double z);
-int  ros_twist_stamped_builder_build(ros_twist_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_twist_stamped_builder_encode_into(ros_twist_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+const uint8_t* geometry_msgs_twist_stamped_as_cdr(const geometry_msgs_twist_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for geometry_msgs_twist_stamped_t messages. */
+typedef struct geometry_msgs_twist_stamped_builder_s geometry_msgs_twist_stamped_builder_t;
+geometry_msgs_twist_stamped_builder_t* geometry_msgs_twist_stamped_builder_new(void);
+void geometry_msgs_twist_stamped_builder_free(geometry_msgs_twist_stamped_builder_t* b);
+void geometry_msgs_twist_stamped_builder_set_stamp(geometry_msgs_twist_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  geometry_msgs_twist_stamped_builder_set_frame_id(geometry_msgs_twist_stamped_builder_t* b, const char* s);
+void geometry_msgs_twist_stamped_builder_set_linear(geometry_msgs_twist_stamped_builder_t* b, double x, double y, double z);
+void geometry_msgs_twist_stamped_builder_set_angular(geometry_msgs_twist_stamped_builder_t* b, double x, double y, double z);
+int  geometry_msgs_twist_stamped_builder_build(geometry_msgs_twist_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  geometry_msgs_twist_stamped_builder_encode_into(geometry_msgs_twist_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ============================================================================
@@ -1450,27 +1450,27 @@ int  ros_twist_stamped_builder_encode_into(ros_twist_stamped_builder_t* b, uint8
  * ========================================================================= */
 
 /** @brief Create an AccelStamped view from CDR bytes. */
-ros_accel_stamped_t* ros_accel_stamped_from_cdr(const uint8_t* data, size_t len);
+geometry_msgs_accel_stamped_t* geometry_msgs_accel_stamped_from_cdr(const uint8_t* data, size_t len);
 /** @brief Free an AccelStamped view handle. */
-void ros_accel_stamped_free(ros_accel_stamped_t* view);
+void geometry_msgs_accel_stamped_free(geometry_msgs_accel_stamped_t* view);
 /** @brief Get stamp seconds. */
-int32_t ros_accel_stamped_get_stamp_sec(const ros_accel_stamped_t* view);
+int32_t geometry_msgs_accel_stamped_get_stamp_sec(const geometry_msgs_accel_stamped_t* view);
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_accel_stamped_get_stamp_nanosec(const ros_accel_stamped_t* view);
+uint32_t geometry_msgs_accel_stamped_get_stamp_nanosec(const geometry_msgs_accel_stamped_t* view);
 /** @brief Get frame_id (borrowed). */
-const char* ros_accel_stamped_get_frame_id(const ros_accel_stamped_t* view);
+const char* geometry_msgs_accel_stamped_get_frame_id(const geometry_msgs_accel_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_accel_stamped_as_cdr(const ros_accel_stamped_t* view, size_t* out_len);
-/** @brief Opaque builder handle for ros_accel_stamped_t messages. */
-typedef struct ros_accel_stamped_builder_s ros_accel_stamped_builder_t;
-ros_accel_stamped_builder_t* ros_accel_stamped_builder_new(void);
-void ros_accel_stamped_builder_free(ros_accel_stamped_builder_t* b);
-void ros_accel_stamped_builder_set_stamp(ros_accel_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_accel_stamped_builder_set_frame_id(ros_accel_stamped_builder_t* b, const char* s);
-void ros_accel_stamped_builder_set_linear_acceleration(ros_accel_stamped_builder_t* b, double x, double y, double z);
-void ros_accel_stamped_builder_set_angular_acceleration(ros_accel_stamped_builder_t* b, double x, double y, double z);
-int  ros_accel_stamped_builder_build(ros_accel_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_accel_stamped_builder_encode_into(ros_accel_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+const uint8_t* geometry_msgs_accel_stamped_as_cdr(const geometry_msgs_accel_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for geometry_msgs_accel_stamped_t messages. */
+typedef struct geometry_msgs_accel_stamped_builder_s geometry_msgs_accel_stamped_builder_t;
+geometry_msgs_accel_stamped_builder_t* geometry_msgs_accel_stamped_builder_new(void);
+void geometry_msgs_accel_stamped_builder_free(geometry_msgs_accel_stamped_builder_t* b);
+void geometry_msgs_accel_stamped_builder_set_stamp(geometry_msgs_accel_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  geometry_msgs_accel_stamped_builder_set_frame_id(geometry_msgs_accel_stamped_builder_t* b, const char* s);
+void geometry_msgs_accel_stamped_builder_set_linear_acceleration(geometry_msgs_accel_stamped_builder_t* b, double x, double y, double z);
+void geometry_msgs_accel_stamped_builder_set_angular_acceleration(geometry_msgs_accel_stamped_builder_t* b, double x, double y, double z);
+int  geometry_msgs_accel_stamped_builder_build(geometry_msgs_accel_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  geometry_msgs_accel_stamped_builder_encode_into(geometry_msgs_accel_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ============================================================================
@@ -1478,26 +1478,26 @@ int  ros_accel_stamped_builder_encode_into(ros_accel_stamped_builder_t* b, uint8
  * ========================================================================= */
 
 /** @brief Create a PointStamped view from CDR bytes. */
-ros_point_stamped_t* ros_point_stamped_from_cdr(const uint8_t* data, size_t len);
+geometry_msgs_point_stamped_t* geometry_msgs_point_stamped_from_cdr(const uint8_t* data, size_t len);
 /** @brief Free a PointStamped view handle. */
-void ros_point_stamped_free(ros_point_stamped_t* view);
+void geometry_msgs_point_stamped_free(geometry_msgs_point_stamped_t* view);
 /** @brief Get stamp seconds. */
-int32_t ros_point_stamped_get_stamp_sec(const ros_point_stamped_t* view);
+int32_t geometry_msgs_point_stamped_get_stamp_sec(const geometry_msgs_point_stamped_t* view);
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_point_stamped_get_stamp_nanosec(const ros_point_stamped_t* view);
+uint32_t geometry_msgs_point_stamped_get_stamp_nanosec(const geometry_msgs_point_stamped_t* view);
 /** @brief Get frame_id (borrowed). */
-const char* ros_point_stamped_get_frame_id(const ros_point_stamped_t* view);
+const char* geometry_msgs_point_stamped_get_frame_id(const geometry_msgs_point_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_point_stamped_as_cdr(const ros_point_stamped_t* view, size_t* out_len);
-/** @brief Opaque builder handle for ros_point_stamped_t messages. */
-typedef struct ros_point_stamped_builder_s ros_point_stamped_builder_t;
-ros_point_stamped_builder_t* ros_point_stamped_builder_new(void);
-void ros_point_stamped_builder_free(ros_point_stamped_builder_t* b);
-void ros_point_stamped_builder_set_stamp(ros_point_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_point_stamped_builder_set_frame_id(ros_point_stamped_builder_t* b, const char* s);
-void ros_point_stamped_builder_set_point(ros_point_stamped_builder_t* b, double x, double y, double z);
-int  ros_point_stamped_builder_build(ros_point_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_point_stamped_builder_encode_into(ros_point_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+const uint8_t* geometry_msgs_point_stamped_as_cdr(const geometry_msgs_point_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for geometry_msgs_point_stamped_t messages. */
+typedef struct geometry_msgs_point_stamped_builder_s geometry_msgs_point_stamped_builder_t;
+geometry_msgs_point_stamped_builder_t* geometry_msgs_point_stamped_builder_new(void);
+void geometry_msgs_point_stamped_builder_free(geometry_msgs_point_stamped_builder_t* b);
+void geometry_msgs_point_stamped_builder_set_stamp(geometry_msgs_point_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  geometry_msgs_point_stamped_builder_set_frame_id(geometry_msgs_point_stamped_builder_t* b, const char* s);
+void geometry_msgs_point_stamped_builder_set_point(geometry_msgs_point_stamped_builder_t* b, double x, double y, double z);
+int  geometry_msgs_point_stamped_builder_build(geometry_msgs_point_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  geometry_msgs_point_stamped_builder_encode_into(geometry_msgs_point_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ============================================================================
@@ -1505,28 +1505,28 @@ int  ros_point_stamped_builder_encode_into(ros_point_stamped_builder_t* b, uint8
  * ========================================================================= */
 
 /** @brief Create an InertiaStamped view from CDR bytes. */
-ros_inertia_stamped_t* ros_inertia_stamped_from_cdr(const uint8_t* data, size_t len);
+geometry_msgs_inertia_stamped_t* geometry_msgs_inertia_stamped_from_cdr(const uint8_t* data, size_t len);
 /** @brief Free an InertiaStamped view handle. */
-void ros_inertia_stamped_free(ros_inertia_stamped_t* view);
+void geometry_msgs_inertia_stamped_free(geometry_msgs_inertia_stamped_t* view);
 /** @brief Get stamp seconds. */
-int32_t ros_inertia_stamped_get_stamp_sec(const ros_inertia_stamped_t* view);
+int32_t geometry_msgs_inertia_stamped_get_stamp_sec(const geometry_msgs_inertia_stamped_t* view);
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_inertia_stamped_get_stamp_nanosec(const ros_inertia_stamped_t* view);
+uint32_t geometry_msgs_inertia_stamped_get_stamp_nanosec(const geometry_msgs_inertia_stamped_t* view);
 /** @brief Get frame_id (borrowed). */
-const char* ros_inertia_stamped_get_frame_id(const ros_inertia_stamped_t* view);
+const char* geometry_msgs_inertia_stamped_get_frame_id(const geometry_msgs_inertia_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_inertia_stamped_as_cdr(const ros_inertia_stamped_t* view, size_t* out_len);
-/** @brief Opaque builder handle for ros_inertia_stamped_t messages. */
-typedef struct ros_inertia_stamped_builder_s ros_inertia_stamped_builder_t;
-ros_inertia_stamped_builder_t* ros_inertia_stamped_builder_new(void);
-void ros_inertia_stamped_builder_free(ros_inertia_stamped_builder_t* b);
-void ros_inertia_stamped_builder_set_stamp(ros_inertia_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_inertia_stamped_builder_set_frame_id(ros_inertia_stamped_builder_t* b, const char* s);
-void ros_inertia_stamped_builder_set_mass(ros_inertia_stamped_builder_t* b, double m);
-void ros_inertia_stamped_builder_set_com(ros_inertia_stamped_builder_t* b, double x, double y, double z);
-void ros_inertia_stamped_builder_set_inertia_tensor(ros_inertia_stamped_builder_t* b, double ixx, double ixy, double ixz, double iyy, double iyz, double izz);
-int  ros_inertia_stamped_builder_build(ros_inertia_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_inertia_stamped_builder_encode_into(ros_inertia_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+const uint8_t* geometry_msgs_inertia_stamped_as_cdr(const geometry_msgs_inertia_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for geometry_msgs_inertia_stamped_t messages. */
+typedef struct geometry_msgs_inertia_stamped_builder_s geometry_msgs_inertia_stamped_builder_t;
+geometry_msgs_inertia_stamped_builder_t* geometry_msgs_inertia_stamped_builder_new(void);
+void geometry_msgs_inertia_stamped_builder_free(geometry_msgs_inertia_stamped_builder_t* b);
+void geometry_msgs_inertia_stamped_builder_set_stamp(geometry_msgs_inertia_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  geometry_msgs_inertia_stamped_builder_set_frame_id(geometry_msgs_inertia_stamped_builder_t* b, const char* s);
+void geometry_msgs_inertia_stamped_builder_set_mass(geometry_msgs_inertia_stamped_builder_t* b, double m);
+void geometry_msgs_inertia_stamped_builder_set_com(geometry_msgs_inertia_stamped_builder_t* b, double x, double y, double z);
+void geometry_msgs_inertia_stamped_builder_set_inertia_tensor(geometry_msgs_inertia_stamped_builder_t* b, double ixx, double ixy, double ixz, double iyy, double iyz, double izz);
+int  geometry_msgs_inertia_stamped_builder_build(geometry_msgs_inertia_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  geometry_msgs_inertia_stamped_builder_encode_into(geometry_msgs_inertia_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ============================================================================
@@ -1534,26 +1534,26 @@ int  ros_inertia_stamped_builder_encode_into(ros_inertia_stamped_builder_t* b, u
  * ========================================================================= */
 
 /** @brief Create a Vector3Stamped view from CDR bytes. */
-ros_vector3_stamped_t* ros_vector3_stamped_from_cdr(const uint8_t* data, size_t len);
+geometry_msgs_vector3_stamped_t* geometry_msgs_vector3_stamped_from_cdr(const uint8_t* data, size_t len);
 /** @brief Free a Vector3Stamped view handle. */
-void ros_vector3_stamped_free(ros_vector3_stamped_t* view);
+void geometry_msgs_vector3_stamped_free(geometry_msgs_vector3_stamped_t* view);
 /** @brief Get stamp seconds. */
-int32_t ros_vector3_stamped_get_stamp_sec(const ros_vector3_stamped_t* view);
+int32_t geometry_msgs_vector3_stamped_get_stamp_sec(const geometry_msgs_vector3_stamped_t* view);
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_vector3_stamped_get_stamp_nanosec(const ros_vector3_stamped_t* view);
+uint32_t geometry_msgs_vector3_stamped_get_stamp_nanosec(const geometry_msgs_vector3_stamped_t* view);
 /** @brief Get frame_id (borrowed). */
-const char* ros_vector3_stamped_get_frame_id(const ros_vector3_stamped_t* view);
+const char* geometry_msgs_vector3_stamped_get_frame_id(const geometry_msgs_vector3_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_vector3_stamped_as_cdr(const ros_vector3_stamped_t* view, size_t* out_len);
-/** @brief Opaque builder handle for ros_vector3_stamped_t messages. */
-typedef struct ros_vector3_stamped_builder_s ros_vector3_stamped_builder_t;
-ros_vector3_stamped_builder_t* ros_vector3_stamped_builder_new(void);
-void ros_vector3_stamped_builder_free(ros_vector3_stamped_builder_t* b);
-void ros_vector3_stamped_builder_set_stamp(ros_vector3_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_vector3_stamped_builder_set_frame_id(ros_vector3_stamped_builder_t* b, const char* s);
-void ros_vector3_stamped_builder_set_vector(ros_vector3_stamped_builder_t* b, double x, double y, double z);
-int  ros_vector3_stamped_builder_build(ros_vector3_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_vector3_stamped_builder_encode_into(ros_vector3_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+const uint8_t* geometry_msgs_vector3_stamped_as_cdr(const geometry_msgs_vector3_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for geometry_msgs_vector3_stamped_t messages. */
+typedef struct geometry_msgs_vector3_stamped_builder_s geometry_msgs_vector3_stamped_builder_t;
+geometry_msgs_vector3_stamped_builder_t* geometry_msgs_vector3_stamped_builder_new(void);
+void geometry_msgs_vector3_stamped_builder_free(geometry_msgs_vector3_stamped_builder_t* b);
+void geometry_msgs_vector3_stamped_builder_set_stamp(geometry_msgs_vector3_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  geometry_msgs_vector3_stamped_builder_set_frame_id(geometry_msgs_vector3_stamped_builder_t* b, const char* s);
+void geometry_msgs_vector3_stamped_builder_set_vector(geometry_msgs_vector3_stamped_builder_t* b, double x, double y, double z);
+int  geometry_msgs_vector3_stamped_builder_build(geometry_msgs_vector3_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  geometry_msgs_vector3_stamped_builder_encode_into(geometry_msgs_vector3_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ============================================================================
@@ -1561,27 +1561,27 @@ int  ros_vector3_stamped_builder_encode_into(ros_vector3_stamped_builder_t* b, u
  * ========================================================================= */
 
 /** @brief Create a PoseStamped view from CDR bytes. */
-ros_pose_stamped_t* ros_pose_stamped_from_cdr(const uint8_t* data, size_t len);
+geometry_msgs_pose_stamped_t* geometry_msgs_pose_stamped_from_cdr(const uint8_t* data, size_t len);
 /** @brief Free a PoseStamped view handle. */
-void ros_pose_stamped_free(ros_pose_stamped_t* view);
+void geometry_msgs_pose_stamped_free(geometry_msgs_pose_stamped_t* view);
 /** @brief Get stamp seconds. */
-int32_t ros_pose_stamped_get_stamp_sec(const ros_pose_stamped_t* view);
+int32_t geometry_msgs_pose_stamped_get_stamp_sec(const geometry_msgs_pose_stamped_t* view);
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_pose_stamped_get_stamp_nanosec(const ros_pose_stamped_t* view);
+uint32_t geometry_msgs_pose_stamped_get_stamp_nanosec(const geometry_msgs_pose_stamped_t* view);
 /** @brief Get frame_id (borrowed). */
-const char* ros_pose_stamped_get_frame_id(const ros_pose_stamped_t* view);
+const char* geometry_msgs_pose_stamped_get_frame_id(const geometry_msgs_pose_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_pose_stamped_as_cdr(const ros_pose_stamped_t* view, size_t* out_len);
-/** @brief Opaque builder handle for ros_pose_stamped_t messages. */
-typedef struct ros_pose_stamped_builder_s ros_pose_stamped_builder_t;
-ros_pose_stamped_builder_t* ros_pose_stamped_builder_new(void);
-void ros_pose_stamped_builder_free(ros_pose_stamped_builder_t* b);
-void ros_pose_stamped_builder_set_stamp(ros_pose_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_pose_stamped_builder_set_frame_id(ros_pose_stamped_builder_t* b, const char* s);
-void ros_pose_stamped_builder_set_position(ros_pose_stamped_builder_t* b, double x, double y, double z);
-void ros_pose_stamped_builder_set_orientation(ros_pose_stamped_builder_t* b, double x, double y, double z, double w);
-int  ros_pose_stamped_builder_build(ros_pose_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_pose_stamped_builder_encode_into(ros_pose_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+const uint8_t* geometry_msgs_pose_stamped_as_cdr(const geometry_msgs_pose_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for geometry_msgs_pose_stamped_t messages. */
+typedef struct geometry_msgs_pose_stamped_builder_s geometry_msgs_pose_stamped_builder_t;
+geometry_msgs_pose_stamped_builder_t* geometry_msgs_pose_stamped_builder_new(void);
+void geometry_msgs_pose_stamped_builder_free(geometry_msgs_pose_stamped_builder_t* b);
+void geometry_msgs_pose_stamped_builder_set_stamp(geometry_msgs_pose_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  geometry_msgs_pose_stamped_builder_set_frame_id(geometry_msgs_pose_stamped_builder_t* b, const char* s);
+void geometry_msgs_pose_stamped_builder_set_position(geometry_msgs_pose_stamped_builder_t* b, double x, double y, double z);
+void geometry_msgs_pose_stamped_builder_set_orientation(geometry_msgs_pose_stamped_builder_t* b, double x, double y, double z, double w);
+int  geometry_msgs_pose_stamped_builder_build(geometry_msgs_pose_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  geometry_msgs_pose_stamped_builder_encode_into(geometry_msgs_pose_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ============================================================================
@@ -1589,26 +1589,26 @@ int  ros_pose_stamped_builder_encode_into(ros_pose_stamped_builder_t* b, uint8_t
  * ========================================================================= */
 
 /** @brief Create a QuaternionStamped view from CDR bytes. */
-ros_quaternion_stamped_t* ros_quaternion_stamped_from_cdr(const uint8_t* data, size_t len);
+geometry_msgs_quaternion_stamped_t* geometry_msgs_quaternion_stamped_from_cdr(const uint8_t* data, size_t len);
 /** @brief Free a QuaternionStamped view handle. */
-void ros_quaternion_stamped_free(ros_quaternion_stamped_t* view);
+void geometry_msgs_quaternion_stamped_free(geometry_msgs_quaternion_stamped_t* view);
 /** @brief Get stamp seconds. */
-int32_t ros_quaternion_stamped_get_stamp_sec(const ros_quaternion_stamped_t* view);
+int32_t geometry_msgs_quaternion_stamped_get_stamp_sec(const geometry_msgs_quaternion_stamped_t* view);
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_quaternion_stamped_get_stamp_nanosec(const ros_quaternion_stamped_t* view);
+uint32_t geometry_msgs_quaternion_stamped_get_stamp_nanosec(const geometry_msgs_quaternion_stamped_t* view);
 /** @brief Get frame_id (borrowed). */
-const char* ros_quaternion_stamped_get_frame_id(const ros_quaternion_stamped_t* view);
+const char* geometry_msgs_quaternion_stamped_get_frame_id(const geometry_msgs_quaternion_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_quaternion_stamped_as_cdr(const ros_quaternion_stamped_t* view, size_t* out_len);
-/** @brief Opaque builder handle for ros_quaternion_stamped_t messages. */
-typedef struct ros_quaternion_stamped_builder_s ros_quaternion_stamped_builder_t;
-ros_quaternion_stamped_builder_t* ros_quaternion_stamped_builder_new(void);
-void ros_quaternion_stamped_builder_free(ros_quaternion_stamped_builder_t* b);
-void ros_quaternion_stamped_builder_set_stamp(ros_quaternion_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_quaternion_stamped_builder_set_frame_id(ros_quaternion_stamped_builder_t* b, const char* s);
-void ros_quaternion_stamped_builder_set_quaternion(ros_quaternion_stamped_builder_t* b, double x, double y, double z, double w);
-int  ros_quaternion_stamped_builder_build(ros_quaternion_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_quaternion_stamped_builder_encode_into(ros_quaternion_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+const uint8_t* geometry_msgs_quaternion_stamped_as_cdr(const geometry_msgs_quaternion_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for geometry_msgs_quaternion_stamped_t messages. */
+typedef struct geometry_msgs_quaternion_stamped_builder_s geometry_msgs_quaternion_stamped_builder_t;
+geometry_msgs_quaternion_stamped_builder_t* geometry_msgs_quaternion_stamped_builder_new(void);
+void geometry_msgs_quaternion_stamped_builder_free(geometry_msgs_quaternion_stamped_builder_t* b);
+void geometry_msgs_quaternion_stamped_builder_set_stamp(geometry_msgs_quaternion_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  geometry_msgs_quaternion_stamped_builder_set_frame_id(geometry_msgs_quaternion_stamped_builder_t* b, const char* s);
+void geometry_msgs_quaternion_stamped_builder_set_quaternion(geometry_msgs_quaternion_stamped_builder_t* b, double x, double y, double z, double w);
+int  geometry_msgs_quaternion_stamped_builder_build(geometry_msgs_quaternion_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  geometry_msgs_quaternion_stamped_builder_encode_into(geometry_msgs_quaternion_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ============================================================================
@@ -1616,27 +1616,27 @@ int  ros_quaternion_stamped_builder_encode_into(ros_quaternion_stamped_builder_t
  * ========================================================================= */
 
 /** @brief Create a WrenchStamped view from CDR bytes. */
-ros_wrench_stamped_t* ros_wrench_stamped_from_cdr(const uint8_t* data, size_t len);
+geometry_msgs_wrench_stamped_t* geometry_msgs_wrench_stamped_from_cdr(const uint8_t* data, size_t len);
 /** @brief Free a WrenchStamped view handle. */
-void ros_wrench_stamped_free(ros_wrench_stamped_t* view);
+void geometry_msgs_wrench_stamped_free(geometry_msgs_wrench_stamped_t* view);
 /** @brief Get stamp seconds. */
-int32_t ros_wrench_stamped_get_stamp_sec(const ros_wrench_stamped_t* view);
+int32_t geometry_msgs_wrench_stamped_get_stamp_sec(const geometry_msgs_wrench_stamped_t* view);
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_wrench_stamped_get_stamp_nanosec(const ros_wrench_stamped_t* view);
+uint32_t geometry_msgs_wrench_stamped_get_stamp_nanosec(const geometry_msgs_wrench_stamped_t* view);
 /** @brief Get frame_id (borrowed). */
-const char* ros_wrench_stamped_get_frame_id(const ros_wrench_stamped_t* view);
+const char* geometry_msgs_wrench_stamped_get_frame_id(const geometry_msgs_wrench_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_wrench_stamped_as_cdr(const ros_wrench_stamped_t* view, size_t* out_len);
-/** @brief Opaque builder handle for ros_wrench_stamped_t messages. */
-typedef struct ros_wrench_stamped_builder_s ros_wrench_stamped_builder_t;
-ros_wrench_stamped_builder_t* ros_wrench_stamped_builder_new(void);
-void ros_wrench_stamped_builder_free(ros_wrench_stamped_builder_t* b);
-void ros_wrench_stamped_builder_set_stamp(ros_wrench_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_wrench_stamped_builder_set_frame_id(ros_wrench_stamped_builder_t* b, const char* s);
-void ros_wrench_stamped_builder_set_force(ros_wrench_stamped_builder_t* b, double x, double y, double z);
-void ros_wrench_stamped_builder_set_torque(ros_wrench_stamped_builder_t* b, double x, double y, double z);
-int  ros_wrench_stamped_builder_build(ros_wrench_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_wrench_stamped_builder_encode_into(ros_wrench_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+const uint8_t* geometry_msgs_wrench_stamped_as_cdr(const geometry_msgs_wrench_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for geometry_msgs_wrench_stamped_t messages. */
+typedef struct geometry_msgs_wrench_stamped_builder_s geometry_msgs_wrench_stamped_builder_t;
+geometry_msgs_wrench_stamped_builder_t* geometry_msgs_wrench_stamped_builder_new(void);
+void geometry_msgs_wrench_stamped_builder_free(geometry_msgs_wrench_stamped_builder_t* b);
+void geometry_msgs_wrench_stamped_builder_set_stamp(geometry_msgs_wrench_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  geometry_msgs_wrench_stamped_builder_set_frame_id(geometry_msgs_wrench_stamped_builder_t* b, const char* s);
+void geometry_msgs_wrench_stamped_builder_set_force(geometry_msgs_wrench_stamped_builder_t* b, double x, double y, double z);
+void geometry_msgs_wrench_stamped_builder_set_torque(geometry_msgs_wrench_stamped_builder_t* b, double x, double y, double z);
+int  geometry_msgs_wrench_stamped_builder_build(geometry_msgs_wrench_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  geometry_msgs_wrench_stamped_builder_encode_into(geometry_msgs_wrench_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ============================================================================
@@ -1644,28 +1644,28 @@ int  ros_wrench_stamped_builder_encode_into(ros_wrench_stamped_builder_t* b, uin
  * ========================================================================= */
 
 /** @brief Create a PoseWithCovarianceStamped view from CDR bytes. */
-ros_pose_with_covariance_stamped_t* ros_pose_with_covariance_stamped_from_cdr(const uint8_t* data, size_t len);
+geometry_msgs_pose_with_covariance_stamped_t* geometry_msgs_pose_with_covariance_stamped_from_cdr(const uint8_t* data, size_t len);
 /** @brief Free a PoseWithCovarianceStamped view handle. */
-void ros_pose_with_covariance_stamped_free(ros_pose_with_covariance_stamped_t* view);
+void geometry_msgs_pose_with_covariance_stamped_free(geometry_msgs_pose_with_covariance_stamped_t* view);
 /** @brief Get stamp seconds. */
-int32_t ros_pose_with_covariance_stamped_get_stamp_sec(const ros_pose_with_covariance_stamped_t* view);
+int32_t geometry_msgs_pose_with_covariance_stamped_get_stamp_sec(const geometry_msgs_pose_with_covariance_stamped_t* view);
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_pose_with_covariance_stamped_get_stamp_nanosec(const ros_pose_with_covariance_stamped_t* view);
+uint32_t geometry_msgs_pose_with_covariance_stamped_get_stamp_nanosec(const geometry_msgs_pose_with_covariance_stamped_t* view);
 /** @brief Get frame_id (borrowed). */
-const char* ros_pose_with_covariance_stamped_get_frame_id(const ros_pose_with_covariance_stamped_t* view);
+const char* geometry_msgs_pose_with_covariance_stamped_get_frame_id(const geometry_msgs_pose_with_covariance_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_pose_with_covariance_stamped_as_cdr(const ros_pose_with_covariance_stamped_t* view, size_t* out_len);
-/** @brief Opaque builder handle for ros_pose_with_covariance_stamped_t messages. */
-typedef struct ros_pose_with_covariance_stamped_builder_s ros_pose_with_covariance_stamped_builder_t;
-ros_pose_with_covariance_stamped_builder_t* ros_pose_with_covariance_stamped_builder_new(void);
-void ros_pose_with_covariance_stamped_builder_free(ros_pose_with_covariance_stamped_builder_t* b);
-void ros_pose_with_covariance_stamped_builder_set_stamp(ros_pose_with_covariance_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_pose_with_covariance_stamped_builder_set_frame_id(ros_pose_with_covariance_stamped_builder_t* b, const char* s);
-void ros_pose_with_covariance_stamped_builder_set_position(ros_pose_with_covariance_stamped_builder_t* b, double x, double y, double z);
-void ros_pose_with_covariance_stamped_builder_set_orientation(ros_pose_with_covariance_stamped_builder_t* b, double x, double y, double z, double w);
-int  ros_pose_with_covariance_stamped_builder_set_covariance(ros_pose_with_covariance_stamped_builder_t* b, const double* cov);
-int  ros_pose_with_covariance_stamped_builder_build(ros_pose_with_covariance_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_pose_with_covariance_stamped_builder_encode_into(ros_pose_with_covariance_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+const uint8_t* geometry_msgs_pose_with_covariance_stamped_as_cdr(const geometry_msgs_pose_with_covariance_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for geometry_msgs_pose_with_covariance_stamped_t messages. */
+typedef struct geometry_msgs_pose_with_covariance_stamped_builder_s geometry_msgs_pose_with_covariance_stamped_builder_t;
+geometry_msgs_pose_with_covariance_stamped_builder_t* geometry_msgs_pose_with_covariance_stamped_builder_new(void);
+void geometry_msgs_pose_with_covariance_stamped_builder_free(geometry_msgs_pose_with_covariance_stamped_builder_t* b);
+void geometry_msgs_pose_with_covariance_stamped_builder_set_stamp(geometry_msgs_pose_with_covariance_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  geometry_msgs_pose_with_covariance_stamped_builder_set_frame_id(geometry_msgs_pose_with_covariance_stamped_builder_t* b, const char* s);
+void geometry_msgs_pose_with_covariance_stamped_builder_set_position(geometry_msgs_pose_with_covariance_stamped_builder_t* b, double x, double y, double z);
+void geometry_msgs_pose_with_covariance_stamped_builder_set_orientation(geometry_msgs_pose_with_covariance_stamped_builder_t* b, double x, double y, double z, double w);
+int  geometry_msgs_pose_with_covariance_stamped_builder_set_covariance(geometry_msgs_pose_with_covariance_stamped_builder_t* b, const double* cov);
+int  geometry_msgs_pose_with_covariance_stamped_builder_build(geometry_msgs_pose_with_covariance_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  geometry_msgs_pose_with_covariance_stamped_builder_encode_into(geometry_msgs_pose_with_covariance_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ============================================================================
@@ -1673,28 +1673,28 @@ int  ros_pose_with_covariance_stamped_builder_encode_into(ros_pose_with_covarian
  * ========================================================================= */
 
 /** @brief Create a TwistWithCovarianceStamped view from CDR bytes. */
-ros_twist_with_covariance_stamped_t* ros_twist_with_covariance_stamped_from_cdr(const uint8_t* data, size_t len);
+geometry_msgs_twist_with_covariance_stamped_t* geometry_msgs_twist_with_covariance_stamped_from_cdr(const uint8_t* data, size_t len);
 /** @brief Free a TwistWithCovarianceStamped view handle. */
-void ros_twist_with_covariance_stamped_free(ros_twist_with_covariance_stamped_t* view);
+void geometry_msgs_twist_with_covariance_stamped_free(geometry_msgs_twist_with_covariance_stamped_t* view);
 /** @brief Get stamp seconds. */
-int32_t ros_twist_with_covariance_stamped_get_stamp_sec(const ros_twist_with_covariance_stamped_t* view);
+int32_t geometry_msgs_twist_with_covariance_stamped_get_stamp_sec(const geometry_msgs_twist_with_covariance_stamped_t* view);
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_twist_with_covariance_stamped_get_stamp_nanosec(const ros_twist_with_covariance_stamped_t* view);
+uint32_t geometry_msgs_twist_with_covariance_stamped_get_stamp_nanosec(const geometry_msgs_twist_with_covariance_stamped_t* view);
 /** @brief Get frame_id (borrowed). */
-const char* ros_twist_with_covariance_stamped_get_frame_id(const ros_twist_with_covariance_stamped_t* view);
+const char* geometry_msgs_twist_with_covariance_stamped_get_frame_id(const geometry_msgs_twist_with_covariance_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_twist_with_covariance_stamped_as_cdr(const ros_twist_with_covariance_stamped_t* view, size_t* out_len);
-/** @brief Opaque builder handle for ros_twist_with_covariance_stamped_t messages. */
-typedef struct ros_twist_with_covariance_stamped_builder_s ros_twist_with_covariance_stamped_builder_t;
-ros_twist_with_covariance_stamped_builder_t* ros_twist_with_covariance_stamped_builder_new(void);
-void ros_twist_with_covariance_stamped_builder_free(ros_twist_with_covariance_stamped_builder_t* b);
-void ros_twist_with_covariance_stamped_builder_set_stamp(ros_twist_with_covariance_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_twist_with_covariance_stamped_builder_set_frame_id(ros_twist_with_covariance_stamped_builder_t* b, const char* s);
-void ros_twist_with_covariance_stamped_builder_set_linear(ros_twist_with_covariance_stamped_builder_t* b, double x, double y, double z);
-void ros_twist_with_covariance_stamped_builder_set_angular(ros_twist_with_covariance_stamped_builder_t* b, double x, double y, double z);
-int  ros_twist_with_covariance_stamped_builder_set_covariance(ros_twist_with_covariance_stamped_builder_t* b, const double* cov);
-int  ros_twist_with_covariance_stamped_builder_build(ros_twist_with_covariance_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_twist_with_covariance_stamped_builder_encode_into(ros_twist_with_covariance_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+const uint8_t* geometry_msgs_twist_with_covariance_stamped_as_cdr(const geometry_msgs_twist_with_covariance_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for geometry_msgs_twist_with_covariance_stamped_t messages. */
+typedef struct geometry_msgs_twist_with_covariance_stamped_builder_s geometry_msgs_twist_with_covariance_stamped_builder_t;
+geometry_msgs_twist_with_covariance_stamped_builder_t* geometry_msgs_twist_with_covariance_stamped_builder_new(void);
+void geometry_msgs_twist_with_covariance_stamped_builder_free(geometry_msgs_twist_with_covariance_stamped_builder_t* b);
+void geometry_msgs_twist_with_covariance_stamped_builder_set_stamp(geometry_msgs_twist_with_covariance_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  geometry_msgs_twist_with_covariance_stamped_builder_set_frame_id(geometry_msgs_twist_with_covariance_stamped_builder_t* b, const char* s);
+void geometry_msgs_twist_with_covariance_stamped_builder_set_linear(geometry_msgs_twist_with_covariance_stamped_builder_t* b, double x, double y, double z);
+void geometry_msgs_twist_with_covariance_stamped_builder_set_angular(geometry_msgs_twist_with_covariance_stamped_builder_t* b, double x, double y, double z);
+int  geometry_msgs_twist_with_covariance_stamped_builder_set_covariance(geometry_msgs_twist_with_covariance_stamped_builder_t* b, const double* cov);
+int  geometry_msgs_twist_with_covariance_stamped_builder_build(geometry_msgs_twist_with_covariance_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  geometry_msgs_twist_with_covariance_stamped_builder_encode_into(geometry_msgs_twist_with_covariance_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ============================================================================
@@ -1702,28 +1702,28 @@ int  ros_twist_with_covariance_stamped_builder_encode_into(ros_twist_with_covari
  * ========================================================================= */
 
 /** @brief Create an AccelWithCovarianceStamped view from CDR bytes. */
-ros_accel_with_covariance_stamped_t* ros_accel_with_covariance_stamped_from_cdr(const uint8_t* data, size_t len);
+geometry_msgs_accel_with_covariance_stamped_t* geometry_msgs_accel_with_covariance_stamped_from_cdr(const uint8_t* data, size_t len);
 /** @brief Free an AccelWithCovarianceStamped view handle. */
-void ros_accel_with_covariance_stamped_free(ros_accel_with_covariance_stamped_t* view);
+void geometry_msgs_accel_with_covariance_stamped_free(geometry_msgs_accel_with_covariance_stamped_t* view);
 /** @brief Get stamp seconds. */
-int32_t ros_accel_with_covariance_stamped_get_stamp_sec(const ros_accel_with_covariance_stamped_t* view);
+int32_t geometry_msgs_accel_with_covariance_stamped_get_stamp_sec(const geometry_msgs_accel_with_covariance_stamped_t* view);
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_accel_with_covariance_stamped_get_stamp_nanosec(const ros_accel_with_covariance_stamped_t* view);
+uint32_t geometry_msgs_accel_with_covariance_stamped_get_stamp_nanosec(const geometry_msgs_accel_with_covariance_stamped_t* view);
 /** @brief Get frame_id (borrowed). */
-const char* ros_accel_with_covariance_stamped_get_frame_id(const ros_accel_with_covariance_stamped_t* view);
+const char* geometry_msgs_accel_with_covariance_stamped_get_frame_id(const geometry_msgs_accel_with_covariance_stamped_t* view);
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_accel_with_covariance_stamped_as_cdr(const ros_accel_with_covariance_stamped_t* view, size_t* out_len);
-/** @brief Opaque builder handle for ros_accel_with_covariance_stamped_t messages. */
-typedef struct ros_accel_with_covariance_stamped_builder_s ros_accel_with_covariance_stamped_builder_t;
-ros_accel_with_covariance_stamped_builder_t* ros_accel_with_covariance_stamped_builder_new(void);
-void ros_accel_with_covariance_stamped_builder_free(ros_accel_with_covariance_stamped_builder_t* b);
-void ros_accel_with_covariance_stamped_builder_set_stamp(ros_accel_with_covariance_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_accel_with_covariance_stamped_builder_set_frame_id(ros_accel_with_covariance_stamped_builder_t* b, const char* s);
-void ros_accel_with_covariance_stamped_builder_set_linear_acceleration(ros_accel_with_covariance_stamped_builder_t* b, double x, double y, double z);
-void ros_accel_with_covariance_stamped_builder_set_angular_acceleration(ros_accel_with_covariance_stamped_builder_t* b, double x, double y, double z);
-int  ros_accel_with_covariance_stamped_builder_set_covariance(ros_accel_with_covariance_stamped_builder_t* b, const double* cov);
-int  ros_accel_with_covariance_stamped_builder_build(ros_accel_with_covariance_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_accel_with_covariance_stamped_builder_encode_into(ros_accel_with_covariance_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+const uint8_t* geometry_msgs_accel_with_covariance_stamped_as_cdr(const geometry_msgs_accel_with_covariance_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for geometry_msgs_accel_with_covariance_stamped_t messages. */
+typedef struct geometry_msgs_accel_with_covariance_stamped_builder_s geometry_msgs_accel_with_covariance_stamped_builder_t;
+geometry_msgs_accel_with_covariance_stamped_builder_t* geometry_msgs_accel_with_covariance_stamped_builder_new(void);
+void geometry_msgs_accel_with_covariance_stamped_builder_free(geometry_msgs_accel_with_covariance_stamped_builder_t* b);
+void geometry_msgs_accel_with_covariance_stamped_builder_set_stamp(geometry_msgs_accel_with_covariance_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  geometry_msgs_accel_with_covariance_stamped_builder_set_frame_id(geometry_msgs_accel_with_covariance_stamped_builder_t* b, const char* s);
+void geometry_msgs_accel_with_covariance_stamped_builder_set_linear_acceleration(geometry_msgs_accel_with_covariance_stamped_builder_t* b, double x, double y, double z);
+void geometry_msgs_accel_with_covariance_stamped_builder_set_angular_acceleration(geometry_msgs_accel_with_covariance_stamped_builder_t* b, double x, double y, double z);
+int  geometry_msgs_accel_with_covariance_stamped_builder_set_covariance(geometry_msgs_accel_with_covariance_stamped_builder_t* b, const double* cov);
+int  geometry_msgs_accel_with_covariance_stamped_builder_build(geometry_msgs_accel_with_covariance_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  geometry_msgs_accel_with_covariance_stamped_builder_encode_into(geometry_msgs_accel_with_covariance_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ============================================================================
@@ -1731,23 +1731,23 @@ int  ros_accel_with_covariance_stamped_builder_encode_into(ros_accel_with_covari
  * ========================================================================= */
 
 /** @brief Create a Polygon view from CDR bytes. */
-ros_polygon_t* ros_polygon_from_cdr(const uint8_t* data, size_t len);
+geometry_msgs_polygon_t* geometry_msgs_polygon_from_cdr(const uint8_t* data, size_t len);
 /** @brief Free a Polygon view handle. */
-void ros_polygon_free(ros_polygon_t* view);
+void geometry_msgs_polygon_free(geometry_msgs_polygon_t* view);
 /** @brief Get the number of points. */
-size_t ros_polygon_get_len(const ros_polygon_t* view);
+size_t geometry_msgs_polygon_get_len(const geometry_msgs_polygon_t* view);
 /**
  * @brief Get a point by index.
  * @return 0 on success, -1 if index out of range or NULL view.
  */
-int ros_polygon_get_point(const ros_polygon_t* view, size_t index,
+int geometry_msgs_polygon_get_point(const geometry_msgs_polygon_t* view, size_t index,
                           float* x, float* y, float* z);
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_polygon_as_cdr(const ros_polygon_t* view, size_t* out_len);
-/** @brief Opaque builder handle for ros_polygon_t messages. */
-typedef struct ros_polygon_builder_s ros_polygon_builder_t;
-ros_polygon_builder_t* ros_polygon_builder_new(void);
-void ros_polygon_builder_free(ros_polygon_builder_t* b);
+const uint8_t* geometry_msgs_polygon_as_cdr(const geometry_msgs_polygon_t* view, size_t* out_len);
+/** @brief Opaque builder handle for geometry_msgs_polygon_t messages. */
+typedef struct geometry_msgs_polygon_builder_s geometry_msgs_polygon_builder_t;
+geometry_msgs_polygon_builder_t* geometry_msgs_polygon_builder_new(void);
+void geometry_msgs_polygon_builder_free(geometry_msgs_polygon_builder_t* b);
 /**
  * @brief Set the polygon vertices.
  *
@@ -1756,9 +1756,9 @@ void ros_polygon_builder_free(ros_polygon_builder_t* b);
  *  build/encode_into. Passing NULL with count == 0 clears the points; NULL
  *  with count > 0 returns -1 (errno: EINVAL). Returns 0 on success.
  */
-int  ros_polygon_builder_set_points(ros_polygon_builder_t* b, const float* xyz, size_t count);
-int  ros_polygon_builder_build(ros_polygon_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_polygon_builder_encode_into(ros_polygon_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+int  geometry_msgs_polygon_builder_set_points(geometry_msgs_polygon_builder_t* b, const float* xyz, size_t count);
+int  geometry_msgs_polygon_builder_build(geometry_msgs_polygon_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  geometry_msgs_polygon_builder_encode_into(geometry_msgs_polygon_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ============================================================================
@@ -1766,31 +1766,31 @@ int  ros_polygon_builder_encode_into(ros_polygon_builder_t* b, uint8_t* buf, siz
  * ========================================================================= */
 
 /** @brief Create a PolygonStamped view from CDR bytes. */
-ros_polygon_stamped_t* ros_polygon_stamped_from_cdr(const uint8_t* data, size_t len);
+geometry_msgs_polygon_stamped_t* geometry_msgs_polygon_stamped_from_cdr(const uint8_t* data, size_t len);
 /** @brief Free a PolygonStamped view handle. */
-void ros_polygon_stamped_free(ros_polygon_stamped_t* view);
+void geometry_msgs_polygon_stamped_free(geometry_msgs_polygon_stamped_t* view);
 /** @brief Get stamp seconds. */
-int32_t ros_polygon_stamped_get_stamp_sec(const ros_polygon_stamped_t* view);
+int32_t geometry_msgs_polygon_stamped_get_stamp_sec(const geometry_msgs_polygon_stamped_t* view);
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_polygon_stamped_get_stamp_nanosec(const ros_polygon_stamped_t* view);
+uint32_t geometry_msgs_polygon_stamped_get_stamp_nanosec(const geometry_msgs_polygon_stamped_t* view);
 /** @brief Get frame_id (borrowed). */
-const char* ros_polygon_stamped_get_frame_id(const ros_polygon_stamped_t* view);
+const char* geometry_msgs_polygon_stamped_get_frame_id(const geometry_msgs_polygon_stamped_t* view);
 /** @brief Get the number of points. */
-size_t ros_polygon_stamped_get_len(const ros_polygon_stamped_t* view);
+size_t geometry_msgs_polygon_stamped_get_len(const geometry_msgs_polygon_stamped_t* view);
 /**
  * @brief Get a point by index.
  * @return 0 on success, -1 if index out of range or NULL view.
  */
-int ros_polygon_stamped_get_point(const ros_polygon_stamped_t* view, size_t index,
+int geometry_msgs_polygon_stamped_get_point(const geometry_msgs_polygon_stamped_t* view, size_t index,
                                   float* x, float* y, float* z);
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_polygon_stamped_as_cdr(const ros_polygon_stamped_t* view, size_t* out_len);
-/** @brief Opaque builder handle for ros_polygon_stamped_t messages. */
-typedef struct ros_polygon_stamped_builder_s ros_polygon_stamped_builder_t;
-ros_polygon_stamped_builder_t* ros_polygon_stamped_builder_new(void);
-void ros_polygon_stamped_builder_free(ros_polygon_stamped_builder_t* b);
-void ros_polygon_stamped_builder_set_stamp(ros_polygon_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_polygon_stamped_builder_set_frame_id(ros_polygon_stamped_builder_t* b, const char* s);
+const uint8_t* geometry_msgs_polygon_stamped_as_cdr(const geometry_msgs_polygon_stamped_t* view, size_t* out_len);
+/** @brief Opaque builder handle for geometry_msgs_polygon_stamped_t messages. */
+typedef struct geometry_msgs_polygon_stamped_builder_s geometry_msgs_polygon_stamped_builder_t;
+geometry_msgs_polygon_stamped_builder_t* geometry_msgs_polygon_stamped_builder_new(void);
+void geometry_msgs_polygon_stamped_builder_free(geometry_msgs_polygon_stamped_builder_t* b);
+void geometry_msgs_polygon_stamped_builder_set_stamp(geometry_msgs_polygon_stamped_builder_t* b, int32_t sec, uint32_t nanosec);
+int  geometry_msgs_polygon_stamped_builder_set_frame_id(geometry_msgs_polygon_stamped_builder_t* b, const char* s);
 /**
  * @brief Set the polygon vertices.
  *
@@ -1799,9 +1799,9 @@ int  ros_polygon_stamped_builder_set_frame_id(ros_polygon_stamped_builder_t* b, 
  *  build/encode_into. Passing NULL with count == 0 clears the points; NULL
  *  with count > 0 returns -1 (errno: EINVAL). Returns 0 on success.
  */
-int  ros_polygon_stamped_builder_set_points(ros_polygon_stamped_builder_t* b, const float* xyz, size_t count);
-int  ros_polygon_stamped_builder_build(ros_polygon_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_polygon_stamped_builder_encode_into(ros_polygon_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+int  geometry_msgs_polygon_stamped_builder_set_points(geometry_msgs_polygon_stamped_builder_t* b, const float* xyz, size_t count);
+int  geometry_msgs_polygon_stamped_builder_build(geometry_msgs_polygon_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  geometry_msgs_polygon_stamped_builder_encode_into(geometry_msgs_polygon_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ============================================================================
@@ -1809,32 +1809,32 @@ int  ros_polygon_stamped_builder_encode_into(ros_polygon_stamped_builder_t* b, u
  * ========================================================================= */
 
 /** @brief Create a PoseArray view from CDR bytes. */
-ros_pose_array_t* ros_pose_array_from_cdr(const uint8_t* data, size_t len);
+geometry_msgs_pose_array_t* geometry_msgs_pose_array_from_cdr(const uint8_t* data, size_t len);
 /** @brief Free a PoseArray view handle. */
-void ros_pose_array_free(ros_pose_array_t* view);
+void geometry_msgs_pose_array_free(geometry_msgs_pose_array_t* view);
 /** @brief Get stamp seconds. */
-int32_t ros_pose_array_get_stamp_sec(const ros_pose_array_t* view);
+int32_t geometry_msgs_pose_array_get_stamp_sec(const geometry_msgs_pose_array_t* view);
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_pose_array_get_stamp_nanosec(const ros_pose_array_t* view);
+uint32_t geometry_msgs_pose_array_get_stamp_nanosec(const geometry_msgs_pose_array_t* view);
 /** @brief Get frame_id (borrowed). */
-const char* ros_pose_array_get_frame_id(const ros_pose_array_t* view);
+const char* geometry_msgs_pose_array_get_frame_id(const geometry_msgs_pose_array_t* view);
 /** @brief Get the number of poses. */
-size_t ros_pose_array_get_len(const ros_pose_array_t* view);
+size_t geometry_msgs_pose_array_get_len(const geometry_msgs_pose_array_t* view);
 /**
  * @brief Get a pose by index.
  * @return 0 on success, -1 if index out of range or NULL view.
  */
-int ros_pose_array_get_pose(const ros_pose_array_t* view, size_t index,
+int geometry_msgs_pose_array_get_pose(const geometry_msgs_pose_array_t* view, size_t index,
                             double* px, double* py, double* pz,
                             double* ox, double* oy, double* oz, double* ow);
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_pose_array_as_cdr(const ros_pose_array_t* view, size_t* out_len);
-/** @brief Opaque builder handle for ros_pose_array_t messages. */
-typedef struct ros_pose_array_builder_s ros_pose_array_builder_t;
-ros_pose_array_builder_t* ros_pose_array_builder_new(void);
-void ros_pose_array_builder_free(ros_pose_array_builder_t* b);
-void ros_pose_array_builder_set_stamp(ros_pose_array_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_pose_array_builder_set_frame_id(ros_pose_array_builder_t* b, const char* s);
+const uint8_t* geometry_msgs_pose_array_as_cdr(const geometry_msgs_pose_array_t* view, size_t* out_len);
+/** @brief Opaque builder handle for geometry_msgs_pose_array_t messages. */
+typedef struct geometry_msgs_pose_array_builder_s geometry_msgs_pose_array_builder_t;
+geometry_msgs_pose_array_builder_t* geometry_msgs_pose_array_builder_new(void);
+void geometry_msgs_pose_array_builder_free(geometry_msgs_pose_array_builder_t* b);
+void geometry_msgs_pose_array_builder_set_stamp(geometry_msgs_pose_array_builder_t* b, int32_t sec, uint32_t nanosec);
+int  geometry_msgs_pose_array_builder_set_frame_id(geometry_msgs_pose_array_builder_t* b, const char* s);
 /**
  * @brief Set the pose sequence.
  *
@@ -1843,9 +1843,9 @@ int  ros_pose_array_builder_set_frame_id(ros_pose_array_builder_t* b, const char
  *  until build/encode_into. Passing NULL with count == 0 clears the poses;
  *  NULL with count > 0 returns -1 (errno: EINVAL). Returns 0 on success.
  */
-int  ros_pose_array_builder_set_poses(ros_pose_array_builder_t* b, const double* poses, size_t count);
-int  ros_pose_array_builder_build(ros_pose_array_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_pose_array_builder_encode_into(ros_pose_array_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+int  geometry_msgs_pose_array_builder_set_poses(geometry_msgs_pose_array_builder_t* b, const double* poses, size_t count);
+int  geometry_msgs_pose_array_builder_build(geometry_msgs_pose_array_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  geometry_msgs_pose_array_builder_encode_into(geometry_msgs_pose_array_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ============================================================================
@@ -1858,22 +1858,22 @@ int  ros_pose_array_builder_encode_into(ros_pose_array_builder_t* b, uint8_t* bu
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
-ros_radar_cube_t* ros_radar_cube_from_cdr(const uint8_t* data, size_t len);
+edgefirst_msgs_radar_cube_t* edgefirst_msgs_radar_cube_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a RadarCube view handle. */
-void ros_radar_cube_free(ros_radar_cube_t* view);
+void edgefirst_msgs_radar_cube_free(edgefirst_msgs_radar_cube_t* view);
 
 /** @brief Get stamp seconds. */
-int32_t ros_radar_cube_get_stamp_sec(const ros_radar_cube_t* view);
+int32_t edgefirst_msgs_radar_cube_get_stamp_sec(const edgefirst_msgs_radar_cube_t* view);
 
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_radar_cube_get_stamp_nanosec(const ros_radar_cube_t* view);
+uint32_t edgefirst_msgs_radar_cube_get_stamp_nanosec(const edgefirst_msgs_radar_cube_t* view);
 
 /** @brief Get frame_id (borrowed). */
-const char* ros_radar_cube_get_frame_id(const ros_radar_cube_t* view);
+const char* edgefirst_msgs_radar_cube_get_frame_id(const edgefirst_msgs_radar_cube_t* view);
 
 /** @brief Get radar timestamp. */
-uint64_t ros_radar_cube_get_timestamp(const ros_radar_cube_t* view);
+uint64_t edgefirst_msgs_radar_cube_get_timestamp(const edgefirst_msgs_radar_cube_t* view);
 
 /**
  * @brief Get layout data (borrowed).
@@ -1881,7 +1881,7 @@ uint64_t ros_radar_cube_get_timestamp(const ros_radar_cube_t* view);
  * @param out_len Receives byte count
  * @return Pointer to layout data or NULL
  */
-const uint8_t* ros_radar_cube_get_layout(const ros_radar_cube_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_radar_cube_get_layout(const edgefirst_msgs_radar_cube_t* view, size_t* out_len);
 
 /**
  * @brief Get raw cube data (borrowed).
@@ -1889,16 +1889,16 @@ const uint8_t* ros_radar_cube_get_layout(const ros_radar_cube_t* view, size_t* o
  * @param out_len Receives byte count
  * @return Pointer to raw cube data or NULL
  */
-const uint8_t* ros_radar_cube_get_cube_raw(const ros_radar_cube_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_radar_cube_get_cube_raw(const edgefirst_msgs_radar_cube_t* view, size_t* out_len);
 
 /** @brief Get cube length. */
-uint32_t ros_radar_cube_get_cube_len(const ros_radar_cube_t* view);
+uint32_t edgefirst_msgs_radar_cube_get_cube_len(const edgefirst_msgs_radar_cube_t* view);
 
 /** @brief Get is_complex flag. */
-bool ros_radar_cube_get_is_complex(const ros_radar_cube_t* view);
+bool edgefirst_msgs_radar_cube_get_is_complex(const edgefirst_msgs_radar_cube_t* view);
 
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_radar_cube_as_cdr(const ros_radar_cube_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_radar_cube_as_cdr(const edgefirst_msgs_radar_cube_t* view, size_t* out_len);
 
 /* ============================================================================
  * edgefirst_msgs - RadarInfo (buffer-backed)
@@ -1910,37 +1910,37 @@ const uint8_t* ros_radar_cube_as_cdr(const ros_radar_cube_t* view, size_t* out_l
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
-ros_radar_info_t* ros_radar_info_from_cdr(const uint8_t* data, size_t len);
+edgefirst_msgs_radar_info_t* edgefirst_msgs_radar_info_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a RadarInfo view handle. */
-void ros_radar_info_free(ros_radar_info_t* view);
+void edgefirst_msgs_radar_info_free(edgefirst_msgs_radar_info_t* view);
 
 /** @brief Get stamp seconds. */
-int32_t ros_radar_info_get_stamp_sec(const ros_radar_info_t* view);
+int32_t edgefirst_msgs_radar_info_get_stamp_sec(const edgefirst_msgs_radar_info_t* view);
 
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_radar_info_get_stamp_nanosec(const ros_radar_info_t* view);
+uint32_t edgefirst_msgs_radar_info_get_stamp_nanosec(const edgefirst_msgs_radar_info_t* view);
 
 /** @brief Get frame_id (borrowed). */
-const char* ros_radar_info_get_frame_id(const ros_radar_info_t* view);
+const char* edgefirst_msgs_radar_info_get_frame_id(const edgefirst_msgs_radar_info_t* view);
 
 /** @brief Get center frequency string (borrowed). */
-const char* ros_radar_info_get_center_frequency(const ros_radar_info_t* view);
+const char* edgefirst_msgs_radar_info_get_center_frequency(const edgefirst_msgs_radar_info_t* view);
 
 /** @brief Get frequency sweep string (borrowed). */
-const char* ros_radar_info_get_frequency_sweep(const ros_radar_info_t* view);
+const char* edgefirst_msgs_radar_info_get_frequency_sweep(const edgefirst_msgs_radar_info_t* view);
 
 /** @brief Get range toggle string (borrowed). */
-const char* ros_radar_info_get_range_toggle(const ros_radar_info_t* view);
+const char* edgefirst_msgs_radar_info_get_range_toggle(const edgefirst_msgs_radar_info_t* view);
 
 /** @brief Get detection sensitivity string (borrowed). */
-const char* ros_radar_info_get_detection_sensitivity(const ros_radar_info_t* view);
+const char* edgefirst_msgs_radar_info_get_detection_sensitivity(const edgefirst_msgs_radar_info_t* view);
 
 /** @brief Get cube enabled flag. */
-bool ros_radar_info_get_cube(const ros_radar_info_t* view);
+bool edgefirst_msgs_radar_info_get_cube(const edgefirst_msgs_radar_info_t* view);
 
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_radar_info_as_cdr(const ros_radar_info_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_radar_info_as_cdr(const edgefirst_msgs_radar_info_t* view, size_t* out_len);
 
 /* ============================================================================
  * edgefirst_msgs - Detect (buffer-backed)
@@ -1952,38 +1952,38 @@ const uint8_t* ros_radar_info_as_cdr(const ros_radar_info_t* view, size_t* out_l
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
-ros_detect_t* ros_detect_from_cdr(const uint8_t* data, size_t len);
+edgefirst_msgs_detect_t* edgefirst_msgs_detect_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a Detect view handle. */
-void ros_detect_free(ros_detect_t* view);
+void edgefirst_msgs_detect_free(edgefirst_msgs_detect_t* view);
 
 /** @brief Get stamp seconds. */
-int32_t ros_detect_get_stamp_sec(const ros_detect_t* view);
+int32_t edgefirst_msgs_detect_get_stamp_sec(const edgefirst_msgs_detect_t* view);
 
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_detect_get_stamp_nanosec(const ros_detect_t* view);
+uint32_t edgefirst_msgs_detect_get_stamp_nanosec(const edgefirst_msgs_detect_t* view);
 
 /** @brief Get frame_id (borrowed). */
-const char* ros_detect_get_frame_id(const ros_detect_t* view);
+const char* edgefirst_msgs_detect_get_frame_id(const edgefirst_msgs_detect_t* view);
 
 /** @brief Get number of detection boxes. */
-uint32_t ros_detect_get_boxes_len(const ros_detect_t* view);
+uint32_t edgefirst_msgs_detect_get_boxes_len(const edgefirst_msgs_detect_t* view);
 
 /**
  * @brief Get a borrowed view of the i-th detection box.
  * @param view Detect handle
- * @param index Zero-based box index (must be < ros_detect_get_boxes_len(view))
- * @return Borrowed ros_box_t* whose lifetime is tied to the parent Detect handle,
+ * @param index Zero-based box index (must be < edgefirst_msgs_detect_get_boxes_len(view))
+ * @return Borrowed edgefirst_msgs_box_t* whose lifetime is tied to the parent Detect handle,
  *         or NULL on error (errno set to EINVAL).
  *
- * @warning Do NOT pass the returned pointer to ros_box_free(). The parent handle
+ * @warning Do NOT pass the returned pointer to edgefirst_msgs_box_free(). The parent handle
  *          owns the child's storage. The pointer becomes invalid when the parent
- *          is freed via ros_detect_free().
+ *          is freed via edgefirst_msgs_detect_free().
  */
-const ros_box_t* ros_detect_get_box(const ros_detect_t* view, uint32_t index);
+const edgefirst_msgs_box_t* edgefirst_msgs_detect_get_box(const edgefirst_msgs_detect_t* view, uint32_t index);
 
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_detect_as_cdr(const ros_detect_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_detect_as_cdr(const edgefirst_msgs_detect_t* view, size_t* out_len);
 
 /* ============================================================================
  * edgefirst_msgs - Model (buffer-backed)
@@ -1995,54 +1995,54 @@ const uint8_t* ros_detect_as_cdr(const ros_detect_t* view, size_t* out_len);
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
-ros_model_t* ros_model_from_cdr(const uint8_t* data, size_t len);
+edgefirst_msgs_model_t* edgefirst_msgs_model_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a Model view handle. */
-void ros_model_free(ros_model_t* view);
+void edgefirst_msgs_model_free(edgefirst_msgs_model_t* view);
 
 /** @brief Get stamp seconds. */
-int32_t ros_model_get_stamp_sec(const ros_model_t* view);
+int32_t edgefirst_msgs_model_get_stamp_sec(const edgefirst_msgs_model_t* view);
 
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_model_get_stamp_nanosec(const ros_model_t* view);
+uint32_t edgefirst_msgs_model_get_stamp_nanosec(const edgefirst_msgs_model_t* view);
 
 /** @brief Get frame_id (borrowed). */
-const char* ros_model_get_frame_id(const ros_model_t* view);
+const char* edgefirst_msgs_model_get_frame_id(const edgefirst_msgs_model_t* view);
 
 /** @brief Get number of detection boxes. */
-uint32_t ros_model_get_boxes_len(const ros_model_t* view);
+uint32_t edgefirst_msgs_model_get_boxes_len(const edgefirst_msgs_model_t* view);
 
 /** @brief Get number of masks. */
-uint32_t ros_model_get_masks_len(const ros_model_t* view);
+uint32_t edgefirst_msgs_model_get_masks_len(const edgefirst_msgs_model_t* view);
 
 /**
  * @brief Get a borrowed view of the i-th model box.
  * @param view Model handle
- * @param index Zero-based box index (must be < ros_model_get_boxes_len(view))
- * @return Borrowed ros_box_t* whose lifetime is tied to the parent Model handle,
+ * @param index Zero-based box index (must be < edgefirst_msgs_model_get_boxes_len(view))
+ * @return Borrowed edgefirst_msgs_box_t* whose lifetime is tied to the parent Model handle,
  *         or NULL on error (errno set to EINVAL).
  *
- * @warning Do NOT pass the returned pointer to ros_box_free(). The parent handle
+ * @warning Do NOT pass the returned pointer to edgefirst_msgs_box_free(). The parent handle
  *          owns the child's storage. The pointer becomes invalid when the parent
- *          is freed via ros_model_free().
+ *          is freed via edgefirst_msgs_model_free().
  */
-const ros_box_t* ros_model_get_box(const ros_model_t* view, uint32_t index);
+const edgefirst_msgs_box_t* edgefirst_msgs_model_get_box(const edgefirst_msgs_model_t* view, uint32_t index);
 
 /**
  * @brief Get a borrowed view of the i-th model mask.
  * @param view Model handle
- * @param index Zero-based mask index (must be < ros_model_get_masks_len(view))
- * @return Borrowed ros_mask_t* whose lifetime is tied to the parent Model handle,
+ * @param index Zero-based mask index (must be < edgefirst_msgs_model_get_masks_len(view))
+ * @return Borrowed edgefirst_msgs_mask_t* whose lifetime is tied to the parent Model handle,
  *         or NULL on error (errno set to EINVAL).
  *
- * @warning Do NOT pass the returned pointer to ros_mask_free(). The parent handle
+ * @warning Do NOT pass the returned pointer to edgefirst_msgs_mask_free(). The parent handle
  *          owns the child's storage. The pointer becomes invalid when the parent
- *          is freed via ros_model_free().
+ *          is freed via edgefirst_msgs_model_free().
  */
-const ros_mask_t* ros_model_get_mask(const ros_model_t* view, uint32_t index);
+const edgefirst_msgs_mask_t* edgefirst_msgs_model_get_mask(const edgefirst_msgs_model_t* view, uint32_t index);
 
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_model_as_cdr(const ros_model_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_model_as_cdr(const edgefirst_msgs_model_t* view, size_t* out_len);
 
 /* ============================================================================
  * edgefirst_msgs - ModelInfo (buffer-backed)
@@ -2054,49 +2054,49 @@ const uint8_t* ros_model_as_cdr(const ros_model_t* view, size_t* out_len);
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
-ros_model_info_t* ros_model_info_from_cdr(const uint8_t* data, size_t len);
+edgefirst_msgs_model_info_t* edgefirst_msgs_model_info_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a ModelInfo view handle. */
-void ros_model_info_free(ros_model_info_t* view);
+void edgefirst_msgs_model_info_free(edgefirst_msgs_model_info_t* view);
 
 /** @brief Get stamp seconds. */
-int32_t ros_model_info_get_stamp_sec(const ros_model_info_t* view);
+int32_t edgefirst_msgs_model_info_get_stamp_sec(const edgefirst_msgs_model_info_t* view);
 
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_model_info_get_stamp_nanosec(const ros_model_info_t* view);
+uint32_t edgefirst_msgs_model_info_get_stamp_nanosec(const edgefirst_msgs_model_info_t* view);
 
 /** @brief Get frame_id (borrowed). */
-const char* ros_model_info_get_frame_id(const ros_model_info_t* view);
+const char* edgefirst_msgs_model_info_get_frame_id(const edgefirst_msgs_model_info_t* view);
 
 /** @brief Get model type string (borrowed). */
-const char* ros_model_info_get_model_type(const ros_model_info_t* view);
+const char* edgefirst_msgs_model_info_get_model_type(const edgefirst_msgs_model_info_t* view);
 
 /** @brief Get model format string (borrowed). */
-const char* ros_model_info_get_model_format(const ros_model_info_t* view);
+const char* edgefirst_msgs_model_info_get_model_format(const edgefirst_msgs_model_info_t* view);
 
 /** @brief Get model name string (borrowed). */
-const char* ros_model_info_get_model_name(const ros_model_info_t* view);
+const char* edgefirst_msgs_model_info_get_model_name(const edgefirst_msgs_model_info_t* view);
 
 /** @brief Get input type. */
-uint8_t ros_model_info_get_input_type(const ros_model_info_t* view);
+uint8_t edgefirst_msgs_model_info_get_input_type(const edgefirst_msgs_model_info_t* view);
 
 /** @brief Get output type. */
-uint8_t ros_model_info_get_output_type(const ros_model_info_t* view);
+uint8_t edgefirst_msgs_model_info_get_output_type(const edgefirst_msgs_model_info_t* view);
 
 /** @brief Get input shape array (zero-copy pointer into CDR buffer). */
-const uint32_t* ros_model_info_get_input_shape(const ros_model_info_t* view, size_t* out_len);
+const uint32_t* edgefirst_msgs_model_info_get_input_shape(const edgefirst_msgs_model_info_t* view, size_t* out_len);
 
 /** @brief Get output shape array (zero-copy pointer into CDR buffer). */
-const uint32_t* ros_model_info_get_output_shape(const ros_model_info_t* view, size_t* out_len);
+const uint32_t* edgefirst_msgs_model_info_get_output_shape(const edgefirst_msgs_model_info_t* view, size_t* out_len);
 
 /** @brief Get number of labels. */
-uint32_t ros_model_info_get_labels_len(const ros_model_info_t* view);
+uint32_t edgefirst_msgs_model_info_get_labels_len(const edgefirst_msgs_model_info_t* view);
 
 /** @brief Get label at index (zero-copy pointer into CDR buffer). Sets errno EINVAL if out of bounds. */
-const char* ros_model_info_get_label(const ros_model_info_t* view, uint32_t index);
+const char* edgefirst_msgs_model_info_get_label(const edgefirst_msgs_model_info_t* view, uint32_t index);
 
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_model_info_as_cdr(const ros_model_info_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_model_info_as_cdr(const edgefirst_msgs_model_info_t* view, size_t* out_len);
 
 /* ============================================================================
  * sensor_msgs - PointCloud2 (buffer-backed)
@@ -2108,31 +2108,31 @@ const uint8_t* ros_model_info_as_cdr(const ros_model_info_t* view, size_t* out_l
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
-ros_point_cloud2_t* ros_point_cloud2_from_cdr(const uint8_t* data, size_t len);
+sensor_msgs_point_cloud2_t* sensor_msgs_point_cloud2_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a PointCloud2 view handle. */
-void ros_point_cloud2_free(ros_point_cloud2_t* view);
+void sensor_msgs_point_cloud2_free(sensor_msgs_point_cloud2_t* view);
 
 /** @brief Get stamp seconds. */
-int32_t ros_point_cloud2_get_stamp_sec(const ros_point_cloud2_t* view);
+int32_t sensor_msgs_point_cloud2_get_stamp_sec(const sensor_msgs_point_cloud2_t* view);
 
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_point_cloud2_get_stamp_nanosec(const ros_point_cloud2_t* view);
+uint32_t sensor_msgs_point_cloud2_get_stamp_nanosec(const sensor_msgs_point_cloud2_t* view);
 
 /** @brief Get frame_id (borrowed). */
-const char* ros_point_cloud2_get_frame_id(const ros_point_cloud2_t* view);
+const char* sensor_msgs_point_cloud2_get_frame_id(const sensor_msgs_point_cloud2_t* view);
 
 /** @brief Get cloud height (number of rows). */
-uint32_t ros_point_cloud2_get_height(const ros_point_cloud2_t* view);
+uint32_t sensor_msgs_point_cloud2_get_height(const sensor_msgs_point_cloud2_t* view);
 
 /** @brief Get cloud width (number of points per row). */
-uint32_t ros_point_cloud2_get_width(const ros_point_cloud2_t* view);
+uint32_t sensor_msgs_point_cloud2_get_width(const sensor_msgs_point_cloud2_t* view);
 
 /** @brief Get point step (bytes per point). */
-uint32_t ros_point_cloud2_get_point_step(const ros_point_cloud2_t* view);
+uint32_t sensor_msgs_point_cloud2_get_point_step(const sensor_msgs_point_cloud2_t* view);
 
 /** @brief Get row step (bytes per row). */
-uint32_t ros_point_cloud2_get_row_step(const ros_point_cloud2_t* view);
+uint32_t sensor_msgs_point_cloud2_get_row_step(const sensor_msgs_point_cloud2_t* view);
 
 /**
  * @brief Get point cloud data (borrowed).
@@ -2140,63 +2140,63 @@ uint32_t ros_point_cloud2_get_row_step(const ros_point_cloud2_t* view);
  * @param out_len Receives byte count
  * @return Pointer to point data or NULL
  */
-const uint8_t* ros_point_cloud2_get_data(const ros_point_cloud2_t* view, size_t* out_len);
+const uint8_t* sensor_msgs_point_cloud2_get_data(const sensor_msgs_point_cloud2_t* view, size_t* out_len);
 
 /** @brief Get is_dense flag (true if no invalid points). */
-bool ros_point_cloud2_get_is_dense(const ros_point_cloud2_t* view);
+bool sensor_msgs_point_cloud2_get_is_dense(const sensor_msgs_point_cloud2_t* view);
 
 /** @brief Get is_bigendian flag. */
-bool ros_point_cloud2_get_is_bigendian(const ros_point_cloud2_t* view);
+bool sensor_msgs_point_cloud2_get_is_bigendian(const sensor_msgs_point_cloud2_t* view);
 
 /** @brief Get number of point fields. */
-uint32_t ros_point_cloud2_get_fields_len(const ros_point_cloud2_t* view);
+uint32_t sensor_msgs_point_cloud2_get_fields_len(const sensor_msgs_point_cloud2_t* view);
 
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_point_cloud2_as_cdr(const ros_point_cloud2_t* view, size_t* out_len);
+const uint8_t* sensor_msgs_point_cloud2_as_cdr(const sensor_msgs_point_cloud2_t* view, size_t* out_len);
 
 /* ----------------------------------------------------------------------------
  * sensor_msgs - PointField (builder, 3.2.0+)
  * --------------------------------------------------------------------------*/
 
 /** @brief Opaque builder handle for standalone PointField messages. */
-typedef struct ros_point_field_builder_s ros_point_field_builder_t;
+typedef struct sensor_msgs_point_field_builder_s sensor_msgs_point_field_builder_t;
 
 /**
  * @brief Create a new PointField builder with zero-valued defaults.
  * @return Opaque handle, or NULL on allocation failure. Free with
- *         ros_point_field_builder_free.
+ *         sensor_msgs_point_field_builder_free.
  */
-ros_point_field_builder_t* ros_point_field_builder_new(void);
+sensor_msgs_point_field_builder_t* sensor_msgs_point_field_builder_new(void);
 
 /** @brief Free a PointField builder handle. NULL-safe. */
-void ros_point_field_builder_free(ros_point_field_builder_t* b);
+void sensor_msgs_point_field_builder_free(sensor_msgs_point_field_builder_t* b);
 
 /**
  * @brief Set the name field (string is copied into the builder).
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
  *         NULL `s`, or non-UTF-8 `s`).
  */
-int  ros_point_field_builder_set_name(ros_point_field_builder_t* b,
+int  sensor_msgs_point_field_builder_set_name(sensor_msgs_point_field_builder_t* b,
                                       const char* s);
 
 /** @brief Set the byte offset of this field within a point. */
-void ros_point_field_builder_set_offset(ros_point_field_builder_t* b,
+void sensor_msgs_point_field_builder_set_offset(sensor_msgs_point_field_builder_t* b,
                                         uint32_t v);
 
 /** @brief Set the datatype code (INT8=1, UINT8=2, INT16=3, ..., FLOAT32=7, FLOAT64=8). */
-void ros_point_field_builder_set_datatype(ros_point_field_builder_t* b,
+void sensor_msgs_point_field_builder_set_datatype(sensor_msgs_point_field_builder_t* b,
                                           uint8_t v);
 
 /** @brief Set the number of elements of this datatype per point. */
-void ros_point_field_builder_set_count(ros_point_field_builder_t* b,
+void sensor_msgs_point_field_builder_set_count(sensor_msgs_point_field_builder_t* b,
                                        uint32_t v);
 
 /**
  * @brief Allocate a fresh CDR buffer and encode the message.
- * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ * @return 0 on success (out_bytes/out_len written; free via edgefirst_schemas_bytes_free),
  *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
  */
-int  ros_point_field_builder_build(ros_point_field_builder_t* b,
+int  sensor_msgs_point_field_builder_build(sensor_msgs_point_field_builder_t* b,
                                    uint8_t** out_bytes, size_t* out_len);
 
 /**
@@ -2204,7 +2204,7 @@ int  ros_point_field_builder_build(ros_point_field_builder_t* b,
  * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
  *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
  */
-int  ros_point_field_builder_encode_into(ros_point_field_builder_t* b,
+int  sensor_msgs_point_field_builder_encode_into(sensor_msgs_point_field_builder_t* b,
                                          uint8_t* buf, size_t cap,
                                          size_t* out_len);
 
@@ -2217,35 +2217,35 @@ int  ros_point_field_builder_encode_into(ros_point_field_builder_t* b,
  *
  * The `name` pointer is BORROWED: the caller must keep the backing
  * NUL-terminated string alive (and the enclosing array) until the next
- * `ros_point_cloud2_builder_set_fields` call on the builder, the next
+ * `sensor_msgs_point_cloud2_builder_set_fields` call on the builder, the next
  * `build`/`encode_into`, or `free`.
  *
  * `name` must be a valid non-NULL NUL-terminated UTF-8 string; NULL or
  * invalid UTF-8 causes the subsequent `build` / `encode_into` call to
  * fail with `-1` and `errno = EINVAL`.
  */
-typedef struct ros_point_field_elem_s {
+typedef struct sensor_msgs_point_field_elem_s {
     const char* name;
     uint32_t    offset;
     uint8_t     datatype;
     uint32_t    count;
-} ros_point_field_elem_t;
+} sensor_msgs_point_field_elem_t;
 
-/** @brief Opaque builder handle for ros_point_cloud2_t messages. */
-typedef struct ros_point_cloud2_builder_s ros_point_cloud2_builder_t;
+/** @brief Opaque builder handle for sensor_msgs_point_cloud2_t messages. */
+typedef struct sensor_msgs_point_cloud2_builder_s sensor_msgs_point_cloud2_builder_t;
 
 /**
  * @brief Create a new PointCloud2 builder with zero-valued defaults.
  * @return Opaque handle, or NULL on allocation failure. Free with
- *         ros_point_cloud2_builder_free.
+ *         sensor_msgs_point_cloud2_builder_free.
  */
-ros_point_cloud2_builder_t* ros_point_cloud2_builder_new(void);
+sensor_msgs_point_cloud2_builder_t* sensor_msgs_point_cloud2_builder_new(void);
 
 /** @brief Free a PointCloud2 builder handle. NULL-safe. */
-void ros_point_cloud2_builder_free(ros_point_cloud2_builder_t* b);
+void sensor_msgs_point_cloud2_builder_free(sensor_msgs_point_cloud2_builder_t* b);
 
 /** @brief Set the stamp field. */
-void ros_point_cloud2_builder_set_stamp(ros_point_cloud2_builder_t* b,
+void sensor_msgs_point_cloud2_builder_set_stamp(sensor_msgs_point_cloud2_builder_t* b,
                                         int32_t sec, uint32_t nsec);
 
 /**
@@ -2253,40 +2253,40 @@ void ros_point_cloud2_builder_set_stamp(ros_point_cloud2_builder_t* b,
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
  *         NULL `s`, or non-UTF-8 `s`).
  */
-int  ros_point_cloud2_builder_set_frame_id(ros_point_cloud2_builder_t* b,
+int  sensor_msgs_point_cloud2_builder_set_frame_id(sensor_msgs_point_cloud2_builder_t* b,
                                            const char* s);
 
 /** @brief Set the cloud height (number of rows). */
-void ros_point_cloud2_builder_set_height(ros_point_cloud2_builder_t* b,
+void sensor_msgs_point_cloud2_builder_set_height(sensor_msgs_point_cloud2_builder_t* b,
                                          uint32_t v);
 
 /** @brief Set the cloud width (number of points per row). */
-void ros_point_cloud2_builder_set_width(ros_point_cloud2_builder_t* b,
+void sensor_msgs_point_cloud2_builder_set_width(sensor_msgs_point_cloud2_builder_t* b,
                                         uint32_t v);
 
 /**
  * @brief Set the field descriptor array (BORROWED — both the array and
  *        each element's `name` pointer must remain valid until the next
  *        setter on this slot, build, encode_into, or free call).
- * @param fields Array of `count` ros_point_field_elem_t descriptors
+ * @param fields Array of `count` sensor_msgs_point_field_elem_t descriptors
  * @param count  Number of descriptors
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_point_cloud2_builder_set_fields(
-    ros_point_cloud2_builder_t* b,
-    const ros_point_field_elem_t* fields, size_t count);
+int  sensor_msgs_point_cloud2_builder_set_fields(
+    sensor_msgs_point_cloud2_builder_t* b,
+    const sensor_msgs_point_field_elem_t* fields, size_t count);
 
 /** @brief Set the is_bigendian flag. */
-void ros_point_cloud2_builder_set_is_bigendian(
-    ros_point_cloud2_builder_t* b, bool v);
+void sensor_msgs_point_cloud2_builder_set_is_bigendian(
+    sensor_msgs_point_cloud2_builder_t* b, bool v);
 
 /** @brief Set the point_step (bytes per point). */
-void ros_point_cloud2_builder_set_point_step(ros_point_cloud2_builder_t* b,
+void sensor_msgs_point_cloud2_builder_set_point_step(sensor_msgs_point_cloud2_builder_t* b,
                                              uint32_t v);
 
 /** @brief Set the row_step (bytes per row). */
-void ros_point_cloud2_builder_set_row_step(ros_point_cloud2_builder_t* b,
+void sensor_msgs_point_cloud2_builder_set_row_step(sensor_msgs_point_cloud2_builder_t* b,
                                            uint32_t v);
 
 /**
@@ -2295,19 +2295,19 @@ void ros_point_cloud2_builder_set_row_step(ros_point_cloud2_builder_t* b,
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_point_cloud2_builder_set_data(ros_point_cloud2_builder_t* b,
+int  sensor_msgs_point_cloud2_builder_set_data(sensor_msgs_point_cloud2_builder_t* b,
                                        const uint8_t* data, size_t len);
 
 /** @brief Set the is_dense flag (true iff no invalid points). */
-void ros_point_cloud2_builder_set_is_dense(ros_point_cloud2_builder_t* b,
+void sensor_msgs_point_cloud2_builder_set_is_dense(sensor_msgs_point_cloud2_builder_t* b,
                                            bool v);
 
 /**
  * @brief Allocate a fresh CDR buffer and encode the message.
- * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ * @return 0 on success (out_bytes/out_len written; free via edgefirst_schemas_bytes_free),
  *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
  */
-int  ros_point_cloud2_builder_build(ros_point_cloud2_builder_t* b,
+int  sensor_msgs_point_cloud2_builder_build(sensor_msgs_point_cloud2_builder_t* b,
                                     uint8_t** out_bytes, size_t* out_len);
 
 /**
@@ -2315,7 +2315,7 @@ int  ros_point_cloud2_builder_build(ros_point_cloud2_builder_t* b,
  * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
  *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
  */
-int  ros_point_cloud2_builder_encode_into(ros_point_cloud2_builder_t* b,
+int  sensor_msgs_point_cloud2_builder_encode_into(sensor_msgs_point_cloud2_builder_t* b,
                                           uint8_t* buf, size_t cap,
                                           size_t* out_len);
 
@@ -2329,57 +2329,57 @@ int  ros_point_cloud2_builder_encode_into(ros_point_cloud2_builder_t* b,
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
-ros_camera_info_t* ros_camera_info_from_cdr(const uint8_t* data, size_t len);
+sensor_msgs_camera_info_t* sensor_msgs_camera_info_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a CameraInfo view handle. */
-void ros_camera_info_free(ros_camera_info_t* view);
+void sensor_msgs_camera_info_free(sensor_msgs_camera_info_t* view);
 
 /** @brief Get stamp seconds. */
-int32_t ros_camera_info_get_stamp_sec(const ros_camera_info_t* view);
+int32_t sensor_msgs_camera_info_get_stamp_sec(const sensor_msgs_camera_info_t* view);
 
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_camera_info_get_stamp_nanosec(const ros_camera_info_t* view);
+uint32_t sensor_msgs_camera_info_get_stamp_nanosec(const sensor_msgs_camera_info_t* view);
 
 /** @brief Get frame_id (borrowed). */
-const char* ros_camera_info_get_frame_id(const ros_camera_info_t* view);
+const char* sensor_msgs_camera_info_get_frame_id(const sensor_msgs_camera_info_t* view);
 
 /** @brief Get image height. */
-uint32_t ros_camera_info_get_height(const ros_camera_info_t* view);
+uint32_t sensor_msgs_camera_info_get_height(const sensor_msgs_camera_info_t* view);
 
 /** @brief Get image width. */
-uint32_t ros_camera_info_get_width(const ros_camera_info_t* view);
+uint32_t sensor_msgs_camera_info_get_width(const sensor_msgs_camera_info_t* view);
 
 /** @brief Get distortion model string (borrowed). */
-const char* ros_camera_info_get_distortion_model(const ros_camera_info_t* view);
+const char* sensor_msgs_camera_info_get_distortion_model(const sensor_msgs_camera_info_t* view);
 
 /** @brief Get horizontal binning factor. */
-uint32_t ros_camera_info_get_binning_x(const ros_camera_info_t* view);
+uint32_t sensor_msgs_camera_info_get_binning_x(const sensor_msgs_camera_info_t* view);
 
 /** @brief Get vertical binning factor. */
-uint32_t ros_camera_info_get_binning_y(const ros_camera_info_t* view);
+uint32_t sensor_msgs_camera_info_get_binning_y(const sensor_msgs_camera_info_t* view);
 
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_camera_info_as_cdr(const ros_camera_info_t* view, size_t* out_len);
+const uint8_t* sensor_msgs_camera_info_as_cdr(const sensor_msgs_camera_info_t* view, size_t* out_len);
 
 /* ----------------------------------------------------------------------------
  * sensor_msgs - CameraInfo (builder, 3.2.0+)
  * --------------------------------------------------------------------------*/
 
-/** @brief Opaque builder handle for ros_camera_info_t messages. */
-typedef struct ros_camera_info_builder_s ros_camera_info_builder_t;
+/** @brief Opaque builder handle for sensor_msgs_camera_info_t messages. */
+typedef struct sensor_msgs_camera_info_builder_s sensor_msgs_camera_info_builder_t;
 
 /**
  * @brief Create a new CameraInfo builder with zero-valued defaults.
  * @return Opaque handle, or NULL on allocation failure. Free with
- *         ros_camera_info_builder_free.
+ *         sensor_msgs_camera_info_builder_free.
  */
-ros_camera_info_builder_t* ros_camera_info_builder_new(void);
+sensor_msgs_camera_info_builder_t* sensor_msgs_camera_info_builder_new(void);
 
 /** @brief Free a CameraInfo builder handle. NULL-safe. */
-void ros_camera_info_builder_free(ros_camera_info_builder_t* b);
+void sensor_msgs_camera_info_builder_free(sensor_msgs_camera_info_builder_t* b);
 
 /** @brief Set the stamp field. */
-void ros_camera_info_builder_set_stamp(ros_camera_info_builder_t* b,
+void sensor_msgs_camera_info_builder_set_stamp(sensor_msgs_camera_info_builder_t* b,
                                        int32_t sec, uint32_t nsec);
 
 /**
@@ -2387,15 +2387,15 @@ void ros_camera_info_builder_set_stamp(ros_camera_info_builder_t* b,
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
  *         NULL `s`, or non-UTF-8 `s`).
  */
-int  ros_camera_info_builder_set_frame_id(ros_camera_info_builder_t* b,
+int  sensor_msgs_camera_info_builder_set_frame_id(sensor_msgs_camera_info_builder_t* b,
                                           const char* s);
 
 /** @brief Set the image height in pixels. */
-void ros_camera_info_builder_set_height(ros_camera_info_builder_t* b,
+void sensor_msgs_camera_info_builder_set_height(sensor_msgs_camera_info_builder_t* b,
                                         uint32_t v);
 
 /** @brief Set the image width in pixels. */
-void ros_camera_info_builder_set_width(ros_camera_info_builder_t* b,
+void sensor_msgs_camera_info_builder_set_width(sensor_msgs_camera_info_builder_t* b,
                                        uint32_t v);
 
 /**
@@ -2403,8 +2403,8 @@ void ros_camera_info_builder_set_width(ros_camera_info_builder_t* b,
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
  *         NULL `s`, or non-UTF-8 `s`).
  */
-int  ros_camera_info_builder_set_distortion_model(
-    ros_camera_info_builder_t* b, const char* s);
+int  sensor_msgs_camera_info_builder_set_distortion_model(
+    sensor_msgs_camera_info_builder_t* b, const char* s);
 
 /**
  * @brief Set the distortion coefficients `d` (BORROWED `double[len]` — the
@@ -2413,53 +2413,53 @@ int  ros_camera_info_builder_set_distortion_model(
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_camera_info_builder_set_d(ros_camera_info_builder_t* b,
+int  sensor_msgs_camera_info_builder_set_d(sensor_msgs_camera_info_builder_t* b,
                                    const double* data, size_t len);
 
 /** @brief Copy 9 f64 intrinsics matrix elements (row-major 3x3).
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_camera_info_builder_set_k(ros_camera_info_builder_t* b,
+int  sensor_msgs_camera_info_builder_set_k(sensor_msgs_camera_info_builder_t* b,
                                    const double* k);
 
 /** @brief Copy 9 f64 rectification matrix elements (row-major 3x3).
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_camera_info_builder_set_r(ros_camera_info_builder_t* b,
+int  sensor_msgs_camera_info_builder_set_r(sensor_msgs_camera_info_builder_t* b,
                                    const double* r);
 
 /** @brief Copy 12 f64 projection matrix elements (row-major 3x4).
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_camera_info_builder_set_p(ros_camera_info_builder_t* b,
+int  sensor_msgs_camera_info_builder_set_p(sensor_msgs_camera_info_builder_t* b,
                                    const double* p);
 
 /** @brief Set the horizontal binning factor. */
-void ros_camera_info_builder_set_binning_x(ros_camera_info_builder_t* b,
+void sensor_msgs_camera_info_builder_set_binning_x(sensor_msgs_camera_info_builder_t* b,
                                            uint32_t v);
 
 /** @brief Set the vertical binning factor. */
-void ros_camera_info_builder_set_binning_y(ros_camera_info_builder_t* b,
+void sensor_msgs_camera_info_builder_set_binning_y(sensor_msgs_camera_info_builder_t* b,
                                            uint32_t v);
 
 /**
  * @brief Set the RegionOfInterest (ROI) via its primitive fields.
  * @param do_rectify Non-zero = true, zero = false.
  */
-void ros_camera_info_builder_set_roi(ros_camera_info_builder_t* b,
+void sensor_msgs_camera_info_builder_set_roi(sensor_msgs_camera_info_builder_t* b,
                                      uint32_t x_offset, uint32_t y_offset,
                                      uint32_t height, uint32_t width,
                                      uint8_t do_rectify);
 
 /**
  * @brief Allocate a fresh CDR buffer and encode the message.
- * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ * @return 0 on success (out_bytes/out_len written; free via edgefirst_schemas_bytes_free),
  *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
  */
-int  ros_camera_info_builder_build(ros_camera_info_builder_t* b,
+int  sensor_msgs_camera_info_builder_build(sensor_msgs_camera_info_builder_t* b,
                                    uint8_t** out_bytes, size_t* out_len);
 
 /**
@@ -2467,7 +2467,7 @@ int  ros_camera_info_builder_build(ros_camera_info_builder_t* b,
  * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
  *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
  */
-int  ros_camera_info_builder_encode_into(ros_camera_info_builder_t* b,
+int  sensor_msgs_camera_info_builder_encode_into(sensor_msgs_camera_info_builder_t* b,
                                          uint8_t* buf, size_t cap,
                                          size_t* out_len);
 
@@ -2481,19 +2481,19 @@ int  ros_camera_info_builder_encode_into(ros_camera_info_builder_t* b,
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
-ros_track_t* ros_track_from_cdr(const uint8_t* data, size_t len);
+edgefirst_msgs_track_t* edgefirst_msgs_track_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a Track view handle. */
-void ros_track_free(ros_track_t* view);
+void edgefirst_msgs_track_free(edgefirst_msgs_track_t* view);
 
 /** @brief Get track ID string (borrowed). */
-const char* ros_track_get_id(const ros_track_t* view);
+const char* edgefirst_msgs_track_get_id(const edgefirst_msgs_track_t* view);
 
 /** @brief Get track lifetime. */
-int32_t ros_track_get_lifetime(const ros_track_t* view);
+int32_t edgefirst_msgs_track_get_lifetime(const edgefirst_msgs_track_t* view);
 
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_track_as_cdr(const ros_track_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_track_as_cdr(const edgefirst_msgs_track_t* view, size_t* out_len);
 
 /* ============================================================================
  * edgefirst_msgs - DetectBox (buffer-backed)
@@ -2505,46 +2505,46 @@ const uint8_t* ros_track_as_cdr(const ros_track_t* view, size_t* out_len);
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
-ros_box_t* ros_box_from_cdr(const uint8_t* data, size_t len);
+edgefirst_msgs_box_t* edgefirst_msgs_box_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a DetectBox view handle. */
-void ros_box_free(ros_box_t* view);
+void edgefirst_msgs_box_free(edgefirst_msgs_box_t* view);
 
 /** @brief Get bounding box center X. */
-float ros_box_get_center_x(const ros_box_t* view);
+float edgefirst_msgs_box_get_center_x(const edgefirst_msgs_box_t* view);
 
 /** @brief Get bounding box center Y. */
-float ros_box_get_center_y(const ros_box_t* view);
+float edgefirst_msgs_box_get_center_y(const edgefirst_msgs_box_t* view);
 
 /** @brief Get bounding box width. */
-float ros_box_get_width(const ros_box_t* view);
+float edgefirst_msgs_box_get_width(const edgefirst_msgs_box_t* view);
 
 /** @brief Get bounding box height. */
-float ros_box_get_height(const ros_box_t* view);
+float edgefirst_msgs_box_get_height(const edgefirst_msgs_box_t* view);
 
 /** @brief Get label string (borrowed). */
-const char* ros_box_get_label(const ros_box_t* view);
+const char* edgefirst_msgs_box_get_label(const edgefirst_msgs_box_t* view);
 
 /** @brief Get detection score/confidence. */
-float ros_box_get_score(const ros_box_t* view);
+float edgefirst_msgs_box_get_score(const edgefirst_msgs_box_t* view);
 
 /** @brief Get distance. */
-float ros_box_get_distance(const ros_box_t* view);
+float edgefirst_msgs_box_get_distance(const edgefirst_msgs_box_t* view);
 
 /** @brief Get speed. */
-float ros_box_get_speed(const ros_box_t* view);
+float edgefirst_msgs_box_get_speed(const edgefirst_msgs_box_t* view);
 
 /** @brief Get track ID string (borrowed). */
-const char* ros_box_get_track_id(const ros_box_t* view);
+const char* edgefirst_msgs_box_get_track_id(const edgefirst_msgs_box_t* view);
 
 /** @brief Get track lifetime. */
-int32_t ros_box_get_track_lifetime(const ros_box_t* view);
+int32_t edgefirst_msgs_box_get_track_lifetime(const edgefirst_msgs_box_t* view);
 
 /** @brief Get the box's track_created timestamp seconds component. */
-int32_t ros_box_get_track_created_sec(const ros_box_t* view);
+int32_t edgefirst_msgs_box_get_track_created_sec(const edgefirst_msgs_box_t* view);
 
 /** @brief Get the box's track_created timestamp nanoseconds component. */
-uint32_t ros_box_get_track_created_nanosec(const ros_box_t* view);
+uint32_t edgefirst_msgs_box_get_track_created_nanosec(const edgefirst_msgs_box_t* view);
 
 /* ============================================================================
  * edgefirst_msgs - LocalTime (buffer-backed)
@@ -2556,38 +2556,38 @@ uint32_t ros_box_get_track_created_nanosec(const ros_box_t* view);
  * @param len Length of data
  * @return Opaque handle or NULL on error
  */
-ros_local_time_t* ros_local_time_from_cdr(const uint8_t* data, size_t len);
+edgefirst_msgs_local_time_t* edgefirst_msgs_local_time_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a LocalTime view handle. */
-void ros_local_time_free(ros_local_time_t* view);
+void edgefirst_msgs_local_time_free(edgefirst_msgs_local_time_t* view);
 
 /** @brief Get stamp seconds. */
-int32_t ros_local_time_get_stamp_sec(const ros_local_time_t* view);
+int32_t edgefirst_msgs_local_time_get_stamp_sec(const edgefirst_msgs_local_time_t* view);
 
 /** @brief Get stamp nanoseconds. */
-uint32_t ros_local_time_get_stamp_nanosec(const ros_local_time_t* view);
+uint32_t edgefirst_msgs_local_time_get_stamp_nanosec(const edgefirst_msgs_local_time_t* view);
 
 /** @brief Get frame_id (borrowed). */
-const char* ros_local_time_get_frame_id(const ros_local_time_t* view);
+const char* edgefirst_msgs_local_time_get_frame_id(const edgefirst_msgs_local_time_t* view);
 
 /** @brief Get timezone offset in minutes from UTC. */
-int16_t ros_local_time_get_timezone(const ros_local_time_t* view);
+int16_t edgefirst_msgs_local_time_get_timezone(const edgefirst_msgs_local_time_t* view);
 
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_local_time_as_cdr(const ros_local_time_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_local_time_as_cdr(const edgefirst_msgs_local_time_t* view, size_t* out_len);
 
 /* =========================================================================
  * geometry_msgs/PoseWithCovariance  (CdrFixed)
  * Pose(56 B) + float64[36] covariance = 344 bytes on the wire.
  * =========================================================================
  */
-int32_t ros_pose_with_covariance_encode(
+int32_t geometry_msgs_pose_with_covariance_encode(
     uint8_t* buf, size_t cap, size_t* written,
     double px, double py, double pz,
     double ox, double oy, double oz, double ow,
     const double* covariance);
 
-int32_t ros_pose_with_covariance_decode(
+int32_t geometry_msgs_pose_with_covariance_decode(
     const uint8_t* data, size_t len,
     double* px, double* py, double* pz,
     double* ox, double* oy, double* oz, double* ow,
@@ -2598,13 +2598,13 @@ int32_t ros_pose_with_covariance_decode(
  * Twist(48 B) + float64[36] covariance = 336 bytes on the wire.
  * =========================================================================
  */
-int32_t ros_twist_with_covariance_encode(
+int32_t geometry_msgs_twist_with_covariance_encode(
     uint8_t* buf, size_t cap, size_t* written,
     double lx, double ly, double lz,
     double ax, double ay, double az,
     const double* covariance);
 
-int32_t ros_twist_with_covariance_decode(
+int32_t geometry_msgs_twist_with_covariance_decode(
     const uint8_t* data, size_t len,
     double* lx, double* ly, double* lz,
     double* ax, double* ay, double* az,
@@ -2614,39 +2614,39 @@ int32_t ros_twist_with_covariance_decode(
  * sensor_msgs/MagneticField  (buffer-backed, decode-only)
  * =========================================================================
  */
-typedef struct ros_magnetic_field_t ros_magnetic_field_t;
+typedef struct sensor_msgs_magnetic_field_t sensor_msgs_magnetic_field_t;
 
-ros_magnetic_field_t* ros_magnetic_field_from_cdr(const uint8_t* data, size_t len);
-void ros_magnetic_field_free(ros_magnetic_field_t* view);
-int32_t ros_magnetic_field_get_stamp_sec(const ros_magnetic_field_t* view);
-uint32_t ros_magnetic_field_get_stamp_nanosec(const ros_magnetic_field_t* view);
-const char* ros_magnetic_field_get_frame_id(const ros_magnetic_field_t* view);
-void ros_magnetic_field_get_magnetic_field(const ros_magnetic_field_t* view,
+sensor_msgs_magnetic_field_t* sensor_msgs_magnetic_field_from_cdr(const uint8_t* data, size_t len);
+void sensor_msgs_magnetic_field_free(sensor_msgs_magnetic_field_t* view);
+int32_t sensor_msgs_magnetic_field_get_stamp_sec(const sensor_msgs_magnetic_field_t* view);
+uint32_t sensor_msgs_magnetic_field_get_stamp_nanosec(const sensor_msgs_magnetic_field_t* view);
+const char* sensor_msgs_magnetic_field_get_frame_id(const sensor_msgs_magnetic_field_t* view);
+void sensor_msgs_magnetic_field_get_magnetic_field(const sensor_msgs_magnetic_field_t* view,
                                            double* x, double* y, double* z);
-void ros_magnetic_field_get_magnetic_field_covariance(
-    const ros_magnetic_field_t* view, double* out);
+void sensor_msgs_magnetic_field_get_magnetic_field_covariance(
+    const sensor_msgs_magnetic_field_t* view, double* out);
 /** @brief Borrow raw CDR bytes from the handle. */
-const uint8_t* ros_magnetic_field_as_cdr(const ros_magnetic_field_t* view, size_t* out_len);
+const uint8_t* sensor_msgs_magnetic_field_as_cdr(const sensor_msgs_magnetic_field_t* view, size_t* out_len);
 
 /* ----------------------------------------------------------------------------
  * sensor_msgs - MagneticField (builder, 3.2.0+)
  * --------------------------------------------------------------------------*/
 
-/** @brief Opaque builder handle for ros_magnetic_field_t messages. */
-typedef struct ros_magnetic_field_builder_s ros_magnetic_field_builder_t;
+/** @brief Opaque builder handle for sensor_msgs_magnetic_field_t messages. */
+typedef struct sensor_msgs_magnetic_field_builder_s sensor_msgs_magnetic_field_builder_t;
 
 /**
  * @brief Create a new MagneticField builder with zero-valued defaults.
  * @return Opaque handle, or NULL on allocation failure. Free with
- *         ros_magnetic_field_builder_free.
+ *         sensor_msgs_magnetic_field_builder_free.
  */
-ros_magnetic_field_builder_t* ros_magnetic_field_builder_new(void);
+sensor_msgs_magnetic_field_builder_t* sensor_msgs_magnetic_field_builder_new(void);
 
 /** @brief Free a MagneticField builder handle. NULL-safe. */
-void ros_magnetic_field_builder_free(ros_magnetic_field_builder_t* b);
+void sensor_msgs_magnetic_field_builder_free(sensor_msgs_magnetic_field_builder_t* b);
 
 /** @brief Set the stamp field. */
-void ros_magnetic_field_builder_set_stamp(ros_magnetic_field_builder_t* b,
+void sensor_msgs_magnetic_field_builder_set_stamp(sensor_msgs_magnetic_field_builder_t* b,
                                           int32_t sec, uint32_t nsec);
 
 /**
@@ -2654,26 +2654,26 @@ void ros_magnetic_field_builder_set_stamp(ros_magnetic_field_builder_t* b,
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
  *         NULL `s`, or non-UTF-8 `s`).
  */
-int  ros_magnetic_field_builder_set_frame_id(
-    ros_magnetic_field_builder_t* b, const char* s);
+int  sensor_msgs_magnetic_field_builder_set_frame_id(
+    sensor_msgs_magnetic_field_builder_t* b, const char* s);
 
 /** @brief Set the magnetic_field vector (Tesla, x, y, z). */
-void ros_magnetic_field_builder_set_magnetic_field(
-    ros_magnetic_field_builder_t* b, double x, double y, double z);
+void sensor_msgs_magnetic_field_builder_set_magnetic_field(
+    sensor_msgs_magnetic_field_builder_t* b, double x, double y, double z);
 
 /** @brief Copy 9 f64 covariance values (row-major 3x3).
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_magnetic_field_builder_set_magnetic_field_covariance(
-    ros_magnetic_field_builder_t* b, const double* cov);
+int  sensor_msgs_magnetic_field_builder_set_magnetic_field_covariance(
+    sensor_msgs_magnetic_field_builder_t* b, const double* cov);
 
 /**
  * @brief Allocate a fresh CDR buffer and encode the message.
- * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ * @return 0 on success (out_bytes/out_len written; free via edgefirst_schemas_bytes_free),
  *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
  */
-int  ros_magnetic_field_builder_build(ros_magnetic_field_builder_t* b,
+int  sensor_msgs_magnetic_field_builder_build(sensor_msgs_magnetic_field_builder_t* b,
                                       uint8_t** out_bytes, size_t* out_len);
 
 /**
@@ -2681,44 +2681,44 @@ int  ros_magnetic_field_builder_build(ros_magnetic_field_builder_t* b,
  * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
  *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
  */
-int  ros_magnetic_field_builder_encode_into(
-    ros_magnetic_field_builder_t* b, uint8_t* buf, size_t cap,
+int  sensor_msgs_magnetic_field_builder_encode_into(
+    sensor_msgs_magnetic_field_builder_t* b, uint8_t* buf, size_t cap,
     size_t* out_len);
 
 /* =========================================================================
  * sensor_msgs/FluidPressure  (buffer-backed, decode-only)
  * =========================================================================
  */
-typedef struct ros_fluid_pressure_t ros_fluid_pressure_t;
+typedef struct sensor_msgs_fluid_pressure_t sensor_msgs_fluid_pressure_t;
 
-ros_fluid_pressure_t* ros_fluid_pressure_from_cdr(const uint8_t* data, size_t len);
-void ros_fluid_pressure_free(ros_fluid_pressure_t* view);
-int32_t ros_fluid_pressure_get_stamp_sec(const ros_fluid_pressure_t* view);
-uint32_t ros_fluid_pressure_get_stamp_nanosec(const ros_fluid_pressure_t* view);
-const char* ros_fluid_pressure_get_frame_id(const ros_fluid_pressure_t* view);
-double ros_fluid_pressure_get_fluid_pressure(const ros_fluid_pressure_t* view);
-double ros_fluid_pressure_get_variance(const ros_fluid_pressure_t* view);
-const uint8_t* ros_fluid_pressure_as_cdr(const ros_fluid_pressure_t* view, size_t* out_len);
+sensor_msgs_fluid_pressure_t* sensor_msgs_fluid_pressure_from_cdr(const uint8_t* data, size_t len);
+void sensor_msgs_fluid_pressure_free(sensor_msgs_fluid_pressure_t* view);
+int32_t sensor_msgs_fluid_pressure_get_stamp_sec(const sensor_msgs_fluid_pressure_t* view);
+uint32_t sensor_msgs_fluid_pressure_get_stamp_nanosec(const sensor_msgs_fluid_pressure_t* view);
+const char* sensor_msgs_fluid_pressure_get_frame_id(const sensor_msgs_fluid_pressure_t* view);
+double sensor_msgs_fluid_pressure_get_fluid_pressure(const sensor_msgs_fluid_pressure_t* view);
+double sensor_msgs_fluid_pressure_get_variance(const sensor_msgs_fluid_pressure_t* view);
+const uint8_t* sensor_msgs_fluid_pressure_as_cdr(const sensor_msgs_fluid_pressure_t* view, size_t* out_len);
 
 /* ----------------------------------------------------------------------------
  * sensor_msgs - FluidPressure (builder, 3.2.0+)
  * --------------------------------------------------------------------------*/
 
-/** @brief Opaque builder handle for ros_fluid_pressure_t messages. */
-typedef struct ros_fluid_pressure_builder_s ros_fluid_pressure_builder_t;
+/** @brief Opaque builder handle for sensor_msgs_fluid_pressure_t messages. */
+typedef struct sensor_msgs_fluid_pressure_builder_s sensor_msgs_fluid_pressure_builder_t;
 
 /**
  * @brief Create a new FluidPressure builder with zero-valued defaults.
  * @return Opaque handle, or NULL on allocation failure. Free with
- *         ros_fluid_pressure_builder_free.
+ *         sensor_msgs_fluid_pressure_builder_free.
  */
-ros_fluid_pressure_builder_t* ros_fluid_pressure_builder_new(void);
+sensor_msgs_fluid_pressure_builder_t* sensor_msgs_fluid_pressure_builder_new(void);
 
 /** @brief Free a FluidPressure builder handle. NULL-safe. */
-void ros_fluid_pressure_builder_free(ros_fluid_pressure_builder_t* b);
+void sensor_msgs_fluid_pressure_builder_free(sensor_msgs_fluid_pressure_builder_t* b);
 
 /** @brief Set the stamp field. */
-void ros_fluid_pressure_builder_set_stamp(ros_fluid_pressure_builder_t* b,
+void sensor_msgs_fluid_pressure_builder_set_stamp(sensor_msgs_fluid_pressure_builder_t* b,
                                           int32_t sec, uint32_t nsec);
 
 /**
@@ -2726,23 +2726,23 @@ void ros_fluid_pressure_builder_set_stamp(ros_fluid_pressure_builder_t* b,
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
  *         NULL `s`, or non-UTF-8 `s`).
  */
-int  ros_fluid_pressure_builder_set_frame_id(ros_fluid_pressure_builder_t* b,
+int  sensor_msgs_fluid_pressure_builder_set_frame_id(sensor_msgs_fluid_pressure_builder_t* b,
                                              const char* s);
 
 /** @brief Set the fluid_pressure field (Pascals). */
-void ros_fluid_pressure_builder_set_fluid_pressure(
-    ros_fluid_pressure_builder_t* b, double v);
+void sensor_msgs_fluid_pressure_builder_set_fluid_pressure(
+    sensor_msgs_fluid_pressure_builder_t* b, double v);
 
 /** @brief Set the variance field (0 indicates unknown). */
-void ros_fluid_pressure_builder_set_variance(ros_fluid_pressure_builder_t* b,
+void sensor_msgs_fluid_pressure_builder_set_variance(sensor_msgs_fluid_pressure_builder_t* b,
                                              double v);
 
 /**
  * @brief Allocate a fresh CDR buffer and encode the message.
- * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ * @return 0 on success (out_bytes/out_len written; free via edgefirst_schemas_bytes_free),
  *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
  */
-int  ros_fluid_pressure_builder_build(ros_fluid_pressure_builder_t* b,
+int  sensor_msgs_fluid_pressure_builder_build(sensor_msgs_fluid_pressure_builder_t* b,
                                       uint8_t** out_bytes, size_t* out_len);
 
 /**
@@ -2750,7 +2750,7 @@ int  ros_fluid_pressure_builder_build(ros_fluid_pressure_builder_t* b,
  * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
  *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
  */
-int  ros_fluid_pressure_builder_encode_into(ros_fluid_pressure_builder_t* b,
+int  sensor_msgs_fluid_pressure_builder_encode_into(sensor_msgs_fluid_pressure_builder_t* b,
                                             uint8_t* buf, size_t cap,
                                             size_t* out_len);
 
@@ -2758,36 +2758,36 @@ int  ros_fluid_pressure_builder_encode_into(ros_fluid_pressure_builder_t* b,
  * sensor_msgs/Temperature  (buffer-backed, decode-only)
  * =========================================================================
  */
-typedef struct ros_temperature_t ros_temperature_t;
+typedef struct sensor_msgs_temperature_t sensor_msgs_temperature_t;
 
-ros_temperature_t* ros_temperature_from_cdr(const uint8_t* data, size_t len);
-void ros_temperature_free(ros_temperature_t* view);
-int32_t ros_temperature_get_stamp_sec(const ros_temperature_t* view);
-uint32_t ros_temperature_get_stamp_nanosec(const ros_temperature_t* view);
-const char* ros_temperature_get_frame_id(const ros_temperature_t* view);
-double ros_temperature_get_temperature(const ros_temperature_t* view);
-double ros_temperature_get_variance(const ros_temperature_t* view);
-const uint8_t* ros_temperature_as_cdr(const ros_temperature_t* view, size_t* out_len);
+sensor_msgs_temperature_t* sensor_msgs_temperature_from_cdr(const uint8_t* data, size_t len);
+void sensor_msgs_temperature_free(sensor_msgs_temperature_t* view);
+int32_t sensor_msgs_temperature_get_stamp_sec(const sensor_msgs_temperature_t* view);
+uint32_t sensor_msgs_temperature_get_stamp_nanosec(const sensor_msgs_temperature_t* view);
+const char* sensor_msgs_temperature_get_frame_id(const sensor_msgs_temperature_t* view);
+double sensor_msgs_temperature_get_temperature(const sensor_msgs_temperature_t* view);
+double sensor_msgs_temperature_get_variance(const sensor_msgs_temperature_t* view);
+const uint8_t* sensor_msgs_temperature_as_cdr(const sensor_msgs_temperature_t* view, size_t* out_len);
 
 /* ----------------------------------------------------------------------------
  * sensor_msgs - Temperature (builder, 3.2.0+)
  * --------------------------------------------------------------------------*/
 
-/** @brief Opaque builder handle for ros_temperature_t messages. */
-typedef struct ros_temperature_builder_s ros_temperature_builder_t;
+/** @brief Opaque builder handle for sensor_msgs_temperature_t messages. */
+typedef struct sensor_msgs_temperature_builder_s sensor_msgs_temperature_builder_t;
 
 /**
  * @brief Create a new Temperature builder with zero-valued defaults.
  * @return Opaque handle, or NULL on allocation failure. Free with
- *         ros_temperature_builder_free.
+ *         sensor_msgs_temperature_builder_free.
  */
-ros_temperature_builder_t* ros_temperature_builder_new(void);
+sensor_msgs_temperature_builder_t* sensor_msgs_temperature_builder_new(void);
 
 /** @brief Free a Temperature builder handle. NULL-safe. */
-void ros_temperature_builder_free(ros_temperature_builder_t* b);
+void sensor_msgs_temperature_builder_free(sensor_msgs_temperature_builder_t* b);
 
 /** @brief Set the stamp field. */
-void ros_temperature_builder_set_stamp(ros_temperature_builder_t* b,
+void sensor_msgs_temperature_builder_set_stamp(sensor_msgs_temperature_builder_t* b,
                                        int32_t sec, uint32_t nsec);
 
 /**
@@ -2795,23 +2795,23 @@ void ros_temperature_builder_set_stamp(ros_temperature_builder_t* b,
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
  *         NULL `s`, or non-UTF-8 `s`).
  */
-int  ros_temperature_builder_set_frame_id(ros_temperature_builder_t* b,
+int  sensor_msgs_temperature_builder_set_frame_id(sensor_msgs_temperature_builder_t* b,
                                           const char* s);
 
 /** @brief Set the temperature field (Celsius). */
-void ros_temperature_builder_set_temperature(ros_temperature_builder_t* b,
+void sensor_msgs_temperature_builder_set_temperature(sensor_msgs_temperature_builder_t* b,
                                              double v);
 
 /** @brief Set the variance field (0 indicates unknown). */
-void ros_temperature_builder_set_variance(ros_temperature_builder_t* b,
+void sensor_msgs_temperature_builder_set_variance(sensor_msgs_temperature_builder_t* b,
                                           double v);
 
 /**
  * @brief Allocate a fresh CDR buffer and encode the message.
- * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ * @return 0 on success (out_bytes/out_len written; free via edgefirst_schemas_bytes_free),
  *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
  */
-int  ros_temperature_builder_build(ros_temperature_builder_t* b,
+int  sensor_msgs_temperature_builder_build(sensor_msgs_temperature_builder_t* b,
                                    uint8_t** out_bytes, size_t* out_len);
 
 /**
@@ -2819,7 +2819,7 @@ int  ros_temperature_builder_build(ros_temperature_builder_t* b,
  * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
  *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
  */
-int  ros_temperature_builder_encode_into(ros_temperature_builder_t* b,
+int  sensor_msgs_temperature_builder_encode_into(sensor_msgs_temperature_builder_t* b,
                                          uint8_t* buf, size_t cap,
                                          size_t* out_len);
 
@@ -2854,54 +2854,54 @@ int  ros_temperature_builder_encode_into(ros_temperature_builder_t* b,
 #define ROS_BATTERY_STATE_POWER_SUPPLY_TECHNOLOGY_NICD    5
 #define ROS_BATTERY_STATE_POWER_SUPPLY_TECHNOLOGY_LIMN    6
 
-typedef struct ros_battery_state_t ros_battery_state_t;
+typedef struct sensor_msgs_battery_state_t sensor_msgs_battery_state_t;
 
-ros_battery_state_t* ros_battery_state_from_cdr(const uint8_t* data, size_t len);
-void ros_battery_state_free(ros_battery_state_t* view);
-int32_t ros_battery_state_get_stamp_sec(const ros_battery_state_t* view);
-uint32_t ros_battery_state_get_stamp_nanosec(const ros_battery_state_t* view);
-const char* ros_battery_state_get_frame_id(const ros_battery_state_t* view);
-float ros_battery_state_get_voltage(const ros_battery_state_t* view);
-float ros_battery_state_get_temperature(const ros_battery_state_t* view);
-float ros_battery_state_get_current(const ros_battery_state_t* view);
-float ros_battery_state_get_charge(const ros_battery_state_t* view);
-float ros_battery_state_get_capacity(const ros_battery_state_t* view);
-float ros_battery_state_get_design_capacity(const ros_battery_state_t* view);
-float ros_battery_state_get_percentage(const ros_battery_state_t* view);
-uint8_t ros_battery_state_get_power_supply_status(const ros_battery_state_t* view);
-uint8_t ros_battery_state_get_power_supply_health(const ros_battery_state_t* view);
-uint8_t ros_battery_state_get_power_supply_technology(const ros_battery_state_t* view);
-bool ros_battery_state_get_present(const ros_battery_state_t* view);
-uint32_t ros_battery_state_get_cell_voltage_len(const ros_battery_state_t* view);
+sensor_msgs_battery_state_t* sensor_msgs_battery_state_from_cdr(const uint8_t* data, size_t len);
+void sensor_msgs_battery_state_free(sensor_msgs_battery_state_t* view);
+int32_t sensor_msgs_battery_state_get_stamp_sec(const sensor_msgs_battery_state_t* view);
+uint32_t sensor_msgs_battery_state_get_stamp_nanosec(const sensor_msgs_battery_state_t* view);
+const char* sensor_msgs_battery_state_get_frame_id(const sensor_msgs_battery_state_t* view);
+float sensor_msgs_battery_state_get_voltage(const sensor_msgs_battery_state_t* view);
+float sensor_msgs_battery_state_get_temperature(const sensor_msgs_battery_state_t* view);
+float sensor_msgs_battery_state_get_current(const sensor_msgs_battery_state_t* view);
+float sensor_msgs_battery_state_get_charge(const sensor_msgs_battery_state_t* view);
+float sensor_msgs_battery_state_get_capacity(const sensor_msgs_battery_state_t* view);
+float sensor_msgs_battery_state_get_design_capacity(const sensor_msgs_battery_state_t* view);
+float sensor_msgs_battery_state_get_percentage(const sensor_msgs_battery_state_t* view);
+uint8_t sensor_msgs_battery_state_get_power_supply_status(const sensor_msgs_battery_state_t* view);
+uint8_t sensor_msgs_battery_state_get_power_supply_health(const sensor_msgs_battery_state_t* view);
+uint8_t sensor_msgs_battery_state_get_power_supply_technology(const sensor_msgs_battery_state_t* view);
+bool sensor_msgs_battery_state_get_present(const sensor_msgs_battery_state_t* view);
+uint32_t sensor_msgs_battery_state_get_cell_voltage_len(const sensor_msgs_battery_state_t* view);
 /** Copy up to `cap` cell voltages into `out`; returns total element count. */
-uint32_t ros_battery_state_get_cell_voltage(const ros_battery_state_t* view,
+uint32_t sensor_msgs_battery_state_get_cell_voltage(const sensor_msgs_battery_state_t* view,
                                             float* out, size_t cap);
-uint32_t ros_battery_state_get_cell_temperature_len(const ros_battery_state_t* view);
-uint32_t ros_battery_state_get_cell_temperature(const ros_battery_state_t* view,
+uint32_t sensor_msgs_battery_state_get_cell_temperature_len(const sensor_msgs_battery_state_t* view);
+uint32_t sensor_msgs_battery_state_get_cell_temperature(const sensor_msgs_battery_state_t* view,
                                                 float* out, size_t cap);
-const char* ros_battery_state_get_location(const ros_battery_state_t* view);
-const char* ros_battery_state_get_serial_number(const ros_battery_state_t* view);
-const uint8_t* ros_battery_state_as_cdr(const ros_battery_state_t* view, size_t* out_len);
+const char* sensor_msgs_battery_state_get_location(const sensor_msgs_battery_state_t* view);
+const char* sensor_msgs_battery_state_get_serial_number(const sensor_msgs_battery_state_t* view);
+const uint8_t* sensor_msgs_battery_state_as_cdr(const sensor_msgs_battery_state_t* view, size_t* out_len);
 
 /* ----------------------------------------------------------------------------
  * sensor_msgs - BatteryState (builder, 3.2.0+)
  * --------------------------------------------------------------------------*/
 
-/** @brief Opaque builder handle for ros_battery_state_t messages. */
-typedef struct ros_battery_state_builder_s ros_battery_state_builder_t;
+/** @brief Opaque builder handle for sensor_msgs_battery_state_t messages. */
+typedef struct sensor_msgs_battery_state_builder_s sensor_msgs_battery_state_builder_t;
 
 /**
  * @brief Create a new BatteryState builder with zero-valued defaults.
  * @return Opaque handle, or NULL on allocation failure. Free with
- *         ros_battery_state_builder_free.
+ *         sensor_msgs_battery_state_builder_free.
  */
-ros_battery_state_builder_t* ros_battery_state_builder_new(void);
+sensor_msgs_battery_state_builder_t* sensor_msgs_battery_state_builder_new(void);
 
 /** @brief Free a BatteryState builder handle. NULL-safe. */
-void ros_battery_state_builder_free(ros_battery_state_builder_t* b);
+void sensor_msgs_battery_state_builder_free(sensor_msgs_battery_state_builder_t* b);
 
 /** @brief Set the stamp field. */
-void ros_battery_state_builder_set_stamp(ros_battery_state_builder_t* b,
+void sensor_msgs_battery_state_builder_set_stamp(sensor_msgs_battery_state_builder_t* b,
                                          int32_t sec, uint32_t nsec);
 
 /**
@@ -2909,35 +2909,35 @@ void ros_battery_state_builder_set_stamp(ros_battery_state_builder_t* b,
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
  *         NULL `s`, or non-UTF-8 `s`).
  */
-int  ros_battery_state_builder_set_frame_id(
-    ros_battery_state_builder_t* b, const char* s);
+int  sensor_msgs_battery_state_builder_set_frame_id(
+    sensor_msgs_battery_state_builder_t* b, const char* s);
 
 /** @brief Set the pack voltage (volts). */
-void ros_battery_state_builder_set_voltage(ros_battery_state_builder_t* b, float v);
+void sensor_msgs_battery_state_builder_set_voltage(sensor_msgs_battery_state_builder_t* b, float v);
 /** @brief Set the pack temperature (Celsius). */
-void ros_battery_state_builder_set_temperature(ros_battery_state_builder_t* b, float v);
+void sensor_msgs_battery_state_builder_set_temperature(sensor_msgs_battery_state_builder_t* b, float v);
 /** @brief Set the instantaneous current (amps; negative = discharging). */
-void ros_battery_state_builder_set_current(ros_battery_state_builder_t* b, float v);
+void sensor_msgs_battery_state_builder_set_current(sensor_msgs_battery_state_builder_t* b, float v);
 /** @brief Set the current charge (amp-hours). */
-void ros_battery_state_builder_set_charge(ros_battery_state_builder_t* b, float v);
+void sensor_msgs_battery_state_builder_set_charge(sensor_msgs_battery_state_builder_t* b, float v);
 /** @brief Set the pack capacity (amp-hours). */
-void ros_battery_state_builder_set_capacity(ros_battery_state_builder_t* b, float v);
+void sensor_msgs_battery_state_builder_set_capacity(sensor_msgs_battery_state_builder_t* b, float v);
 /** @brief Set the design capacity (amp-hours). */
-void ros_battery_state_builder_set_design_capacity(ros_battery_state_builder_t* b, float v);
+void sensor_msgs_battery_state_builder_set_design_capacity(sensor_msgs_battery_state_builder_t* b, float v);
 /** @brief Set the charge percentage (0.0 to 1.0). */
-void ros_battery_state_builder_set_percentage(ros_battery_state_builder_t* b, float v);
+void sensor_msgs_battery_state_builder_set_percentage(sensor_msgs_battery_state_builder_t* b, float v);
 /** @brief Set the power_supply_status enum (see ROS_BATTERY_STATE_POWER_SUPPLY_STATUS_*). */
-void ros_battery_state_builder_set_power_supply_status(
-    ros_battery_state_builder_t* b, uint8_t v);
+void sensor_msgs_battery_state_builder_set_power_supply_status(
+    sensor_msgs_battery_state_builder_t* b, uint8_t v);
 /** @brief Set the power_supply_health enum (see ROS_BATTERY_STATE_POWER_SUPPLY_HEALTH_*). */
-void ros_battery_state_builder_set_power_supply_health(
-    ros_battery_state_builder_t* b, uint8_t v);
+void sensor_msgs_battery_state_builder_set_power_supply_health(
+    sensor_msgs_battery_state_builder_t* b, uint8_t v);
 /** @brief Set the power_supply_technology enum (see ROS_BATTERY_STATE_POWER_SUPPLY_TECHNOLOGY_*). */
-void ros_battery_state_builder_set_power_supply_technology(
-    ros_battery_state_builder_t* b, uint8_t v);
+void sensor_msgs_battery_state_builder_set_power_supply_technology(
+    sensor_msgs_battery_state_builder_t* b, uint8_t v);
 /** @brief Set the present flag. */
-void ros_battery_state_builder_set_present(
-    ros_battery_state_builder_t* b, bool v);
+void sensor_msgs_battery_state_builder_set_present(
+    sensor_msgs_battery_state_builder_t* b, bool v);
 
 /**
  * @brief Set the cell_voltage array (BORROWED `float[len]` — must remain
@@ -2945,8 +2945,8 @@ void ros_battery_state_builder_set_present(
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_battery_state_builder_set_cell_voltage(
-    ros_battery_state_builder_t* b, const float* data, size_t len);
+int  sensor_msgs_battery_state_builder_set_cell_voltage(
+    sensor_msgs_battery_state_builder_t* b, const float* data, size_t len);
 
 /**
  * @brief Set the cell_temperature array (BORROWED `float[len]` — must remain
@@ -2954,31 +2954,31 @@ int  ros_battery_state_builder_set_cell_voltage(
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_battery_state_builder_set_cell_temperature(
-    ros_battery_state_builder_t* b, const float* data, size_t len);
+int  sensor_msgs_battery_state_builder_set_cell_temperature(
+    sensor_msgs_battery_state_builder_t* b, const float* data, size_t len);
 
 /**
  * @brief Set the location field (string is copied into the builder).
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
  *         NULL `s`, or non-UTF-8 `s`).
  */
-int  ros_battery_state_builder_set_location(
-    ros_battery_state_builder_t* b, const char* s);
+int  sensor_msgs_battery_state_builder_set_location(
+    sensor_msgs_battery_state_builder_t* b, const char* s);
 
 /**
  * @brief Set the serial_number field (string is copied into the builder).
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle,
  *         NULL `s`, or non-UTF-8 `s`).
  */
-int  ros_battery_state_builder_set_serial_number(
-    ros_battery_state_builder_t* b, const char* s);
+int  sensor_msgs_battery_state_builder_set_serial_number(
+    sensor_msgs_battery_state_builder_t* b, const char* s);
 
 /**
  * @brief Allocate a fresh CDR buffer and encode the message.
- * @return 0 on success (out_bytes/out_len written; free via ros_bytes_free),
+ * @return 0 on success (out_bytes/out_len written; free via edgefirst_schemas_bytes_free),
  *         -1 on error (errno set: EINVAL for NULL handle, EBADMSG on encoder error).
  */
-int  ros_battery_state_builder_build(ros_battery_state_builder_t* b,
+int  sensor_msgs_battery_state_builder_build(sensor_msgs_battery_state_builder_t* b,
                                      uint8_t** out_bytes, size_t* out_len);
 
 /**
@@ -2986,8 +2986,8 @@ int  ros_battery_state_builder_build(ros_battery_state_builder_t* b,
  * @return 0 on success (out_len written), -1 on error (errno: EINVAL for
  *         NULL args, ENOBUFS for buffer too small, EBADMSG for encoding error).
  */
-int  ros_battery_state_builder_encode_into(
-    ros_battery_state_builder_t* b, uint8_t* buf, size_t cap,
+int  sensor_msgs_battery_state_builder_encode_into(
+    sensor_msgs_battery_state_builder_t* b, uint8_t* buf, size_t cap,
     size_t* out_len);
 
 /* =========================================================================
@@ -2996,42 +2996,42 @@ int  ros_battery_state_builder_encode_into(
  */
 
 /** @brief Opaque view handle for RelativeHumidity messages. */
-typedef struct ros_relative_humidity_t ros_relative_humidity_t;
+typedef struct sensor_msgs_relative_humidity_t sensor_msgs_relative_humidity_t;
 
 /** @brief Parse CDR bytes into a RelativeHumidity view handle.
  *
  *  Returns NULL on error (errno: EINVAL for NULL data, EBADMSG for invalid CDR).
  *  The caller must keep the CDR buffer alive for the lifetime of the handle.
  */
-ros_relative_humidity_t* ros_relative_humidity_from_cdr(const uint8_t* data, size_t len);
+sensor_msgs_relative_humidity_t* sensor_msgs_relative_humidity_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a RelativeHumidity view handle. */
-void ros_relative_humidity_free(ros_relative_humidity_t* view);
+void sensor_msgs_relative_humidity_free(sensor_msgs_relative_humidity_t* view);
 
-int32_t     ros_relative_humidity_get_stamp_sec(const ros_relative_humidity_t* view);
-uint32_t    ros_relative_humidity_get_stamp_nanosec(const ros_relative_humidity_t* view);
-const char* ros_relative_humidity_get_frame_id(const ros_relative_humidity_t* view);
-double      ros_relative_humidity_get_relative_humidity(const ros_relative_humidity_t* view);
-double      ros_relative_humidity_get_variance(const ros_relative_humidity_t* view);
+int32_t     sensor_msgs_relative_humidity_get_stamp_sec(const sensor_msgs_relative_humidity_t* view);
+uint32_t    sensor_msgs_relative_humidity_get_stamp_nanosec(const sensor_msgs_relative_humidity_t* view);
+const char* sensor_msgs_relative_humidity_get_frame_id(const sensor_msgs_relative_humidity_t* view);
+double      sensor_msgs_relative_humidity_get_relative_humidity(const sensor_msgs_relative_humidity_t* view);
+double      sensor_msgs_relative_humidity_get_variance(const sensor_msgs_relative_humidity_t* view);
 
 /** @brief Borrow the raw CDR bytes of the RelativeHumidity message. */
-const uint8_t* ros_relative_humidity_as_cdr(const ros_relative_humidity_t* view, size_t* out_len);
+const uint8_t* sensor_msgs_relative_humidity_as_cdr(const sensor_msgs_relative_humidity_t* view, size_t* out_len);
 
-/** @brief Opaque builder handle for ros_relative_humidity_t messages. */
-typedef struct ros_relative_humidity_builder_s ros_relative_humidity_builder_t;
+/** @brief Opaque builder handle for sensor_msgs_relative_humidity_t messages. */
+typedef struct sensor_msgs_relative_humidity_builder_s sensor_msgs_relative_humidity_builder_t;
 
 /**
  * @brief Allocate a new RelativeHumidity builder with zero-valued defaults.
  *
- *  Must be freed with ros_relative_humidity_builder_free.
+ *  Must be freed with sensor_msgs_relative_humidity_builder_free.
  */
-ros_relative_humidity_builder_t* ros_relative_humidity_builder_new(void);
+sensor_msgs_relative_humidity_builder_t* sensor_msgs_relative_humidity_builder_new(void);
 
 /** @brief Free a RelativeHumidity builder. */
-void ros_relative_humidity_builder_free(ros_relative_humidity_builder_t* b);
+void sensor_msgs_relative_humidity_builder_free(sensor_msgs_relative_humidity_builder_t* b);
 
 /** @brief Set the header stamp (sec, nanosec). */
-void ros_relative_humidity_builder_set_stamp(ros_relative_humidity_builder_t* b,
+void sensor_msgs_relative_humidity_builder_set_stamp(sensor_msgs_relative_humidity_builder_t* b,
                                               int32_t sec, uint32_t nanosec);
 
 /**
@@ -3039,23 +3039,23 @@ void ros_relative_humidity_builder_set_stamp(ros_relative_humidity_builder_t* b,
  *
  *  Returns 0 on success, -1 on error (errno: EINVAL for NULL builder or bad UTF-8).
  */
-int  ros_relative_humidity_builder_set_frame_id(ros_relative_humidity_builder_t* b,
+int  sensor_msgs_relative_humidity_builder_set_frame_id(sensor_msgs_relative_humidity_builder_t* b,
                                                  const char* s);
 
 /** @brief Set the relative_humidity field (dimensionless ratio 0..1). */
-void ros_relative_humidity_builder_set_relative_humidity(ros_relative_humidity_builder_t* b,
+void sensor_msgs_relative_humidity_builder_set_relative_humidity(sensor_msgs_relative_humidity_builder_t* b,
                                                           double v);
 
 /** @brief Set the variance field. */
-void ros_relative_humidity_builder_set_variance(ros_relative_humidity_builder_t* b, double v);
+void sensor_msgs_relative_humidity_builder_set_variance(sensor_msgs_relative_humidity_builder_t* b, double v);
 
 /**
  * @brief Build a RelativeHumidity CDR message into a heap allocation.
  *
  *  Returns 0 on success, -1 on error.
- *  Call ros_bytes_free(*out_bytes) to release.
+ *  Call edgefirst_schemas_bytes_free(*out_bytes) to release.
  */
-int  ros_relative_humidity_builder_build(ros_relative_humidity_builder_t* b,
+int  sensor_msgs_relative_humidity_builder_build(sensor_msgs_relative_humidity_builder_t* b,
                                           uint8_t** out_bytes, size_t* out_len);
 
 /**
@@ -3064,7 +3064,7 @@ int  ros_relative_humidity_builder_build(ros_relative_humidity_builder_t* b,
  *  Returns 0 on success, -1 on error (errno: EINVAL for NULL args,
  *  ENOBUFS for buffer too small, EBADMSG for encoding error).
  */
-int  ros_relative_humidity_builder_encode_into(ros_relative_humidity_builder_t* b,
+int  sensor_msgs_relative_humidity_builder_encode_into(sensor_msgs_relative_humidity_builder_t* b,
                                                 uint8_t* buf, size_t cap,
                                                 size_t* out_len);
 
@@ -3074,43 +3074,43 @@ int  ros_relative_humidity_builder_encode_into(ros_relative_humidity_builder_t* 
  */
 
 /** @brief Opaque view handle for TimeReference messages. */
-typedef struct ros_time_reference_t ros_time_reference_t;
+typedef struct sensor_msgs_time_reference_t sensor_msgs_time_reference_t;
 
 /** @brief Parse CDR bytes into a TimeReference view handle.
  *
  *  Returns NULL on error (errno: EINVAL for NULL data, EBADMSG for invalid CDR).
  *  The caller must keep the CDR buffer alive for the lifetime of the handle.
  */
-ros_time_reference_t* ros_time_reference_from_cdr(const uint8_t* data, size_t len);
+sensor_msgs_time_reference_t* sensor_msgs_time_reference_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a TimeReference view handle. */
-void ros_time_reference_free(ros_time_reference_t* view);
+void sensor_msgs_time_reference_free(sensor_msgs_time_reference_t* view);
 
-int32_t         ros_time_reference_get_stamp_sec(const ros_time_reference_t* view);
-uint32_t        ros_time_reference_get_stamp_nanosec(const ros_time_reference_t* view);
-const char*     ros_time_reference_get_frame_id(const ros_time_reference_t* view);
-int32_t         ros_time_reference_get_time_ref_sec(const ros_time_reference_t* view);
-uint32_t        ros_time_reference_get_time_ref_nanosec(const ros_time_reference_t* view);
-const char*     ros_time_reference_get_source(const ros_time_reference_t* view);
+int32_t         sensor_msgs_time_reference_get_stamp_sec(const sensor_msgs_time_reference_t* view);
+uint32_t        sensor_msgs_time_reference_get_stamp_nanosec(const sensor_msgs_time_reference_t* view);
+const char*     sensor_msgs_time_reference_get_frame_id(const sensor_msgs_time_reference_t* view);
+int32_t         sensor_msgs_time_reference_get_time_ref_sec(const sensor_msgs_time_reference_t* view);
+uint32_t        sensor_msgs_time_reference_get_time_ref_nanosec(const sensor_msgs_time_reference_t* view);
+const char*     sensor_msgs_time_reference_get_source(const sensor_msgs_time_reference_t* view);
 
 /** @brief Borrow the raw CDR bytes of the TimeReference message. */
-const uint8_t*  ros_time_reference_as_cdr(const ros_time_reference_t* view, size_t* out_len);
+const uint8_t*  sensor_msgs_time_reference_as_cdr(const sensor_msgs_time_reference_t* view, size_t* out_len);
 
-/** @brief Opaque builder handle for ros_time_reference_t messages. */
-typedef struct ros_time_reference_builder_s ros_time_reference_builder_t;
+/** @brief Opaque builder handle for sensor_msgs_time_reference_t messages. */
+typedef struct sensor_msgs_time_reference_builder_s sensor_msgs_time_reference_builder_t;
 
 /**
  * @brief Allocate a new TimeReference builder with zero-valued defaults.
  *
- *  Must be freed with ros_time_reference_builder_free.
+ *  Must be freed with sensor_msgs_time_reference_builder_free.
  */
-ros_time_reference_builder_t* ros_time_reference_builder_new(void);
+sensor_msgs_time_reference_builder_t* sensor_msgs_time_reference_builder_new(void);
 
 /** @brief Free a TimeReference builder. */
-void ros_time_reference_builder_free(ros_time_reference_builder_t* b);
+void sensor_msgs_time_reference_builder_free(sensor_msgs_time_reference_builder_t* b);
 
 /** @brief Set the header stamp (sec, nanosec). */
-void ros_time_reference_builder_set_stamp(ros_time_reference_builder_t* b,
+void sensor_msgs_time_reference_builder_set_stamp(sensor_msgs_time_reference_builder_t* b,
                                           int32_t sec, uint32_t nanosec);
 
 /**
@@ -3118,11 +3118,11 @@ void ros_time_reference_builder_set_stamp(ros_time_reference_builder_t* b,
  *
  *  Returns 0 on success, -1 on error (errno: EINVAL for NULL builder or bad UTF-8).
  */
-int  ros_time_reference_builder_set_frame_id(ros_time_reference_builder_t* b,
+int  sensor_msgs_time_reference_builder_set_frame_id(sensor_msgs_time_reference_builder_t* b,
                                              const char* s);
 
 /** @brief Set the time_ref field (the referenced time as sec, nanosec). */
-void ros_time_reference_builder_set_time_ref(ros_time_reference_builder_t* b,
+void sensor_msgs_time_reference_builder_set_time_ref(sensor_msgs_time_reference_builder_t* b,
                                              int32_t sec, uint32_t nanosec);
 
 /**
@@ -3130,16 +3130,16 @@ void ros_time_reference_builder_set_time_ref(ros_time_reference_builder_t* b,
  *
  *  Returns 0 on success, -1 on error (errno: EINVAL for NULL builder or bad UTF-8).
  */
-int  ros_time_reference_builder_set_source(ros_time_reference_builder_t* b,
+int  sensor_msgs_time_reference_builder_set_source(sensor_msgs_time_reference_builder_t* b,
                                            const char* s);
 
 /**
  * @brief Build a TimeReference CDR message into a heap allocation.
  *
  *  Returns 0 on success, -1 on error.
- *  Call ros_bytes_free(*out_bytes) to release.
+ *  Call edgefirst_schemas_bytes_free(*out_bytes) to release.
  */
-int  ros_time_reference_builder_build(ros_time_reference_builder_t* b,
+int  sensor_msgs_time_reference_builder_build(sensor_msgs_time_reference_builder_t* b,
                                       uint8_t** out_bytes, size_t* out_len);
 
 /**
@@ -3148,7 +3148,7 @@ int  ros_time_reference_builder_build(ros_time_reference_builder_t* b,
  *  Returns 0 on success, -1 on error (errno: EINVAL for NULL args,
  *  ENOBUFS for buffer too small, EBADMSG for encoding error).
  */
-int  ros_time_reference_builder_encode_into(ros_time_reference_builder_t* b,
+int  sensor_msgs_time_reference_builder_encode_into(sensor_msgs_time_reference_builder_t* b,
                                             uint8_t* buf, size_t cap,
                                             size_t* out_len);
 
@@ -3156,40 +3156,40 @@ int  ros_time_reference_builder_encode_into(ros_time_reference_builder_t* b,
  * nav_msgs/Odometry  (buffer-backed)
  * =========================================================================
  */
-typedef struct ros_odometry_t ros_odometry_t;
+typedef struct nav_msgs_odometry_t nav_msgs_odometry_t;
 
-ros_odometry_t* ros_odometry_from_cdr(const uint8_t* data, size_t len);
-void ros_odometry_free(ros_odometry_t* view);
-int32_t ros_odometry_get_stamp_sec(const ros_odometry_t* view);
-uint32_t ros_odometry_get_stamp_nanosec(const ros_odometry_t* view);
-const char* ros_odometry_get_frame_id(const ros_odometry_t* view);
-const char* ros_odometry_get_child_frame_id(const ros_odometry_t* view);
-void ros_odometry_get_pose(const ros_odometry_t* view,
+nav_msgs_odometry_t* nav_msgs_odometry_from_cdr(const uint8_t* data, size_t len);
+void nav_msgs_odometry_free(nav_msgs_odometry_t* view);
+int32_t nav_msgs_odometry_get_stamp_sec(const nav_msgs_odometry_t* view);
+uint32_t nav_msgs_odometry_get_stamp_nanosec(const nav_msgs_odometry_t* view);
+const char* nav_msgs_odometry_get_frame_id(const nav_msgs_odometry_t* view);
+const char* nav_msgs_odometry_get_child_frame_id(const nav_msgs_odometry_t* view);
+void nav_msgs_odometry_get_pose(const nav_msgs_odometry_t* view,
                            double* px, double* py, double* pz,
                            double* ox, double* oy, double* oz, double* ow);
-void ros_odometry_get_pose_covariance(const ros_odometry_t* view, double* out);
-void ros_odometry_get_twist(const ros_odometry_t* view,
+void nav_msgs_odometry_get_pose_covariance(const nav_msgs_odometry_t* view, double* out);
+void nav_msgs_odometry_get_twist(const nav_msgs_odometry_t* view,
                             double* lx, double* ly, double* lz,
                             double* ax, double* ay, double* az);
-void ros_odometry_get_twist_covariance(const ros_odometry_t* view, double* out);
-const uint8_t* ros_odometry_as_cdr(const ros_odometry_t* view, size_t* out_len);
-/** @brief Opaque builder handle for ros_odometry_t messages. */
-typedef struct ros_odometry_builder_s ros_odometry_builder_t;
-ros_odometry_builder_t* ros_odometry_builder_new(void);
-void ros_odometry_builder_free(ros_odometry_builder_t* b);
-void ros_odometry_builder_set_stamp(ros_odometry_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_odometry_builder_set_frame_id(ros_odometry_builder_t* b, const char* s);
-int  ros_odometry_builder_set_child_frame_id(ros_odometry_builder_t* b, const char* s);
-void ros_odometry_builder_set_pose(ros_odometry_builder_t* b,
+void nav_msgs_odometry_get_twist_covariance(const nav_msgs_odometry_t* view, double* out);
+const uint8_t* nav_msgs_odometry_as_cdr(const nav_msgs_odometry_t* view, size_t* out_len);
+/** @brief Opaque builder handle for nav_msgs_odometry_t messages. */
+typedef struct nav_msgs_odometry_builder_s nav_msgs_odometry_builder_t;
+nav_msgs_odometry_builder_t* nav_msgs_odometry_builder_new(void);
+void nav_msgs_odometry_builder_free(nav_msgs_odometry_builder_t* b);
+void nav_msgs_odometry_builder_set_stamp(nav_msgs_odometry_builder_t* b, int32_t sec, uint32_t nanosec);
+int  nav_msgs_odometry_builder_set_frame_id(nav_msgs_odometry_builder_t* b, const char* s);
+int  nav_msgs_odometry_builder_set_child_frame_id(nav_msgs_odometry_builder_t* b, const char* s);
+void nav_msgs_odometry_builder_set_pose(nav_msgs_odometry_builder_t* b,
                                    double px, double py, double pz,
                                    double ox, double oy, double oz, double ow);
-int  ros_odometry_builder_set_pose_covariance(ros_odometry_builder_t* b, const double* cov);
-void ros_odometry_builder_set_twist(ros_odometry_builder_t* b,
+int  nav_msgs_odometry_builder_set_pose_covariance(nav_msgs_odometry_builder_t* b, const double* cov);
+void nav_msgs_odometry_builder_set_twist(nav_msgs_odometry_builder_t* b,
                                     double lx, double ly, double lz,
                                     double ax, double ay, double az);
-int  ros_odometry_builder_set_twist_covariance(ros_odometry_builder_t* b, const double* cov);
-int  ros_odometry_builder_build(ros_odometry_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_odometry_builder_encode_into(ros_odometry_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+int  nav_msgs_odometry_builder_set_twist_covariance(nav_msgs_odometry_builder_t* b, const double* cov);
+int  nav_msgs_odometry_builder_build(nav_msgs_odometry_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  nav_msgs_odometry_builder_encode_into(nav_msgs_odometry_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* =========================================================================
@@ -3204,7 +3204,7 @@ int  ros_odometry_builder_encode_into(ros_odometry_builder_t* b, uint8_t* buf, s
  * Returns 0 on success, -1 on error (errno: EINVAL for NULL written,
  * ENOBUFS for buffer too small, EBADMSG for encoding error).
  */
-int  ros_map_meta_data_encode(
+int  nav_msgs_map_meta_data_encode(
     uint8_t* buf, size_t cap, size_t* written,
     int32_t  map_load_time_sec, uint32_t map_load_time_nanosec,
     float    resolution, uint32_t width, uint32_t height,
@@ -3218,7 +3218,7 @@ int  ros_map_meta_data_encode(
  * Returns 0 on success, -1 on error (errno: EINVAL for NULL data,
  * EBADMSG for invalid CDR).
  */
-int  ros_map_meta_data_decode(
+int  nav_msgs_map_meta_data_decode(
     const uint8_t* data, size_t len,
     int32_t*  map_load_time_sec, uint32_t* map_load_time_nanosec,
     float*    resolution, uint32_t* width, uint32_t* height,
@@ -3231,26 +3231,26 @@ int  ros_map_meta_data_decode(
  */
 
 /** @brief Opaque view handle for GridCells messages. */
-typedef struct ros_grid_cells_t ros_grid_cells_t;
+typedef struct nav_msgs_grid_cells_t nav_msgs_grid_cells_t;
 
 /** @brief Parse CDR bytes into a GridCells view handle.
  *
  *  Returns NULL on error (errno: EINVAL for NULL data, EBADMSG for invalid CDR).
  *  The caller must keep the CDR buffer alive for the lifetime of the handle.
  */
-ros_grid_cells_t* ros_grid_cells_from_cdr(const uint8_t* data, size_t len);
+nav_msgs_grid_cells_t* nav_msgs_grid_cells_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a GridCells view handle. */
-void ros_grid_cells_free(ros_grid_cells_t* view);
+void nav_msgs_grid_cells_free(nav_msgs_grid_cells_t* view);
 
-int32_t         ros_grid_cells_get_stamp_sec(const ros_grid_cells_t* view);
-uint32_t        ros_grid_cells_get_stamp_nanosec(const ros_grid_cells_t* view);
-const char*     ros_grid_cells_get_frame_id(const ros_grid_cells_t* view);
-float           ros_grid_cells_get_cell_width(const ros_grid_cells_t* view);
-float           ros_grid_cells_get_cell_height(const ros_grid_cells_t* view);
+int32_t         nav_msgs_grid_cells_get_stamp_sec(const nav_msgs_grid_cells_t* view);
+uint32_t        nav_msgs_grid_cells_get_stamp_nanosec(const nav_msgs_grid_cells_t* view);
+const char*     nav_msgs_grid_cells_get_frame_id(const nav_msgs_grid_cells_t* view);
+float           nav_msgs_grid_cells_get_cell_width(const nav_msgs_grid_cells_t* view);
+float           nav_msgs_grid_cells_get_cell_height(const nav_msgs_grid_cells_t* view);
 
 /** @brief Get the number of cells in the sequence. */
-size_t          ros_grid_cells_get_len(const ros_grid_cells_t* view);
+size_t          nav_msgs_grid_cells_get_len(const nav_msgs_grid_cells_t* view);
 
 /**
  * @brief Get a cell centre point by index.
@@ -3258,28 +3258,28 @@ size_t          ros_grid_cells_get_len(const ros_grid_cells_t* view);
  * Returns 0 on success, -1 if index out of range (errno: EINVAL).
  * Output pointers may be NULL to discard the corresponding component.
  */
-int             ros_grid_cells_get_cell(const ros_grid_cells_t* view,
+int             nav_msgs_grid_cells_get_cell(const nav_msgs_grid_cells_t* view,
                                         size_t index,
                                         double* x, double* y, double* z);
 
 /** @brief Borrow the raw CDR bytes of the GridCells message. */
-const uint8_t*  ros_grid_cells_as_cdr(const ros_grid_cells_t* view, size_t* out_len);
+const uint8_t*  nav_msgs_grid_cells_as_cdr(const nav_msgs_grid_cells_t* view, size_t* out_len);
 
-/** @brief Opaque builder handle for ros_grid_cells_t messages. */
-typedef struct ros_grid_cells_builder_s ros_grid_cells_builder_t;
+/** @brief Opaque builder handle for nav_msgs_grid_cells_t messages. */
+typedef struct nav_msgs_grid_cells_builder_s nav_msgs_grid_cells_builder_t;
 
 /**
  * @brief Allocate a new GridCells builder with zero-valued defaults.
  *
- *  Must be freed with ros_grid_cells_builder_free.
+ *  Must be freed with nav_msgs_grid_cells_builder_free.
  */
-ros_grid_cells_builder_t* ros_grid_cells_builder_new(void);
+nav_msgs_grid_cells_builder_t* nav_msgs_grid_cells_builder_new(void);
 
 /** @brief Free a GridCells builder. */
-void ros_grid_cells_builder_free(ros_grid_cells_builder_t* b);
+void nav_msgs_grid_cells_builder_free(nav_msgs_grid_cells_builder_t* b);
 
 /** @brief Set the header stamp (sec, nanosec). */
-void ros_grid_cells_builder_set_stamp(ros_grid_cells_builder_t* b,
+void nav_msgs_grid_cells_builder_set_stamp(nav_msgs_grid_cells_builder_t* b,
                                       int32_t sec, uint32_t nanosec);
 
 /**
@@ -3287,13 +3287,13 @@ void ros_grid_cells_builder_set_stamp(ros_grid_cells_builder_t* b,
  *
  *  Returns 0 on success, -1 on error (errno: EINVAL for NULL builder or bad UTF-8).
  */
-int  ros_grid_cells_builder_set_frame_id(ros_grid_cells_builder_t* b, const char* s);
+int  nav_msgs_grid_cells_builder_set_frame_id(nav_msgs_grid_cells_builder_t* b, const char* s);
 
 /** @brief Set the cell_width field (metres). */
-void ros_grid_cells_builder_set_cell_width(ros_grid_cells_builder_t* b, float v);
+void nav_msgs_grid_cells_builder_set_cell_width(nav_msgs_grid_cells_builder_t* b, float v);
 
 /** @brief Set the cell_height field (metres). */
-void ros_grid_cells_builder_set_cell_height(ros_grid_cells_builder_t* b, float v);
+void nav_msgs_grid_cells_builder_set_cell_height(nav_msgs_grid_cells_builder_t* b, float v);
 
 /**
  * @brief Set the cell centre points.
@@ -3303,16 +3303,16 @@ void ros_grid_cells_builder_set_cell_height(ros_grid_cells_builder_t* b, float v
  *  NULL with count == 0 clears the cells; NULL with count > 0 returns -1
  *  (errno: EINVAL). Returns 0 on success.
  */
-int  ros_grid_cells_builder_set_cells(ros_grid_cells_builder_t* b,
+int  nav_msgs_grid_cells_builder_set_cells(nav_msgs_grid_cells_builder_t* b,
                                       const double* xyz, size_t count);
 
 /**
  * @brief Build a GridCells CDR message into a heap allocation.
  *
  *  Returns 0 on success, -1 on error.
- *  Call ros_bytes_free(*out_bytes) to release.
+ *  Call edgefirst_schemas_bytes_free(*out_bytes) to release.
  */
-int  ros_grid_cells_builder_build(ros_grid_cells_builder_t* b,
+int  nav_msgs_grid_cells_builder_build(nav_msgs_grid_cells_builder_t* b,
                                   uint8_t** out_bytes, size_t* out_len);
 
 /**
@@ -3321,7 +3321,7 @@ int  ros_grid_cells_builder_build(ros_grid_cells_builder_t* b,
  *  Returns 0 on success, -1 on error (errno: EINVAL for NULL args,
  *  ENOBUFS for buffer too small, EBADMSG for encoding error).
  */
-int  ros_grid_cells_builder_encode_into(ros_grid_cells_builder_t* b,
+int  nav_msgs_grid_cells_builder_encode_into(nav_msgs_grid_cells_builder_t* b,
                                         uint8_t* buf, size_t cap, size_t* out_len);
 
 /* =========================================================================
@@ -3330,36 +3330,36 @@ int  ros_grid_cells_builder_encode_into(ros_grid_cells_builder_t* b,
  */
 
 /** @brief Opaque view handle for OccupancyGrid messages. */
-typedef struct ros_occupancy_grid_t ros_occupancy_grid_t;
+typedef struct nav_msgs_occupancy_grid_t nav_msgs_occupancy_grid_t;
 
 /** @brief Parse CDR bytes into an OccupancyGrid view handle.
  *
  *  Returns NULL on error (errno: EINVAL for NULL data, EBADMSG for invalid CDR).
  *  The caller must keep the CDR buffer alive for the lifetime of the handle.
  */
-ros_occupancy_grid_t* ros_occupancy_grid_from_cdr(const uint8_t* data, size_t len);
+nav_msgs_occupancy_grid_t* nav_msgs_occupancy_grid_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free an OccupancyGrid view handle. */
-void ros_occupancy_grid_free(ros_occupancy_grid_t* view);
+void nav_msgs_occupancy_grid_free(nav_msgs_occupancy_grid_t* view);
 
-int32_t         ros_occupancy_grid_get_stamp_sec(const ros_occupancy_grid_t* view);
-uint32_t        ros_occupancy_grid_get_stamp_nanosec(const ros_occupancy_grid_t* view);
-const char*     ros_occupancy_grid_get_frame_id(const ros_occupancy_grid_t* view);
+int32_t         nav_msgs_occupancy_grid_get_stamp_sec(const nav_msgs_occupancy_grid_t* view);
+uint32_t        nav_msgs_occupancy_grid_get_stamp_nanosec(const nav_msgs_occupancy_grid_t* view);
+const char*     nav_msgs_occupancy_grid_get_frame_id(const nav_msgs_occupancy_grid_t* view);
 
 /**
  * @brief Get map metadata info fields (resolution, width, height, origin).
  *
  * Any of the output pointers may be NULL to discard that field.
  */
-void ros_occupancy_grid_get_info(
-    const ros_occupancy_grid_t* view,
+void nav_msgs_occupancy_grid_get_info(
+    const nav_msgs_occupancy_grid_t* view,
     int32_t*  map_load_time_sec, uint32_t* map_load_time_nanosec,
     float*    resolution, uint32_t* width, uint32_t* height,
     double*   origin_px, double* origin_py, double* origin_pz,
     double*   origin_ox, double* origin_oy, double* origin_oz, double* origin_ow);
 
 /** @brief Get the number of data cells in the occupancy grid. */
-size_t          ros_occupancy_grid_get_data_len(const ros_occupancy_grid_t* view);
+size_t          nav_msgs_occupancy_grid_get_data_len(const nav_msgs_occupancy_grid_t* view);
 
 /**
  * @brief Get a zero-copy pointer to the occupancy data (one int8_t per cell).
@@ -3367,26 +3367,26 @@ size_t          ros_occupancy_grid_get_data_len(const ros_occupancy_grid_t* view
  * The pointer is valid while the view handle lives.
  * Returns NULL if view is NULL.
  */
-const int8_t*   ros_occupancy_grid_get_data(const ros_occupancy_grid_t* view);
+const int8_t*   nav_msgs_occupancy_grid_get_data(const nav_msgs_occupancy_grid_t* view);
 
 /** @brief Borrow the raw CDR bytes of the OccupancyGrid message. */
-const uint8_t*  ros_occupancy_grid_as_cdr(const ros_occupancy_grid_t* view, size_t* out_len);
+const uint8_t*  nav_msgs_occupancy_grid_as_cdr(const nav_msgs_occupancy_grid_t* view, size_t* out_len);
 
-/** @brief Opaque builder handle for ros_occupancy_grid_t messages. */
-typedef struct ros_occupancy_grid_builder_s ros_occupancy_grid_builder_t;
+/** @brief Opaque builder handle for nav_msgs_occupancy_grid_t messages. */
+typedef struct nav_msgs_occupancy_grid_builder_s nav_msgs_occupancy_grid_builder_t;
 
 /**
  * @brief Allocate a new OccupancyGrid builder with zero-valued defaults.
  *
- *  Must be freed with ros_occupancy_grid_builder_free.
+ *  Must be freed with nav_msgs_occupancy_grid_builder_free.
  */
-ros_occupancy_grid_builder_t* ros_occupancy_grid_builder_new(void);
+nav_msgs_occupancy_grid_builder_t* nav_msgs_occupancy_grid_builder_new(void);
 
 /** @brief Free an OccupancyGrid builder. */
-void ros_occupancy_grid_builder_free(ros_occupancy_grid_builder_t* b);
+void nav_msgs_occupancy_grid_builder_free(nav_msgs_occupancy_grid_builder_t* b);
 
 /** @brief Set the header stamp (sec, nanosec). */
-void ros_occupancy_grid_builder_set_stamp(ros_occupancy_grid_builder_t* b,
+void nav_msgs_occupancy_grid_builder_set_stamp(nav_msgs_occupancy_grid_builder_t* b,
                                           int32_t sec, uint32_t nanosec);
 
 /**
@@ -3394,17 +3394,17 @@ void ros_occupancy_grid_builder_set_stamp(ros_occupancy_grid_builder_t* b,
  *
  *  Returns 0 on success, -1 on error (errno: EINVAL for NULL builder or bad UTF-8).
  */
-int  ros_occupancy_grid_builder_set_frame_id(ros_occupancy_grid_builder_t* b, const char* s);
+int  nav_msgs_occupancy_grid_builder_set_frame_id(nav_msgs_occupancy_grid_builder_t* b, const char* s);
 
 /**
  * @brief Set the MapMetaData info block.
  *
- *  Field list mirrors ros_map_meta_data_encode: map_load_time (sec, nanosec),
+ *  Field list mirrors nav_msgs_map_meta_data_encode: map_load_time (sec, nanosec),
  *  resolution, width, height, and the origin pose (position x/y/z + orientation
  *  x/y/z/w).
  */
-void ros_occupancy_grid_builder_set_info(
-    ros_occupancy_grid_builder_t* b,
+void nav_msgs_occupancy_grid_builder_set_info(
+    nav_msgs_occupancy_grid_builder_t* b,
     int32_t  map_load_time_sec, uint32_t map_load_time_nanosec,
     float    resolution, uint32_t width, uint32_t height,
     double   origin_px, double origin_py, double origin_pz,
@@ -3417,16 +3417,16 @@ void ros_occupancy_grid_builder_set_info(
  *  NULL with len == 0 clears the data; NULL with len > 0 returns -1
  *  (errno: EINVAL). Returns 0 on success.
  */
-int  ros_occupancy_grid_builder_set_data(ros_occupancy_grid_builder_t* b,
+int  nav_msgs_occupancy_grid_builder_set_data(nav_msgs_occupancy_grid_builder_t* b,
                                          const int8_t* data, size_t len);
 
 /**
  * @brief Build an OccupancyGrid CDR message into a heap allocation.
  *
  *  Returns 0 on success, -1 on error.
- *  Call ros_bytes_free(*out_bytes) to release.
+ *  Call edgefirst_schemas_bytes_free(*out_bytes) to release.
  */
-int  ros_occupancy_grid_builder_build(ros_occupancy_grid_builder_t* b,
+int  nav_msgs_occupancy_grid_builder_build(nav_msgs_occupancy_grid_builder_t* b,
                                       uint8_t** out_bytes, size_t* out_len);
 
 /**
@@ -3435,7 +3435,7 @@ int  ros_occupancy_grid_builder_build(ros_occupancy_grid_builder_t* b,
  *  Returns 0 on success, -1 on error (errno: EINVAL for NULL args,
  *  ENOBUFS for buffer too small, EBADMSG for encoding error).
  */
-int  ros_occupancy_grid_builder_encode_into(ros_occupancy_grid_builder_t* b,
+int  nav_msgs_occupancy_grid_builder_encode_into(nav_msgs_occupancy_grid_builder_t* b,
                                             uint8_t* buf, size_t cap, size_t* out_len);
 
 /* =========================================================================
@@ -3444,24 +3444,24 @@ int  ros_occupancy_grid_builder_encode_into(ros_occupancy_grid_builder_t* b,
  */
 
 /** @brief Opaque view handle for Path messages. */
-typedef struct ros_path_t ros_path_t;
+typedef struct nav_msgs_path_t nav_msgs_path_t;
 
 /** @brief Parse CDR bytes into a Path view handle.
  *
  *  Returns NULL on error (errno: EINVAL for NULL data, EBADMSG for invalid CDR).
  *  The caller must keep the CDR buffer alive for the lifetime of the handle.
  */
-ros_path_t* ros_path_from_cdr(const uint8_t* data, size_t len);
+nav_msgs_path_t* nav_msgs_path_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a Path view handle. */
-void ros_path_free(ros_path_t* view);
+void nav_msgs_path_free(nav_msgs_path_t* view);
 
-int32_t         ros_path_get_stamp_sec(const ros_path_t* view);
-uint32_t        ros_path_get_stamp_nanosec(const ros_path_t* view);
-const char*     ros_path_get_frame_id(const ros_path_t* view);
+int32_t         nav_msgs_path_get_stamp_sec(const nav_msgs_path_t* view);
+uint32_t        nav_msgs_path_get_stamp_nanosec(const nav_msgs_path_t* view);
+const char*     nav_msgs_path_get_frame_id(const nav_msgs_path_t* view);
 
 /** @brief Get the number of poses in the path. */
-size_t          ros_path_get_len(const ros_path_t* view);
+size_t          nav_msgs_path_get_len(const nav_msgs_path_t* view);
 
 /**
  * @brief Get a PoseStamped by index.
@@ -3473,10 +3473,10 @@ size_t          ros_path_get_len(const ros_path_t* view);
  *
  * Note: the PoseStamped sequence is variable-length, so each call scans from
  * the start to @p index — this is O(n) per call. Calling it across 0..len is
- * therefore O(n^2); for bulk traversal use the ros_path_iter_* cursor below
+ * therefore O(n^2); for bulk traversal use the nav_msgs_path_iter_* cursor below
  * (a single O(n) pass).
  */
-int             ros_path_get_pose(const ros_path_t* view,
+int             nav_msgs_path_get_pose(const nav_msgs_path_t* view,
                                   size_t index,
                                   int32_t*  stamp_sec, uint32_t* stamp_nanosec,
                                   const char** pose_frame_id,
@@ -3484,21 +3484,21 @@ int             ros_path_get_pose(const ros_path_t* view,
                                   double* ox, double* oy, double* oz, double* ow);
 
 /** @brief Borrow the raw CDR bytes of the Path message. */
-const uint8_t*  ros_path_as_cdr(const ros_path_t* view, size_t* out_len);
+const uint8_t*  nav_msgs_path_as_cdr(const nav_msgs_path_t* view, size_t* out_len);
 
 /** @brief Opaque forward cursor over a Path's PoseStamped sequence. */
-typedef struct ros_path_iter_t ros_path_iter_t;
+typedef struct nav_msgs_path_iter_t nav_msgs_path_iter_t;
 
 /** @brief Create a forward cursor over a Path's poses for O(n) bulk traversal.
  *
  *  Returns a heap-allocated iterator handle, or NULL (errno EINVAL) if
- *  @p view is NULL. Walking the whole path with ros_path_iter_next is a
- *  single O(n) pass, unlike ros_path_get_pose which is O(n) per call.
+ *  @p view is NULL. Walking the whole path with nav_msgs_path_iter_next is a
+ *  single O(n) pass, unlike nav_msgs_path_get_pose which is O(n) per call.
  *
  *  Lifetime: the iterator borrows the same CDR buffer as @p view and must not
- *  outlive it (nor the buffer it was parsed from). Free with ros_path_iter_free.
+ *  outlive it (nor the buffer it was parsed from). Free with nav_msgs_path_iter_free.
  */
-ros_path_iter_t* ros_path_iter_new(const ros_path_t* view);
+nav_msgs_path_iter_t* nav_msgs_path_iter_new(const nav_msgs_path_t* view);
 
 /** @brief Advance the cursor and yield the next pose.
  *
@@ -3506,39 +3506,39 @@ ros_path_iter_t* ros_path_iter_new(const ros_path_t* view);
  *  the sequence is exhausted. A NULL @p it also returns 0 and sets errno
  *  EINVAL. @p out_frame_id borrows the per-element frame_id from the CDR
  *  buffer (NUL-terminated in place), valid while the buffer lives. The
- *  out-param shape matches the pose fields of ros_path_get_pose.
+ *  out-param shape matches the pose fields of nav_msgs_path_get_pose.
  */
-int ros_path_iter_next(ros_path_iter_t* it,
+int nav_msgs_path_iter_next(nav_msgs_path_iter_t* it,
                        int32_t* out_sec, uint32_t* out_nanosec,
                        const char** out_frame_id,
                        double* out_px, double* out_py, double* out_pz,
                        double* out_ox, double* out_oy, double* out_oz, double* out_ow);
 
-/** @brief Free a Path pose cursor created by ros_path_iter_new. NULL-safe. */
-void ros_path_iter_free(ros_path_iter_t* it);
+/** @brief Free a Path pose cursor created by nav_msgs_path_iter_new. NULL-safe. */
+void nav_msgs_path_iter_free(nav_msgs_path_iter_t* it);
 
-/** @brief Opaque builder handle for ros_path_t messages. */
-typedef struct ros_path_builder_s ros_path_builder_t;
+/** @brief Opaque builder handle for nav_msgs_path_t messages. */
+typedef struct nav_msgs_path_builder_s nav_msgs_path_builder_t;
 
 /**
  * @brief Allocate a new Path builder with zero-valued defaults and no poses.
  *
- *  Must be freed with ros_path_builder_free.
+ *  Must be freed with nav_msgs_path_builder_free.
  */
-ros_path_builder_t* ros_path_builder_new(void);
+nav_msgs_path_builder_t* nav_msgs_path_builder_new(void);
 
 /** @brief Free a Path builder. */
-void ros_path_builder_free(ros_path_builder_t* b);
+void nav_msgs_path_builder_free(nav_msgs_path_builder_t* b);
 
 /** @brief Set the header stamp (sec, nanosec). */
-void ros_path_builder_set_stamp(ros_path_builder_t* b, int32_t sec, uint32_t nanosec);
+void nav_msgs_path_builder_set_stamp(nav_msgs_path_builder_t* b, int32_t sec, uint32_t nanosec);
 
 /**
  * @brief Set the header frame_id string.
  *
  *  Returns 0 on success, -1 on error (errno: EINVAL for NULL builder or bad UTF-8).
  */
-int  ros_path_builder_set_frame_id(ros_path_builder_t* b, const char* s);
+int  nav_msgs_path_builder_set_frame_id(nav_msgs_path_builder_t* b, const char* s);
 
 /**
  * @brief Append one PoseStamped to the path.
@@ -3548,7 +3548,7 @@ int  ros_path_builder_set_frame_id(ros_path_builder_t* b, const char* s);
  *  orientation quaternion (ox, oy, oz, ow). Returns 0 on success, or -1
  *  (errno: EINVAL) if @p b is NULL or @p frame_id is NULL / not valid UTF-8.
  */
-int  ros_path_builder_add_pose(ros_path_builder_t* b,
+int  nav_msgs_path_builder_add_pose(nav_msgs_path_builder_t* b,
                                int32_t sec, uint32_t nanosec, const char* frame_id,
                                double px, double py, double pz,
                                double ox, double oy, double oz, double ow);
@@ -3557,9 +3557,9 @@ int  ros_path_builder_add_pose(ros_path_builder_t* b,
  * @brief Build a Path CDR message into a heap allocation.
  *
  *  Returns 0 on success, -1 on error.
- *  Call ros_bytes_free(*out_bytes) to release.
+ *  Call edgefirst_schemas_bytes_free(*out_bytes) to release.
  */
-int  ros_path_builder_build(ros_path_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  nav_msgs_path_builder_build(nav_msgs_path_builder_t* b, uint8_t** out_bytes, size_t* out_len);
 
 /**
  * @brief Encode a Path CDR message into a caller-supplied buffer.
@@ -3567,7 +3567,7 @@ int  ros_path_builder_build(ros_path_builder_t* b, uint8_t** out_bytes, size_t* 
  *  Returns 0 on success, -1 on error (errno: EINVAL for NULL args,
  *  ENOBUFS for buffer too small, EBADMSG for encoding error).
  */
-int  ros_path_builder_encode_into(ros_path_builder_t* b,
+int  nav_msgs_path_builder_encode_into(nav_msgs_path_builder_t* b,
                                   uint8_t* buf, size_t cap, size_t* out_len);
 
 /* =========================================================================
@@ -3589,148 +3589,148 @@ int  ros_path_builder_encode_into(ros_path_builder_t* b,
 #define ROS_VIBRATION_UNIT_VELOCITY_IN_PER_S 5
 #define ROS_VIBRATION_UNIT_DISPLACEMENT_MIL  6
 
-typedef struct ros_vibration_t ros_vibration_t;
+typedef struct edgefirst_msgs_vibration_t edgefirst_msgs_vibration_t;
 
-ros_vibration_t* ros_vibration_from_cdr(const uint8_t* data, size_t len);
-void ros_vibration_free(ros_vibration_t* view);
-int32_t ros_vibration_get_stamp_sec(const ros_vibration_t* view);
-uint32_t ros_vibration_get_stamp_nanosec(const ros_vibration_t* view);
-const char* ros_vibration_get_frame_id(const ros_vibration_t* view);
-uint8_t ros_vibration_get_measurement_type(const ros_vibration_t* view);
-uint8_t ros_vibration_get_unit(const ros_vibration_t* view);
-float ros_vibration_get_band_lower_hz(const ros_vibration_t* view);
-float ros_vibration_get_band_upper_hz(const ros_vibration_t* view);
-void ros_vibration_get_vibration(const ros_vibration_t* view,
+edgefirst_msgs_vibration_t* edgefirst_msgs_vibration_from_cdr(const uint8_t* data, size_t len);
+void edgefirst_msgs_vibration_free(edgefirst_msgs_vibration_t* view);
+int32_t edgefirst_msgs_vibration_get_stamp_sec(const edgefirst_msgs_vibration_t* view);
+uint32_t edgefirst_msgs_vibration_get_stamp_nanosec(const edgefirst_msgs_vibration_t* view);
+const char* edgefirst_msgs_vibration_get_frame_id(const edgefirst_msgs_vibration_t* view);
+uint8_t edgefirst_msgs_vibration_get_measurement_type(const edgefirst_msgs_vibration_t* view);
+uint8_t edgefirst_msgs_vibration_get_unit(const edgefirst_msgs_vibration_t* view);
+float edgefirst_msgs_vibration_get_band_lower_hz(const edgefirst_msgs_vibration_t* view);
+float edgefirst_msgs_vibration_get_band_upper_hz(const edgefirst_msgs_vibration_t* view);
+void edgefirst_msgs_vibration_get_vibration(const edgefirst_msgs_vibration_t* view,
                                  double* x, double* y, double* z);
-uint32_t ros_vibration_get_clipping_len(const ros_vibration_t* view);
+uint32_t edgefirst_msgs_vibration_get_clipping_len(const edgefirst_msgs_vibration_t* view);
 /** Copy up to `cap` clipping counters into `out`; returns total element count. */
-uint32_t ros_vibration_get_clipping(const ros_vibration_t* view,
+uint32_t edgefirst_msgs_vibration_get_clipping(const edgefirst_msgs_vibration_t* view,
                                     uint32_t* out, size_t cap);
-const uint8_t* ros_vibration_as_cdr(const ros_vibration_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_vibration_as_cdr(const edgefirst_msgs_vibration_t* view, size_t* out_len);
 
 /* ============================================================================
  * edgefirst_msgs - Mask (builder, 3.2.0+)
  * ========================================================================= */
-typedef struct ros_mask_builder_s ros_mask_builder_t;
-ros_mask_builder_t* ros_mask_builder_new(void);
-void ros_mask_builder_free(ros_mask_builder_t* b);
-void ros_mask_builder_set_height(ros_mask_builder_t* b, uint32_t v);
-void ros_mask_builder_set_width(ros_mask_builder_t* b, uint32_t v);
-void ros_mask_builder_set_length(ros_mask_builder_t* b, uint32_t v);
-int  ros_mask_builder_set_encoding(ros_mask_builder_t* b, const char* s);
+typedef struct edgefirst_msgs_mask_builder_s edgefirst_msgs_mask_builder_t;
+edgefirst_msgs_mask_builder_t* edgefirst_msgs_mask_builder_new(void);
+void edgefirst_msgs_mask_builder_free(edgefirst_msgs_mask_builder_t* b);
+void edgefirst_msgs_mask_builder_set_height(edgefirst_msgs_mask_builder_t* b, uint32_t v);
+void edgefirst_msgs_mask_builder_set_width(edgefirst_msgs_mask_builder_t* b, uint32_t v);
+void edgefirst_msgs_mask_builder_set_length(edgefirst_msgs_mask_builder_t* b, uint32_t v);
+int  edgefirst_msgs_mask_builder_set_encoding(edgefirst_msgs_mask_builder_t* b, const char* s);
 /** BORROWED — caller keeps `data` valid until next setter / build / free.
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_mask_builder_set_mask(ros_mask_builder_t* b,
+int  edgefirst_msgs_mask_builder_set_mask(edgefirst_msgs_mask_builder_t* b,
                                const uint8_t* data, size_t len);
-void ros_mask_builder_set_boxed(ros_mask_builder_t* b, bool v);
-int  ros_mask_builder_build(ros_mask_builder_t* b,
+void edgefirst_msgs_mask_builder_set_boxed(edgefirst_msgs_mask_builder_t* b, bool v);
+int  edgefirst_msgs_mask_builder_build(edgefirst_msgs_mask_builder_t* b,
                             uint8_t** out_bytes, size_t* out_len);
-int  ros_mask_builder_encode_into(ros_mask_builder_t* b,
+int  edgefirst_msgs_mask_builder_encode_into(edgefirst_msgs_mask_builder_t* b,
                                   uint8_t* buf, size_t cap, size_t* out_len);
 
 /* ============================================================================
  * edgefirst_msgs - LocalTime (builder, 3.2.0+)
  * ========================================================================= */
-typedef struct ros_local_time_builder_s ros_local_time_builder_t;
-ros_local_time_builder_t* ros_local_time_builder_new(void);
-void ros_local_time_builder_free(ros_local_time_builder_t* b);
-void ros_local_time_builder_set_stamp(ros_local_time_builder_t* b,
+typedef struct edgefirst_msgs_local_time_builder_s edgefirst_msgs_local_time_builder_t;
+edgefirst_msgs_local_time_builder_t* edgefirst_msgs_local_time_builder_new(void);
+void edgefirst_msgs_local_time_builder_free(edgefirst_msgs_local_time_builder_t* b);
+void edgefirst_msgs_local_time_builder_set_stamp(edgefirst_msgs_local_time_builder_t* b,
                                       int32_t sec, uint32_t nsec);
-int  ros_local_time_builder_set_frame_id(ros_local_time_builder_t* b,
+int  edgefirst_msgs_local_time_builder_set_frame_id(edgefirst_msgs_local_time_builder_t* b,
                                          const char* s);
-void ros_local_time_builder_set_date(ros_local_time_builder_t* b,
+void edgefirst_msgs_local_time_builder_set_date(edgefirst_msgs_local_time_builder_t* b,
                                      uint16_t year, uint8_t month, uint8_t day);
-void ros_local_time_builder_set_time(ros_local_time_builder_t* b,
+void edgefirst_msgs_local_time_builder_set_time(edgefirst_msgs_local_time_builder_t* b,
                                      int32_t sec, uint32_t nsec);
-void ros_local_time_builder_set_timezone(ros_local_time_builder_t* b, int16_t v);
-int  ros_local_time_builder_build(ros_local_time_builder_t* b,
+void edgefirst_msgs_local_time_builder_set_timezone(edgefirst_msgs_local_time_builder_t* b, int16_t v);
+int  edgefirst_msgs_local_time_builder_build(edgefirst_msgs_local_time_builder_t* b,
                                   uint8_t** out_bytes, size_t* out_len);
-int  ros_local_time_builder_encode_into(ros_local_time_builder_t* b,
+int  edgefirst_msgs_local_time_builder_encode_into(edgefirst_msgs_local_time_builder_t* b,
                                         uint8_t* buf, size_t cap,
                                         size_t* out_len);
 
 /* ============================================================================
  * edgefirst_msgs - RadarCube (builder, 3.2.0+)
  * ========================================================================= */
-typedef struct ros_radar_cube_builder_s ros_radar_cube_builder_t;
-ros_radar_cube_builder_t* ros_radar_cube_builder_new(void);
-void ros_radar_cube_builder_free(ros_radar_cube_builder_t* b);
-void ros_radar_cube_builder_set_stamp(ros_radar_cube_builder_t* b,
+typedef struct edgefirst_msgs_radar_cube_builder_s edgefirst_msgs_radar_cube_builder_t;
+edgefirst_msgs_radar_cube_builder_t* edgefirst_msgs_radar_cube_builder_new(void);
+void edgefirst_msgs_radar_cube_builder_free(edgefirst_msgs_radar_cube_builder_t* b);
+void edgefirst_msgs_radar_cube_builder_set_stamp(edgefirst_msgs_radar_cube_builder_t* b,
                                       int32_t sec, uint32_t nsec);
-int  ros_radar_cube_builder_set_frame_id(ros_radar_cube_builder_t* b,
+int  edgefirst_msgs_radar_cube_builder_set_frame_id(edgefirst_msgs_radar_cube_builder_t* b,
                                          const char* s);
-void ros_radar_cube_builder_set_timestamp(ros_radar_cube_builder_t* b, uint64_t v);
+void edgefirst_msgs_radar_cube_builder_set_timestamp(edgefirst_msgs_radar_cube_builder_t* b, uint64_t v);
 /** BORROWED — caller keeps pointer valid until next setter / build / free.
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_radar_cube_builder_set_layout(ros_radar_cube_builder_t* b,
+int  edgefirst_msgs_radar_cube_builder_set_layout(edgefirst_msgs_radar_cube_builder_t* b,
                                        const uint8_t* data, size_t len);
 /** BORROWED.
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_radar_cube_builder_set_shape(ros_radar_cube_builder_t* b,
+int  edgefirst_msgs_radar_cube_builder_set_shape(edgefirst_msgs_radar_cube_builder_t* b,
                                       const uint16_t* data, size_t len);
 /** BORROWED.
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_radar_cube_builder_set_scales(ros_radar_cube_builder_t* b,
+int  edgefirst_msgs_radar_cube_builder_set_scales(edgefirst_msgs_radar_cube_builder_t* b,
                                        const float* data, size_t len);
 /** BORROWED.
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_radar_cube_builder_set_cube(ros_radar_cube_builder_t* b,
+int  edgefirst_msgs_radar_cube_builder_set_cube(edgefirst_msgs_radar_cube_builder_t* b,
                                      const int16_t* data, size_t len);
-void ros_radar_cube_builder_set_is_complex(ros_radar_cube_builder_t* b, bool v);
-int  ros_radar_cube_builder_build(ros_radar_cube_builder_t* b,
+void edgefirst_msgs_radar_cube_builder_set_is_complex(edgefirst_msgs_radar_cube_builder_t* b, bool v);
+int  edgefirst_msgs_radar_cube_builder_build(edgefirst_msgs_radar_cube_builder_t* b,
                                   uint8_t** out_bytes, size_t* out_len);
-int  ros_radar_cube_builder_encode_into(ros_radar_cube_builder_t* b,
+int  edgefirst_msgs_radar_cube_builder_encode_into(edgefirst_msgs_radar_cube_builder_t* b,
                                         uint8_t* buf, size_t cap,
                                         size_t* out_len);
 
 /* ============================================================================
  * edgefirst_msgs - RadarInfo (builder, 3.2.0+)
  * ========================================================================= */
-typedef struct ros_radar_info_builder_s ros_radar_info_builder_t;
-ros_radar_info_builder_t* ros_radar_info_builder_new(void);
-void ros_radar_info_builder_free(ros_radar_info_builder_t* b);
-void ros_radar_info_builder_set_stamp(ros_radar_info_builder_t* b,
+typedef struct edgefirst_msgs_radar_info_builder_s edgefirst_msgs_radar_info_builder_t;
+edgefirst_msgs_radar_info_builder_t* edgefirst_msgs_radar_info_builder_new(void);
+void edgefirst_msgs_radar_info_builder_free(edgefirst_msgs_radar_info_builder_t* b);
+void edgefirst_msgs_radar_info_builder_set_stamp(edgefirst_msgs_radar_info_builder_t* b,
                                       int32_t sec, uint32_t nsec);
-int  ros_radar_info_builder_set_frame_id(ros_radar_info_builder_t* b,
+int  edgefirst_msgs_radar_info_builder_set_frame_id(edgefirst_msgs_radar_info_builder_t* b,
                                          const char* s);
-int  ros_radar_info_builder_set_center_frequency(ros_radar_info_builder_t* b,
+int  edgefirst_msgs_radar_info_builder_set_center_frequency(edgefirst_msgs_radar_info_builder_t* b,
                                                  const char* s);
-int  ros_radar_info_builder_set_frequency_sweep(ros_radar_info_builder_t* b,
+int  edgefirst_msgs_radar_info_builder_set_frequency_sweep(edgefirst_msgs_radar_info_builder_t* b,
                                                 const char* s);
-int  ros_radar_info_builder_set_range_toggle(ros_radar_info_builder_t* b,
+int  edgefirst_msgs_radar_info_builder_set_range_toggle(edgefirst_msgs_radar_info_builder_t* b,
                                              const char* s);
-int  ros_radar_info_builder_set_detection_sensitivity(ros_radar_info_builder_t* b,
+int  edgefirst_msgs_radar_info_builder_set_detection_sensitivity(edgefirst_msgs_radar_info_builder_t* b,
                                                       const char* s);
-void ros_radar_info_builder_set_cube(ros_radar_info_builder_t* b, bool v);
-int  ros_radar_info_builder_build(ros_radar_info_builder_t* b,
+void edgefirst_msgs_radar_info_builder_set_cube(edgefirst_msgs_radar_info_builder_t* b, bool v);
+int  edgefirst_msgs_radar_info_builder_build(edgefirst_msgs_radar_info_builder_t* b,
                                   uint8_t** out_bytes, size_t* out_len);
-int  ros_radar_info_builder_encode_into(ros_radar_info_builder_t* b,
+int  edgefirst_msgs_radar_info_builder_encode_into(edgefirst_msgs_radar_info_builder_t* b,
                                         uint8_t* buf, size_t cap,
                                         size_t* out_len);
 
 /* ============================================================================
  * edgefirst_msgs - Track (builder, 3.2.0+)
  * ========================================================================= */
-typedef struct ros_track_builder_s ros_track_builder_t;
-ros_track_builder_t* ros_track_builder_new(void);
-void ros_track_builder_free(ros_track_builder_t* b);
-int  ros_track_builder_set_id(ros_track_builder_t* b, const char* s);
-void ros_track_builder_set_lifetime(ros_track_builder_t* b, int32_t v);
-void ros_track_builder_set_created(ros_track_builder_t* b,
+typedef struct edgefirst_msgs_track_builder_s edgefirst_msgs_track_builder_t;
+edgefirst_msgs_track_builder_t* edgefirst_msgs_track_builder_new(void);
+void edgefirst_msgs_track_builder_free(edgefirst_msgs_track_builder_t* b);
+int  edgefirst_msgs_track_builder_set_id(edgefirst_msgs_track_builder_t* b, const char* s);
+void edgefirst_msgs_track_builder_set_lifetime(edgefirst_msgs_track_builder_t* b, int32_t v);
+void edgefirst_msgs_track_builder_set_created(edgefirst_msgs_track_builder_t* b,
                                    int32_t sec, uint32_t nsec);
-int  ros_track_builder_build(ros_track_builder_t* b,
+int  edgefirst_msgs_track_builder_build(edgefirst_msgs_track_builder_t* b,
                              uint8_t** out_bytes, size_t* out_len);
-int  ros_track_builder_encode_into(ros_track_builder_t* b,
+int  edgefirst_msgs_track_builder_encode_into(edgefirst_msgs_track_builder_t* b,
                                    uint8_t* buf, size_t cap, size_t* out_len);
 
 /* ============================================================================
@@ -3748,7 +3748,7 @@ int  ros_track_builder_encode_into(ros_track_builder_t* b,
  * strings; NULL or invalid UTF-8 causes the subsequent `build` /
  * `encode_into` call to fail with `-1` and `errno = EINVAL`.
  */
-typedef struct ros_detect_box_elem_s {
+typedef struct edgefirst_msgs_detect_box_elem_s {
     float    center_x;
     float    center_y;
     float    width;
@@ -3761,57 +3761,57 @@ typedef struct ros_detect_box_elem_s {
     int32_t  track_lifetime;
     int32_t  track_created_sec;
     uint32_t track_created_nanosec;
-} ros_detect_box_elem_t;
+} edgefirst_msgs_detect_box_elem_t;
 
-typedef struct ros_detect_box_builder_s ros_detect_box_builder_t;
-ros_detect_box_builder_t* ros_detect_box_builder_new(void);
-void ros_detect_box_builder_free(ros_detect_box_builder_t* b);
-void ros_detect_box_builder_set_center_x(ros_detect_box_builder_t* b, float v);
-void ros_detect_box_builder_set_center_y(ros_detect_box_builder_t* b, float v);
-void ros_detect_box_builder_set_width(ros_detect_box_builder_t* b, float v);
-void ros_detect_box_builder_set_height(ros_detect_box_builder_t* b, float v);
-int  ros_detect_box_builder_set_label(ros_detect_box_builder_t* b, const char* s);
-void ros_detect_box_builder_set_score(ros_detect_box_builder_t* b, float v);
-void ros_detect_box_builder_set_distance(ros_detect_box_builder_t* b, float v);
-void ros_detect_box_builder_set_speed(ros_detect_box_builder_t* b, float v);
-int  ros_detect_box_builder_set_track_id(ros_detect_box_builder_t* b,
+typedef struct edgefirst_msgs_detect_box_builder_s edgefirst_msgs_detect_box_builder_t;
+edgefirst_msgs_detect_box_builder_t* edgefirst_msgs_detect_box_builder_new(void);
+void edgefirst_msgs_detect_box_builder_free(edgefirst_msgs_detect_box_builder_t* b);
+void edgefirst_msgs_detect_box_builder_set_center_x(edgefirst_msgs_detect_box_builder_t* b, float v);
+void edgefirst_msgs_detect_box_builder_set_center_y(edgefirst_msgs_detect_box_builder_t* b, float v);
+void edgefirst_msgs_detect_box_builder_set_width(edgefirst_msgs_detect_box_builder_t* b, float v);
+void edgefirst_msgs_detect_box_builder_set_height(edgefirst_msgs_detect_box_builder_t* b, float v);
+int  edgefirst_msgs_detect_box_builder_set_label(edgefirst_msgs_detect_box_builder_t* b, const char* s);
+void edgefirst_msgs_detect_box_builder_set_score(edgefirst_msgs_detect_box_builder_t* b, float v);
+void edgefirst_msgs_detect_box_builder_set_distance(edgefirst_msgs_detect_box_builder_t* b, float v);
+void edgefirst_msgs_detect_box_builder_set_speed(edgefirst_msgs_detect_box_builder_t* b, float v);
+int  edgefirst_msgs_detect_box_builder_set_track_id(edgefirst_msgs_detect_box_builder_t* b,
                                          const char* s);
-void ros_detect_box_builder_set_track_lifetime(ros_detect_box_builder_t* b,
+void edgefirst_msgs_detect_box_builder_set_track_lifetime(edgefirst_msgs_detect_box_builder_t* b,
                                                int32_t v);
-void ros_detect_box_builder_set_track_created(ros_detect_box_builder_t* b,
+void edgefirst_msgs_detect_box_builder_set_track_created(edgefirst_msgs_detect_box_builder_t* b,
                                               int32_t sec, uint32_t nsec);
-int  ros_detect_box_builder_build(ros_detect_box_builder_t* b,
+int  edgefirst_msgs_detect_box_builder_build(edgefirst_msgs_detect_box_builder_t* b,
                                   uint8_t** out_bytes, size_t* out_len);
-int  ros_detect_box_builder_encode_into(ros_detect_box_builder_t* b,
+int  edgefirst_msgs_detect_box_builder_encode_into(edgefirst_msgs_detect_box_builder_t* b,
                                         uint8_t* buf, size_t cap,
                                         size_t* out_len);
 
 /* ============================================================================
  * edgefirst_msgs - Detect (builder, 3.2.0+)
  * ========================================================================= */
-typedef struct ros_detect_builder_s ros_detect_builder_t;
-ros_detect_builder_t* ros_detect_builder_new(void);
-void ros_detect_builder_free(ros_detect_builder_t* b);
-void ros_detect_builder_set_stamp(ros_detect_builder_t* b,
+typedef struct edgefirst_msgs_detect_builder_s edgefirst_msgs_detect_builder_t;
+edgefirst_msgs_detect_builder_t* edgefirst_msgs_detect_builder_new(void);
+void edgefirst_msgs_detect_builder_free(edgefirst_msgs_detect_builder_t* b);
+void edgefirst_msgs_detect_builder_set_stamp(edgefirst_msgs_detect_builder_t* b,
                                   int32_t sec, uint32_t nsec);
-int  ros_detect_builder_set_frame_id(ros_detect_builder_t* b, const char* s);
-void ros_detect_builder_set_input_timestamp(ros_detect_builder_t* b,
+int  edgefirst_msgs_detect_builder_set_frame_id(edgefirst_msgs_detect_builder_t* b, const char* s);
+void edgefirst_msgs_detect_builder_set_input_timestamp(edgefirst_msgs_detect_builder_t* b,
                                             int32_t sec, uint32_t nsec);
-void ros_detect_builder_set_model_time(ros_detect_builder_t* b,
+void edgefirst_msgs_detect_builder_set_model_time(edgefirst_msgs_detect_builder_t* b,
                                        int32_t sec, uint32_t nsec);
-void ros_detect_builder_set_output_time(ros_detect_builder_t* b,
+void edgefirst_msgs_detect_builder_set_output_time(edgefirst_msgs_detect_builder_t* b,
                                         int32_t sec, uint32_t nsec);
 /** BORROWED — each element's label/track_id must remain valid until next
  *  setter, build, encode_into, or free.
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_detect_builder_set_boxes(ros_detect_builder_t* b,
-                                  const ros_detect_box_elem_t* boxes,
+int  edgefirst_msgs_detect_builder_set_boxes(edgefirst_msgs_detect_builder_t* b,
+                                  const edgefirst_msgs_detect_box_elem_t* boxes,
                                   size_t count);
-int  ros_detect_builder_build(ros_detect_builder_t* b,
+int  edgefirst_msgs_detect_builder_build(edgefirst_msgs_detect_builder_t* b,
                               uint8_t** out_bytes, size_t* out_len);
-int  ros_detect_builder_encode_into(ros_detect_builder_t* b,
+int  edgefirst_msgs_detect_builder_encode_into(edgefirst_msgs_detect_builder_t* b,
                                     uint8_t* buf, size_t cap, size_t* out_len);
 
 /* ============================================================================
@@ -3827,7 +3827,7 @@ int  ros_detect_builder_encode_into(ros_detect_builder_t* b,
  * to fail with `-1` and `errno = EINVAL`. `mask == NULL` with
  * `mask_len > 0` is likewise rejected.
  */
-typedef struct ros_mask_elem_s {
+typedef struct edgefirst_msgs_mask_elem_s {
     uint32_t height;
     uint32_t width;
     uint32_t length;
@@ -3835,65 +3835,65 @@ typedef struct ros_mask_elem_s {
     const uint8_t* mask;
     size_t   mask_len;
     bool     boxed;
-} ros_mask_elem_t;
+} edgefirst_msgs_mask_elem_t;
 
-typedef struct ros_model_builder_s ros_model_builder_t;
-ros_model_builder_t* ros_model_builder_new(void);
-void ros_model_builder_free(ros_model_builder_t* b);
-void ros_model_builder_set_stamp(ros_model_builder_t* b,
+typedef struct edgefirst_msgs_model_builder_s edgefirst_msgs_model_builder_t;
+edgefirst_msgs_model_builder_t* edgefirst_msgs_model_builder_new(void);
+void edgefirst_msgs_model_builder_free(edgefirst_msgs_model_builder_t* b);
+void edgefirst_msgs_model_builder_set_stamp(edgefirst_msgs_model_builder_t* b,
                                  int32_t sec, uint32_t nsec);
-int  ros_model_builder_set_frame_id(ros_model_builder_t* b, const char* s);
-void ros_model_builder_set_input_time(ros_model_builder_t* b,
+int  edgefirst_msgs_model_builder_set_frame_id(edgefirst_msgs_model_builder_t* b, const char* s);
+void edgefirst_msgs_model_builder_set_input_time(edgefirst_msgs_model_builder_t* b,
                                       int32_t sec, uint32_t nsec);
-void ros_model_builder_set_model_time(ros_model_builder_t* b,
+void edgefirst_msgs_model_builder_set_model_time(edgefirst_msgs_model_builder_t* b,
                                       int32_t sec, uint32_t nsec);
-void ros_model_builder_set_output_time(ros_model_builder_t* b,
+void edgefirst_msgs_model_builder_set_output_time(edgefirst_msgs_model_builder_t* b,
                                        int32_t sec, uint32_t nsec);
-void ros_model_builder_set_decode_time(ros_model_builder_t* b,
+void edgefirst_msgs_model_builder_set_decode_time(edgefirst_msgs_model_builder_t* b,
                                        int32_t sec, uint32_t nsec);
-/** BORROWED — see ros_detect_builder_set_boxes.
+/** BORROWED — see edgefirst_msgs_detect_builder_set_boxes.
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_model_builder_set_boxes(ros_model_builder_t* b,
-                                 const ros_detect_box_elem_t* boxes,
+int  edgefirst_msgs_model_builder_set_boxes(edgefirst_msgs_model_builder_t* b,
+                                 const edgefirst_msgs_detect_box_elem_t* boxes,
                                  size_t count);
 /** BORROWED — each element's encoding/mask must remain valid.
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_model_builder_set_masks(ros_model_builder_t* b,
-                                 const ros_mask_elem_t* masks,
+int  edgefirst_msgs_model_builder_set_masks(edgefirst_msgs_model_builder_t* b,
+                                 const edgefirst_msgs_mask_elem_t* masks,
                                  size_t count);
-int  ros_model_builder_build(ros_model_builder_t* b,
+int  edgefirst_msgs_model_builder_build(edgefirst_msgs_model_builder_t* b,
                              uint8_t** out_bytes, size_t* out_len);
-int  ros_model_builder_encode_into(ros_model_builder_t* b,
+int  edgefirst_msgs_model_builder_encode_into(edgefirst_msgs_model_builder_t* b,
                                    uint8_t* buf, size_t cap, size_t* out_len);
 
 /* ============================================================================
  * edgefirst_msgs - ModelInfo (builder, 3.2.0+)
  * ========================================================================= */
-typedef struct ros_model_info_builder_s ros_model_info_builder_t;
-ros_model_info_builder_t* ros_model_info_builder_new(void);
-void ros_model_info_builder_free(ros_model_info_builder_t* b);
-void ros_model_info_builder_set_stamp(ros_model_info_builder_t* b,
+typedef struct edgefirst_msgs_model_info_builder_s edgefirst_msgs_model_info_builder_t;
+edgefirst_msgs_model_info_builder_t* edgefirst_msgs_model_info_builder_new(void);
+void edgefirst_msgs_model_info_builder_free(edgefirst_msgs_model_info_builder_t* b);
+void edgefirst_msgs_model_info_builder_set_stamp(edgefirst_msgs_model_info_builder_t* b,
                                       int32_t sec, uint32_t nsec);
-int  ros_model_info_builder_set_frame_id(ros_model_info_builder_t* b,
+int  edgefirst_msgs_model_info_builder_set_frame_id(edgefirst_msgs_model_info_builder_t* b,
                                          const char* s);
 /** BORROWED until next setter / build / free.
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_model_info_builder_set_input_shape(ros_model_info_builder_t* b,
+int  edgefirst_msgs_model_info_builder_set_input_shape(edgefirst_msgs_model_info_builder_t* b,
                                             const uint32_t* data, size_t len);
-void ros_model_info_builder_set_input_type(ros_model_info_builder_t* b, uint8_t v);
+void edgefirst_msgs_model_info_builder_set_input_type(edgefirst_msgs_model_info_builder_t* b, uint8_t v);
 /** BORROWED until next setter / build / free.
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_model_info_builder_set_output_shape(ros_model_info_builder_t* b,
+int  edgefirst_msgs_model_info_builder_set_output_shape(edgefirst_msgs_model_info_builder_t* b,
                                              const uint32_t* data, size_t len);
-void ros_model_info_builder_set_output_type(ros_model_info_builder_t* b, uint8_t v);
+void edgefirst_msgs_model_info_builder_set_output_type(edgefirst_msgs_model_info_builder_t* b, uint8_t v);
 /**
  * Set the labels sequence. Each C string is copied into builder-owned
  * storage, so the caller's array and strings need only remain valid for the
@@ -3901,204 +3901,204 @@ void ros_model_info_builder_set_output_type(ros_model_info_builder_t* b, uint8_t
  * @return 0 on success, -1 on error (errno EINVAL for NULL handle or
  *         NULL element when count > 0).
  */
-int  ros_model_info_builder_set_labels(ros_model_info_builder_t* b,
+int  edgefirst_msgs_model_info_builder_set_labels(edgefirst_msgs_model_info_builder_t* b,
                                        const char* const* labels,
                                        size_t count);
-int  ros_model_info_builder_set_model_type(ros_model_info_builder_t* b,
+int  edgefirst_msgs_model_info_builder_set_model_type(edgefirst_msgs_model_info_builder_t* b,
                                            const char* s);
-int  ros_model_info_builder_set_model_format(ros_model_info_builder_t* b,
+int  edgefirst_msgs_model_info_builder_set_model_format(edgefirst_msgs_model_info_builder_t* b,
                                              const char* s);
-int  ros_model_info_builder_set_model_name(ros_model_info_builder_t* b,
+int  edgefirst_msgs_model_info_builder_set_model_name(edgefirst_msgs_model_info_builder_t* b,
                                            const char* s);
-int  ros_model_info_builder_build(ros_model_info_builder_t* b,
+int  edgefirst_msgs_model_info_builder_build(edgefirst_msgs_model_info_builder_t* b,
                                   uint8_t** out_bytes, size_t* out_len);
-int  ros_model_info_builder_encode_into(ros_model_info_builder_t* b,
+int  edgefirst_msgs_model_info_builder_encode_into(edgefirst_msgs_model_info_builder_t* b,
                                         uint8_t* buf, size_t cap,
                                         size_t* out_len);
 
 /* ============================================================================
  * edgefirst_msgs - Vibration (builder, 3.2.0+)
  * ========================================================================= */
-typedef struct ros_vibration_builder_s ros_vibration_builder_t;
-ros_vibration_builder_t* ros_vibration_builder_new(void);
-void ros_vibration_builder_free(ros_vibration_builder_t* b);
-void ros_vibration_builder_set_stamp(ros_vibration_builder_t* b,
+typedef struct edgefirst_msgs_vibration_builder_s edgefirst_msgs_vibration_builder_t;
+edgefirst_msgs_vibration_builder_t* edgefirst_msgs_vibration_builder_new(void);
+void edgefirst_msgs_vibration_builder_free(edgefirst_msgs_vibration_builder_t* b);
+void edgefirst_msgs_vibration_builder_set_stamp(edgefirst_msgs_vibration_builder_t* b,
                                      int32_t sec, uint32_t nsec);
-int  ros_vibration_builder_set_frame_id(ros_vibration_builder_t* b,
+int  edgefirst_msgs_vibration_builder_set_frame_id(edgefirst_msgs_vibration_builder_t* b,
                                         const char* s);
-void ros_vibration_builder_set_vibration(ros_vibration_builder_t* b,
+void edgefirst_msgs_vibration_builder_set_vibration(edgefirst_msgs_vibration_builder_t* b,
                                          double x, double y, double z);
-void ros_vibration_builder_set_band_lower_hz(ros_vibration_builder_t* b, float v);
-void ros_vibration_builder_set_band_upper_hz(ros_vibration_builder_t* b, float v);
-void ros_vibration_builder_set_measurement_type(ros_vibration_builder_t* b, uint8_t v);
-void ros_vibration_builder_set_unit(ros_vibration_builder_t* b, uint8_t v);
+void edgefirst_msgs_vibration_builder_set_band_lower_hz(edgefirst_msgs_vibration_builder_t* b, float v);
+void edgefirst_msgs_vibration_builder_set_band_upper_hz(edgefirst_msgs_vibration_builder_t* b, float v);
+void edgefirst_msgs_vibration_builder_set_measurement_type(edgefirst_msgs_vibration_builder_t* b, uint8_t v);
+void edgefirst_msgs_vibration_builder_set_unit(edgefirst_msgs_vibration_builder_t* b, uint8_t v);
 /** BORROWED until next setter / build / free.
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_vibration_builder_set_clipping(ros_vibration_builder_t* b,
+int  edgefirst_msgs_vibration_builder_set_clipping(edgefirst_msgs_vibration_builder_t* b,
                                         const uint32_t* data, size_t len);
-int  ros_vibration_builder_build(ros_vibration_builder_t* b,
+int  edgefirst_msgs_vibration_builder_build(edgefirst_msgs_vibration_builder_t* b,
                                  uint8_t** out_bytes, size_t* out_len);
-int  ros_vibration_builder_encode_into(ros_vibration_builder_t* b,
+int  edgefirst_msgs_vibration_builder_encode_into(edgefirst_msgs_vibration_builder_t* b,
                                        uint8_t* buf, size_t cap,
                                        size_t* out_len);
 
 /* ============================================================================
  * foxglove_msgs - CompressedVideo (builder, 3.2.0+)
  * ========================================================================= */
-typedef struct ros_foxglove_compressed_video_builder_s
-    ros_foxglove_compressed_video_builder_t;
-ros_foxglove_compressed_video_builder_t*
-ros_foxglove_compressed_video_builder_new(void);
-void ros_foxglove_compressed_video_builder_free(
-    ros_foxglove_compressed_video_builder_t* b);
-void ros_foxglove_compressed_video_builder_set_stamp(
-    ros_foxglove_compressed_video_builder_t* b, int32_t sec, uint32_t nsec);
-/** @brief Alias for ros_foxglove_compressed_video_builder_set_stamp; matches Foxglove schema naming. */
-void ros_foxglove_compressed_video_builder_set_timestamp(
-    ros_foxglove_compressed_video_builder_t* b, int32_t sec, uint32_t nsec);
-int  ros_foxglove_compressed_video_builder_set_frame_id(
-    ros_foxglove_compressed_video_builder_t* b, const char* s);
+typedef struct foxglove_msgs_compressed_video_builder_s
+    foxglove_msgs_compressed_video_builder_t;
+foxglove_msgs_compressed_video_builder_t*
+foxglove_msgs_compressed_video_builder_new(void);
+void foxglove_msgs_compressed_video_builder_free(
+    foxglove_msgs_compressed_video_builder_t* b);
+void foxglove_msgs_compressed_video_builder_set_stamp(
+    foxglove_msgs_compressed_video_builder_t* b, int32_t sec, uint32_t nsec);
+/** @brief Alias for foxglove_msgs_compressed_video_builder_set_stamp; matches Foxglove schema naming. */
+void foxglove_msgs_compressed_video_builder_set_timestamp(
+    foxglove_msgs_compressed_video_builder_t* b, int32_t sec, uint32_t nsec);
+int  foxglove_msgs_compressed_video_builder_set_frame_id(
+    foxglove_msgs_compressed_video_builder_t* b, const char* s);
 /** BORROWED until next setter / build / free.
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_foxglove_compressed_video_builder_set_data(
-    ros_foxglove_compressed_video_builder_t* b,
+int  foxglove_msgs_compressed_video_builder_set_data(
+    foxglove_msgs_compressed_video_builder_t* b,
     const uint8_t* data, size_t len);
-int  ros_foxglove_compressed_video_builder_set_format(
-    ros_foxglove_compressed_video_builder_t* b, const char* s);
-int  ros_foxglove_compressed_video_builder_build(
-    ros_foxglove_compressed_video_builder_t* b,
+int  foxglove_msgs_compressed_video_builder_set_format(
+    foxglove_msgs_compressed_video_builder_t* b, const char* s);
+int  foxglove_msgs_compressed_video_builder_build(
+    foxglove_msgs_compressed_video_builder_t* b,
     uint8_t** out_bytes, size_t* out_len);
-int  ros_foxglove_compressed_video_builder_encode_into(
-    ros_foxglove_compressed_video_builder_t* b,
+int  foxglove_msgs_compressed_video_builder_encode_into(
+    foxglove_msgs_compressed_video_builder_t* b,
     uint8_t* buf, size_t cap, size_t* out_len);
 
 /* ============================================================================
  * foxglove_msgs - CompressedImage (builder, 3.4.2+)
  * ========================================================================= */
-typedef struct ros_foxglove_compressed_image_builder_s
-    ros_foxglove_compressed_image_builder_t;
-ros_foxglove_compressed_image_builder_t*
-ros_foxglove_compressed_image_builder_new(void);
-void ros_foxglove_compressed_image_builder_free(
-    ros_foxglove_compressed_image_builder_t* b);
-void ros_foxglove_compressed_image_builder_set_stamp(
-    ros_foxglove_compressed_image_builder_t* b, int32_t sec, uint32_t nsec);
-/** @brief Alias for ros_foxglove_compressed_image_builder_set_stamp; matches Foxglove schema naming. */
-void ros_foxglove_compressed_image_builder_set_timestamp(
-    ros_foxglove_compressed_image_builder_t* b, int32_t sec, uint32_t nsec);
-int  ros_foxglove_compressed_image_builder_set_frame_id(
-    ros_foxglove_compressed_image_builder_t* b, const char* s);
+typedef struct foxglove_msgs_compressed_image_builder_s
+    foxglove_msgs_compressed_image_builder_t;
+foxglove_msgs_compressed_image_builder_t*
+foxglove_msgs_compressed_image_builder_new(void);
+void foxglove_msgs_compressed_image_builder_free(
+    foxglove_msgs_compressed_image_builder_t* b);
+void foxglove_msgs_compressed_image_builder_set_stamp(
+    foxglove_msgs_compressed_image_builder_t* b, int32_t sec, uint32_t nsec);
+/** @brief Alias for foxglove_msgs_compressed_image_builder_set_stamp; matches Foxglove schema naming. */
+void foxglove_msgs_compressed_image_builder_set_timestamp(
+    foxglove_msgs_compressed_image_builder_t* b, int32_t sec, uint32_t nsec);
+int  foxglove_msgs_compressed_image_builder_set_frame_id(
+    foxglove_msgs_compressed_image_builder_t* b, const char* s);
 /** BORROWED until next setter / build / free.
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_foxglove_compressed_image_builder_set_data(
-    ros_foxglove_compressed_image_builder_t* b,
+int  foxglove_msgs_compressed_image_builder_set_data(
+    foxglove_msgs_compressed_image_builder_t* b,
     const uint8_t* data, size_t len);
-int  ros_foxglove_compressed_image_builder_set_format(
-    ros_foxglove_compressed_image_builder_t* b, const char* s);
-int  ros_foxglove_compressed_image_builder_build(
-    ros_foxglove_compressed_image_builder_t* b,
+int  foxglove_msgs_compressed_image_builder_set_format(
+    foxglove_msgs_compressed_image_builder_t* b, const char* s);
+int  foxglove_msgs_compressed_image_builder_build(
+    foxglove_msgs_compressed_image_builder_t* b,
     uint8_t** out_bytes, size_t* out_len);
-int  ros_foxglove_compressed_image_builder_encode_into(
-    ros_foxglove_compressed_image_builder_t* b,
+int  foxglove_msgs_compressed_image_builder_encode_into(
+    foxglove_msgs_compressed_image_builder_t* b,
     uint8_t* buf, size_t cap, size_t* out_len);
 
 /* ============================================================================
  * foxglove_msgs - FoxgloveTextAnnotation (builder, 3.2.0+)
  * ========================================================================= */
-typedef struct ros_foxglove_text_annotation_builder_s
-    ros_foxglove_text_annotation_builder_t;
-ros_foxglove_text_annotation_builder_t*
-ros_foxglove_text_annotation_builder_new(void);
-void ros_foxglove_text_annotation_builder_free(
-    ros_foxglove_text_annotation_builder_t* b);
-void ros_foxglove_text_annotation_builder_set_timestamp(
-    ros_foxglove_text_annotation_builder_t* b, int32_t sec, uint32_t nsec);
-void ros_foxglove_text_annotation_builder_set_position(
-    ros_foxglove_text_annotation_builder_t* b, double x, double y);
-int  ros_foxglove_text_annotation_builder_set_text(
-    ros_foxglove_text_annotation_builder_t* b, const char* s);
-void ros_foxglove_text_annotation_builder_set_font_size(
-    ros_foxglove_text_annotation_builder_t* b, double v);
-void ros_foxglove_text_annotation_builder_set_text_color(
-    ros_foxglove_text_annotation_builder_t* b,
+typedef struct foxglove_msgs_text_annotation_builder_s
+    foxglove_msgs_text_annotation_builder_t;
+foxglove_msgs_text_annotation_builder_t*
+foxglove_msgs_text_annotation_builder_new(void);
+void foxglove_msgs_text_annotation_builder_free(
+    foxglove_msgs_text_annotation_builder_t* b);
+void foxglove_msgs_text_annotation_builder_set_timestamp(
+    foxglove_msgs_text_annotation_builder_t* b, int32_t sec, uint32_t nsec);
+void foxglove_msgs_text_annotation_builder_set_position(
+    foxglove_msgs_text_annotation_builder_t* b, double x, double y);
+int  foxglove_msgs_text_annotation_builder_set_text(
+    foxglove_msgs_text_annotation_builder_t* b, const char* s);
+void foxglove_msgs_text_annotation_builder_set_font_size(
+    foxglove_msgs_text_annotation_builder_t* b, double v);
+void foxglove_msgs_text_annotation_builder_set_text_color(
+    foxglove_msgs_text_annotation_builder_t* b,
     double r, double g, double b_, double a);
-void ros_foxglove_text_annotation_builder_set_background_color(
-    ros_foxglove_text_annotation_builder_t* b,
+void foxglove_msgs_text_annotation_builder_set_background_color(
+    foxglove_msgs_text_annotation_builder_t* b,
     double r, double g, double b_, double a);
-int  ros_foxglove_text_annotation_builder_build(
-    ros_foxglove_text_annotation_builder_t* b,
+int  foxglove_msgs_text_annotation_builder_build(
+    foxglove_msgs_text_annotation_builder_t* b,
     uint8_t** out_bytes, size_t* out_len);
-int  ros_foxglove_text_annotation_builder_encode_into(
-    ros_foxglove_text_annotation_builder_t* b,
+int  foxglove_msgs_text_annotation_builder_encode_into(
+    foxglove_msgs_text_annotation_builder_t* b,
     uint8_t* buf, size_t cap, size_t* out_len);
 
 /* ============================================================================
  * foxglove_msgs - FoxglovePointAnnotation (builder, 3.2.0+)
  * ========================================================================= */
 /** C-POD descriptor for a FoxglovePoint2 element (no borrowed fields). */
-typedef struct ros_foxglove_point2_elem_s {
+typedef struct foxglove_msgs_point2_elem_s {
     double x;
     double y;
-} ros_foxglove_point2_elem_t;
+} foxglove_msgs_point2_elem_t;
 
 /** C-POD descriptor for a FoxgloveColor element (no borrowed fields). */
-typedef struct ros_foxglove_color_elem_s {
+typedef struct foxglove_msgs_color_elem_s {
     double r;
     double g;
     double b;
     double a;
-} ros_foxglove_color_elem_t;
+} foxglove_msgs_color_elem_t;
 
-typedef struct ros_foxglove_point_annotation_builder_s
-    ros_foxglove_point_annotation_builder_t;
-ros_foxglove_point_annotation_builder_t*
-ros_foxglove_point_annotation_builder_new(void);
-void ros_foxglove_point_annotation_builder_free(
-    ros_foxglove_point_annotation_builder_t* b);
-void ros_foxglove_point_annotation_builder_set_timestamp(
-    ros_foxglove_point_annotation_builder_t* b, int32_t sec, uint32_t nsec);
-void ros_foxglove_point_annotation_builder_set_type(
-    ros_foxglove_point_annotation_builder_t* b, uint8_t v);
+typedef struct foxglove_msgs_point_annotation_builder_s
+    foxglove_msgs_point_annotation_builder_t;
+foxglove_msgs_point_annotation_builder_t*
+foxglove_msgs_point_annotation_builder_new(void);
+void foxglove_msgs_point_annotation_builder_free(
+    foxglove_msgs_point_annotation_builder_t* b);
+void foxglove_msgs_point_annotation_builder_set_timestamp(
+    foxglove_msgs_point_annotation_builder_t* b, int32_t sec, uint32_t nsec);
+void foxglove_msgs_point_annotation_builder_set_type(
+    foxglove_msgs_point_annotation_builder_t* b, uint8_t v);
 /** BORROWED until next setter / build / free.
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_foxglove_point_annotation_builder_set_points(
-    ros_foxglove_point_annotation_builder_t* b,
-    const ros_foxglove_point2_elem_t* points, size_t count);
-void ros_foxglove_point_annotation_builder_set_outline_color(
-    ros_foxglove_point_annotation_builder_t* b,
+int  foxglove_msgs_point_annotation_builder_set_points(
+    foxglove_msgs_point_annotation_builder_t* b,
+    const foxglove_msgs_point2_elem_t* points, size_t count);
+void foxglove_msgs_point_annotation_builder_set_outline_color(
+    foxglove_msgs_point_annotation_builder_t* b,
     double r, double g, double b_, double a);
 /** BORROWED until next setter / build / free.
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_foxglove_point_annotation_builder_set_outline_colors(
-    ros_foxglove_point_annotation_builder_t* b,
-    const ros_foxglove_color_elem_t* colors, size_t count);
-void ros_foxglove_point_annotation_builder_set_fill_color(
-    ros_foxglove_point_annotation_builder_t* b,
+int  foxglove_msgs_point_annotation_builder_set_outline_colors(
+    foxglove_msgs_point_annotation_builder_t* b,
+    const foxglove_msgs_color_elem_t* colors, size_t count);
+void foxglove_msgs_point_annotation_builder_set_fill_color(
+    foxglove_msgs_point_annotation_builder_t* b,
     double r, double g, double b_, double a);
-void ros_foxglove_point_annotation_builder_set_thickness(
-    ros_foxglove_point_annotation_builder_t* b, double v);
-int  ros_foxglove_point_annotation_builder_build(
-    ros_foxglove_point_annotation_builder_t* b,
+void foxglove_msgs_point_annotation_builder_set_thickness(
+    foxglove_msgs_point_annotation_builder_t* b, double v);
+int  foxglove_msgs_point_annotation_builder_build(
+    foxglove_msgs_point_annotation_builder_t* b,
     uint8_t** out_bytes, size_t* out_len);
-int  ros_foxglove_point_annotation_builder_encode_into(
-    ros_foxglove_point_annotation_builder_t* b,
+int  foxglove_msgs_point_annotation_builder_encode_into(
+    foxglove_msgs_point_annotation_builder_t* b,
     uint8_t* buf, size_t cap, size_t* out_len);
 
 /* ============================================================================
  * foxglove_msgs - FoxgloveImageAnnotation (builder, 3.2.0+)
  * ========================================================================= */
 /** C-POD descriptor for a FoxgloveCircleAnnotations element (no borrows). */
-typedef struct ros_foxglove_circle_annotation_elem_s {
+typedef struct foxglove_msgs_circle_annotation_elem_s {
     int32_t  timestamp_sec;
     uint32_t timestamp_nanosec;
     double   position_x;
@@ -4113,31 +4113,31 @@ typedef struct ros_foxglove_circle_annotation_elem_s {
     double   outline_color_g;
     double   outline_color_b;
     double   outline_color_a;
-} ros_foxglove_circle_annotation_elem_t;
+} foxglove_msgs_circle_annotation_elem_t;
 
 /**
  * C-POD descriptor for a FoxglovePointAnnotation element. Inner `points`
  * and `outline_colors` arrays are BORROWED: they must remain valid until
  * the consuming builder is finalised or freed.
  */
-typedef struct ros_foxglove_point_annotation_elem_s {
+typedef struct foxglove_msgs_point_annotation_elem_s {
     int32_t  timestamp_sec;
     uint32_t timestamp_nanosec;
     uint8_t  type_;
-    const ros_foxglove_point2_elem_t* points;
+    const foxglove_msgs_point2_elem_t* points;
     size_t   points_count;
     double   outline_color_r;
     double   outline_color_g;
     double   outline_color_b;
     double   outline_color_a;
-    const ros_foxglove_color_elem_t* outline_colors;
+    const foxglove_msgs_color_elem_t* outline_colors;
     size_t   outline_colors_count;
     double   fill_color_r;
     double   fill_color_g;
     double   fill_color_b;
     double   fill_color_a;
     double   thickness;
-} ros_foxglove_point_annotation_elem_t;
+} foxglove_msgs_point_annotation_elem_t;
 
 /**
  * C-POD descriptor for a FoxgloveTextAnnotation element. `text` is a
@@ -4147,7 +4147,7 @@ typedef struct ros_foxglove_point_annotation_elem_s {
  * invalid UTF-8 causes the subsequent `build` / `encode_into` call to
  * fail with `-1` and `errno = EINVAL`.
  */
-typedef struct ros_foxglove_text_annotation_elem_s {
+typedef struct foxglove_msgs_text_annotation_elem_s {
     int32_t  timestamp_sec;
     uint32_t timestamp_nanosec;
     double   position_x;
@@ -4162,42 +4162,42 @@ typedef struct ros_foxglove_text_annotation_elem_s {
     double   background_color_g;
     double   background_color_b;
     double   background_color_a;
-} ros_foxglove_text_annotation_elem_t;
+} foxglove_msgs_text_annotation_elem_t;
 
-typedef struct ros_foxglove_image_annotation_builder_s
-    ros_foxglove_image_annotation_builder_t;
-ros_foxglove_image_annotation_builder_t*
-ros_foxglove_image_annotation_builder_new(void);
-void ros_foxglove_image_annotation_builder_free(
-    ros_foxglove_image_annotation_builder_t* b);
+typedef struct foxglove_msgs_image_annotation_builder_s
+    foxglove_msgs_image_annotation_builder_t;
+foxglove_msgs_image_annotation_builder_t*
+foxglove_msgs_image_annotation_builder_new(void);
+void foxglove_msgs_image_annotation_builder_free(
+    foxglove_msgs_image_annotation_builder_t* b);
 /** BORROWED — caller keeps `circles` valid until next setter / build / free.
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_foxglove_image_annotation_builder_set_circles(
-    ros_foxglove_image_annotation_builder_t* b,
-    const ros_foxglove_circle_annotation_elem_t* circles, size_t count);
+int  foxglove_msgs_image_annotation_builder_set_circles(
+    foxglove_msgs_image_annotation_builder_t* b,
+    const foxglove_msgs_circle_annotation_elem_t* circles, size_t count);
 /** BORROWED — each element's inner `points`/`outline_colors` arrays must
  *  remain valid until next setter / build / free.
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_foxglove_image_annotation_builder_set_points(
-    ros_foxglove_image_annotation_builder_t* b,
-    const ros_foxglove_point_annotation_elem_t* points, size_t count);
+int  foxglove_msgs_image_annotation_builder_set_points(
+    foxglove_msgs_image_annotation_builder_t* b,
+    const foxglove_msgs_point_annotation_elem_t* points, size_t count);
 /** BORROWED — each element's `text` C string must remain valid until next
  *  setter / build / free.
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
-int  ros_foxglove_image_annotation_builder_set_texts(
-    ros_foxglove_image_annotation_builder_t* b,
-    const ros_foxglove_text_annotation_elem_t* texts, size_t count);
-int  ros_foxglove_image_annotation_builder_build(
-    ros_foxglove_image_annotation_builder_t* b,
+int  foxglove_msgs_image_annotation_builder_set_texts(
+    foxglove_msgs_image_annotation_builder_t* b,
+    const foxglove_msgs_text_annotation_elem_t* texts, size_t count);
+int  foxglove_msgs_image_annotation_builder_build(
+    foxglove_msgs_image_annotation_builder_t* b,
     uint8_t** out_bytes, size_t* out_len);
-int  ros_foxglove_image_annotation_builder_encode_into(
-    ros_foxglove_image_annotation_builder_t* b,
+int  foxglove_msgs_image_annotation_builder_encode_into(
+    foxglove_msgs_image_annotation_builder_t* b,
     uint8_t* buf, size_t cap, size_t* out_len);
 
 /* ============================================================================
@@ -4208,7 +4208,7 @@ int  ros_foxglove_image_annotation_builder_encode_into(
  * place. Only fixed-size fields are exposed — variable-length fields
  * (strings, bulk data, nested sequences) require the builder API.
  *
- * Signature: ros_<type>_set_<field>(buf, len, value...) -> int32_t
+ * Signature: <package>_<type>_set_<field>(buf, len, value...) -> int32_t
  *   buf:  uint8_t* — CDR buffer to mutate
  *   len:  size_t   — buffer length (must match the encoded CDR length)
  *   ...:  primitive field args
@@ -4232,7 +4232,7 @@ int  ros_foxglove_image_annotation_builder_encode_into(
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_header_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t std_msgs_header_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /* ---- sensor_msgs - Image ---- */
 
@@ -4248,7 +4248,7 @@ int32_t ros_header_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nse
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_image_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t sensor_msgs_image_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the height field in place on an Image buffer.
@@ -4262,7 +4262,7 @@ int32_t ros_image_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_image_set_height(uint8_t* buf, size_t len, uint32_t v);
+int32_t sensor_msgs_image_set_height(uint8_t* buf, size_t len, uint32_t v);
 
 /**
  * @brief Set the width field in place on an Image buffer.
@@ -4276,7 +4276,7 @@ int32_t ros_image_set_height(uint8_t* buf, size_t len, uint32_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_image_set_width(uint8_t* buf, size_t len, uint32_t v);
+int32_t sensor_msgs_image_set_width(uint8_t* buf, size_t len, uint32_t v);
 
 /**
  * @brief Set the is_bigendian field in place on an Image buffer.
@@ -4290,7 +4290,7 @@ int32_t ros_image_set_width(uint8_t* buf, size_t len, uint32_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_image_set_is_bigendian(uint8_t* buf, size_t len, uint8_t v);
+int32_t sensor_msgs_image_set_is_bigendian(uint8_t* buf, size_t len, uint8_t v);
 
 /**
  * @brief Set the step (row stride) field in place on an Image buffer.
@@ -4304,7 +4304,7 @@ int32_t ros_image_set_is_bigendian(uint8_t* buf, size_t len, uint8_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_image_set_step(uint8_t* buf, size_t len, uint32_t v);
+int32_t sensor_msgs_image_set_step(uint8_t* buf, size_t len, uint32_t v);
 
 /* ---- sensor_msgs - CompressedImage ---- */
 
@@ -4320,7 +4320,7 @@ int32_t ros_image_set_step(uint8_t* buf, size_t len, uint32_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_compressed_image_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t sensor_msgs_compressed_image_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /* ---- sensor_msgs - Imu ---- */
 
@@ -4336,7 +4336,7 @@ int32_t ros_compressed_image_set_stamp(uint8_t* buf, size_t len, int32_t sec, ui
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_imu_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t sensor_msgs_imu_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the orientation (Quaternion) field in place on an Imu buffer.
@@ -4350,7 +4350,7 @@ int32_t ros_imu_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_imu_set_orientation(uint8_t* buf, size_t len, double x, double y, double z, double w);
+int32_t sensor_msgs_imu_set_orientation(uint8_t* buf, size_t len, double x, double y, double z, double w);
 
 /**
  * @brief Set the 3x3 orientation covariance (row-major, 9 f64 elements) in place.
@@ -4364,7 +4364,7 @@ int32_t ros_imu_set_orientation(uint8_t* buf, size_t len, double x, double y, do
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_imu_set_orientation_covariance(uint8_t* buf, size_t len, const double* c);
+int32_t sensor_msgs_imu_set_orientation_covariance(uint8_t* buf, size_t len, const double* c);
 
 /**
  * @brief Set the angular_velocity (Vector3) field in place on an Imu buffer.
@@ -4378,7 +4378,7 @@ int32_t ros_imu_set_orientation_covariance(uint8_t* buf, size_t len, const doubl
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_imu_set_angular_velocity(uint8_t* buf, size_t len, double x, double y, double z);
+int32_t sensor_msgs_imu_set_angular_velocity(uint8_t* buf, size_t len, double x, double y, double z);
 
 /**
  * @brief Set the 3x3 angular velocity covariance (row-major, 9 f64 elements) in place.
@@ -4392,7 +4392,7 @@ int32_t ros_imu_set_angular_velocity(uint8_t* buf, size_t len, double x, double 
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_imu_set_angular_velocity_covariance(uint8_t* buf, size_t len, const double* c);
+int32_t sensor_msgs_imu_set_angular_velocity_covariance(uint8_t* buf, size_t len, const double* c);
 
 /**
  * @brief Set the linear_acceleration (Vector3) field in place on an Imu buffer.
@@ -4406,7 +4406,7 @@ int32_t ros_imu_set_angular_velocity_covariance(uint8_t* buf, size_t len, const 
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_imu_set_linear_acceleration(uint8_t* buf, size_t len, double x, double y, double z);
+int32_t sensor_msgs_imu_set_linear_acceleration(uint8_t* buf, size_t len, double x, double y, double z);
 
 /**
  * @brief Set the 3x3 linear acceleration covariance (row-major, 9 f64 elements) in place.
@@ -4420,7 +4420,7 @@ int32_t ros_imu_set_linear_acceleration(uint8_t* buf, size_t len, double x, doub
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_imu_set_linear_acceleration_covariance(uint8_t* buf, size_t len, const double* c);
+int32_t sensor_msgs_imu_set_linear_acceleration_covariance(uint8_t* buf, size_t len, const double* c);
 
 /* ---- sensor_msgs - NavSatFix ---- */
 
@@ -4436,7 +4436,7 @@ int32_t ros_imu_set_linear_acceleration_covariance(uint8_t* buf, size_t len, con
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_nav_sat_fix_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t sensor_msgs_nav_sat_fix_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the NavSatStatus in place on a NavSatFix buffer.
@@ -4450,7 +4450,7 @@ int32_t ros_nav_sat_fix_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_nav_sat_fix_set_status(uint8_t* buf, size_t len, int8_t status, uint16_t service);
+int32_t sensor_msgs_nav_sat_fix_set_status(uint8_t* buf, size_t len, int8_t status, uint16_t service);
 
 /**
  * @brief Set the latitude field in place.
@@ -4464,7 +4464,7 @@ int32_t ros_nav_sat_fix_set_status(uint8_t* buf, size_t len, int8_t status, uint
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_nav_sat_fix_set_latitude(uint8_t* buf, size_t len, double v);
+int32_t sensor_msgs_nav_sat_fix_set_latitude(uint8_t* buf, size_t len, double v);
 
 /**
  * @brief Set the longitude field in place.
@@ -4478,7 +4478,7 @@ int32_t ros_nav_sat_fix_set_latitude(uint8_t* buf, size_t len, double v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_nav_sat_fix_set_longitude(uint8_t* buf, size_t len, double v);
+int32_t sensor_msgs_nav_sat_fix_set_longitude(uint8_t* buf, size_t len, double v);
 
 /**
  * @brief Set the altitude field in place.
@@ -4492,7 +4492,7 @@ int32_t ros_nav_sat_fix_set_longitude(uint8_t* buf, size_t len, double v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_nav_sat_fix_set_altitude(uint8_t* buf, size_t len, double v);
+int32_t sensor_msgs_nav_sat_fix_set_altitude(uint8_t* buf, size_t len, double v);
 
 /**
  * @brief Set the 3x3 position covariance (row-major, 9 f64 elements) in place.
@@ -4506,7 +4506,7 @@ int32_t ros_nav_sat_fix_set_altitude(uint8_t* buf, size_t len, double v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_nav_sat_fix_set_position_covariance(uint8_t* buf, size_t len, const double* c);
+int32_t sensor_msgs_nav_sat_fix_set_position_covariance(uint8_t* buf, size_t len, const double* c);
 
 /**
  * @brief Set the position_covariance_type in place on a NavSatFix buffer.
@@ -4520,7 +4520,7 @@ int32_t ros_nav_sat_fix_set_position_covariance(uint8_t* buf, size_t len, const 
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_nav_sat_fix_set_position_covariance_type(uint8_t* buf, size_t len, uint8_t v);
+int32_t sensor_msgs_nav_sat_fix_set_position_covariance_type(uint8_t* buf, size_t len, uint8_t v);
 
 /* ---- sensor_msgs - PointField ---- */
 
@@ -4536,7 +4536,7 @@ int32_t ros_nav_sat_fix_set_position_covariance_type(uint8_t* buf, size_t len, u
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_point_field_set_offset(uint8_t* buf, size_t len, uint32_t v);
+int32_t sensor_msgs_point_field_set_offset(uint8_t* buf, size_t len, uint32_t v);
 
 /**
  * @brief Set the datatype field in place on a PointField buffer.
@@ -4550,7 +4550,7 @@ int32_t ros_point_field_set_offset(uint8_t* buf, size_t len, uint32_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_point_field_set_datatype(uint8_t* buf, size_t len, uint8_t v);
+int32_t sensor_msgs_point_field_set_datatype(uint8_t* buf, size_t len, uint8_t v);
 
 /**
  * @brief Set the count field in place on a PointField buffer.
@@ -4564,7 +4564,7 @@ int32_t ros_point_field_set_datatype(uint8_t* buf, size_t len, uint8_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_point_field_set_count(uint8_t* buf, size_t len, uint32_t v);
+int32_t sensor_msgs_point_field_set_count(uint8_t* buf, size_t len, uint32_t v);
 
 /* ---- sensor_msgs - PointCloud2 ---- */
 
@@ -4580,7 +4580,7 @@ int32_t ros_point_field_set_count(uint8_t* buf, size_t len, uint32_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_point_cloud2_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t sensor_msgs_point_cloud2_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the height field in place on a PointCloud2 buffer.
@@ -4594,7 +4594,7 @@ int32_t ros_point_cloud2_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_point_cloud2_set_height(uint8_t* buf, size_t len, uint32_t v);
+int32_t sensor_msgs_point_cloud2_set_height(uint8_t* buf, size_t len, uint32_t v);
 
 /**
  * @brief Set the width field in place on a PointCloud2 buffer.
@@ -4608,7 +4608,7 @@ int32_t ros_point_cloud2_set_height(uint8_t* buf, size_t len, uint32_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_point_cloud2_set_width(uint8_t* buf, size_t len, uint32_t v);
+int32_t sensor_msgs_point_cloud2_set_width(uint8_t* buf, size_t len, uint32_t v);
 
 /**
  * @brief Set the is_bigendian field in place on a PointCloud2 buffer (0=false, nonzero=true).
@@ -4622,7 +4622,7 @@ int32_t ros_point_cloud2_set_width(uint8_t* buf, size_t len, uint32_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_point_cloud2_set_is_bigendian(uint8_t* buf, size_t len, uint8_t v);
+int32_t sensor_msgs_point_cloud2_set_is_bigendian(uint8_t* buf, size_t len, uint8_t v);
 
 /**
  * @brief Set the point_step field in place on a PointCloud2 buffer.
@@ -4636,7 +4636,7 @@ int32_t ros_point_cloud2_set_is_bigendian(uint8_t* buf, size_t len, uint8_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_point_cloud2_set_point_step(uint8_t* buf, size_t len, uint32_t v);
+int32_t sensor_msgs_point_cloud2_set_point_step(uint8_t* buf, size_t len, uint32_t v);
 
 /**
  * @brief Set the row_step field in place on a PointCloud2 buffer.
@@ -4650,7 +4650,7 @@ int32_t ros_point_cloud2_set_point_step(uint8_t* buf, size_t len, uint32_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_point_cloud2_set_row_step(uint8_t* buf, size_t len, uint32_t v);
+int32_t sensor_msgs_point_cloud2_set_row_step(uint8_t* buf, size_t len, uint32_t v);
 
 /**
  * @brief Set the is_dense field in place on a PointCloud2 buffer (0=false, nonzero=true).
@@ -4664,7 +4664,7 @@ int32_t ros_point_cloud2_set_row_step(uint8_t* buf, size_t len, uint32_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_point_cloud2_set_is_dense(uint8_t* buf, size_t len, uint8_t v);
+int32_t sensor_msgs_point_cloud2_set_is_dense(uint8_t* buf, size_t len, uint8_t v);
 
 /* ---- sensor_msgs - CameraInfo ---- */
 
@@ -4680,7 +4680,7 @@ int32_t ros_point_cloud2_set_is_dense(uint8_t* buf, size_t len, uint8_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_camera_info_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t sensor_msgs_camera_info_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the height field in place on a CameraInfo buffer.
@@ -4694,7 +4694,7 @@ int32_t ros_camera_info_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_camera_info_set_height(uint8_t* buf, size_t len, uint32_t v);
+int32_t sensor_msgs_camera_info_set_height(uint8_t* buf, size_t len, uint32_t v);
 
 /**
  * @brief Set the width field in place on a CameraInfo buffer.
@@ -4708,7 +4708,7 @@ int32_t ros_camera_info_set_height(uint8_t* buf, size_t len, uint32_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_camera_info_set_width(uint8_t* buf, size_t len, uint32_t v);
+int32_t sensor_msgs_camera_info_set_width(uint8_t* buf, size_t len, uint32_t v);
 
 /**
  * @brief Set the 3x3 intrinsic matrix K (row-major, 9 f64 elements) in place.
@@ -4722,7 +4722,7 @@ int32_t ros_camera_info_set_width(uint8_t* buf, size_t len, uint32_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_camera_info_set_k(uint8_t* buf, size_t len, const double* k);
+int32_t sensor_msgs_camera_info_set_k(uint8_t* buf, size_t len, const double* k);
 
 /**
  * @brief Set the 3x3 rectification matrix R (row-major, 9 f64 elements) in place.
@@ -4736,7 +4736,7 @@ int32_t ros_camera_info_set_k(uint8_t* buf, size_t len, const double* k);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_camera_info_set_r(uint8_t* buf, size_t len, const double* r);
+int32_t sensor_msgs_camera_info_set_r(uint8_t* buf, size_t len, const double* r);
 
 /**
  * @brief Set the 3x4 projection matrix P (row-major, 12 f64 elements) in place.
@@ -4750,7 +4750,7 @@ int32_t ros_camera_info_set_r(uint8_t* buf, size_t len, const double* r);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_camera_info_set_p(uint8_t* buf, size_t len, const double* p);
+int32_t sensor_msgs_camera_info_set_p(uint8_t* buf, size_t len, const double* p);
 
 /**
  * @brief Set the binning_x field in place on a CameraInfo buffer.
@@ -4764,7 +4764,7 @@ int32_t ros_camera_info_set_p(uint8_t* buf, size_t len, const double* p);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_camera_info_set_binning_x(uint8_t* buf, size_t len, uint32_t v);
+int32_t sensor_msgs_camera_info_set_binning_x(uint8_t* buf, size_t len, uint32_t v);
 
 /**
  * @brief Set the binning_y field in place on a CameraInfo buffer.
@@ -4778,7 +4778,7 @@ int32_t ros_camera_info_set_binning_x(uint8_t* buf, size_t len, uint32_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_camera_info_set_binning_y(uint8_t* buf, size_t len, uint32_t v);
+int32_t sensor_msgs_camera_info_set_binning_y(uint8_t* buf, size_t len, uint32_t v);
 
 /**
  * @brief Set the RegionOfInterest (roi) field in place on a CameraInfo buffer.
@@ -4792,7 +4792,7 @@ int32_t ros_camera_info_set_binning_y(uint8_t* buf, size_t len, uint32_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_camera_info_set_roi(uint8_t* buf, size_t len, uint32_t x_offset, uint32_t y_offset, uint32_t height, uint32_t width, uint8_t do_rectify);
+int32_t sensor_msgs_camera_info_set_roi(uint8_t* buf, size_t len, uint32_t x_offset, uint32_t y_offset, uint32_t height, uint32_t width, uint8_t do_rectify);
 
 /* ---- sensor_msgs - MagneticField ---- */
 
@@ -4808,7 +4808,7 @@ int32_t ros_camera_info_set_roi(uint8_t* buf, size_t len, uint32_t x_offset, uin
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_magnetic_field_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t sensor_msgs_magnetic_field_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the magnetic_field (Vector3) in place on a MagneticField buffer.
@@ -4822,7 +4822,7 @@ int32_t ros_magnetic_field_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_magnetic_field_set_magnetic_field(uint8_t* buf, size_t len, double x, double y, double z);
+int32_t sensor_msgs_magnetic_field_set_magnetic_field(uint8_t* buf, size_t len, double x, double y, double z);
 
 /**
  * @brief Set the 3x3 magnetic field covariance (row-major, 9 f64 elements) in place.
@@ -4836,7 +4836,7 @@ int32_t ros_magnetic_field_set_magnetic_field(uint8_t* buf, size_t len, double x
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_magnetic_field_set_magnetic_field_covariance(uint8_t* buf, size_t len, const double* c);
+int32_t sensor_msgs_magnetic_field_set_magnetic_field_covariance(uint8_t* buf, size_t len, const double* c);
 
 /* ---- sensor_msgs - FluidPressure ---- */
 
@@ -4852,7 +4852,7 @@ int32_t ros_magnetic_field_set_magnetic_field_covariance(uint8_t* buf, size_t le
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_fluid_pressure_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t sensor_msgs_fluid_pressure_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the fluid_pressure field in place.
@@ -4866,7 +4866,7 @@ int32_t ros_fluid_pressure_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_fluid_pressure_set_fluid_pressure(uint8_t* buf, size_t len, double v);
+int32_t sensor_msgs_fluid_pressure_set_fluid_pressure(uint8_t* buf, size_t len, double v);
 
 /**
  * @brief Set the variance field in place.
@@ -4880,7 +4880,7 @@ int32_t ros_fluid_pressure_set_fluid_pressure(uint8_t* buf, size_t len, double v
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_fluid_pressure_set_variance(uint8_t* buf, size_t len, double v);
+int32_t sensor_msgs_fluid_pressure_set_variance(uint8_t* buf, size_t len, double v);
 
 /* ---- sensor_msgs - Temperature ---- */
 
@@ -4896,7 +4896,7 @@ int32_t ros_fluid_pressure_set_variance(uint8_t* buf, size_t len, double v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_temperature_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t sensor_msgs_temperature_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the temperature field in place.
@@ -4910,7 +4910,7 @@ int32_t ros_temperature_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_temperature_set_temperature(uint8_t* buf, size_t len, double v);
+int32_t sensor_msgs_temperature_set_temperature(uint8_t* buf, size_t len, double v);
 
 /**
  * @brief Set the variance field in place.
@@ -4924,7 +4924,7 @@ int32_t ros_temperature_set_temperature(uint8_t* buf, size_t len, double v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_temperature_set_variance(uint8_t* buf, size_t len, double v);
+int32_t sensor_msgs_temperature_set_variance(uint8_t* buf, size_t len, double v);
 
 /* ---- sensor_msgs - BatteryState ---- */
 
@@ -4940,7 +4940,7 @@ int32_t ros_temperature_set_variance(uint8_t* buf, size_t len, double v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_battery_state_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t sensor_msgs_battery_state_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the voltage field in place.
@@ -4954,7 +4954,7 @@ int32_t ros_battery_state_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint3
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_battery_state_set_voltage(uint8_t* buf, size_t len, float v);
+int32_t sensor_msgs_battery_state_set_voltage(uint8_t* buf, size_t len, float v);
 
 /**
  * @brief Set the temperature field in place.
@@ -4968,7 +4968,7 @@ int32_t ros_battery_state_set_voltage(uint8_t* buf, size_t len, float v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_battery_state_set_temperature(uint8_t* buf, size_t len, float v);
+int32_t sensor_msgs_battery_state_set_temperature(uint8_t* buf, size_t len, float v);
 
 /**
  * @brief Set the current field in place.
@@ -4982,7 +4982,7 @@ int32_t ros_battery_state_set_temperature(uint8_t* buf, size_t len, float v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_battery_state_set_current(uint8_t* buf, size_t len, float v);
+int32_t sensor_msgs_battery_state_set_current(uint8_t* buf, size_t len, float v);
 
 /**
  * @brief Set the charge field in place.
@@ -4996,7 +4996,7 @@ int32_t ros_battery_state_set_current(uint8_t* buf, size_t len, float v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_battery_state_set_charge(uint8_t* buf, size_t len, float v);
+int32_t sensor_msgs_battery_state_set_charge(uint8_t* buf, size_t len, float v);
 
 /**
  * @brief Set the capacity field in place.
@@ -5010,7 +5010,7 @@ int32_t ros_battery_state_set_charge(uint8_t* buf, size_t len, float v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_battery_state_set_capacity(uint8_t* buf, size_t len, float v);
+int32_t sensor_msgs_battery_state_set_capacity(uint8_t* buf, size_t len, float v);
 
 /**
  * @brief Set the design_capacity field in place.
@@ -5024,7 +5024,7 @@ int32_t ros_battery_state_set_capacity(uint8_t* buf, size_t len, float v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_battery_state_set_design_capacity(uint8_t* buf, size_t len, float v);
+int32_t sensor_msgs_battery_state_set_design_capacity(uint8_t* buf, size_t len, float v);
 
 /**
  * @brief Set the percentage field in place.
@@ -5038,7 +5038,7 @@ int32_t ros_battery_state_set_design_capacity(uint8_t* buf, size_t len, float v)
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_battery_state_set_percentage(uint8_t* buf, size_t len, float v);
+int32_t sensor_msgs_battery_state_set_percentage(uint8_t* buf, size_t len, float v);
 
 /**
  * @brief Set the power_supply_status field in place.
@@ -5052,7 +5052,7 @@ int32_t ros_battery_state_set_percentage(uint8_t* buf, size_t len, float v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_battery_state_set_power_supply_status(uint8_t* buf, size_t len, uint8_t v);
+int32_t sensor_msgs_battery_state_set_power_supply_status(uint8_t* buf, size_t len, uint8_t v);
 
 /**
  * @brief Set the power_supply_health field in place.
@@ -5066,7 +5066,7 @@ int32_t ros_battery_state_set_power_supply_status(uint8_t* buf, size_t len, uint
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_battery_state_set_power_supply_health(uint8_t* buf, size_t len, uint8_t v);
+int32_t sensor_msgs_battery_state_set_power_supply_health(uint8_t* buf, size_t len, uint8_t v);
 
 /**
  * @brief Set the power_supply_technology field in place.
@@ -5080,7 +5080,7 @@ int32_t ros_battery_state_set_power_supply_health(uint8_t* buf, size_t len, uint
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_battery_state_set_power_supply_technology(uint8_t* buf, size_t len, uint8_t v);
+int32_t sensor_msgs_battery_state_set_power_supply_technology(uint8_t* buf, size_t len, uint8_t v);
 
 /**
  * @brief Set the present field in place (0=false, nonzero=true).
@@ -5094,7 +5094,7 @@ int32_t ros_battery_state_set_power_supply_technology(uint8_t* buf, size_t len, 
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_battery_state_set_present(uint8_t* buf, size_t len, uint8_t v);
+int32_t sensor_msgs_battery_state_set_present(uint8_t* buf, size_t len, uint8_t v);
 
 /* ---- edgefirst_msgs - Mask ---- */
 
@@ -5110,7 +5110,7 @@ int32_t ros_battery_state_set_present(uint8_t* buf, size_t len, uint8_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_mask_set_height(uint8_t* buf, size_t len, uint32_t v);
+int32_t edgefirst_msgs_mask_set_height(uint8_t* buf, size_t len, uint32_t v);
 
 /**
  * @brief Set the width field in place on a Mask buffer.
@@ -5124,7 +5124,7 @@ int32_t ros_mask_set_height(uint8_t* buf, size_t len, uint32_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_mask_set_width(uint8_t* buf, size_t len, uint32_t v);
+int32_t edgefirst_msgs_mask_set_width(uint8_t* buf, size_t len, uint32_t v);
 
 /**
  * @brief Set the length field in place on a Mask buffer.
@@ -5138,7 +5138,7 @@ int32_t ros_mask_set_width(uint8_t* buf, size_t len, uint32_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_mask_set_length(uint8_t* buf, size_t len, uint32_t v);
+int32_t edgefirst_msgs_mask_set_length(uint8_t* buf, size_t len, uint32_t v);
 
 /**
  * @brief Set the boxed field in place (0=false, nonzero=true).
@@ -5152,7 +5152,7 @@ int32_t ros_mask_set_length(uint8_t* buf, size_t len, uint32_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_mask_set_boxed(uint8_t* buf, size_t len, uint8_t v);
+int32_t edgefirst_msgs_mask_set_boxed(uint8_t* buf, size_t len, uint8_t v);
 
 /* ---- edgefirst_msgs - LocalTime ---- */
 
@@ -5168,7 +5168,7 @@ int32_t ros_mask_set_boxed(uint8_t* buf, size_t len, uint8_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_local_time_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t edgefirst_msgs_local_time_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the Date field in place on a LocalTime buffer.
@@ -5182,7 +5182,7 @@ int32_t ros_local_time_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_local_time_set_date(uint8_t* buf, size_t len, uint16_t year, uint8_t month, uint8_t day);
+int32_t edgefirst_msgs_local_time_set_date(uint8_t* buf, size_t len, uint16_t year, uint8_t month, uint8_t day);
 
 /**
  * @brief Set the time (Time) field in place on a LocalTime buffer.
@@ -5196,7 +5196,7 @@ int32_t ros_local_time_set_date(uint8_t* buf, size_t len, uint16_t year, uint8_t
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_local_time_set_time(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t edgefirst_msgs_local_time_set_time(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the timezone field in place on a LocalTime buffer.
@@ -5210,7 +5210,7 @@ int32_t ros_local_time_set_time(uint8_t* buf, size_t len, int32_t sec, uint32_t 
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_local_time_set_timezone(uint8_t* buf, size_t len, int16_t v);
+int32_t edgefirst_msgs_local_time_set_timezone(uint8_t* buf, size_t len, int16_t v);
 
 /* ---- edgefirst_msgs - RadarCube ---- */
 
@@ -5226,7 +5226,7 @@ int32_t ros_local_time_set_timezone(uint8_t* buf, size_t len, int16_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_radar_cube_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t edgefirst_msgs_radar_cube_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the timestamp (u64 ns) field in place on a RadarCube buffer.
@@ -5240,7 +5240,7 @@ int32_t ros_radar_cube_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_radar_cube_set_timestamp(uint8_t* buf, size_t len, uint64_t v);
+int32_t edgefirst_msgs_radar_cube_set_timestamp(uint8_t* buf, size_t len, uint64_t v);
 
 /**
  * @brief Set the is_complex field in place (0=false, nonzero=true).
@@ -5254,7 +5254,7 @@ int32_t ros_radar_cube_set_timestamp(uint8_t* buf, size_t len, uint64_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_radar_cube_set_is_complex(uint8_t* buf, size_t len, uint8_t v);
+int32_t edgefirst_msgs_radar_cube_set_is_complex(uint8_t* buf, size_t len, uint8_t v);
 
 /* ---- edgefirst_msgs - RadarInfo ---- */
 
@@ -5270,7 +5270,7 @@ int32_t ros_radar_cube_set_is_complex(uint8_t* buf, size_t len, uint8_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_radar_info_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t edgefirst_msgs_radar_info_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the cube field in place on a RadarInfo buffer (0=false, nonzero=true).
@@ -5284,7 +5284,7 @@ int32_t ros_radar_info_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_radar_info_set_cube(uint8_t* buf, size_t len, uint8_t v);
+int32_t edgefirst_msgs_radar_info_set_cube(uint8_t* buf, size_t len, uint8_t v);
 
 /* ---- edgefirst_msgs - Track ---- */
 
@@ -5300,7 +5300,7 @@ int32_t ros_radar_info_set_cube(uint8_t* buf, size_t len, uint8_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_track_set_lifetime(uint8_t* buf, size_t len, int32_t v);
+int32_t edgefirst_msgs_track_set_lifetime(uint8_t* buf, size_t len, int32_t v);
 
 /**
  * @brief Set the created (Time) field in place on a Track buffer.
@@ -5314,7 +5314,7 @@ int32_t ros_track_set_lifetime(uint8_t* buf, size_t len, int32_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_track_set_created(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t edgefirst_msgs_track_set_created(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /* ---- edgefirst_msgs - DetectBox ---- */
 
@@ -5330,7 +5330,7 @@ int32_t ros_track_set_created(uint8_t* buf, size_t len, int32_t sec, uint32_t ns
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_detect_box_set_center_x(uint8_t* buf, size_t len, float v);
+int32_t edgefirst_msgs_detect_box_set_center_x(uint8_t* buf, size_t len, float v);
 
 /**
  * @brief Set the center_y field in place on a DetectBox buffer.
@@ -5344,7 +5344,7 @@ int32_t ros_detect_box_set_center_x(uint8_t* buf, size_t len, float v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_detect_box_set_center_y(uint8_t* buf, size_t len, float v);
+int32_t edgefirst_msgs_detect_box_set_center_y(uint8_t* buf, size_t len, float v);
 
 /**
  * @brief Set the width field in place on a DetectBox buffer.
@@ -5358,7 +5358,7 @@ int32_t ros_detect_box_set_center_y(uint8_t* buf, size_t len, float v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_detect_box_set_width(uint8_t* buf, size_t len, float v);
+int32_t edgefirst_msgs_detect_box_set_width(uint8_t* buf, size_t len, float v);
 
 /**
  * @brief Set the height field in place on a DetectBox buffer.
@@ -5372,7 +5372,7 @@ int32_t ros_detect_box_set_width(uint8_t* buf, size_t len, float v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_detect_box_set_height(uint8_t* buf, size_t len, float v);
+int32_t edgefirst_msgs_detect_box_set_height(uint8_t* buf, size_t len, float v);
 
 /**
  * @brief Set the score field in place on a DetectBox buffer.
@@ -5386,7 +5386,7 @@ int32_t ros_detect_box_set_height(uint8_t* buf, size_t len, float v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_detect_box_set_score(uint8_t* buf, size_t len, float v);
+int32_t edgefirst_msgs_detect_box_set_score(uint8_t* buf, size_t len, float v);
 
 /**
  * @brief Set the distance field in place on a DetectBox buffer.
@@ -5400,7 +5400,7 @@ int32_t ros_detect_box_set_score(uint8_t* buf, size_t len, float v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_detect_box_set_distance(uint8_t* buf, size_t len, float v);
+int32_t edgefirst_msgs_detect_box_set_distance(uint8_t* buf, size_t len, float v);
 
 /**
  * @brief Set the speed field in place on a DetectBox buffer.
@@ -5414,7 +5414,7 @@ int32_t ros_detect_box_set_distance(uint8_t* buf, size_t len, float v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_detect_box_set_speed(uint8_t* buf, size_t len, float v);
+int32_t edgefirst_msgs_detect_box_set_speed(uint8_t* buf, size_t len, float v);
 
 /**
  * @brief Set the track_lifetime field in place on a DetectBox buffer.
@@ -5428,7 +5428,7 @@ int32_t ros_detect_box_set_speed(uint8_t* buf, size_t len, float v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_detect_box_set_track_lifetime(uint8_t* buf, size_t len, int32_t v);
+int32_t edgefirst_msgs_detect_box_set_track_lifetime(uint8_t* buf, size_t len, int32_t v);
 
 /**
  * @brief Set the track_created (Time) field in place on a DetectBox buffer.
@@ -5442,7 +5442,7 @@ int32_t ros_detect_box_set_track_lifetime(uint8_t* buf, size_t len, int32_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_detect_box_set_track_created(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t edgefirst_msgs_detect_box_set_track_created(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /* ---- edgefirst_msgs - Detect ---- */
 
@@ -5458,7 +5458,7 @@ int32_t ros_detect_box_set_track_created(uint8_t* buf, size_t len, int32_t sec, 
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_detect_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t edgefirst_msgs_detect_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the input_timestamp (Time) field in place on a Detect buffer.
@@ -5472,7 +5472,7 @@ int32_t ros_detect_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nse
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_detect_set_input_timestamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t edgefirst_msgs_detect_set_input_timestamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the model_time (Time) field in place on a Detect buffer.
@@ -5486,7 +5486,7 @@ int32_t ros_detect_set_input_timestamp(uint8_t* buf, size_t len, int32_t sec, ui
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_detect_set_model_time(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t edgefirst_msgs_detect_set_model_time(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the output_time (Time) field in place on a Detect buffer.
@@ -5500,7 +5500,7 @@ int32_t ros_detect_set_model_time(uint8_t* buf, size_t len, int32_t sec, uint32_
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_detect_set_output_time(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t edgefirst_msgs_detect_set_output_time(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /* ---- edgefirst_msgs - Model ---- */
 
@@ -5516,7 +5516,7 @@ int32_t ros_detect_set_output_time(uint8_t* buf, size_t len, int32_t sec, uint32
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_model_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t edgefirst_msgs_model_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the input_time (Duration) field in place on a Model buffer.
@@ -5530,7 +5530,7 @@ int32_t ros_model_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_model_set_input_time(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t edgefirst_msgs_model_set_input_time(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the model_time (Duration) field in place on a Model buffer.
@@ -5544,7 +5544,7 @@ int32_t ros_model_set_input_time(uint8_t* buf, size_t len, int32_t sec, uint32_t
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_model_set_model_time(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t edgefirst_msgs_model_set_model_time(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the output_time (Duration) field in place on a Model buffer.
@@ -5558,7 +5558,7 @@ int32_t ros_model_set_model_time(uint8_t* buf, size_t len, int32_t sec, uint32_t
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_model_set_output_time(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t edgefirst_msgs_model_set_output_time(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the decode_time (Duration) field in place on a Model buffer.
@@ -5572,7 +5572,7 @@ int32_t ros_model_set_output_time(uint8_t* buf, size_t len, int32_t sec, uint32_
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_model_set_decode_time(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t edgefirst_msgs_model_set_decode_time(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /* ---- edgefirst_msgs - ModelInfo ---- */
 
@@ -5588,7 +5588,7 @@ int32_t ros_model_set_decode_time(uint8_t* buf, size_t len, int32_t sec, uint32_
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_model_info_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t edgefirst_msgs_model_info_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the input_type field in place on a ModelInfo buffer.
@@ -5602,7 +5602,7 @@ int32_t ros_model_info_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_model_info_set_input_type(uint8_t* buf, size_t len, uint8_t v);
+int32_t edgefirst_msgs_model_info_set_input_type(uint8_t* buf, size_t len, uint8_t v);
 
 /**
  * @brief Set the output_type field in place on a ModelInfo buffer.
@@ -5616,7 +5616,7 @@ int32_t ros_model_info_set_input_type(uint8_t* buf, size_t len, uint8_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_model_info_set_output_type(uint8_t* buf, size_t len, uint8_t v);
+int32_t edgefirst_msgs_model_info_set_output_type(uint8_t* buf, size_t len, uint8_t v);
 
 /* ---- edgefirst_msgs - Vibration ---- */
 
@@ -5632,7 +5632,7 @@ int32_t ros_model_info_set_output_type(uint8_t* buf, size_t len, uint8_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_vibration_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t edgefirst_msgs_vibration_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the vibration (Vector3) field in place on a Vibration buffer.
@@ -5646,7 +5646,7 @@ int32_t ros_vibration_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t 
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_vibration_set_vibration(uint8_t* buf, size_t len, double x, double y, double z);
+int32_t edgefirst_msgs_vibration_set_vibration(uint8_t* buf, size_t len, double x, double y, double z);
 
 /**
  * @brief Set the band_lower_hz field in place.
@@ -5660,7 +5660,7 @@ int32_t ros_vibration_set_vibration(uint8_t* buf, size_t len, double x, double y
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_vibration_set_band_lower_hz(uint8_t* buf, size_t len, float v);
+int32_t edgefirst_msgs_vibration_set_band_lower_hz(uint8_t* buf, size_t len, float v);
 
 /**
  * @brief Set the band_upper_hz field in place.
@@ -5674,7 +5674,7 @@ int32_t ros_vibration_set_band_lower_hz(uint8_t* buf, size_t len, float v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_vibration_set_band_upper_hz(uint8_t* buf, size_t len, float v);
+int32_t edgefirst_msgs_vibration_set_band_upper_hz(uint8_t* buf, size_t len, float v);
 
 /**
  * @brief Set the measurement_type field in place on a Vibration buffer.
@@ -5688,7 +5688,7 @@ int32_t ros_vibration_set_band_upper_hz(uint8_t* buf, size_t len, float v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_vibration_set_measurement_type(uint8_t* buf, size_t len, uint8_t v);
+int32_t edgefirst_msgs_vibration_set_measurement_type(uint8_t* buf, size_t len, uint8_t v);
 
 /**
  * @brief Set the unit field in place on a Vibration buffer.
@@ -5702,7 +5702,7 @@ int32_t ros_vibration_set_measurement_type(uint8_t* buf, size_t len, uint8_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_vibration_set_unit(uint8_t* buf, size_t len, uint8_t v);
+int32_t edgefirst_msgs_vibration_set_unit(uint8_t* buf, size_t len, uint8_t v);
 
 /* ---- foxglove_msgs - FoxgloveCompressedVideo ---- */
 
@@ -5718,10 +5718,10 @@ int32_t ros_vibration_set_unit(uint8_t* buf, size_t len, uint8_t v);
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_foxglove_compressed_video_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t foxglove_msgs_compressed_video_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
-/** @brief Alias for ros_foxglove_compressed_video_set_stamp; matches Foxglove schema naming. */
-int32_t ros_foxglove_compressed_video_set_timestamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+/** @brief Alias for foxglove_msgs_compressed_video_set_stamp; matches Foxglove schema naming. */
+int32_t foxglove_msgs_compressed_video_set_timestamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /* ---- foxglove_msgs - FoxgloveCompressedImage ---- */
 
@@ -5737,10 +5737,10 @@ int32_t ros_foxglove_compressed_video_set_timestamp(uint8_t* buf, size_t len, in
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_foxglove_compressed_image_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t foxglove_msgs_compressed_image_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
-/** @brief Alias for ros_foxglove_compressed_image_set_stamp; matches Foxglove schema naming. */
-int32_t ros_foxglove_compressed_image_set_timestamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+/** @brief Alias for foxglove_msgs_compressed_image_set_stamp; matches Foxglove schema naming. */
+int32_t foxglove_msgs_compressed_image_set_timestamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /* ---- foxglove_msgs - FoxgloveTextAnnotation ---- */
 
@@ -5756,7 +5756,7 @@ int32_t ros_foxglove_compressed_image_set_timestamp(uint8_t* buf, size_t len, in
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_foxglove_text_annotation_set_timestamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t foxglove_msgs_text_annotation_set_timestamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the position (FoxglovePoint2) field in place.
@@ -5770,7 +5770,7 @@ int32_t ros_foxglove_text_annotation_set_timestamp(uint8_t* buf, size_t len, int
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_foxglove_text_annotation_set_position(uint8_t* buf, size_t len, double x, double y);
+int32_t foxglove_msgs_text_annotation_set_position(uint8_t* buf, size_t len, double x, double y);
 
 /**
  * @brief Set the font_size field in place.
@@ -5784,7 +5784,7 @@ int32_t ros_foxglove_text_annotation_set_position(uint8_t* buf, size_t len, doub
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_foxglove_text_annotation_set_font_size(uint8_t* buf, size_t len, double v);
+int32_t foxglove_msgs_text_annotation_set_font_size(uint8_t* buf, size_t len, double v);
 
 /**
  * @brief Set the text_color (FoxgloveColor) field in place.
@@ -5798,7 +5798,7 @@ int32_t ros_foxglove_text_annotation_set_font_size(uint8_t* buf, size_t len, dou
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_foxglove_text_annotation_set_text_color(uint8_t* buf, size_t len, double r, double g, double b, double a);
+int32_t foxglove_msgs_text_annotation_set_text_color(uint8_t* buf, size_t len, double r, double g, double b, double a);
 
 /**
  * @brief Set the background_color (FoxgloveColor) field in place.
@@ -5812,7 +5812,7 @@ int32_t ros_foxglove_text_annotation_set_text_color(uint8_t* buf, size_t len, do
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_foxglove_text_annotation_set_background_color(uint8_t* buf, size_t len, double r, double g, double b, double a);
+int32_t foxglove_msgs_text_annotation_set_background_color(uint8_t* buf, size_t len, double r, double g, double b, double a);
 
 /* ---- foxglove_msgs - FoxglovePointAnnotation ---- */
 
@@ -5828,7 +5828,7 @@ int32_t ros_foxglove_text_annotation_set_background_color(uint8_t* buf, size_t l
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_foxglove_point_annotation_set_timestamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t foxglove_msgs_point_annotation_set_timestamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief Set the type_ field in place on a FoxglovePointAnnotation buffer.
@@ -5842,7 +5842,7 @@ int32_t ros_foxglove_point_annotation_set_timestamp(uint8_t* buf, size_t len, in
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_foxglove_point_annotation_set_type(uint8_t* buf, size_t len, uint8_t v);
+int32_t foxglove_msgs_point_annotation_set_type(uint8_t* buf, size_t len, uint8_t v);
 
 /**
  * @brief Set the outline_color (FoxgloveColor) field in place.
@@ -5856,7 +5856,7 @@ int32_t ros_foxglove_point_annotation_set_type(uint8_t* buf, size_t len, uint8_t
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_foxglove_point_annotation_set_outline_color(uint8_t* buf, size_t len, double r, double g, double b, double a);
+int32_t foxglove_msgs_point_annotation_set_outline_color(uint8_t* buf, size_t len, double r, double g, double b, double a);
 
 /**
  * @brief Set the fill_color (FoxgloveColor) field in place.
@@ -5870,7 +5870,7 @@ int32_t ros_foxglove_point_annotation_set_outline_color(uint8_t* buf, size_t len
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_foxglove_point_annotation_set_fill_color(uint8_t* buf, size_t len, double r, double g, double b, double a);
+int32_t foxglove_msgs_point_annotation_set_fill_color(uint8_t* buf, size_t len, double r, double g, double b, double a);
 
 /**
  * @brief Set the thickness field in place on a FoxglovePointAnnotation buffer.
@@ -5884,7 +5884,7 @@ int32_t ros_foxglove_point_annotation_set_fill_color(uint8_t* buf, size_t len, d
  * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
  *         if buf is not a valid encoded message of this type).
  */
-int32_t ros_foxglove_point_annotation_set_thickness(uint8_t* buf, size_t len, double v);
+int32_t foxglove_msgs_point_annotation_set_thickness(uint8_t* buf, size_t len, double v);
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * mavros_msgs — MAVLink/MAVROS Message Types
@@ -5899,118 +5899,118 @@ int32_t ros_foxglove_point_annotation_set_thickness(uint8_t* buf, size_t len, do
 /* ── Altitude ─────────────────────────────────────────────────────────── */
 
 /** @brief Opaque handle to a mavros_msgs/Altitude view. */
-typedef struct ros_mavros_altitude_t ros_mavros_altitude_t;
+typedef struct mavros_msgs_altitude_t mavros_msgs_altitude_t;
 
-ros_mavros_altitude_t* ros_mavros_altitude_from_cdr(const uint8_t* data, size_t len);
-void ros_mavros_altitude_free(ros_mavros_altitude_t* view);
-const uint8_t* ros_mavros_altitude_as_cdr(const ros_mavros_altitude_t* view, size_t* out_len);
-int32_t ros_mavros_altitude_get_stamp_sec(const ros_mavros_altitude_t* view);
-uint32_t ros_mavros_altitude_get_stamp_nanosec(const ros_mavros_altitude_t* view);
-const char* ros_mavros_altitude_get_frame_id(const ros_mavros_altitude_t* view);
-float ros_mavros_altitude_get_monotonic(const ros_mavros_altitude_t* view);
-float ros_mavros_altitude_get_amsl(const ros_mavros_altitude_t* view);
-float ros_mavros_altitude_get_local(const ros_mavros_altitude_t* view);
-float ros_mavros_altitude_get_relative(const ros_mavros_altitude_t* view);
-float ros_mavros_altitude_get_terrain(const ros_mavros_altitude_t* view);
-float ros_mavros_altitude_get_bottom_clearance(const ros_mavros_altitude_t* view);
-/** @brief Opaque builder handle for ros_mavros_altitude_t messages. */
-typedef struct ros_mavros_altitude_builder_s ros_mavros_altitude_builder_t;
-ros_mavros_altitude_builder_t* ros_mavros_altitude_builder_new(void);
-void ros_mavros_altitude_builder_free(ros_mavros_altitude_builder_t* b);
-void ros_mavros_altitude_builder_set_stamp(ros_mavros_altitude_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_mavros_altitude_builder_set_frame_id(ros_mavros_altitude_builder_t* b, const char* s);
-void ros_mavros_altitude_builder_set_monotonic(ros_mavros_altitude_builder_t* b, float v);
-void ros_mavros_altitude_builder_set_amsl(ros_mavros_altitude_builder_t* b, float v);
-void ros_mavros_altitude_builder_set_local(ros_mavros_altitude_builder_t* b, float v);
-void ros_mavros_altitude_builder_set_relative(ros_mavros_altitude_builder_t* b, float v);
-void ros_mavros_altitude_builder_set_terrain(ros_mavros_altitude_builder_t* b, float v);
-void ros_mavros_altitude_builder_set_bottom_clearance(ros_mavros_altitude_builder_t* b, float v);
-int  ros_mavros_altitude_builder_build(ros_mavros_altitude_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_mavros_altitude_builder_encode_into(ros_mavros_altitude_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+mavros_msgs_altitude_t* mavros_msgs_altitude_from_cdr(const uint8_t* data, size_t len);
+void mavros_msgs_altitude_free(mavros_msgs_altitude_t* view);
+const uint8_t* mavros_msgs_altitude_as_cdr(const mavros_msgs_altitude_t* view, size_t* out_len);
+int32_t mavros_msgs_altitude_get_stamp_sec(const mavros_msgs_altitude_t* view);
+uint32_t mavros_msgs_altitude_get_stamp_nanosec(const mavros_msgs_altitude_t* view);
+const char* mavros_msgs_altitude_get_frame_id(const mavros_msgs_altitude_t* view);
+float mavros_msgs_altitude_get_monotonic(const mavros_msgs_altitude_t* view);
+float mavros_msgs_altitude_get_amsl(const mavros_msgs_altitude_t* view);
+float mavros_msgs_altitude_get_local(const mavros_msgs_altitude_t* view);
+float mavros_msgs_altitude_get_relative(const mavros_msgs_altitude_t* view);
+float mavros_msgs_altitude_get_terrain(const mavros_msgs_altitude_t* view);
+float mavros_msgs_altitude_get_bottom_clearance(const mavros_msgs_altitude_t* view);
+/** @brief Opaque builder handle for mavros_msgs_altitude_t messages. */
+typedef struct mavros_msgs_altitude_builder_s mavros_msgs_altitude_builder_t;
+mavros_msgs_altitude_builder_t* mavros_msgs_altitude_builder_new(void);
+void mavros_msgs_altitude_builder_free(mavros_msgs_altitude_builder_t* b);
+void mavros_msgs_altitude_builder_set_stamp(mavros_msgs_altitude_builder_t* b, int32_t sec, uint32_t nanosec);
+int  mavros_msgs_altitude_builder_set_frame_id(mavros_msgs_altitude_builder_t* b, const char* s);
+void mavros_msgs_altitude_builder_set_monotonic(mavros_msgs_altitude_builder_t* b, float v);
+void mavros_msgs_altitude_builder_set_amsl(mavros_msgs_altitude_builder_t* b, float v);
+void mavros_msgs_altitude_builder_set_local(mavros_msgs_altitude_builder_t* b, float v);
+void mavros_msgs_altitude_builder_set_relative(mavros_msgs_altitude_builder_t* b, float v);
+void mavros_msgs_altitude_builder_set_terrain(mavros_msgs_altitude_builder_t* b, float v);
+void mavros_msgs_altitude_builder_set_bottom_clearance(mavros_msgs_altitude_builder_t* b, float v);
+int  mavros_msgs_altitude_builder_build(mavros_msgs_altitude_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  mavros_msgs_altitude_builder_encode_into(mavros_msgs_altitude_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ── VfrHud ───────────────────────────────────────────────────────────── */
 
 /** @brief Opaque handle to a mavros_msgs/VfrHud view. */
-typedef struct ros_mavros_vfrhud_t ros_mavros_vfrhud_t;
+typedef struct mavros_msgs_vfrhud_t mavros_msgs_vfrhud_t;
 
-ros_mavros_vfrhud_t* ros_mavros_vfrhud_from_cdr(const uint8_t* data, size_t len);
-void ros_mavros_vfrhud_free(ros_mavros_vfrhud_t* view);
-const uint8_t* ros_mavros_vfrhud_as_cdr(const ros_mavros_vfrhud_t* view, size_t* out_len);
-int32_t ros_mavros_vfrhud_get_stamp_sec(const ros_mavros_vfrhud_t* view);
-uint32_t ros_mavros_vfrhud_get_stamp_nanosec(const ros_mavros_vfrhud_t* view);
-const char* ros_mavros_vfrhud_get_frame_id(const ros_mavros_vfrhud_t* view);
-float ros_mavros_vfrhud_get_airspeed(const ros_mavros_vfrhud_t* view);
-float ros_mavros_vfrhud_get_groundspeed(const ros_mavros_vfrhud_t* view);
-int16_t ros_mavros_vfrhud_get_heading(const ros_mavros_vfrhud_t* view);
-float ros_mavros_vfrhud_get_throttle(const ros_mavros_vfrhud_t* view);
-float ros_mavros_vfrhud_get_altitude(const ros_mavros_vfrhud_t* view);
-float ros_mavros_vfrhud_get_climb(const ros_mavros_vfrhud_t* view);
-/** @brief Opaque builder handle for ros_mavros_vfrhud_t messages. */
-typedef struct ros_mavros_vfrhud_builder_s ros_mavros_vfrhud_builder_t;
-ros_mavros_vfrhud_builder_t* ros_mavros_vfrhud_builder_new(void);
-void ros_mavros_vfrhud_builder_free(ros_mavros_vfrhud_builder_t* b);
-void ros_mavros_vfrhud_builder_set_stamp(ros_mavros_vfrhud_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_mavros_vfrhud_builder_set_frame_id(ros_mavros_vfrhud_builder_t* b, const char* s);
-void ros_mavros_vfrhud_builder_set_airspeed(ros_mavros_vfrhud_builder_t* b, float v);
-void ros_mavros_vfrhud_builder_set_groundspeed(ros_mavros_vfrhud_builder_t* b, float v);
-void ros_mavros_vfrhud_builder_set_heading(ros_mavros_vfrhud_builder_t* b, int16_t v);
-void ros_mavros_vfrhud_builder_set_throttle(ros_mavros_vfrhud_builder_t* b, float v);
-void ros_mavros_vfrhud_builder_set_altitude(ros_mavros_vfrhud_builder_t* b, float v);
-void ros_mavros_vfrhud_builder_set_climb(ros_mavros_vfrhud_builder_t* b, float v);
-int  ros_mavros_vfrhud_builder_build(ros_mavros_vfrhud_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_mavros_vfrhud_builder_encode_into(ros_mavros_vfrhud_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+mavros_msgs_vfrhud_t* mavros_msgs_vfrhud_from_cdr(const uint8_t* data, size_t len);
+void mavros_msgs_vfrhud_free(mavros_msgs_vfrhud_t* view);
+const uint8_t* mavros_msgs_vfrhud_as_cdr(const mavros_msgs_vfrhud_t* view, size_t* out_len);
+int32_t mavros_msgs_vfrhud_get_stamp_sec(const mavros_msgs_vfrhud_t* view);
+uint32_t mavros_msgs_vfrhud_get_stamp_nanosec(const mavros_msgs_vfrhud_t* view);
+const char* mavros_msgs_vfrhud_get_frame_id(const mavros_msgs_vfrhud_t* view);
+float mavros_msgs_vfrhud_get_airspeed(const mavros_msgs_vfrhud_t* view);
+float mavros_msgs_vfrhud_get_groundspeed(const mavros_msgs_vfrhud_t* view);
+int16_t mavros_msgs_vfrhud_get_heading(const mavros_msgs_vfrhud_t* view);
+float mavros_msgs_vfrhud_get_throttle(const mavros_msgs_vfrhud_t* view);
+float mavros_msgs_vfrhud_get_altitude(const mavros_msgs_vfrhud_t* view);
+float mavros_msgs_vfrhud_get_climb(const mavros_msgs_vfrhud_t* view);
+/** @brief Opaque builder handle for mavros_msgs_vfrhud_t messages. */
+typedef struct mavros_msgs_vfrhud_builder_s mavros_msgs_vfrhud_builder_t;
+mavros_msgs_vfrhud_builder_t* mavros_msgs_vfrhud_builder_new(void);
+void mavros_msgs_vfrhud_builder_free(mavros_msgs_vfrhud_builder_t* b);
+void mavros_msgs_vfrhud_builder_set_stamp(mavros_msgs_vfrhud_builder_t* b, int32_t sec, uint32_t nanosec);
+int  mavros_msgs_vfrhud_builder_set_frame_id(mavros_msgs_vfrhud_builder_t* b, const char* s);
+void mavros_msgs_vfrhud_builder_set_airspeed(mavros_msgs_vfrhud_builder_t* b, float v);
+void mavros_msgs_vfrhud_builder_set_groundspeed(mavros_msgs_vfrhud_builder_t* b, float v);
+void mavros_msgs_vfrhud_builder_set_heading(mavros_msgs_vfrhud_builder_t* b, int16_t v);
+void mavros_msgs_vfrhud_builder_set_throttle(mavros_msgs_vfrhud_builder_t* b, float v);
+void mavros_msgs_vfrhud_builder_set_altitude(mavros_msgs_vfrhud_builder_t* b, float v);
+void mavros_msgs_vfrhud_builder_set_climb(mavros_msgs_vfrhud_builder_t* b, float v);
+int  mavros_msgs_vfrhud_builder_build(mavros_msgs_vfrhud_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  mavros_msgs_vfrhud_builder_encode_into(mavros_msgs_vfrhud_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ── EstimatorStatus ──────────────────────────────────────────────────── */
 
 /** @brief Opaque handle to a mavros_msgs/EstimatorStatus view. */
-typedef struct ros_mavros_estimator_status_t ros_mavros_estimator_status_t;
+typedef struct mavros_msgs_estimator_status_t mavros_msgs_estimator_status_t;
 
-ros_mavros_estimator_status_t* ros_mavros_estimator_status_from_cdr(const uint8_t* data, size_t len);
-void ros_mavros_estimator_status_free(ros_mavros_estimator_status_t* view);
-const uint8_t* ros_mavros_estimator_status_as_cdr(const ros_mavros_estimator_status_t* view, size_t* out_len);
-int32_t ros_mavros_estimator_status_get_stamp_sec(const ros_mavros_estimator_status_t* view);
-uint32_t ros_mavros_estimator_status_get_stamp_nanosec(const ros_mavros_estimator_status_t* view);
-const char* ros_mavros_estimator_status_get_frame_id(const ros_mavros_estimator_status_t* view);
-bool ros_mavros_estimator_status_get_attitude_status_flag(const ros_mavros_estimator_status_t* view);
-bool ros_mavros_estimator_status_get_velocity_horiz_status_flag(const ros_mavros_estimator_status_t* view);
-bool ros_mavros_estimator_status_get_velocity_vert_status_flag(const ros_mavros_estimator_status_t* view);
-bool ros_mavros_estimator_status_get_pos_horiz_rel_status_flag(const ros_mavros_estimator_status_t* view);
-bool ros_mavros_estimator_status_get_pos_horiz_abs_status_flag(const ros_mavros_estimator_status_t* view);
-bool ros_mavros_estimator_status_get_pos_vert_abs_status_flag(const ros_mavros_estimator_status_t* view);
-bool ros_mavros_estimator_status_get_pos_vert_agl_status_flag(const ros_mavros_estimator_status_t* view);
-bool ros_mavros_estimator_status_get_const_pos_mode_status_flag(const ros_mavros_estimator_status_t* view);
-bool ros_mavros_estimator_status_get_pred_pos_horiz_rel_status_flag(const ros_mavros_estimator_status_t* view);
-bool ros_mavros_estimator_status_get_pred_pos_horiz_abs_status_flag(const ros_mavros_estimator_status_t* view);
-bool ros_mavros_estimator_status_get_gps_glitch_status_flag(const ros_mavros_estimator_status_t* view);
-bool ros_mavros_estimator_status_get_accel_error_status_flag(const ros_mavros_estimator_status_t* view);
-/** @brief Opaque builder handle for ros_mavros_estimator_status_t messages. */
-typedef struct ros_mavros_estimator_status_builder_s ros_mavros_estimator_status_builder_t;
-ros_mavros_estimator_status_builder_t* ros_mavros_estimator_status_builder_new(void);
-void ros_mavros_estimator_status_builder_free(ros_mavros_estimator_status_builder_t* b);
-void ros_mavros_estimator_status_builder_set_stamp(ros_mavros_estimator_status_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_mavros_estimator_status_builder_set_frame_id(ros_mavros_estimator_status_builder_t* b, const char* s);
-void ros_mavros_estimator_status_builder_set_attitude_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
-void ros_mavros_estimator_status_builder_set_velocity_horiz_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
-void ros_mavros_estimator_status_builder_set_velocity_vert_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
-void ros_mavros_estimator_status_builder_set_pos_horiz_rel_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
-void ros_mavros_estimator_status_builder_set_pos_horiz_abs_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
-void ros_mavros_estimator_status_builder_set_pos_vert_abs_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
-void ros_mavros_estimator_status_builder_set_pos_vert_agl_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
-void ros_mavros_estimator_status_builder_set_const_pos_mode_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
-void ros_mavros_estimator_status_builder_set_pred_pos_horiz_rel_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
-void ros_mavros_estimator_status_builder_set_pred_pos_horiz_abs_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
-void ros_mavros_estimator_status_builder_set_gps_glitch_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
-void ros_mavros_estimator_status_builder_set_accel_error_status_flag(ros_mavros_estimator_status_builder_t* b, bool v);
-int  ros_mavros_estimator_status_builder_build(ros_mavros_estimator_status_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_mavros_estimator_status_builder_encode_into(ros_mavros_estimator_status_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+mavros_msgs_estimator_status_t* mavros_msgs_estimator_status_from_cdr(const uint8_t* data, size_t len);
+void mavros_msgs_estimator_status_free(mavros_msgs_estimator_status_t* view);
+const uint8_t* mavros_msgs_estimator_status_as_cdr(const mavros_msgs_estimator_status_t* view, size_t* out_len);
+int32_t mavros_msgs_estimator_status_get_stamp_sec(const mavros_msgs_estimator_status_t* view);
+uint32_t mavros_msgs_estimator_status_get_stamp_nanosec(const mavros_msgs_estimator_status_t* view);
+const char* mavros_msgs_estimator_status_get_frame_id(const mavros_msgs_estimator_status_t* view);
+bool mavros_msgs_estimator_status_get_attitude_status_flag(const mavros_msgs_estimator_status_t* view);
+bool mavros_msgs_estimator_status_get_velocity_horiz_status_flag(const mavros_msgs_estimator_status_t* view);
+bool mavros_msgs_estimator_status_get_velocity_vert_status_flag(const mavros_msgs_estimator_status_t* view);
+bool mavros_msgs_estimator_status_get_pos_horiz_rel_status_flag(const mavros_msgs_estimator_status_t* view);
+bool mavros_msgs_estimator_status_get_pos_horiz_abs_status_flag(const mavros_msgs_estimator_status_t* view);
+bool mavros_msgs_estimator_status_get_pos_vert_abs_status_flag(const mavros_msgs_estimator_status_t* view);
+bool mavros_msgs_estimator_status_get_pos_vert_agl_status_flag(const mavros_msgs_estimator_status_t* view);
+bool mavros_msgs_estimator_status_get_const_pos_mode_status_flag(const mavros_msgs_estimator_status_t* view);
+bool mavros_msgs_estimator_status_get_pred_pos_horiz_rel_status_flag(const mavros_msgs_estimator_status_t* view);
+bool mavros_msgs_estimator_status_get_pred_pos_horiz_abs_status_flag(const mavros_msgs_estimator_status_t* view);
+bool mavros_msgs_estimator_status_get_gps_glitch_status_flag(const mavros_msgs_estimator_status_t* view);
+bool mavros_msgs_estimator_status_get_accel_error_status_flag(const mavros_msgs_estimator_status_t* view);
+/** @brief Opaque builder handle for mavros_msgs_estimator_status_t messages. */
+typedef struct mavros_msgs_estimator_status_builder_s mavros_msgs_estimator_status_builder_t;
+mavros_msgs_estimator_status_builder_t* mavros_msgs_estimator_status_builder_new(void);
+void mavros_msgs_estimator_status_builder_free(mavros_msgs_estimator_status_builder_t* b);
+void mavros_msgs_estimator_status_builder_set_stamp(mavros_msgs_estimator_status_builder_t* b, int32_t sec, uint32_t nanosec);
+int  mavros_msgs_estimator_status_builder_set_frame_id(mavros_msgs_estimator_status_builder_t* b, const char* s);
+void mavros_msgs_estimator_status_builder_set_attitude_status_flag(mavros_msgs_estimator_status_builder_t* b, bool v);
+void mavros_msgs_estimator_status_builder_set_velocity_horiz_status_flag(mavros_msgs_estimator_status_builder_t* b, bool v);
+void mavros_msgs_estimator_status_builder_set_velocity_vert_status_flag(mavros_msgs_estimator_status_builder_t* b, bool v);
+void mavros_msgs_estimator_status_builder_set_pos_horiz_rel_status_flag(mavros_msgs_estimator_status_builder_t* b, bool v);
+void mavros_msgs_estimator_status_builder_set_pos_horiz_abs_status_flag(mavros_msgs_estimator_status_builder_t* b, bool v);
+void mavros_msgs_estimator_status_builder_set_pos_vert_abs_status_flag(mavros_msgs_estimator_status_builder_t* b, bool v);
+void mavros_msgs_estimator_status_builder_set_pos_vert_agl_status_flag(mavros_msgs_estimator_status_builder_t* b, bool v);
+void mavros_msgs_estimator_status_builder_set_const_pos_mode_status_flag(mavros_msgs_estimator_status_builder_t* b, bool v);
+void mavros_msgs_estimator_status_builder_set_pred_pos_horiz_rel_status_flag(mavros_msgs_estimator_status_builder_t* b, bool v);
+void mavros_msgs_estimator_status_builder_set_pred_pos_horiz_abs_status_flag(mavros_msgs_estimator_status_builder_t* b, bool v);
+void mavros_msgs_estimator_status_builder_set_gps_glitch_status_flag(mavros_msgs_estimator_status_builder_t* b, bool v);
+void mavros_msgs_estimator_status_builder_set_accel_error_status_flag(mavros_msgs_estimator_status_builder_t* b, bool v);
+int  mavros_msgs_estimator_status_builder_build(mavros_msgs_estimator_status_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  mavros_msgs_estimator_status_builder_encode_into(mavros_msgs_estimator_status_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ── ExtendedState ────────────────────────────────────────────────────── */
 
 /** @brief Opaque handle to a mavros_msgs/ExtendedState view. */
-typedef struct ros_mavros_extended_state_t ros_mavros_extended_state_t;
+typedef struct mavros_msgs_extended_state_t mavros_msgs_extended_state_t;
 
 /** VTOL state constants. */
 #define ROS_MAVROS_VTOL_STATE_UNDEFINED        0
@@ -6026,24 +6026,24 @@ typedef struct ros_mavros_extended_state_t ros_mavros_extended_state_t;
 #define ROS_MAVROS_LANDED_STATE_TAKEOFF    3
 #define ROS_MAVROS_LANDED_STATE_LANDING    4
 
-ros_mavros_extended_state_t* ros_mavros_extended_state_from_cdr(const uint8_t* data, size_t len);
-void ros_mavros_extended_state_free(ros_mavros_extended_state_t* view);
-const uint8_t* ros_mavros_extended_state_as_cdr(const ros_mavros_extended_state_t* view, size_t* out_len);
-int32_t ros_mavros_extended_state_get_stamp_sec(const ros_mavros_extended_state_t* view);
-uint32_t ros_mavros_extended_state_get_stamp_nanosec(const ros_mavros_extended_state_t* view);
-const char* ros_mavros_extended_state_get_frame_id(const ros_mavros_extended_state_t* view);
-uint8_t ros_mavros_extended_state_get_vtol_state(const ros_mavros_extended_state_t* view);
-uint8_t ros_mavros_extended_state_get_landed_state(const ros_mavros_extended_state_t* view);
-/** @brief Opaque builder handle for ros_mavros_extended_state_t messages. */
-typedef struct ros_mavros_extended_state_builder_s ros_mavros_extended_state_builder_t;
-ros_mavros_extended_state_builder_t* ros_mavros_extended_state_builder_new(void);
-void ros_mavros_extended_state_builder_free(ros_mavros_extended_state_builder_t* b);
-void ros_mavros_extended_state_builder_set_stamp(ros_mavros_extended_state_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_mavros_extended_state_builder_set_frame_id(ros_mavros_extended_state_builder_t* b, const char* s);
-void ros_mavros_extended_state_builder_set_vtol_state(ros_mavros_extended_state_builder_t* b, uint8_t v);
-void ros_mavros_extended_state_builder_set_landed_state(ros_mavros_extended_state_builder_t* b, uint8_t v);
-int  ros_mavros_extended_state_builder_build(ros_mavros_extended_state_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_mavros_extended_state_builder_encode_into(ros_mavros_extended_state_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+mavros_msgs_extended_state_t* mavros_msgs_extended_state_from_cdr(const uint8_t* data, size_t len);
+void mavros_msgs_extended_state_free(mavros_msgs_extended_state_t* view);
+const uint8_t* mavros_msgs_extended_state_as_cdr(const mavros_msgs_extended_state_t* view, size_t* out_len);
+int32_t mavros_msgs_extended_state_get_stamp_sec(const mavros_msgs_extended_state_t* view);
+uint32_t mavros_msgs_extended_state_get_stamp_nanosec(const mavros_msgs_extended_state_t* view);
+const char* mavros_msgs_extended_state_get_frame_id(const mavros_msgs_extended_state_t* view);
+uint8_t mavros_msgs_extended_state_get_vtol_state(const mavros_msgs_extended_state_t* view);
+uint8_t mavros_msgs_extended_state_get_landed_state(const mavros_msgs_extended_state_t* view);
+/** @brief Opaque builder handle for mavros_msgs_extended_state_t messages. */
+typedef struct mavros_msgs_extended_state_builder_s mavros_msgs_extended_state_builder_t;
+mavros_msgs_extended_state_builder_t* mavros_msgs_extended_state_builder_new(void);
+void mavros_msgs_extended_state_builder_free(mavros_msgs_extended_state_builder_t* b);
+void mavros_msgs_extended_state_builder_set_stamp(mavros_msgs_extended_state_builder_t* b, int32_t sec, uint32_t nanosec);
+int  mavros_msgs_extended_state_builder_set_frame_id(mavros_msgs_extended_state_builder_t* b, const char* s);
+void mavros_msgs_extended_state_builder_set_vtol_state(mavros_msgs_extended_state_builder_t* b, uint8_t v);
+void mavros_msgs_extended_state_builder_set_landed_state(mavros_msgs_extended_state_builder_t* b, uint8_t v);
+int  mavros_msgs_extended_state_builder_build(mavros_msgs_extended_state_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  mavros_msgs_extended_state_builder_encode_into(mavros_msgs_extended_state_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ── SysStatus ────────────────────────────────────────────────────────── */
@@ -6055,67 +6055,67 @@ int  ros_mavros_extended_state_builder_encode_into(ros_mavros_extended_state_bui
  * no conversions are applied.
  * @see https://mavlink.io/en/messages/common.html#SYS_STATUS
  */
-typedef struct ros_mavros_sys_status_t ros_mavros_sys_status_t;
+typedef struct mavros_msgs_sys_status_t mavros_msgs_sys_status_t;
 
-ros_mavros_sys_status_t* ros_mavros_sys_status_from_cdr(const uint8_t* data, size_t len);
-void ros_mavros_sys_status_free(ros_mavros_sys_status_t* view);
-const uint8_t* ros_mavros_sys_status_as_cdr(const ros_mavros_sys_status_t* view, size_t* out_len);
-int32_t ros_mavros_sys_status_get_stamp_sec(const ros_mavros_sys_status_t* view);
-uint32_t ros_mavros_sys_status_get_stamp_nanosec(const ros_mavros_sys_status_t* view);
-const char* ros_mavros_sys_status_get_frame_id(const ros_mavros_sys_status_t* view);
+mavros_msgs_sys_status_t* mavros_msgs_sys_status_from_cdr(const uint8_t* data, size_t len);
+void mavros_msgs_sys_status_free(mavros_msgs_sys_status_t* view);
+const uint8_t* mavros_msgs_sys_status_as_cdr(const mavros_msgs_sys_status_t* view, size_t* out_len);
+int32_t mavros_msgs_sys_status_get_stamp_sec(const mavros_msgs_sys_status_t* view);
+uint32_t mavros_msgs_sys_status_get_stamp_nanosec(const mavros_msgs_sys_status_t* view);
+const char* mavros_msgs_sys_status_get_frame_id(const mavros_msgs_sys_status_t* view);
 /** @brief Bitmask of onboard sensors present. */
-uint32_t ros_mavros_sys_status_get_sensors_present(const ros_mavros_sys_status_t* view);
+uint32_t mavros_msgs_sys_status_get_sensors_present(const mavros_msgs_sys_status_t* view);
 /** @brief Bitmask of onboard sensors enabled. */
-uint32_t ros_mavros_sys_status_get_sensors_enabled(const ros_mavros_sys_status_t* view);
+uint32_t mavros_msgs_sys_status_get_sensors_enabled(const mavros_msgs_sys_status_t* view);
 /** @brief Bitmask of onboard sensors reporting healthy. */
-uint32_t ros_mavros_sys_status_get_sensors_health(const ros_mavros_sys_status_t* view);
+uint32_t mavros_msgs_sys_status_get_sensors_health(const mavros_msgs_sys_status_t* view);
 /** @brief Maximum CPU/MCU usage in per-mille (0–1000). */
-uint16_t ros_mavros_sys_status_get_load(const ros_mavros_sys_status_t* view);
+uint16_t mavros_msgs_sys_status_get_load(const mavros_msgs_sys_status_t* view);
 /** @brief Battery voltage in millivolts (mV). UINT16_MAX if unknown. */
-uint16_t ros_mavros_sys_status_get_voltage_battery(const ros_mavros_sys_status_t* view);
+uint16_t mavros_msgs_sys_status_get_voltage_battery(const mavros_msgs_sys_status_t* view);
 /** @brief Battery current in centi-amperes (cA, 10 mA steps). -1 if unknown. */
-int16_t ros_mavros_sys_status_get_current_battery(const ros_mavros_sys_status_t* view);
+int16_t mavros_msgs_sys_status_get_current_battery(const mavros_msgs_sys_status_t* view);
 /** @brief Battery remaining, 0–100 (%). -1 if not estimated. */
-int8_t ros_mavros_sys_status_get_battery_remaining(const ros_mavros_sys_status_t* view);
+int8_t mavros_msgs_sys_status_get_battery_remaining(const mavros_msgs_sys_status_t* view);
 /** @brief Communication drop rate in per-mille. */
-uint16_t ros_mavros_sys_status_get_drop_rate_comm(const ros_mavros_sys_status_t* view);
+uint16_t mavros_msgs_sys_status_get_drop_rate_comm(const mavros_msgs_sys_status_t* view);
 /** @brief Communication error count. */
-uint16_t ros_mavros_sys_status_get_errors_comm(const ros_mavros_sys_status_t* view);
+uint16_t mavros_msgs_sys_status_get_errors_comm(const mavros_msgs_sys_status_t* view);
 /** @brief Autopilot-specific error count 1. */
-uint16_t ros_mavros_sys_status_get_errors_count1(const ros_mavros_sys_status_t* view);
+uint16_t mavros_msgs_sys_status_get_errors_count1(const mavros_msgs_sys_status_t* view);
 /** @brief Autopilot-specific error count 2. */
-uint16_t ros_mavros_sys_status_get_errors_count2(const ros_mavros_sys_status_t* view);
+uint16_t mavros_msgs_sys_status_get_errors_count2(const mavros_msgs_sys_status_t* view);
 /** @brief Autopilot-specific error count 3. */
-uint16_t ros_mavros_sys_status_get_errors_count3(const ros_mavros_sys_status_t* view);
+uint16_t mavros_msgs_sys_status_get_errors_count3(const mavros_msgs_sys_status_t* view);
 /** @brief Autopilot-specific error count 4. */
-uint16_t ros_mavros_sys_status_get_errors_count4(const ros_mavros_sys_status_t* view);
-/** @brief Opaque builder handle for ros_mavros_sys_status_t messages. */
-typedef struct ros_mavros_sys_status_builder_s ros_mavros_sys_status_builder_t;
-ros_mavros_sys_status_builder_t* ros_mavros_sys_status_builder_new(void);
-void ros_mavros_sys_status_builder_free(ros_mavros_sys_status_builder_t* b);
-void ros_mavros_sys_status_builder_set_stamp(ros_mavros_sys_status_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_mavros_sys_status_builder_set_frame_id(ros_mavros_sys_status_builder_t* b, const char* s);
-void ros_mavros_sys_status_builder_set_sensors_present(ros_mavros_sys_status_builder_t* b, uint32_t v);
-void ros_mavros_sys_status_builder_set_sensors_enabled(ros_mavros_sys_status_builder_t* b, uint32_t v);
-void ros_mavros_sys_status_builder_set_sensors_health(ros_mavros_sys_status_builder_t* b, uint32_t v);
-void ros_mavros_sys_status_builder_set_load(ros_mavros_sys_status_builder_t* b, uint16_t v);
-void ros_mavros_sys_status_builder_set_voltage_battery(ros_mavros_sys_status_builder_t* b, uint16_t v);
-void ros_mavros_sys_status_builder_set_current_battery(ros_mavros_sys_status_builder_t* b, int16_t v);
-void ros_mavros_sys_status_builder_set_battery_remaining(ros_mavros_sys_status_builder_t* b, int8_t v);
-void ros_mavros_sys_status_builder_set_drop_rate_comm(ros_mavros_sys_status_builder_t* b, uint16_t v);
-void ros_mavros_sys_status_builder_set_errors_comm(ros_mavros_sys_status_builder_t* b, uint16_t v);
-void ros_mavros_sys_status_builder_set_errors_count1(ros_mavros_sys_status_builder_t* b, uint16_t v);
-void ros_mavros_sys_status_builder_set_errors_count2(ros_mavros_sys_status_builder_t* b, uint16_t v);
-void ros_mavros_sys_status_builder_set_errors_count3(ros_mavros_sys_status_builder_t* b, uint16_t v);
-void ros_mavros_sys_status_builder_set_errors_count4(ros_mavros_sys_status_builder_t* b, uint16_t v);
-int  ros_mavros_sys_status_builder_build(ros_mavros_sys_status_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_mavros_sys_status_builder_encode_into(ros_mavros_sys_status_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+uint16_t mavros_msgs_sys_status_get_errors_count4(const mavros_msgs_sys_status_t* view);
+/** @brief Opaque builder handle for mavros_msgs_sys_status_t messages. */
+typedef struct mavros_msgs_sys_status_builder_s mavros_msgs_sys_status_builder_t;
+mavros_msgs_sys_status_builder_t* mavros_msgs_sys_status_builder_new(void);
+void mavros_msgs_sys_status_builder_free(mavros_msgs_sys_status_builder_t* b);
+void mavros_msgs_sys_status_builder_set_stamp(mavros_msgs_sys_status_builder_t* b, int32_t sec, uint32_t nanosec);
+int  mavros_msgs_sys_status_builder_set_frame_id(mavros_msgs_sys_status_builder_t* b, const char* s);
+void mavros_msgs_sys_status_builder_set_sensors_present(mavros_msgs_sys_status_builder_t* b, uint32_t v);
+void mavros_msgs_sys_status_builder_set_sensors_enabled(mavros_msgs_sys_status_builder_t* b, uint32_t v);
+void mavros_msgs_sys_status_builder_set_sensors_health(mavros_msgs_sys_status_builder_t* b, uint32_t v);
+void mavros_msgs_sys_status_builder_set_load(mavros_msgs_sys_status_builder_t* b, uint16_t v);
+void mavros_msgs_sys_status_builder_set_voltage_battery(mavros_msgs_sys_status_builder_t* b, uint16_t v);
+void mavros_msgs_sys_status_builder_set_current_battery(mavros_msgs_sys_status_builder_t* b, int16_t v);
+void mavros_msgs_sys_status_builder_set_battery_remaining(mavros_msgs_sys_status_builder_t* b, int8_t v);
+void mavros_msgs_sys_status_builder_set_drop_rate_comm(mavros_msgs_sys_status_builder_t* b, uint16_t v);
+void mavros_msgs_sys_status_builder_set_errors_comm(mavros_msgs_sys_status_builder_t* b, uint16_t v);
+void mavros_msgs_sys_status_builder_set_errors_count1(mavros_msgs_sys_status_builder_t* b, uint16_t v);
+void mavros_msgs_sys_status_builder_set_errors_count2(mavros_msgs_sys_status_builder_t* b, uint16_t v);
+void mavros_msgs_sys_status_builder_set_errors_count3(mavros_msgs_sys_status_builder_t* b, uint16_t v);
+void mavros_msgs_sys_status_builder_set_errors_count4(mavros_msgs_sys_status_builder_t* b, uint16_t v);
+int  mavros_msgs_sys_status_builder_build(mavros_msgs_sys_status_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  mavros_msgs_sys_status_builder_encode_into(mavros_msgs_sys_status_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ── State ────────────────────────────────────────────────────────────── */
 
 /** @brief Opaque handle to a mavros_msgs/State view. */
-typedef struct ros_mavros_state_t ros_mavros_state_t;
+typedef struct mavros_msgs_state_t mavros_msgs_state_t;
 
 /** MAV_STATE constants for system_status field. */
 #define ROS_MAVROS_MAV_STATE_UNINIT             0
@@ -6128,38 +6128,38 @@ typedef struct ros_mavros_state_t ros_mavros_state_t;
 #define ROS_MAVROS_MAV_STATE_POWEROFF           7
 #define ROS_MAVROS_MAV_STATE_FLIGHT_TERMINATION 8
 
-ros_mavros_state_t* ros_mavros_state_from_cdr(const uint8_t* data, size_t len);
-void ros_mavros_state_free(ros_mavros_state_t* view);
-const uint8_t* ros_mavros_state_as_cdr(const ros_mavros_state_t* view, size_t* out_len);
-int32_t ros_mavros_state_get_stamp_sec(const ros_mavros_state_t* view);
-uint32_t ros_mavros_state_get_stamp_nanosec(const ros_mavros_state_t* view);
-const char* ros_mavros_state_get_frame_id(const ros_mavros_state_t* view);
-bool ros_mavros_state_get_connected(const ros_mavros_state_t* view);
-bool ros_mavros_state_get_armed(const ros_mavros_state_t* view);
-bool ros_mavros_state_get_guided(const ros_mavros_state_t* view);
-bool ros_mavros_state_get_manual_input(const ros_mavros_state_t* view);
-const char* ros_mavros_state_get_mode(const ros_mavros_state_t* view);
-uint8_t ros_mavros_state_get_system_status(const ros_mavros_state_t* view);
-/** @brief Opaque builder handle for ros_mavros_state_t messages. */
-typedef struct ros_mavros_state_builder_s ros_mavros_state_builder_t;
-ros_mavros_state_builder_t* ros_mavros_state_builder_new(void);
-void ros_mavros_state_builder_free(ros_mavros_state_builder_t* b);
-void ros_mavros_state_builder_set_stamp(ros_mavros_state_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_mavros_state_builder_set_frame_id(ros_mavros_state_builder_t* b, const char* s);
-void ros_mavros_state_builder_set_connected(ros_mavros_state_builder_t* b, bool v);
-void ros_mavros_state_builder_set_armed(ros_mavros_state_builder_t* b, bool v);
-void ros_mavros_state_builder_set_guided(ros_mavros_state_builder_t* b, bool v);
-void ros_mavros_state_builder_set_manual_input(ros_mavros_state_builder_t* b, bool v);
-int  ros_mavros_state_builder_set_mode(ros_mavros_state_builder_t* b, const char* s);
-void ros_mavros_state_builder_set_system_status(ros_mavros_state_builder_t* b, uint8_t v);
-int  ros_mavros_state_builder_build(ros_mavros_state_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_mavros_state_builder_encode_into(ros_mavros_state_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+mavros_msgs_state_t* mavros_msgs_state_from_cdr(const uint8_t* data, size_t len);
+void mavros_msgs_state_free(mavros_msgs_state_t* view);
+const uint8_t* mavros_msgs_state_as_cdr(const mavros_msgs_state_t* view, size_t* out_len);
+int32_t mavros_msgs_state_get_stamp_sec(const mavros_msgs_state_t* view);
+uint32_t mavros_msgs_state_get_stamp_nanosec(const mavros_msgs_state_t* view);
+const char* mavros_msgs_state_get_frame_id(const mavros_msgs_state_t* view);
+bool mavros_msgs_state_get_connected(const mavros_msgs_state_t* view);
+bool mavros_msgs_state_get_armed(const mavros_msgs_state_t* view);
+bool mavros_msgs_state_get_guided(const mavros_msgs_state_t* view);
+bool mavros_msgs_state_get_manual_input(const mavros_msgs_state_t* view);
+const char* mavros_msgs_state_get_mode(const mavros_msgs_state_t* view);
+uint8_t mavros_msgs_state_get_system_status(const mavros_msgs_state_t* view);
+/** @brief Opaque builder handle for mavros_msgs_state_t messages. */
+typedef struct mavros_msgs_state_builder_s mavros_msgs_state_builder_t;
+mavros_msgs_state_builder_t* mavros_msgs_state_builder_new(void);
+void mavros_msgs_state_builder_free(mavros_msgs_state_builder_t* b);
+void mavros_msgs_state_builder_set_stamp(mavros_msgs_state_builder_t* b, int32_t sec, uint32_t nanosec);
+int  mavros_msgs_state_builder_set_frame_id(mavros_msgs_state_builder_t* b, const char* s);
+void mavros_msgs_state_builder_set_connected(mavros_msgs_state_builder_t* b, bool v);
+void mavros_msgs_state_builder_set_armed(mavros_msgs_state_builder_t* b, bool v);
+void mavros_msgs_state_builder_set_guided(mavros_msgs_state_builder_t* b, bool v);
+void mavros_msgs_state_builder_set_manual_input(mavros_msgs_state_builder_t* b, bool v);
+int  mavros_msgs_state_builder_set_mode(mavros_msgs_state_builder_t* b, const char* s);
+void mavros_msgs_state_builder_set_system_status(mavros_msgs_state_builder_t* b, uint8_t v);
+int  mavros_msgs_state_builder_build(mavros_msgs_state_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  mavros_msgs_state_builder_encode_into(mavros_msgs_state_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ── StatusText ───────────────────────────────────────────────────────── */
 
 /** @brief Opaque handle to a mavros_msgs/StatusText view. */
-typedef struct ros_mavros_status_text_t ros_mavros_status_text_t;
+typedef struct mavros_msgs_status_text_t mavros_msgs_status_text_t;
 
 /** Severity constants matching MAVLink MAV_SEVERITY. */
 #define ROS_MAVROS_SEVERITY_EMERGENCY 0
@@ -6171,24 +6171,24 @@ typedef struct ros_mavros_status_text_t ros_mavros_status_text_t;
 #define ROS_MAVROS_SEVERITY_INFO      6
 #define ROS_MAVROS_SEVERITY_DEBUG     7
 
-ros_mavros_status_text_t* ros_mavros_status_text_from_cdr(const uint8_t* data, size_t len);
-void ros_mavros_status_text_free(ros_mavros_status_text_t* view);
-const uint8_t* ros_mavros_status_text_as_cdr(const ros_mavros_status_text_t* view, size_t* out_len);
-int32_t ros_mavros_status_text_get_stamp_sec(const ros_mavros_status_text_t* view);
-uint32_t ros_mavros_status_text_get_stamp_nanosec(const ros_mavros_status_text_t* view);
-const char* ros_mavros_status_text_get_frame_id(const ros_mavros_status_text_t* view);
-uint8_t ros_mavros_status_text_get_severity(const ros_mavros_status_text_t* view);
-const char* ros_mavros_status_text_get_text(const ros_mavros_status_text_t* view);
-/** @brief Opaque builder handle for ros_mavros_status_text_t messages. */
-typedef struct ros_mavros_status_text_builder_s ros_mavros_status_text_builder_t;
-ros_mavros_status_text_builder_t* ros_mavros_status_text_builder_new(void);
-void ros_mavros_status_text_builder_free(ros_mavros_status_text_builder_t* b);
-void ros_mavros_status_text_builder_set_stamp(ros_mavros_status_text_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_mavros_status_text_builder_set_frame_id(ros_mavros_status_text_builder_t* b, const char* s);
-void ros_mavros_status_text_builder_set_severity(ros_mavros_status_text_builder_t* b, uint8_t v);
-int  ros_mavros_status_text_builder_set_text(ros_mavros_status_text_builder_t* b, const char* s);
-int  ros_mavros_status_text_builder_build(ros_mavros_status_text_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_mavros_status_text_builder_encode_into(ros_mavros_status_text_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+mavros_msgs_status_text_t* mavros_msgs_status_text_from_cdr(const uint8_t* data, size_t len);
+void mavros_msgs_status_text_free(mavros_msgs_status_text_t* view);
+const uint8_t* mavros_msgs_status_text_as_cdr(const mavros_msgs_status_text_t* view, size_t* out_len);
+int32_t mavros_msgs_status_text_get_stamp_sec(const mavros_msgs_status_text_t* view);
+uint32_t mavros_msgs_status_text_get_stamp_nanosec(const mavros_msgs_status_text_t* view);
+const char* mavros_msgs_status_text_get_frame_id(const mavros_msgs_status_text_t* view);
+uint8_t mavros_msgs_status_text_get_severity(const mavros_msgs_status_text_t* view);
+const char* mavros_msgs_status_text_get_text(const mavros_msgs_status_text_t* view);
+/** @brief Opaque builder handle for mavros_msgs_status_text_t messages. */
+typedef struct mavros_msgs_status_text_builder_s mavros_msgs_status_text_builder_t;
+mavros_msgs_status_text_builder_t* mavros_msgs_status_text_builder_new(void);
+void mavros_msgs_status_text_builder_free(mavros_msgs_status_text_builder_t* b);
+void mavros_msgs_status_text_builder_set_stamp(mavros_msgs_status_text_builder_t* b, int32_t sec, uint32_t nanosec);
+int  mavros_msgs_status_text_builder_set_frame_id(mavros_msgs_status_text_builder_t* b, const char* s);
+void mavros_msgs_status_text_builder_set_severity(mavros_msgs_status_text_builder_t* b, uint8_t v);
+int  mavros_msgs_status_text_builder_set_text(mavros_msgs_status_text_builder_t* b, const char* s);
+int  mavros_msgs_status_text_builder_build(mavros_msgs_status_text_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  mavros_msgs_status_text_builder_encode_into(mavros_msgs_status_text_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ── GpsRaw ───────────────────────────────────────────────────────────── */
@@ -6200,7 +6200,7 @@ int  ros_mavros_status_text_builder_encode_into(ros_mavros_status_text_builder_t
  * no conversions are applied.
  * @see https://mavlink.io/en/messages/common.html#GPS_RAW_INT
  */
-typedef struct ros_mavros_gps_raw_t ros_mavros_gps_raw_t;
+typedef struct mavros_msgs_gps_raw_t mavros_msgs_gps_raw_t;
 
 /** GPS fix type constants. */
 #define ROS_MAVROS_GPS_FIX_TYPE_NO_GPS    0
@@ -6213,100 +6213,100 @@ typedef struct ros_mavros_gps_raw_t ros_mavros_gps_raw_t;
 #define ROS_MAVROS_GPS_FIX_TYPE_STATIC    7
 #define ROS_MAVROS_GPS_FIX_TYPE_PPP       8
 
-ros_mavros_gps_raw_t* ros_mavros_gps_raw_from_cdr(const uint8_t* data, size_t len);
-void ros_mavros_gps_raw_free(ros_mavros_gps_raw_t* view);
-const uint8_t* ros_mavros_gps_raw_as_cdr(const ros_mavros_gps_raw_t* view, size_t* out_len);
-int32_t ros_mavros_gps_raw_get_stamp_sec(const ros_mavros_gps_raw_t* view);
-uint32_t ros_mavros_gps_raw_get_stamp_nanosec(const ros_mavros_gps_raw_t* view);
-const char* ros_mavros_gps_raw_get_frame_id(const ros_mavros_gps_raw_t* view);
+mavros_msgs_gps_raw_t* mavros_msgs_gps_raw_from_cdr(const uint8_t* data, size_t len);
+void mavros_msgs_gps_raw_free(mavros_msgs_gps_raw_t* view);
+const uint8_t* mavros_msgs_gps_raw_as_cdr(const mavros_msgs_gps_raw_t* view, size_t* out_len);
+int32_t mavros_msgs_gps_raw_get_stamp_sec(const mavros_msgs_gps_raw_t* view);
+uint32_t mavros_msgs_gps_raw_get_stamp_nanosec(const mavros_msgs_gps_raw_t* view);
+const char* mavros_msgs_gps_raw_get_frame_id(const mavros_msgs_gps_raw_t* view);
 /** @brief GPS fix type (see ROS_MAVROS_GPS_FIX_TYPE_* constants). */
-uint8_t ros_mavros_gps_raw_get_fix_type(const ros_mavros_gps_raw_t* view);
+uint8_t mavros_msgs_gps_raw_get_fix_type(const mavros_msgs_gps_raw_t* view);
 /** @brief Latitude in degrees * 1e7 (degE7). */
-int32_t ros_mavros_gps_raw_get_lat(const ros_mavros_gps_raw_t* view);
+int32_t mavros_msgs_gps_raw_get_lat(const mavros_msgs_gps_raw_t* view);
 /** @brief Longitude in degrees * 1e7 (degE7). */
-int32_t ros_mavros_gps_raw_get_lon(const ros_mavros_gps_raw_t* view);
+int32_t mavros_msgs_gps_raw_get_lon(const mavros_msgs_gps_raw_t* view);
 /** @brief Altitude above MSL in millimetres (mm). */
-int32_t ros_mavros_gps_raw_get_alt(const ros_mavros_gps_raw_t* view);
+int32_t mavros_msgs_gps_raw_get_alt(const mavros_msgs_gps_raw_t* view);
 /** @brief GPS HDOP in cm. UINT16_MAX if unknown. */
-uint16_t ros_mavros_gps_raw_get_eph(const ros_mavros_gps_raw_t* view);
+uint16_t mavros_msgs_gps_raw_get_eph(const mavros_msgs_gps_raw_t* view);
 /** @brief GPS VDOP in cm. UINT16_MAX if unknown. */
-uint16_t ros_mavros_gps_raw_get_epv(const ros_mavros_gps_raw_t* view);
+uint16_t mavros_msgs_gps_raw_get_epv(const mavros_msgs_gps_raw_t* view);
 /** @brief GPS ground speed in cm/s. UINT16_MAX if unknown. */
-uint16_t ros_mavros_gps_raw_get_vel(const ros_mavros_gps_raw_t* view);
+uint16_t mavros_msgs_gps_raw_get_vel(const mavros_msgs_gps_raw_t* view);
 /** @brief Course over ground in centidegrees (0-35999). UINT16_MAX if unknown. */
-uint16_t ros_mavros_gps_raw_get_cog(const ros_mavros_gps_raw_t* view);
+uint16_t mavros_msgs_gps_raw_get_cog(const mavros_msgs_gps_raw_t* view);
 /** @brief Number of satellites visible. UINT8_MAX if unknown. */
-uint8_t ros_mavros_gps_raw_get_satellites_visible(const ros_mavros_gps_raw_t* view);
+uint8_t mavros_msgs_gps_raw_get_satellites_visible(const mavros_msgs_gps_raw_t* view);
 /** @brief Altitude above WGS84 ellipsoid in millimetres (mm). */
-int32_t ros_mavros_gps_raw_get_alt_ellipsoid(const ros_mavros_gps_raw_t* view);
+int32_t mavros_msgs_gps_raw_get_alt_ellipsoid(const mavros_msgs_gps_raw_t* view);
 /** @brief Horizontal position uncertainty in millimetres (mm). */
-uint32_t ros_mavros_gps_raw_get_h_acc(const ros_mavros_gps_raw_t* view);
+uint32_t mavros_msgs_gps_raw_get_h_acc(const mavros_msgs_gps_raw_t* view);
 /** @brief Vertical position uncertainty in millimetres (mm). */
-uint32_t ros_mavros_gps_raw_get_v_acc(const ros_mavros_gps_raw_t* view);
+uint32_t mavros_msgs_gps_raw_get_v_acc(const mavros_msgs_gps_raw_t* view);
 /** @brief Speed uncertainty in mm/s. */
-uint32_t ros_mavros_gps_raw_get_vel_acc(const ros_mavros_gps_raw_t* view);
+uint32_t mavros_msgs_gps_raw_get_vel_acc(const mavros_msgs_gps_raw_t* view);
 /** @brief Heading uncertainty in centidegrees. */
-int32_t ros_mavros_gps_raw_get_hdg_acc(const ros_mavros_gps_raw_t* view);
+int32_t mavros_msgs_gps_raw_get_hdg_acc(const mavros_msgs_gps_raw_t* view);
 /** @brief Yaw in centidegrees. 0 if unknown. */
-uint16_t ros_mavros_gps_raw_get_yaw(const ros_mavros_gps_raw_t* view);
+uint16_t mavros_msgs_gps_raw_get_yaw(const mavros_msgs_gps_raw_t* view);
 /** @brief Number of DGPS satellites. */
-uint8_t ros_mavros_gps_raw_get_dgps_numch(const ros_mavros_gps_raw_t* view);
+uint8_t mavros_msgs_gps_raw_get_dgps_numch(const mavros_msgs_gps_raw_t* view);
 /** @brief Age of DGPS correction in milliseconds (ms). */
-uint32_t ros_mavros_gps_raw_get_dgps_age(const ros_mavros_gps_raw_t* view);
-/** @brief Opaque builder handle for ros_mavros_gps_raw_t messages. */
-typedef struct ros_mavros_gps_raw_builder_s ros_mavros_gps_raw_builder_t;
-ros_mavros_gps_raw_builder_t* ros_mavros_gps_raw_builder_new(void);
-void ros_mavros_gps_raw_builder_free(ros_mavros_gps_raw_builder_t* b);
-void ros_mavros_gps_raw_builder_set_stamp(ros_mavros_gps_raw_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_mavros_gps_raw_builder_set_frame_id(ros_mavros_gps_raw_builder_t* b, const char* s);
-void ros_mavros_gps_raw_builder_set_fix_type(ros_mavros_gps_raw_builder_t* b, uint8_t v);
-void ros_mavros_gps_raw_builder_set_lat(ros_mavros_gps_raw_builder_t* b, int32_t v);
-void ros_mavros_gps_raw_builder_set_lon(ros_mavros_gps_raw_builder_t* b, int32_t v);
-void ros_mavros_gps_raw_builder_set_alt(ros_mavros_gps_raw_builder_t* b, int32_t v);
-void ros_mavros_gps_raw_builder_set_eph(ros_mavros_gps_raw_builder_t* b, uint16_t v);
-void ros_mavros_gps_raw_builder_set_epv(ros_mavros_gps_raw_builder_t* b, uint16_t v);
-void ros_mavros_gps_raw_builder_set_vel(ros_mavros_gps_raw_builder_t* b, uint16_t v);
-void ros_mavros_gps_raw_builder_set_cog(ros_mavros_gps_raw_builder_t* b, uint16_t v);
-void ros_mavros_gps_raw_builder_set_satellites_visible(ros_mavros_gps_raw_builder_t* b, uint8_t v);
-void ros_mavros_gps_raw_builder_set_alt_ellipsoid(ros_mavros_gps_raw_builder_t* b, int32_t v);
-void ros_mavros_gps_raw_builder_set_h_acc(ros_mavros_gps_raw_builder_t* b, uint32_t v);
-void ros_mavros_gps_raw_builder_set_v_acc(ros_mavros_gps_raw_builder_t* b, uint32_t v);
-void ros_mavros_gps_raw_builder_set_vel_acc(ros_mavros_gps_raw_builder_t* b, uint32_t v);
-void ros_mavros_gps_raw_builder_set_hdg_acc(ros_mavros_gps_raw_builder_t* b, int32_t v);
-void ros_mavros_gps_raw_builder_set_yaw(ros_mavros_gps_raw_builder_t* b, uint16_t v);
-void ros_mavros_gps_raw_builder_set_dgps_numch(ros_mavros_gps_raw_builder_t* b, uint8_t v);
-void ros_mavros_gps_raw_builder_set_dgps_age(ros_mavros_gps_raw_builder_t* b, uint32_t v);
-int  ros_mavros_gps_raw_builder_build(ros_mavros_gps_raw_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_mavros_gps_raw_builder_encode_into(ros_mavros_gps_raw_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+uint32_t mavros_msgs_gps_raw_get_dgps_age(const mavros_msgs_gps_raw_t* view);
+/** @brief Opaque builder handle for mavros_msgs_gps_raw_t messages. */
+typedef struct mavros_msgs_gps_raw_builder_s mavros_msgs_gps_raw_builder_t;
+mavros_msgs_gps_raw_builder_t* mavros_msgs_gps_raw_builder_new(void);
+void mavros_msgs_gps_raw_builder_free(mavros_msgs_gps_raw_builder_t* b);
+void mavros_msgs_gps_raw_builder_set_stamp(mavros_msgs_gps_raw_builder_t* b, int32_t sec, uint32_t nanosec);
+int  mavros_msgs_gps_raw_builder_set_frame_id(mavros_msgs_gps_raw_builder_t* b, const char* s);
+void mavros_msgs_gps_raw_builder_set_fix_type(mavros_msgs_gps_raw_builder_t* b, uint8_t v);
+void mavros_msgs_gps_raw_builder_set_lat(mavros_msgs_gps_raw_builder_t* b, int32_t v);
+void mavros_msgs_gps_raw_builder_set_lon(mavros_msgs_gps_raw_builder_t* b, int32_t v);
+void mavros_msgs_gps_raw_builder_set_alt(mavros_msgs_gps_raw_builder_t* b, int32_t v);
+void mavros_msgs_gps_raw_builder_set_eph(mavros_msgs_gps_raw_builder_t* b, uint16_t v);
+void mavros_msgs_gps_raw_builder_set_epv(mavros_msgs_gps_raw_builder_t* b, uint16_t v);
+void mavros_msgs_gps_raw_builder_set_vel(mavros_msgs_gps_raw_builder_t* b, uint16_t v);
+void mavros_msgs_gps_raw_builder_set_cog(mavros_msgs_gps_raw_builder_t* b, uint16_t v);
+void mavros_msgs_gps_raw_builder_set_satellites_visible(mavros_msgs_gps_raw_builder_t* b, uint8_t v);
+void mavros_msgs_gps_raw_builder_set_alt_ellipsoid(mavros_msgs_gps_raw_builder_t* b, int32_t v);
+void mavros_msgs_gps_raw_builder_set_h_acc(mavros_msgs_gps_raw_builder_t* b, uint32_t v);
+void mavros_msgs_gps_raw_builder_set_v_acc(mavros_msgs_gps_raw_builder_t* b, uint32_t v);
+void mavros_msgs_gps_raw_builder_set_vel_acc(mavros_msgs_gps_raw_builder_t* b, uint32_t v);
+void mavros_msgs_gps_raw_builder_set_hdg_acc(mavros_msgs_gps_raw_builder_t* b, int32_t v);
+void mavros_msgs_gps_raw_builder_set_yaw(mavros_msgs_gps_raw_builder_t* b, uint16_t v);
+void mavros_msgs_gps_raw_builder_set_dgps_numch(mavros_msgs_gps_raw_builder_t* b, uint8_t v);
+void mavros_msgs_gps_raw_builder_set_dgps_age(mavros_msgs_gps_raw_builder_t* b, uint32_t v);
+int  mavros_msgs_gps_raw_builder_build(mavros_msgs_gps_raw_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  mavros_msgs_gps_raw_builder_encode_into(mavros_msgs_gps_raw_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /* ── TimesyncStatus ───────────────────────────────────────────────────── */
 
 /** @brief Opaque handle to a mavros_msgs/TimesyncStatus view. */
-typedef struct ros_mavros_timesync_status_t ros_mavros_timesync_status_t;
+typedef struct mavros_msgs_timesync_status_t mavros_msgs_timesync_status_t;
 
-ros_mavros_timesync_status_t* ros_mavros_timesync_status_from_cdr(const uint8_t* data, size_t len);
-void ros_mavros_timesync_status_free(ros_mavros_timesync_status_t* view);
-const uint8_t* ros_mavros_timesync_status_as_cdr(const ros_mavros_timesync_status_t* view, size_t* out_len);
-int32_t ros_mavros_timesync_status_get_stamp_sec(const ros_mavros_timesync_status_t* view);
-uint32_t ros_mavros_timesync_status_get_stamp_nanosec(const ros_mavros_timesync_status_t* view);
-const char* ros_mavros_timesync_status_get_frame_id(const ros_mavros_timesync_status_t* view);
-uint64_t ros_mavros_timesync_status_get_remote_timestamp_ns(const ros_mavros_timesync_status_t* view);
-int64_t ros_mavros_timesync_status_get_observed_offset_ns(const ros_mavros_timesync_status_t* view);
-int64_t ros_mavros_timesync_status_get_estimated_offset_ns(const ros_mavros_timesync_status_t* view);
-float ros_mavros_timesync_status_get_round_trip_time_ms(const ros_mavros_timesync_status_t* view);
-/** @brief Opaque builder handle for ros_mavros_timesync_status_t messages. */
-typedef struct ros_mavros_timesync_status_builder_s ros_mavros_timesync_status_builder_t;
-ros_mavros_timesync_status_builder_t* ros_mavros_timesync_status_builder_new(void);
-void ros_mavros_timesync_status_builder_free(ros_mavros_timesync_status_builder_t* b);
-void ros_mavros_timesync_status_builder_set_stamp(ros_mavros_timesync_status_builder_t* b, int32_t sec, uint32_t nanosec);
-int  ros_mavros_timesync_status_builder_set_frame_id(ros_mavros_timesync_status_builder_t* b, const char* s);
-void ros_mavros_timesync_status_builder_set_remote_timestamp_ns(ros_mavros_timesync_status_builder_t* b, uint64_t v);
-void ros_mavros_timesync_status_builder_set_observed_offset_ns(ros_mavros_timesync_status_builder_t* b, int64_t v);
-void ros_mavros_timesync_status_builder_set_estimated_offset_ns(ros_mavros_timesync_status_builder_t* b, int64_t v);
-void ros_mavros_timesync_status_builder_set_round_trip_time_ms(ros_mavros_timesync_status_builder_t* b, float v);
-int  ros_mavros_timesync_status_builder_build(ros_mavros_timesync_status_builder_t* b, uint8_t** out_bytes, size_t* out_len);
-int  ros_mavros_timesync_status_builder_encode_into(ros_mavros_timesync_status_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
+mavros_msgs_timesync_status_t* mavros_msgs_timesync_status_from_cdr(const uint8_t* data, size_t len);
+void mavros_msgs_timesync_status_free(mavros_msgs_timesync_status_t* view);
+const uint8_t* mavros_msgs_timesync_status_as_cdr(const mavros_msgs_timesync_status_t* view, size_t* out_len);
+int32_t mavros_msgs_timesync_status_get_stamp_sec(const mavros_msgs_timesync_status_t* view);
+uint32_t mavros_msgs_timesync_status_get_stamp_nanosec(const mavros_msgs_timesync_status_t* view);
+const char* mavros_msgs_timesync_status_get_frame_id(const mavros_msgs_timesync_status_t* view);
+uint64_t mavros_msgs_timesync_status_get_remote_timestamp_ns(const mavros_msgs_timesync_status_t* view);
+int64_t mavros_msgs_timesync_status_get_observed_offset_ns(const mavros_msgs_timesync_status_t* view);
+int64_t mavros_msgs_timesync_status_get_estimated_offset_ns(const mavros_msgs_timesync_status_t* view);
+float mavros_msgs_timesync_status_get_round_trip_time_ms(const mavros_msgs_timesync_status_t* view);
+/** @brief Opaque builder handle for mavros_msgs_timesync_status_t messages. */
+typedef struct mavros_msgs_timesync_status_builder_s mavros_msgs_timesync_status_builder_t;
+mavros_msgs_timesync_status_builder_t* mavros_msgs_timesync_status_builder_new(void);
+void mavros_msgs_timesync_status_builder_free(mavros_msgs_timesync_status_builder_t* b);
+void mavros_msgs_timesync_status_builder_set_stamp(mavros_msgs_timesync_status_builder_t* b, int32_t sec, uint32_t nanosec);
+int  mavros_msgs_timesync_status_builder_set_frame_id(mavros_msgs_timesync_status_builder_t* b, const char* s);
+void mavros_msgs_timesync_status_builder_set_remote_timestamp_ns(mavros_msgs_timesync_status_builder_t* b, uint64_t v);
+void mavros_msgs_timesync_status_builder_set_observed_offset_ns(mavros_msgs_timesync_status_builder_t* b, int64_t v);
+void mavros_msgs_timesync_status_builder_set_estimated_offset_ns(mavros_msgs_timesync_status_builder_t* b, int64_t v);
+void mavros_msgs_timesync_status_builder_set_round_trip_time_ms(mavros_msgs_timesync_status_builder_t* b, float v);
+int  mavros_msgs_timesync_status_builder_build(mavros_msgs_timesync_status_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int  mavros_msgs_timesync_status_builder_encode_into(mavros_msgs_timesync_status_builder_t* b, uint8_t* buf, size_t cap, size_t* out_len);
 
 
 /** @} */ /* end defgroup mavros_msgs */
@@ -6317,16 +6317,16 @@ int  ros_mavros_timesync_status_builder_encode_into(ros_mavros_timesync_status_b
  * `Tensor` is the payload; `TensorStamped` and `CameraFrame` are
  * byte-identical wrappers around it (header + seq + Tensor). The C API
  * mirrors that composition rather than flattening it: a wrapper hands out a
- * borrowed `const ros_tensor_t*` and every tensor accessor is shared.
+ * borrowed `const edgefirst_msgs_tensor_t*` and every tensor accessor is shared.
  *
- *     ros_camera_frame_t*   f = ros_camera_frame_from_cdr(buf, len);
- *     const ros_tensor_t*   t = ros_camera_frame_get_tensor(f);
- *     uint32_t              d = ros_tensor_get_dtype(t);
- *     const ros_tensor_plane_t* p = ros_tensor_get_plane(t, 0);
- *     int64_t               h = ros_tensor_plane_get_handle(p);
- *     ros_camera_frame_free(f);   // frees the borrowed tensor and planes too
+ *     edgefirst_msgs_camera_frame_t*   f = edgefirst_msgs_camera_frame_from_cdr(buf, len);
+ *     const edgefirst_msgs_tensor_t*   t = edgefirst_msgs_camera_frame_get_tensor(f);
+ *     uint32_t              d = edgefirst_msgs_tensor_get_dtype(t);
+ *     const edgefirst_msgs_tensor_plane_t* p = edgefirst_msgs_tensor_get_plane(t, 0);
+ *     int64_t               h = edgefirst_msgs_tensor_plane_get_handle(p);
+ *     edgefirst_msgs_camera_frame_free(f);   // frees the borrowed tensor and planes too
  *
- * Memory: `ros_*_get_tensor()` and `ros_tensor_get_plane()` return BORROWED
+ * Memory: `<package>_*_get_tensor()` and `edgefirst_msgs_tensor_get_plane()` return BORROWED
  * pointers. Do not free them; they die with the parent handle. Every handle
  * also borrows the CDR bytes given to `from_cdr`, which must outlive it.
  * ========================================================================= */
@@ -6343,45 +6343,45 @@ int  ros_mavros_timesync_status_builder_encode_into(ros_mavros_timesync_status_b
  * @param len Length of data.
  * @return Opaque handle, or NULL on error (errno EINVAL or EBADMSG).
  */
-ros_tensor_t* ros_tensor_from_cdr(const uint8_t* data, size_t len);
+edgefirst_msgs_tensor_t* edgefirst_msgs_tensor_from_cdr(const uint8_t* data, size_t len);
 
 /**
  * @brief Free a Tensor handle.
  *
- * NULL-safe. A parent-borrowed handle (from ros_tensor_stamped_get_tensor()
- * or ros_camera_frame_get_tensor()) is not owned here: this no-ops and sets
+ * NULL-safe. A parent-borrowed handle (from edgefirst_msgs_tensor_stamped_get_tensor()
+ * or edgefirst_msgs_camera_frame_get_tensor()) is not owned here: this no-ops and sets
  * errno=EINVAL rather than double-freeing.
  */
-void ros_tensor_free(ros_tensor_t* view);
+void edgefirst_msgs_tensor_free(edgefirst_msgs_tensor_t* view);
 
 /** @brief Storage class of every plane (see the HAL storage_kind codes). */
-uint32_t ros_tensor_get_storage_kind(const ros_tensor_t* view);
+uint32_t edgefirst_msgs_tensor_get_storage_kind(const edgefirst_msgs_tensor_t* view);
 /** @brief Producer PID, for handle resolution. 0 when not applicable. */
-uint32_t ros_tensor_get_pid(const ros_tensor_t* view);
+uint32_t edgefirst_msgs_tensor_get_pid(const edgefirst_msgs_tensor_t* view);
 /** @brief ACQUIRE fence fd; -1 when there is no fence. */
-int32_t ros_tensor_get_fence_fd(const ros_tensor_t* view);
+int32_t edgefirst_msgs_tensor_get_fence_fd(const edgefirst_msgs_tensor_t* view);
 /** @brief Element type (see the HAL dtype codes). */
-uint32_t ros_tensor_get_dtype(const ros_tensor_t* view);
+uint32_t edgefirst_msgs_tensor_get_dtype(const edgefirst_msgs_tensor_t* view);
 /** @brief Quantization axis; -2 when unquantized. */
-int32_t ros_tensor_get_quant_axis(const ros_tensor_t* view);
+int32_t edgefirst_msgs_tensor_get_quant_axis(const edgefirst_msgs_tensor_t* view);
 /** @brief Number of planes. */
-uint32_t ros_tensor_get_num_planes(const ros_tensor_t* view);
+uint32_t edgefirst_msgs_tensor_get_num_planes(const edgefirst_msgs_tensor_t* view);
 
 /** @brief Pixel/element format string (borrowed, NUL-terminated). */
-const char* ros_tensor_get_format(const ros_tensor_t* view);
+const char* edgefirst_msgs_tensor_get_format(const edgefirst_msgs_tensor_t* view);
 /** @brief Colour primaries (borrowed, NUL-terminated; "" when unset). */
-const char* ros_tensor_get_color_space(const ros_tensor_t* view);
+const char* edgefirst_msgs_tensor_get_color_space(const edgefirst_msgs_tensor_t* view);
 /** @brief Transfer characteristics (borrowed; "" when unset). */
-const char* ros_tensor_get_color_transfer(const ros_tensor_t* view);
+const char* edgefirst_msgs_tensor_get_color_transfer(const edgefirst_msgs_tensor_t* view);
 /** @brief Matrix coefficients (borrowed; "" when unset). */
-const char* ros_tensor_get_color_encoding(const ros_tensor_t* view);
+const char* edgefirst_msgs_tensor_get_color_encoding(const edgefirst_msgs_tensor_t* view);
 /** @brief Full/limited range (borrowed; "" when unset). */
-const char* ros_tensor_get_color_range(const ros_tensor_t* view);
+const char* edgefirst_msgs_tensor_get_color_range(const edgefirst_msgs_tensor_t* view);
 
 /** @brief Number of dimensions in `shape`. */
-uint32_t ros_tensor_get_shape_len(const ros_tensor_t* view);
+uint32_t edgefirst_msgs_tensor_get_shape_len(const edgefirst_msgs_tensor_t* view);
 /** @brief Number of entries in `strides` (0, or equal to shape_len). */
-uint32_t ros_tensor_get_strides_len(const ros_tensor_t* view);
+uint32_t edgefirst_msgs_tensor_get_strides_len(const edgefirst_msgs_tensor_t* view);
 
 /*
  * shape/strides are 64-bit CDR sequences. They are NOT exposed as
@@ -6400,7 +6400,7 @@ uint32_t ros_tensor_get_strides_len(const ros_tensor_t* view);
  * @param out Receives the dimension.
  * @return 0 on success, -1 on NULL/out-of-range (errno=EINVAL).
  */
-int32_t ros_tensor_get_shape_at(const ros_tensor_t* view, uint32_t index, uint64_t* out);
+int32_t edgefirst_msgs_tensor_get_shape_at(const edgefirst_msgs_tensor_t* view, uint32_t index, uint64_t* out);
 
 /**
  * @brief Read one `strides` element, in BYTES.
@@ -6409,7 +6409,7 @@ int32_t ros_tensor_get_shape_at(const ros_tensor_t* view, uint32_t index, uint64
  * @param out Receives the stride.
  * @return 0 on success, -1 on NULL/out-of-range (errno=EINVAL).
  */
-int32_t ros_tensor_get_strides_at(const ros_tensor_t* view, uint32_t index, int64_t* out);
+int32_t edgefirst_msgs_tensor_get_strides_at(const edgefirst_msgs_tensor_t* view, uint32_t index, int64_t* out);
 
 /**
  * @brief Copy the whole `shape` sequence into a caller buffer.
@@ -6420,9 +6420,9 @@ int32_t ros_tensor_get_strides_at(const ros_tensor_t* view, uint32_t index, int6
  *         `cap` < shape_len).
  *
  * O(n) for the whole sequence. Prefer this to calling
- * ros_tensor_get_shape_at() in a loop, which rescans and is O(n^2).
+ * edgefirst_msgs_tensor_get_shape_at() in a loop, which rescans and is O(n^2).
  */
-ptrdiff_t ros_tensor_copy_shape(const ros_tensor_t* view, uint64_t* out, size_t cap);
+ptrdiff_t edgefirst_msgs_tensor_copy_shape(const edgefirst_msgs_tensor_t* view, uint64_t* out, size_t cap);
 
 /**
  * @brief Copy the whole `strides` sequence into a caller buffer.
@@ -6432,7 +6432,7 @@ ptrdiff_t ros_tensor_copy_shape(const ros_tensor_t* view, uint64_t* out, size_t 
  * @return Elements written, or -1 on error (EINVAL for NULL, ENOBUFS when
  *         `cap` < strides_len).
  */
-ptrdiff_t ros_tensor_copy_strides(const ros_tensor_t* view, int64_t* out, size_t cap);
+ptrdiff_t edgefirst_msgs_tensor_copy_strides(const edgefirst_msgs_tensor_t* view, int64_t* out, size_t cap);
 
 /**
  * @brief Borrow the `quant_scales` sequence.
@@ -6443,7 +6443,7 @@ ptrdiff_t ros_tensor_copy_strides(const ros_tensor_t* view, int64_t* out, size_t
  * Unlike shape/strides these are 4-byte elements whose CDR alignment does
  * coincide with their natural alignment, so they can be borrowed directly.
  */
-const float* ros_tensor_get_quant_scales(const ros_tensor_t* view, size_t* out_len);
+const float* edgefirst_msgs_tensor_get_quant_scales(const edgefirst_msgs_tensor_t* view, size_t* out_len);
 
 /**
  * @brief Borrow the `quant_zero_points` sequence.
@@ -6451,23 +6451,23 @@ const float* ros_tensor_get_quant_scales(const ros_tensor_t* view, size_t* out_l
  * @param out_len Receives the element count (may be NULL).
  * @return Pointer into the CDR buffer, or NULL when empty.
  */
-const int32_t* ros_tensor_get_quant_zero_points(const ros_tensor_t* view, size_t* out_len);
+const int32_t* edgefirst_msgs_tensor_get_quant_zero_points(const edgefirst_msgs_tensor_t* view, size_t* out_len);
 
 /**
  * @brief Borrowed view of the i-th plane.
  *
- * NOT a separately-owned handle: do not pass it to ros_tensor_plane_free().
+ * NOT a separately-owned handle: do not pass it to edgefirst_msgs_tensor_plane_free().
  * Invalid once the owning tensor (or its wrapper) is freed.
  * @return Borrowed handle, or NULL when out of range (errno=EINVAL).
  */
-const ros_tensor_plane_t* ros_tensor_get_plane(const ros_tensor_t* view, uint32_t index);
+const edgefirst_msgs_tensor_plane_t* edgefirst_msgs_tensor_get_plane(const edgefirst_msgs_tensor_t* view, uint32_t index);
 
 /**
  * @brief This tensor's own bytes, from its base to the end of the buffer.
  * @param view Tensor handle.
  * @param out_len Receives the byte length (may be NULL).
  */
-const uint8_t* ros_tensor_get_tensor_bytes(const ros_tensor_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_tensor_get_tensor_bytes(const edgefirst_msgs_tensor_t* view, size_t* out_len);
 
 /**
  * @brief Re-head an embedded tensor as a standalone Tensor CDR message.
@@ -6477,35 +6477,35 @@ const uint8_t* ros_tensor_get_tensor_bytes(const ros_tensor_t* view, size_t* out
  * Because the layout is position-independent the result is byte-identical
  * to encoding the same tensor standalone from scratch.
  *
- * Allocates; free with ros_bytes_free().
+ * Allocates; free with edgefirst_schemas_bytes_free().
  * @return 0 on success, -1 on error (errno=EINVAL).
  */
-int32_t ros_tensor_to_standalone_cdr(const ros_tensor_t* view, uint8_t** out_bytes, size_t* out_len);
+int32_t edgefirst_msgs_tensor_to_standalone_cdr(const edgefirst_msgs_tensor_t* view, uint8_t** out_bytes, size_t* out_len);
 
 /* ── TensorPlane ──────────────────────────────────────────────────────── */
 
 /**
  * @brief Free a TensorPlane handle.
  *
- * NULL-safe. Handles from ros_tensor_get_plane() are parent-borrowed, so
+ * NULL-safe. Handles from edgefirst_msgs_tensor_get_plane() are parent-borrowed, so
  * this no-ops with errno=EINVAL.
  */
-void ros_tensor_plane_free(ros_tensor_plane_t* view);
+void edgefirst_msgs_tensor_plane_free(edgefirst_msgs_tensor_plane_t* view);
 
 /** @brief Platform handle; -1 means the bytes are inline in `data`. */
-int64_t ros_tensor_plane_get_handle(const ros_tensor_plane_t* view);
+int64_t edgefirst_msgs_tensor_plane_get_handle(const edgefirst_msgs_tensor_plane_t* view);
 /** @brief Byte offset of this plane within its allocation. */
-uint64_t ros_tensor_plane_get_offset(const ros_tensor_plane_t* view);
+uint64_t edgefirst_msgs_tensor_plane_get_offset(const edgefirst_msgs_tensor_plane_t* view);
 /** @brief Row stride in bytes. */
-uint64_t ros_tensor_plane_get_stride(const ros_tensor_plane_t* view);
+uint64_t edgefirst_msgs_tensor_plane_get_stride(const edgefirst_msgs_tensor_plane_t* view);
 /** @brief Allocated size of the plane, in bytes. */
-uint64_t ros_tensor_plane_get_size(const ros_tensor_plane_t* view);
+uint64_t edgefirst_msgs_tensor_plane_get_size(const edgefirst_msgs_tensor_plane_t* view);
 /** @brief Bytes actually populated; always <= size. */
-uint64_t ros_tensor_plane_get_used(const ros_tensor_plane_t* view);
+uint64_t edgefirst_msgs_tensor_plane_get_used(const edgefirst_msgs_tensor_plane_t* view);
 /** @brief Format modifier (tiling/compression); 0 for linear. */
-uint64_t ros_tensor_plane_get_modifier(const ros_tensor_plane_t* view);
+uint64_t edgefirst_msgs_tensor_plane_get_modifier(const edgefirst_msgs_tensor_plane_t* view);
 /** @brief True when the plane's bytes travel inline rather than by handle. */
-bool ros_tensor_plane_is_inline(const ros_tensor_plane_t* view);
+bool edgefirst_msgs_tensor_plane_is_inline(const edgefirst_msgs_tensor_plane_t* view);
 
 /**
  * @brief Opaque platform handle bytes (empty for an inline plane).
@@ -6513,7 +6513,7 @@ bool ros_tensor_plane_is_inline(const ros_tensor_plane_t* view);
  * @param out_len Receives the byte length (may be NULL).
  * @return Pointer into the CDR buffer, or NULL when empty.
  */
-const uint8_t* ros_tensor_plane_get_handle_bytes(const ros_tensor_plane_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_tensor_plane_get_handle_bytes(const edgefirst_msgs_tensor_plane_t* view, size_t* out_len);
 
 /**
  * @brief Inlined plane bytes (populated only when handle == -1).
@@ -6521,7 +6521,7 @@ const uint8_t* ros_tensor_plane_get_handle_bytes(const ros_tensor_plane_t* view,
  * @param out_len Receives the byte length (may be NULL).
  * @return Pointer into the CDR buffer, or NULL when empty.
  */
-const uint8_t* ros_tensor_plane_get_data(const ros_tensor_plane_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_tensor_plane_get_data(const edgefirst_msgs_tensor_plane_t* view, size_t* out_len);
 
 /* ── TensorStamped ─────────────────────────────────────────────── */
 
@@ -6531,17 +6531,17 @@ const uint8_t* ros_tensor_plane_get_data(const ros_tensor_plane_t* view, size_t*
  * @param len Length of data.
  * @return Opaque handle, or NULL on error (errno EINVAL or EBADMSG).
  */
-ros_tensor_stamped_t* ros_tensor_stamped_from_cdr(const uint8_t* data, size_t len);
+edgefirst_msgs_tensor_stamped_t* edgefirst_msgs_tensor_stamped_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a TensorStamped handle (also releases its borrowed tensor and planes). */
-void ros_tensor_stamped_free(ros_tensor_stamped_t* view);
+void edgefirst_msgs_tensor_stamped_free(edgefirst_msgs_tensor_stamped_t* view);
 
 /** @brief Timestamp seconds. */
-int32_t ros_tensor_stamped_get_stamp_sec(const ros_tensor_stamped_t* view);
+int32_t edgefirst_msgs_tensor_stamped_get_stamp_sec(const edgefirst_msgs_tensor_stamped_t* view);
 /** @brief Timestamp nanoseconds. */
-uint32_t ros_tensor_stamped_get_stamp_nanosec(const ros_tensor_stamped_t* view);
+uint32_t edgefirst_msgs_tensor_stamped_get_stamp_nanosec(const edgefirst_msgs_tensor_stamped_t* view);
 /** @brief Coordinate frame id (borrowed, NUL-terminated). */
-const char* ros_tensor_stamped_get_frame_id(const ros_tensor_stamped_t* view);
+const char* edgefirst_msgs_tensor_stamped_get_frame_id(const edgefirst_msgs_tensor_stamped_t* view);
 /**
  * @brief Monotonic sequence number, for drop detection.
  *
@@ -6549,35 +6549,35 @@ const char* ros_tensor_stamped_get_frame_id(const ros_tensor_stamped_t* view);
  * embedded Tensor to an 8-aligned offset regardless of frame_id length,
  * which is what makes the nested layout byte-identical across wrappers.
  */
-uint64_t ros_tensor_stamped_get_seq(const ros_tensor_stamped_t* view);
+uint64_t edgefirst_msgs_tensor_stamped_get_seq(const edgefirst_msgs_tensor_stamped_t* view);
 
 /**
  * @brief Borrowed view of the embedded tensor.
  *
- * Owned by the parent: do NOT pass it to ros_tensor_free(). It dies with
+ * Owned by the parent: do NOT pass it to edgefirst_msgs_tensor_free(). It dies with
  * this handle.
  * @return Borrowed handle, or NULL if `view` is NULL (errno=EINVAL).
  */
-const ros_tensor_t* ros_tensor_stamped_get_tensor(const ros_tensor_stamped_t* view);
+const edgefirst_msgs_tensor_t* edgefirst_msgs_tensor_stamped_get_tensor(const edgefirst_msgs_tensor_stamped_t* view);
 
 /**
  * @brief Borrow the whole CDR buffer backing this TensorStamped.
  * @param view TensorStamped handle.
  * @param out_len Receives the byte length (may be NULL).
  */
-const uint8_t* ros_tensor_stamped_get_cdr(const ros_tensor_stamped_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_tensor_stamped_get_cdr(const edgefirst_msgs_tensor_stamped_t* view, size_t* out_len);
 
 /**
  * @brief In-place stamp update on a mutable TensorStamped CDR buffer.
  * @return 0 on success, -1 on error (errno EINVAL or EBADMSG).
  */
-int32_t ros_tensor_stamped_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t edgefirst_msgs_tensor_stamped_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief In-place seq update on a mutable TensorStamped CDR buffer.
  * @return 0 on success, -1 on error (errno EINVAL or EBADMSG).
  */
-int32_t ros_tensor_stamped_set_seq(uint8_t* buf, size_t len, uint64_t v);
+int32_t edgefirst_msgs_tensor_stamped_set_seq(uint8_t* buf, size_t len, uint64_t v);
 
 /* ── CameraFrame ─────────────────────────────────────────────── */
 
@@ -6587,17 +6587,17 @@ int32_t ros_tensor_stamped_set_seq(uint8_t* buf, size_t len, uint64_t v);
  * @param len Length of data.
  * @return Opaque handle, or NULL on error (errno EINVAL or EBADMSG).
  */
-ros_camera_frame_t* ros_camera_frame_from_cdr(const uint8_t* data, size_t len);
+edgefirst_msgs_camera_frame_t* edgefirst_msgs_camera_frame_from_cdr(const uint8_t* data, size_t len);
 
 /** @brief Free a CameraFrame handle (also releases its borrowed tensor and planes). */
-void ros_camera_frame_free(ros_camera_frame_t* view);
+void edgefirst_msgs_camera_frame_free(edgefirst_msgs_camera_frame_t* view);
 
 /** @brief Timestamp seconds. */
-int32_t ros_camera_frame_get_stamp_sec(const ros_camera_frame_t* view);
+int32_t edgefirst_msgs_camera_frame_get_stamp_sec(const edgefirst_msgs_camera_frame_t* view);
 /** @brief Timestamp nanoseconds. */
-uint32_t ros_camera_frame_get_stamp_nanosec(const ros_camera_frame_t* view);
+uint32_t edgefirst_msgs_camera_frame_get_stamp_nanosec(const edgefirst_msgs_camera_frame_t* view);
 /** @brief Coordinate frame id (borrowed, NUL-terminated). */
-const char* ros_camera_frame_get_frame_id(const ros_camera_frame_t* view);
+const char* edgefirst_msgs_camera_frame_get_frame_id(const edgefirst_msgs_camera_frame_t* view);
 /**
  * @brief Monotonic sequence number, for drop detection.
  *
@@ -6605,35 +6605,35 @@ const char* ros_camera_frame_get_frame_id(const ros_camera_frame_t* view);
  * embedded Tensor to an 8-aligned offset regardless of frame_id length,
  * which is what makes the nested layout byte-identical across wrappers.
  */
-uint64_t ros_camera_frame_get_seq(const ros_camera_frame_t* view);
+uint64_t edgefirst_msgs_camera_frame_get_seq(const edgefirst_msgs_camera_frame_t* view);
 
 /**
  * @brief Borrowed view of the embedded tensor.
  *
- * Owned by the parent: do NOT pass it to ros_tensor_free(). It dies with
+ * Owned by the parent: do NOT pass it to edgefirst_msgs_tensor_free(). It dies with
  * this handle.
  * @return Borrowed handle, or NULL if `view` is NULL (errno=EINVAL).
  */
-const ros_tensor_t* ros_camera_frame_get_tensor(const ros_camera_frame_t* view);
+const edgefirst_msgs_tensor_t* edgefirst_msgs_camera_frame_get_tensor(const edgefirst_msgs_camera_frame_t* view);
 
 /**
  * @brief Borrow the whole CDR buffer backing this CameraFrame.
  * @param view CameraFrame handle.
  * @param out_len Receives the byte length (may be NULL).
  */
-const uint8_t* ros_camera_frame_get_cdr(const ros_camera_frame_t* view, size_t* out_len);
+const uint8_t* edgefirst_msgs_camera_frame_get_cdr(const edgefirst_msgs_camera_frame_t* view, size_t* out_len);
 
 /**
  * @brief In-place stamp update on a mutable CameraFrame CDR buffer.
  * @return 0 on success, -1 on error (errno EINVAL or EBADMSG).
  */
-int32_t ros_camera_frame_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
+int32_t edgefirst_msgs_camera_frame_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
  * @brief In-place seq update on a mutable CameraFrame CDR buffer.
  * @return 0 on success, -1 on error (errno EINVAL or EBADMSG).
  */
-int32_t ros_camera_frame_set_seq(uint8_t* buf, size_t len, uint64_t v);
+int32_t edgefirst_msgs_camera_frame_set_seq(uint8_t* buf, size_t len, uint64_t v);
 
 /* ── TensorBuilder ────────────────────────────────────────────────────── */
 
@@ -6661,43 +6661,43 @@ typedef struct {
     size_t   handle_bytes_len;  /**< Length of `handle_bytes`, in bytes; 0 when unused. */
     const uint8_t* data;        /**< Inlined plane bytes; borrowed, non-NULL only when handle == -1. */
     size_t   data_len;          /**< Length of `data`, in bytes; 0 when the plane is referenced. */
-} ros_tensor_plane_elem_t;
+} edgefirst_msgs_tensor_plane_elem_t;
 
 /** @brief Opaque builder for Tensor. */
-typedef struct ros_tensor_builder_t ros_tensor_builder_t;
+typedef struct edgefirst_msgs_tensor_builder_t edgefirst_msgs_tensor_builder_t;
 
 /**
  * @brief Create a Tensor builder.
  *
  * Defaults mirror the Rust `TensorFields::default()` and are NOT all zero:
  * fence_fd = -1 (no fence) and quant_axis = -2 (unquantized).
- * Free with ros_tensor_builder_free().
+ * Free with edgefirst_msgs_tensor_builder_free().
  */
-ros_tensor_builder_t* ros_tensor_builder_new(void);
+edgefirst_msgs_tensor_builder_t* edgefirst_msgs_tensor_builder_new(void);
 /** @brief Free a Tensor builder. NULL-safe. */
-void ros_tensor_builder_free(ros_tensor_builder_t* b);
+void edgefirst_msgs_tensor_builder_free(edgefirst_msgs_tensor_builder_t* b);
 
 /** @brief Set the storage class shared by every plane. */
-void ros_tensor_builder_set_storage_kind(ros_tensor_builder_t* b, uint32_t v);
+void edgefirst_msgs_tensor_builder_set_storage_kind(edgefirst_msgs_tensor_builder_t* b, uint32_t v);
 /** @brief Set the producer PID. */
-void ros_tensor_builder_set_pid(ros_tensor_builder_t* b, uint32_t v);
+void edgefirst_msgs_tensor_builder_set_pid(edgefirst_msgs_tensor_builder_t* b, uint32_t v);
 /** @brief Set the ACQUIRE fence fd (-1 for none). */
-void ros_tensor_builder_set_fence_fd(ros_tensor_builder_t* b, int32_t v);
+void edgefirst_msgs_tensor_builder_set_fence_fd(edgefirst_msgs_tensor_builder_t* b, int32_t v);
 /** @brief Set the element dtype. */
-void ros_tensor_builder_set_dtype(ros_tensor_builder_t* b, uint32_t v);
+void edgefirst_msgs_tensor_builder_set_dtype(edgefirst_msgs_tensor_builder_t* b, uint32_t v);
 /** @brief Set the quantization axis (-2 when unquantized). */
-void ros_tensor_builder_set_quant_axis(ros_tensor_builder_t* b, int32_t v);
+void edgefirst_msgs_tensor_builder_set_quant_axis(edgefirst_msgs_tensor_builder_t* b, int32_t v);
 
 /** @brief Set the format string (copied). @return 0, or -1 (errno=EINVAL). */
-int32_t ros_tensor_builder_set_format(ros_tensor_builder_t* b, const char* s);
+int32_t edgefirst_msgs_tensor_builder_set_format(edgefirst_msgs_tensor_builder_t* b, const char* s);
 /** @brief Set colour primaries (copied). @return 0, or -1 (errno=EINVAL). */
-int32_t ros_tensor_builder_set_color_space(ros_tensor_builder_t* b, const char* s);
+int32_t edgefirst_msgs_tensor_builder_set_color_space(edgefirst_msgs_tensor_builder_t* b, const char* s);
 /** @brief Set transfer characteristics (copied). @return 0, or -1 (errno=EINVAL). */
-int32_t ros_tensor_builder_set_color_transfer(ros_tensor_builder_t* b, const char* s);
+int32_t edgefirst_msgs_tensor_builder_set_color_transfer(edgefirst_msgs_tensor_builder_t* b, const char* s);
 /** @brief Set matrix coefficients (copied). @return 0, or -1 (errno=EINVAL). */
-int32_t ros_tensor_builder_set_color_encoding(ros_tensor_builder_t* b, const char* s);
+int32_t edgefirst_msgs_tensor_builder_set_color_encoding(edgefirst_msgs_tensor_builder_t* b, const char* s);
 /** @brief Set full/limited range (copied). @return 0, or -1 (errno=EINVAL). */
-int32_t ros_tensor_builder_set_color_range(ros_tensor_builder_t* b, const char* s);
+int32_t edgefirst_msgs_tensor_builder_set_color_range(edgefirst_msgs_tensor_builder_t* b, const char* s);
 
 /**
  * @brief Set the addressing grid. BORROWED until build/free.
@@ -6707,7 +6707,7 @@ int32_t ros_tensor_builder_set_color_range(ros_tensor_builder_t* b, const char* 
  * deliberately never validated against any buffer size.
  * @return 0 on success, -1 on error (errno=EINVAL).
  */
-int32_t ros_tensor_builder_set_shape(ros_tensor_builder_t* b, const uint64_t* v, size_t len);
+int32_t edgefirst_msgs_tensor_builder_set_shape(edgefirst_msgs_tensor_builder_t* b, const uint64_t* v, size_t len);
 
 /**
  * @brief Set strides, in BYTES (not elements). BORROWED until build/free.
@@ -6715,22 +6715,22 @@ int32_t ros_tensor_builder_set_shape(ros_tensor_builder_t* b, const uint64_t* v,
  * Either empty, or exactly as long as `shape`.
  * @return 0 on success, -1 on error (errno=EINVAL).
  */
-int32_t ros_tensor_builder_set_strides(ros_tensor_builder_t* b, const int64_t* v, size_t len);
+int32_t edgefirst_msgs_tensor_builder_set_strides(edgefirst_msgs_tensor_builder_t* b, const int64_t* v, size_t len);
 
 /** @brief Set quantization scales. BORROWED. @return 0, or -1 (errno=EINVAL). */
-int32_t ros_tensor_builder_set_quant_scales(ros_tensor_builder_t* b, const float* v, size_t len);
+int32_t edgefirst_msgs_tensor_builder_set_quant_scales(edgefirst_msgs_tensor_builder_t* b, const float* v, size_t len);
 /** @brief Set quantization zero points. BORROWED. @return 0, or -1 (errno=EINVAL). */
-int32_t ros_tensor_builder_set_quant_zero_points(ros_tensor_builder_t* b, const int32_t* v, size_t len);
+int32_t edgefirst_msgs_tensor_builder_set_quant_zero_points(edgefirst_msgs_tensor_builder_t* b, const int32_t* v, size_t len);
 /** @brief Set the plane array. BORROWED. @return 0, or -1 (errno=EINVAL). */
-int32_t ros_tensor_builder_set_planes(ros_tensor_builder_t* b, const ros_tensor_plane_elem_t* planes, size_t count);
+int32_t edgefirst_msgs_tensor_builder_set_planes(edgefirst_msgs_tensor_builder_t* b, const edgefirst_msgs_tensor_plane_elem_t* planes, size_t count);
 
 /**
  * @brief Encode a standalone Tensor message. Allocates; free with
- *        ros_bytes_free().
+ *        edgefirst_schemas_bytes_free().
  * @return 0 on success, -1 on error (errno=EINVAL for NULL, EBADMSG when the
  *         plane set fails validation).
  */
-int32_t ros_tensor_builder_build(ros_tensor_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int32_t edgefirst_msgs_tensor_builder_build(edgefirst_msgs_tensor_builder_t* b, uint8_t** out_bytes, size_t* out_len);
 
 /**
  * @brief Encode a standalone Tensor into a caller-provided buffer.
@@ -6740,27 +6740,27 @@ int32_t ros_tensor_builder_build(ros_tensor_builder_t* b, uint8_t** out_bytes, s
  * @param out_written Receives the byte count (may be NULL).
  * @return 0 on success, -1 on error (errno EINVAL, ENOBUFS or EBADMSG).
  */
-int32_t ros_tensor_builder_encode_into(ros_tensor_builder_t* b, uint8_t* buf, size_t cap, size_t* out_written);
+int32_t edgefirst_msgs_tensor_builder_encode_into(edgefirst_msgs_tensor_builder_t* b, uint8_t* buf, size_t cap, size_t* out_written);
 
 /* ── TensorStampedBuilder ──────────────────────────────────────── */
 
 /** @brief Opaque builder for TensorStamped. */
-typedef struct ros_tensor_stamped_builder_t ros_tensor_stamped_builder_t;
+typedef struct edgefirst_msgs_tensor_stamped_builder_t edgefirst_msgs_tensor_stamped_builder_t;
 
-/** @brief Create a TensorStamped builder. Free with ros_tensor_stamped_builder_free(). */
-ros_tensor_stamped_builder_t* ros_tensor_stamped_builder_new(void);
+/** @brief Create a TensorStamped builder. Free with edgefirst_msgs_tensor_stamped_builder_free(). */
+edgefirst_msgs_tensor_stamped_builder_t* edgefirst_msgs_tensor_stamped_builder_new(void);
 /** @brief Free a TensorStamped builder. NULL-safe. */
-void ros_tensor_stamped_builder_free(ros_tensor_stamped_builder_t* b);
+void edgefirst_msgs_tensor_stamped_builder_free(edgefirst_msgs_tensor_stamped_builder_t* b);
 
 /** @brief Set the timestamp. */
-void ros_tensor_stamped_builder_set_stamp(ros_tensor_stamped_builder_t* b, int32_t sec, uint32_t nsec);
+void edgefirst_msgs_tensor_stamped_builder_set_stamp(edgefirst_msgs_tensor_stamped_builder_t* b, int32_t sec, uint32_t nsec);
 /**
  * @brief Set the coordinate frame id (copied).
  * @return 0 on success, -1 on NULL/invalid UTF-8 (errno=EINVAL).
  */
-int32_t ros_tensor_stamped_builder_set_frame_id(ros_tensor_stamped_builder_t* b, const char* s);
+int32_t edgefirst_msgs_tensor_stamped_builder_set_frame_id(edgefirst_msgs_tensor_stamped_builder_t* b, const char* s);
 /** @brief Set the sequence number. */
-void ros_tensor_stamped_builder_set_seq(ros_tensor_stamped_builder_t* b, uint64_t v);
+void edgefirst_msgs_tensor_stamped_builder_set_seq(edgefirst_msgs_tensor_stamped_builder_t* b, uint64_t v);
 /**
  * @brief Attach the tensor payload.
  *
@@ -6768,14 +6768,14 @@ void ros_tensor_stamped_builder_set_seq(ros_tensor_stamped_builder_t* b, uint64_
  * encode call, and must not be freed before then.
  * @return 0 on success, -1 on error (errno=EINVAL).
  */
-int32_t ros_tensor_stamped_builder_set_tensor(ros_tensor_stamped_builder_t* b, const ros_tensor_builder_t* t);
+int32_t edgefirst_msgs_tensor_stamped_builder_set_tensor(edgefirst_msgs_tensor_stamped_builder_t* b, const edgefirst_msgs_tensor_builder_t* t);
 
 /**
- * @brief Encode a TensorStamped message. Allocates; free with ros_bytes_free().
+ * @brief Encode a TensorStamped message. Allocates; free with edgefirst_schemas_bytes_free().
  * @return 0 on success, -1 on error (errno=EINVAL when no tensor payload was
  *         attached, EBADMSG on validation failure).
  */
-int32_t ros_tensor_stamped_builder_build(ros_tensor_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int32_t edgefirst_msgs_tensor_stamped_builder_build(edgefirst_msgs_tensor_stamped_builder_t* b, uint8_t** out_bytes, size_t* out_len);
 
 /**
  * @brief Encode a TensorStamped into a caller-provided buffer.
@@ -6785,27 +6785,27 @@ int32_t ros_tensor_stamped_builder_build(ros_tensor_stamped_builder_t* b, uint8_
  * @param out_written Receives the byte count (may be NULL).
  * @return 0 on success, -1 on error (errno EINVAL, ENOBUFS or EBADMSG).
  */
-int32_t ros_tensor_stamped_builder_encode_into(ros_tensor_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_written);
+int32_t edgefirst_msgs_tensor_stamped_builder_encode_into(edgefirst_msgs_tensor_stamped_builder_t* b, uint8_t* buf, size_t cap, size_t* out_written);
 
 /* ── CameraFrameBuilder ──────────────────────────────────────── */
 
 /** @brief Opaque builder for CameraFrame. */
-typedef struct ros_camera_frame_builder_t ros_camera_frame_builder_t;
+typedef struct edgefirst_msgs_camera_frame_builder_t edgefirst_msgs_camera_frame_builder_t;
 
-/** @brief Create a CameraFrame builder. Free with ros_camera_frame_builder_free(). */
-ros_camera_frame_builder_t* ros_camera_frame_builder_new(void);
+/** @brief Create a CameraFrame builder. Free with edgefirst_msgs_camera_frame_builder_free(). */
+edgefirst_msgs_camera_frame_builder_t* edgefirst_msgs_camera_frame_builder_new(void);
 /** @brief Free a CameraFrame builder. NULL-safe. */
-void ros_camera_frame_builder_free(ros_camera_frame_builder_t* b);
+void edgefirst_msgs_camera_frame_builder_free(edgefirst_msgs_camera_frame_builder_t* b);
 
 /** @brief Set the timestamp. */
-void ros_camera_frame_builder_set_stamp(ros_camera_frame_builder_t* b, int32_t sec, uint32_t nsec);
+void edgefirst_msgs_camera_frame_builder_set_stamp(edgefirst_msgs_camera_frame_builder_t* b, int32_t sec, uint32_t nsec);
 /**
  * @brief Set the coordinate frame id (copied).
  * @return 0 on success, -1 on NULL/invalid UTF-8 (errno=EINVAL).
  */
-int32_t ros_camera_frame_builder_set_frame_id(ros_camera_frame_builder_t* b, const char* s);
+int32_t edgefirst_msgs_camera_frame_builder_set_frame_id(edgefirst_msgs_camera_frame_builder_t* b, const char* s);
 /** @brief Set the sequence number. */
-void ros_camera_frame_builder_set_seq(ros_camera_frame_builder_t* b, uint64_t v);
+void edgefirst_msgs_camera_frame_builder_set_seq(edgefirst_msgs_camera_frame_builder_t* b, uint64_t v);
 /**
  * @brief Attach the tensor payload.
  *
@@ -6813,14 +6813,14 @@ void ros_camera_frame_builder_set_seq(ros_camera_frame_builder_t* b, uint64_t v)
  * encode call, and must not be freed before then.
  * @return 0 on success, -1 on error (errno=EINVAL).
  */
-int32_t ros_camera_frame_builder_set_tensor(ros_camera_frame_builder_t* b, const ros_tensor_builder_t* t);
+int32_t edgefirst_msgs_camera_frame_builder_set_tensor(edgefirst_msgs_camera_frame_builder_t* b, const edgefirst_msgs_tensor_builder_t* t);
 
 /**
- * @brief Encode a CameraFrame message. Allocates; free with ros_bytes_free().
+ * @brief Encode a CameraFrame message. Allocates; free with edgefirst_schemas_bytes_free().
  * @return 0 on success, -1 on error (errno=EINVAL when no tensor payload was
  *         attached, EBADMSG on validation failure).
  */
-int32_t ros_camera_frame_builder_build(ros_camera_frame_builder_t* b, uint8_t** out_bytes, size_t* out_len);
+int32_t edgefirst_msgs_camera_frame_builder_build(edgefirst_msgs_camera_frame_builder_t* b, uint8_t** out_bytes, size_t* out_len);
 
 /**
  * @brief Encode a CameraFrame into a caller-provided buffer.
@@ -6830,7 +6830,7 @@ int32_t ros_camera_frame_builder_build(ros_camera_frame_builder_t* b, uint8_t** 
  * @param out_written Receives the byte count (may be NULL).
  * @return 0 on success, -1 on error (errno EINVAL, ENOBUFS or EBADMSG).
  */
-int32_t ros_camera_frame_builder_encode_into(ros_camera_frame_builder_t* b, uint8_t* buf, size_t cap, size_t* out_written);
+int32_t edgefirst_msgs_camera_frame_builder_encode_into(edgefirst_msgs_camera_frame_builder_t* b, uint8_t* buf, size_t cap, size_t* out_written);
 
 /** @} */ /* end defgroup tensor */
 

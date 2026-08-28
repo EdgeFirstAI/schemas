@@ -14,7 +14,7 @@
  * additional C++ allocations beyond what the construction of the view itself
  * requires.
  *
- * Note: The Rust FFI layer allocates the opaque handle (ros_image_t etc.) via
+ * Note: The Rust FFI layer allocates the opaque handle (sensor_msgs_image_t etc.) via
  * malloc, which is NOT counted by operator new.  The counter therefore measures
  * only C++ wrapper overhead, which should be zero for field accessors.
  */
@@ -30,6 +30,145 @@
 #include <cstdint>
 
 namespace ef = edgefirst::schemas;
+using ef::builtin_interfaces::Time;
+using ef::builtin_interfaces::Duration;
+using ef::geometry_msgs::Vector3;
+using ef::geometry_msgs::Point;
+using ef::geometry_msgs::Point32;
+using ef::geometry_msgs::Quaternion;
+using ef::geometry_msgs::Pose;
+using ef::geometry_msgs::Transform;
+using ef::geometry_msgs::Twist;
+using ef::geometry_msgs::Accel;
+using ef::geometry_msgs::Wrench;
+using ef::geometry_msgs::PoseWithCovariance;
+using ef::geometry_msgs::TwistWithCovariance;
+using ef::geometry_msgs::AccelWithCovariance;
+using ef::geometry_msgs::AccelStampedView;
+using ef::geometry_msgs::AccelStampedBuilder;
+using ef::geometry_msgs::TwistStampedView;
+using ef::geometry_msgs::TwistStampedBuilder;
+using ef::geometry_msgs::WrenchStampedView;
+using ef::geometry_msgs::WrenchStampedBuilder;
+using ef::geometry_msgs::PointStampedView;
+using ef::geometry_msgs::PointStampedBuilder;
+using ef::geometry_msgs::InertiaStampedView;
+using ef::geometry_msgs::InertiaStampedBuilder;
+using ef::geometry_msgs::Vector3StampedView;
+using ef::geometry_msgs::Vector3StampedBuilder;
+using ef::geometry_msgs::PoseStampedView;
+using ef::geometry_msgs::PoseStampedBuilder;
+using ef::geometry_msgs::QuaternionStampedView;
+using ef::geometry_msgs::QuaternionStampedBuilder;
+using ef::geometry_msgs::PoseWithCovarianceStampedView;
+using ef::geometry_msgs::PoseWithCovarianceStampedBuilder;
+using ef::geometry_msgs::TwistWithCovarianceStampedView;
+using ef::geometry_msgs::TwistWithCovarianceStampedBuilder;
+using ef::geometry_msgs::AccelWithCovarianceStampedView;
+using ef::geometry_msgs::AccelWithCovarianceStampedBuilder;
+using ef::geometry_msgs::PolygonView;
+using ef::geometry_msgs::PolygonBuilder;
+using ef::geometry_msgs::PolygonStampedView;
+using ef::geometry_msgs::PolygonStampedBuilder;
+using ef::geometry_msgs::PoseArrayView;
+using ef::geometry_msgs::PoseArrayBuilder;
+using ef::geometry_msgs::TransformStampedView;
+using ef::geometry_msgs::TransformStampedBuilder;
+using ef::std_msgs::Header;
+using ef::std_msgs::HeaderView;
+using ef::std_msgs::HeaderBuilder;
+using ef::sensor_msgs::NavSatStatus;
+using ef::sensor_msgs::CompressedImage;
+using ef::sensor_msgs::CompressedImageView;
+using ef::sensor_msgs::CompressedImageBuilder;
+using ef::sensor_msgs::Image;
+using ef::sensor_msgs::ImageView;
+using ef::sensor_msgs::ImageBuilder;
+using ef::sensor_msgs::ImuView;
+using ef::sensor_msgs::ImuBuilder;
+using ef::sensor_msgs::NavSatFixView;
+using ef::sensor_msgs::NavSatFixBuilder;
+using ef::sensor_msgs::CameraInfoView;
+using ef::sensor_msgs::CameraInfoBuilder;
+using ef::sensor_msgs::PointCloud2View;
+using ef::sensor_msgs::PointCloud2Builder;
+using ef::sensor_msgs::PointFieldBuilder;
+using ef::sensor_msgs::MagneticFieldView;
+using ef::sensor_msgs::MagneticFieldBuilder;
+using ef::sensor_msgs::FluidPressureView;
+using ef::sensor_msgs::FluidPressureBuilder;
+using ef::sensor_msgs::TemperatureView;
+using ef::sensor_msgs::TemperatureBuilder;
+using ef::sensor_msgs::BatteryStateView;
+using ef::sensor_msgs::BatteryStateBuilder;
+using ef::sensor_msgs::RelativeHumidityView;
+using ef::sensor_msgs::RelativeHumidityBuilder;
+using ef::sensor_msgs::TimeReferenceView;
+using ef::sensor_msgs::TimeReferenceBuilder;
+using ef::nav_msgs::MapMetaData;
+using ef::nav_msgs::OdometryView;
+using ef::nav_msgs::OdometryBuilder;
+using ef::nav_msgs::GridCellsView;
+using ef::nav_msgs::GridCellsBuilder;
+using ef::nav_msgs::OccupancyGridView;
+using ef::nav_msgs::OccupancyGridBuilder;
+using ef::nav_msgs::PathView;
+using ef::nav_msgs::PathBuilder;
+using ef::foxglove_msgs::CompressedVideo;
+using ef::foxglove_msgs::CompressedVideoView;
+using ef::foxglove_msgs::CompressedVideoBuilder;
+using ef::foxglove_msgs::TextAnnotationBuilder;
+using ef::foxglove_msgs::PointAnnotationBuilder;
+using ef::foxglove_msgs::ImageAnnotationBuilder;
+using ef::mavros_msgs::AltitudeView;
+using ef::mavros_msgs::AltitudeBuilder;
+using ef::mavros_msgs::VfrHudView;
+using ef::mavros_msgs::VfrHudBuilder;
+using ef::mavros_msgs::EstimatorStatusView;
+using ef::mavros_msgs::EstimatorStatusBuilder;
+using ef::mavros_msgs::ExtendedStateView;
+using ef::mavros_msgs::ExtendedStateBuilder;
+using ef::mavros_msgs::SysStatusView;
+using ef::mavros_msgs::SysStatusBuilder;
+using ef::mavros_msgs::StateView;
+using ef::mavros_msgs::StateBuilder;
+using ef::mavros_msgs::StatusTextView;
+using ef::mavros_msgs::StatusTextBuilder;
+using ef::mavros_msgs::GpsRawView;
+using ef::mavros_msgs::GpsRawBuilder;
+using ef::mavros_msgs::TimesyncStatusView;
+using ef::mavros_msgs::TimesyncStatusBuilder;
+using ef::edgefirst_msgs::Mask;
+using ef::edgefirst_msgs::MaskView;
+using ef::edgefirst_msgs::MaskBuilder;
+using ef::edgefirst_msgs::LocalTimeView;
+using ef::edgefirst_msgs::LocalTimeBuilder;
+using ef::edgefirst_msgs::TrackView;
+using ef::edgefirst_msgs::TrackBuilder;
+using ef::edgefirst_msgs::BoxView;
+using ef::edgefirst_msgs::DetectView;
+using ef::edgefirst_msgs::DetectBuilder;
+using ef::edgefirst_msgs::DetectBoxBuilder;
+using ef::edgefirst_msgs::ModelView;
+using ef::edgefirst_msgs::ModelBuilder;
+using ef::edgefirst_msgs::ModelInfoView;
+using ef::edgefirst_msgs::ModelInfoBuilder;
+using ef::edgefirst_msgs::RadarCubeView;
+using ef::edgefirst_msgs::RadarCubeBuilder;
+using ef::edgefirst_msgs::RadarInfoView;
+using ef::edgefirst_msgs::RadarInfoBuilder;
+using ef::edgefirst_msgs::VibrationView;
+using ef::edgefirst_msgs::VibrationBuilder;
+using ef::edgefirst_msgs::TensorView;
+using ef::edgefirst_msgs::TensorBuilder;
+using ef::edgefirst_msgs::TensorStampedView;
+using ef::edgefirst_msgs::TensorStampedBuilder;
+using ef::edgefirst_msgs::CameraFrameView;
+using ef::edgefirst_msgs::CameraFrameBuilder;
+using FoxgloveCompressedImage = ef::foxglove_msgs::CompressedImage;
+using FoxgloveCompressedImageView = ef::foxglove_msgs::CompressedImageView;
+using FoxgloveCompressedImageBuilder = ef::foxglove_msgs::CompressedImageBuilder;
+
 
 // ============================================================================
 // Part B — Global allocation counter
@@ -46,7 +185,7 @@ static std::atomic<std::size_t> g_delete_count{0};
 // may do) route through a counted malloc. This keeps ASan's shadow
 // bookkeeping self-consistent: every allocation tagged by ASan as
 // "malloc" is freed by a matching "free" in our operator delete. The
-// Rust FFI layer's ros_*_encode / ros_bytes_free calls go through libc
+// Rust FFI layer's <package>_*_encode / edgefirst_schemas_bytes_free calls go through libc
 // malloc/free directly and do not touch these interceptors.
 //
 // A `malloc(0)` call is permitted by POSIX to return NULL. To avoid
@@ -208,13 +347,13 @@ static constexpr std::uint8_t kGoldenModelBytes[] = {
 
 TEST_CASE("ImageView data borrows from source CDR buffer", "[zero_copy][image]") {
     std::vector<std::uint8_t> pixels(640 * 480 * 3, 42);
-    auto img = ef::Image::encode(
+    auto img = Image::encode(
         {1, 2}, "cam", 480, 640, "rgb8", false,
         640 * 3, {pixels.data(), pixels.size()});
     REQUIRE(img.has_value());
     auto cdr = img->as_cdr();
 
-    auto view = ef::ImageView::from_cdr(cdr);
+    auto view = ImageView::from_cdr(cdr);
     REQUIRE(view.has_value());
 
     // data() span must point into the CDR buffer, not a copy.
@@ -242,11 +381,11 @@ TEST_CASE("ImageView data borrows from source CDR buffer", "[zero_copy][image]")
 // ============================================================================
 
 TEST_CASE("HeaderView frame_id borrows from source CDR buffer", "[zero_copy][header]") {
-    auto hdr = ef::Header::encode({10, 20}, "lidar_front");
+    auto hdr = Header::encode({10, 20}, "lidar_front");
     REQUIRE(hdr.has_value());
     auto cdr = hdr->as_cdr();
 
-    auto view = ef::HeaderView::from_cdr(cdr);
+    auto view = HeaderView::from_cdr(cdr);
     REQUIRE(view.has_value());
 
     auto fid = view->frame_id();
@@ -263,12 +402,12 @@ TEST_CASE("HeaderView frame_id borrows from source CDR buffer", "[zero_copy][hea
 
 TEST_CASE("CompressedImageView data borrows from source CDR buffer", "[zero_copy][compressed_image]") {
     std::vector<std::uint8_t> jpeg(512, 0xFF);
-    auto ci = ef::CompressedImage::encode(
+    auto ci = CompressedImage::encode(
         {3, 4}, "cam", "jpeg", {jpeg.data(), jpeg.size()});
     REQUIRE(ci.has_value());
     auto cdr = ci->as_cdr();
 
-    auto view = ef::CompressedImageView::from_cdr(cdr);
+    auto view = CompressedImageView::from_cdr(cdr);
     REQUIRE(view.has_value());
 
     auto d = view->data();
@@ -294,13 +433,13 @@ TEST_CASE("CompressedImageView data borrows from source CDR buffer", "[zero_copy
 
 TEST_CASE("MaskView accessors borrow from CDR buffer", "[zero_copy][mask]") {
     std::vector<std::uint8_t> mask_data = {0xFF, 0x00, 0xFF, 0x00};
-    auto mask = ef::Mask::encode(
+    auto mask = Mask::encode(
         100, 200, static_cast<std::uint32_t>(mask_data.size()),
         "raw", {mask_data.data(), mask_data.size()}, false);
     REQUIRE(mask.has_value());
     auto cdr = mask->as_cdr();  // OwnedBaseNoCdr returns stored encoded bytes
 
-    auto view = ef::MaskView::from_cdr(cdr);
+    auto view = MaskView::from_cdr(cdr);
     REQUIRE(view.has_value());
 
     const auto base_addr = reinterpret_cast<std::uintptr_t>(cdr.data());
@@ -327,13 +466,13 @@ TEST_CASE("MaskView accessors borrow from CDR buffer", "[zero_copy][mask]") {
 
 TEST_CASE("CompressedVideoView accessors borrow from CDR buffer", "[zero_copy][compressed_video]") {
     std::vector<std::uint8_t> payload(256, 0xAB);
-    auto cv = ef::CompressedVideo::encode(
+    auto cv = CompressedVideo::encode(
         {5, 6}, "front_cam",
         {payload.data(), payload.size()}, "h264");
     REQUIRE(cv.has_value());
     auto cdr = cv->as_cdr();
 
-    auto view = ef::CompressedVideoView::from_cdr(cdr);
+    auto view = CompressedVideoView::from_cdr(cdr);
     REQUIRE(view.has_value());
 
     const auto base_addr = reinterpret_cast<std::uintptr_t>(cdr.data());
@@ -360,7 +499,7 @@ TEST_CASE("CompressedVideoView accessors borrow from CDR buffer", "[zero_copy][c
 // ============================================================================
 
 TEST_CASE("BorrowedBoxView accessors borrow from parent CDR buffer", "[zero_copy][detect][borrowed_box]") {
-    auto det = ef::DetectView::from_cdr(
+    auto det = DetectView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenDetectBytes, sizeof(kGoldenDetectBytes)});
     REQUIRE(det.has_value());
     REQUIRE(det->boxes_len() == 3u);
@@ -395,7 +534,7 @@ TEST_CASE("BorrowedBoxView accessors borrow from parent CDR buffer", "[zero_copy
 // ============================================================================
 
 TEST_CASE("BorrowedMaskView accessors borrow from parent CDR buffer", "[zero_copy][model][borrowed_mask]") {
-    auto model = ef::ModelView::from_cdr(
+    auto model = ModelView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenModelBytes, sizeof(kGoldenModelBytes)});
     REQUIRE(model.has_value());
     REQUIRE(model->masks_len() == 1u);
@@ -437,12 +576,12 @@ TEST_CASE("BorrowedMaskView accessors borrow from parent CDR buffer", "[zero_cop
 TEST_CASE("ImageView field access allocates zero heap memory", "[zero_copy][allocations]") {
     // Setup — outside counted region.
     std::vector<std::uint8_t> pixels(100, 7);
-    auto img = ef::Image::encode(
+    auto img = Image::encode(
         {1, 2}, "cam", 10, 10, "mono8", false, 10,
         {pixels.data(), pixels.size()});
     REQUIRE(img.has_value());
     auto cdr = img->as_cdr();
-    auto view_result = ef::ImageView::from_cdr(cdr);
+    auto view_result = ImageView::from_cdr(cdr);
     REQUIRE(view_result.has_value());
     auto& view = *view_result;
 
@@ -478,10 +617,10 @@ TEST_CASE("ImageView field access allocates zero heap memory", "[zero_copy][allo
 
 TEST_CASE("HeaderView field access allocates zero heap memory", "[zero_copy][allocations]") {
     // Setup — outside counted region.
-    auto hdr = ef::Header::encode({5, 6}, "radar_top");
+    auto hdr = Header::encode({5, 6}, "radar_top");
     REQUIRE(hdr.has_value());
     auto cdr = hdr->as_cdr();
-    auto view_result = ef::HeaderView::from_cdr(cdr);
+    auto view_result = HeaderView::from_cdr(cdr);
     REQUIRE(view_result.has_value());
     auto& view = *view_result;
 
@@ -509,11 +648,11 @@ TEST_CASE("HeaderView field access allocates zero heap memory", "[zero_copy][all
 TEST_CASE("CompressedImageView field access allocates zero heap memory", "[zero_copy][allocations]") {
     // Setup — outside counted region.
     std::vector<std::uint8_t> jpeg(256, 0xFF);
-    auto ci = ef::CompressedImage::encode(
+    auto ci = CompressedImage::encode(
         {3, 4}, "cam", "jpeg", {jpeg.data(), jpeg.size()});
     REQUIRE(ci.has_value());
     auto cdr = ci->as_cdr();
-    auto view_result = ef::CompressedImageView::from_cdr(cdr);
+    auto view_result = CompressedImageView::from_cdr(cdr);
     REQUIRE(view_result.has_value());
     auto& view = *view_result;
 
@@ -543,12 +682,12 @@ TEST_CASE("CompressedImageView field access allocates zero heap memory", "[zero_
 TEST_CASE("MaskView field access allocates zero heap memory", "[zero_copy][allocations]") {
     // Setup — outside counted region.
     std::vector<std::uint8_t> maskdata(16, 0xAB);
-    auto m = ef::Mask::encode(
+    auto m = Mask::encode(
         4u, 4u, static_cast<std::uint32_t>(maskdata.size()),
         "raw", {maskdata.data(), maskdata.size()}, false);
     REQUIRE(m.has_value());
     auto cdr = m->as_cdr();
-    auto view_result = ef::MaskView::from_cdr(cdr);
+    auto view_result = MaskView::from_cdr(cdr);
     REQUIRE(view_result.has_value());
     auto& view = *view_result;
 
@@ -580,12 +719,12 @@ TEST_CASE("MaskView field access allocates zero heap memory", "[zero_copy][alloc
 TEST_CASE("CompressedVideoView field access allocates zero heap memory", "[zero_copy][allocations]") {
     // Setup — outside counted region.
     std::vector<std::uint8_t> payload(128, 0x55);
-    auto cv = ef::CompressedVideo::encode(
+    auto cv = CompressedVideo::encode(
         {5, 6}, "front_cam",
         {payload.data(), payload.size()}, "h264");
     REQUIRE(cv.has_value());
     auto cdr = cv->as_cdr();
-    auto view_result = ef::CompressedVideoView::from_cdr(cdr);
+    auto view_result = CompressedVideoView::from_cdr(cdr);
     REQUIRE(view_result.has_value());
     auto& view = *view_result;
 
@@ -614,7 +753,7 @@ TEST_CASE("CompressedVideoView field access allocates zero heap memory", "[zero_
 
 TEST_CASE("BorrowedBoxView field access allocates zero heap memory", "[zero_copy][allocations]") {
     // Setup — outside counted region.
-    auto det = ef::DetectView::from_cdr(
+    auto det = DetectView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenDetectBytes, sizeof(kGoldenDetectBytes)});
     REQUIRE(det.has_value());
     REQUIRE(det->boxes_len() >= 1u);
@@ -656,7 +795,7 @@ TEST_CASE("BorrowedBoxView field access allocates zero heap memory", "[zero_copy
 
 TEST_CASE("BorrowedMaskView field access allocates zero heap memory", "[zero_copy][allocations]") {
     // Setup — outside counted region.
-    auto model = ef::ModelView::from_cdr(
+    auto model = ModelView::from_cdr(
         ef::span<const std::uint8_t>{kGoldenModelBytes, sizeof(kGoldenModelBytes)});
     REQUIRE(model.has_value());
     REQUIRE(model->masks_len() >= 1u);

@@ -31,9 +31,13 @@ Demonstrates fundamental ROS2 message types:
 use edgefirst_schemas::std_msgs::Header;
 use edgefirst_schemas::builtin_interfaces::Time;
 
-// Buffer-backed zero-copy construction
+// Buffer-backed zero-copy construction via builder
 let stamp = Time { sec: 1234567890, nanosec: 123456789 };
-let header = Header::new(stamp, "camera").unwrap();
+let header = Header::builder()
+    .stamp(stamp)
+    .frame_id("camera")
+    .build()
+    .unwrap();
 ```
 
 ### CDR Serialization

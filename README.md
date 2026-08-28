@@ -153,11 +153,15 @@ use edgefirst_schemas::std_msgs::Header;
 
 let stamp = Time { sec: 1234567890, nanosec: 123456789 };
 
-// Buffer-backed zero-copy construction
-let header = Header::new(stamp, "camera_frame").unwrap();
+// Buffer-backed construction via builder (writes CDR in place)
+let header = Header::builder()
+    .stamp(stamp)
+    .frame_id("camera_frame")
+    .build()
+    .unwrap();
 let bytes = header.to_cdr();
 
-// Deserialize from CDR bytes (zero-copy)
+// Deserialize from CDR bytes (zero-copy view)
 let decoded = Header::from_cdr(&bytes[..]).unwrap();
 assert_eq!(decoded.stamp(), stamp);
 assert_eq!(decoded.frame_id(), "camera_frame");
@@ -191,10 +195,12 @@ g++ -std=c++17 -I/path/to/include -o myapp myapp.cpp \
 
 ```cpp
 namespace ef = edgefirst::schemas;
+using ef::sensor_msgs::ImageView;
+using ef::builtin_interfaces::Time;
 
 void on_image(ef::span<const uint8_t> payload) {
     // from_cdr returns expected<ImageView, Error> — no exceptions
-    auto img = ef::ImageView::from_cdr(payload);
+    auto img = ImageView::from_cdr(payload);
     if (!img) {
         std::cerr << "decode failed: " << img.error().category()
                   << " in " << img.error().where << "\n";
@@ -202,7 +208,7 @@ void on_image(ef::span<const uint8_t> payload) {
     }
 
     // All accessors are zero-copy borrows into payload
-    ef::Time stamp    = img->stamp();
+    Time stamp        = img->stamp();
     uint32_t width    = img->width();
     uint32_t height   = img->height();
     std::string_view  enc  = img->encoding();   // e.g. "rgb8"
@@ -216,9 +222,12 @@ void on_image(ef::span<const uint8_t> payload) {
 **Encode a Header and forward the CDR bytes:**
 
 ```cpp
+using ef::std_msgs::Header;
+using ef::builtin_interfaces::Time;
+
 // encode() returns expected<Header, Error>
 // Header is an owning type — it holds the allocated CDR buffer.
-auto hdr = ef::Header::encode(ef::Time{1234567890, 0}, "camera_frame");
+auto hdr = Header::encode(Time{1234567890, 0}, "camera_frame");
 if (!hdr) { /* handle error */ }
 
 // as_cdr() returns ef::span<const uint8_t> — no copy, no re-serialisation

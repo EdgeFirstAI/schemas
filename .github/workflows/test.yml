@@ -142,10 +142,16 @@ jobs:
           MAJOR=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\([0-9]*\).*/\1/')
           ln -sf libedgefirst_schemas.so target/debug/deps/libedgefirst_schemas.so.${MAJOR}
 
-          # Verify we have the instrumented library (check for profile symbols)
+          # Verify we have the instrumented library (check for profile symbols).
+          # Fail hard if missing: otherwise C Criterion runs look green while
+          # contributing zero attributed coverage to Sonar.
           echo "Verifying instrumented library:"
-          nm target/debug/deps/libedgefirst_schemas.so 2>/dev/null | grep -c "__llvm_profile" || \
-          echo "Warning: Library may not be instrumented"
+          PROFILE_SYMS=$(nm target/debug/deps/libedgefirst_schemas.so 2>/dev/null | grep -c "__llvm_profile" || true)
+          echo "Profile symbols in cdylib: ${PROFILE_SYMS}"
+          if [ "${PROFILE_SYMS}" -eq 0 ]; then
+            echo "::error::libedgefirst_schemas.so is not coverage-instrumented"
+            exit 1
+          fi
           
           # Build C tests without rebuilding the library (lib target would overwrite instrumented library)
           # Build test binaries directly
@@ -161,11 +167,18 @@ jobs:
           
           # Run C tests
           echo "Running C test suite..."
+          C_PROFRAW_BEFORE=$(find target/llvm-cov-target -name 'schemas-c-*.profraw' | wc -l)
           for test in build/test_*; do
             name=$(basename $test)
             echo "Running $name..."
             ./$test --output=xml:build/test-results/$name.xml || exit 1
           done
+          C_PROFRAW_AFTER=$(find target/llvm-cov-target -name 'schemas-c-*.profraw' | wc -l)
+          echo "C test profraw files: before=${C_PROFRAW_BEFORE} after=${C_PROFRAW_AFTER}"
+          if [ "${C_PROFRAW_AFTER}" -le "${C_PROFRAW_BEFORE}" ]; then
+            echo "::error::C tests did not emit schemas-c-*.profraw under target/llvm-cov-target"
+            exit 1
+          fi
           
           echo "=== C API tests completed ==="
           echo "Profraw files in coverage directory:"
@@ -173,18 +186,154 @@ jobs:
 
       - name: Generate combined coverage report
         run: |
-          # Generate single LCOV report from all accumulated profraw files
-          # This includes coverage from both Rust unit tests and C API tests
-          cargo llvm-cov report --lcov --output-path lcov.info
-          
-          # Convert absolute paths to relative for SonarCloud compatibility
-          sed -i "s|SF:$PWD/|SF:|g" lcov.info
-          
-          echo "=== Combined Coverage Summary ==="
-          if [ -f lcov.info ]; then
-            RUST_FILES=$(grep -c "^SF:" lcov.info || echo "0")
-            echo "Source files with coverage data: $RUST_FILES"
+          # Rust unit/integration coverage (objects cargo-llvm-cov already tracks).
+          cargo llvm-cov report --lcov --output-path lcov-rust.info
+
+          # C Criterion loads a separately compiled instrumented cdylib. Those
+          # counters do not attribute through `cargo llvm-cov report` even with
+          # LLVM_COV_FLAGS=--object (coverage mapping hashes differ from the
+          # rlib used by Rust tests). Export a second LCOV from the same .so
+          # the C tests loaded, then union-merge hit counts.
+          COV_SO="${PWD}/target/debug/deps/libedgefirst_schemas.so"
+          if [ ! -f "${COV_SO}" ]; then
+            echo "::error::missing instrumented cdylib for coverage merge: ${COV_SO}"
+            exit 1
           fi
+          HOST=$(rustc -vV | sed -n 's/^host: //p')
+          SYSROOT=$(rustc --print sysroot)
+          LLVM_PROFDATA="${SYSROOT}/lib/rustlib/${HOST}/bin/llvm-profdata"
+          LLVM_COV="${SYSROOT}/lib/rustlib/${HOST}/bin/llvm-cov"
+          find target/llvm-cov-target -name 'schemas-c-*.profraw' > target/llvm-cov-target/c-profraw.list
+          if [ ! -s target/llvm-cov-target/c-profraw.list ]; then
+            echo "::error::no schemas-c-*.profraw files to merge"
+            exit 1
+          fi
+          "${LLVM_PROFDATA}" merge -sparse -f target/llvm-cov-target/c-profraw.list \
+            -o target/llvm-cov-target/c.profdata
+          "${LLVM_COV}" export -format=lcov \
+            -instr-profile=target/llvm-cov-target/c.profdata \
+            "${COV_SO}" \
+            --ignore-filename-regex='/\.cargo/' \
+            > lcov-c.info
+
+          python3 - <<'PY'
+          """Union-merge LCOV reports: per file, keep max hit count per line."""
+          import os
+          from pathlib import Path
+          from collections import defaultdict
+
+          def parse(path: Path):
+              files = {}
+              cur = None
+              das = {}
+              for line in path.read_text().splitlines():
+                  if line.startswith("SF:"):
+                      cur = line[3:]
+                      das = {}
+                  elif line.startswith("DA:") and cur is not None:
+                      ln, hits = line[3:].split(",")[:2]
+                      das[int(ln)] = int(hits)
+                  elif line == "end_of_record" and cur is not None:
+                      files[cur] = das
+                      cur = None
+              return files
+
+          workspace = Path(os.environ.get("GITHUB_WORKSPACE", os.getcwd())).resolve()
+
+          def normalize(path: str):
+              p = Path(path)
+              try:
+                  rel = str(p.resolve().relative_to(workspace))
+              except Exception:
+                  prefix = str(workspace) + "/"
+                  s = str(p)
+                  if s.startswith(prefix):
+                      rel = s[len(prefix) :]
+                  else:
+                      return None
+              # Drop toolchain / registry noise from llvm-cov export.
+              if not (rel.startswith("crates/") or rel.startswith("src/")):
+                  return None
+              return rel
+
+          merged = defaultdict(dict)
+          for src in (Path("lcov-rust.info"), Path("lcov-c.info")):
+              for sf, das in parse(src).items():
+                  key = normalize(sf)
+                  if key is None:
+                      continue
+                  slot = merged[key]
+                  for ln, hits in das.items():
+                      slot[ln] = max(slot.get(ln, 0), hits)
+
+          out = []
+          for sf in sorted(merged):
+              das = merged[sf]
+              out.append(f"SF:{sf}")
+              for ln in sorted(das):
+                  out.append(f"DA:{ln},{das[ln]}")
+              total = len(das)
+              covered = sum(1 for h in das.values() if h > 0)
+              out.append(f"LF:{total}")
+              out.append(f"LH:{covered}")
+              out.append("end_of_record")
+          Path("lcov.info").write_text("\n".join(out) + "\n")
+          print(f"Merged LCOV: {len(merged)} source files")
+          PY
+
+          # Convert any remaining absolute paths (rust report usually already relative)
+          sed -i "s|SF:$PWD/|SF:|g" lcov.info
+
+          echo "=== Combined Coverage Summary ==="
+          RUST_FILES=$(grep -c "^SF:" lcov.info || echo "0")
+          echo "Source files with coverage data: $RUST_FILES"
+
+          # Canary: Rust-only traffic leaves time_encode at 0 hits. A successful
+          # cdylib LCOV merge attributes the #[no_mangle] wrapper (encode_fixed
+          # may stay low due to monomorphization / coverage-map quirks).
+          python3 - <<'PY'
+          from pathlib import Path
+          hits = {}
+          in_file = False
+          for line in Path("lcov.info").read_text().splitlines():
+              if line.startswith("SF:") and line.rstrip().endswith("capi/src/lib.rs"):
+                  in_file = True
+                  hits = {}
+              elif line.startswith("SF:"):
+                  in_file = False
+              elif in_file and line.startswith("DA:"):
+                  ln, h = line[3:].split(",")[:2]
+                  hits[int(ln)] = int(h)
+              elif in_file and line == "end_of_record":
+                  break
+          src = Path("crates/capi/src/lib.rs").read_text().splitlines()
+          helper_line = next(
+              i for i, l in enumerate(src, 1) if "fn encode_fixed_to_buf" in l
+          )
+          encode_line = next(
+              i
+              for i, l in enumerate(src, 1)
+              if "fn builtin_interfaces_time_encode" in l
+          )
+          helper_hits = hits.get(helper_line, 0)
+          encode_hits = hits.get(encode_line, 0)
+          c_lines = sum(
+              1
+              for line in Path("lcov-c.info").read_text().splitlines()
+              if line.startswith("DA:") and int(line.split(",")[1]) > 0
+          )
+          print(
+              f"coverage canary: encode_fixed_to_buf@{helper_line} hits={helper_hits}; "
+              f"time_encode@{encode_line} hits={encode_hits}; "
+              f"lcov-c covered DA lines={c_lines}"
+          )
+          if encode_hits < 1 or c_lines < 100:
+              raise SystemExit(
+                  "C coverage merge canary failed: expected time_encode hits >= 1 "
+                  f"and lcov-c covered DA lines >= 100 (got encode={encode_hits}, "
+                  f"helper={helper_hits}, c_lines={c_lines})"
+              )
+          PY
 
       - name: Generate coverage summary
         id: coverage
@@ -241,12 +390,12 @@ jobs:
         with:
           python-version: '3.11'
 
-      # The pyo3 wheel needs an instrumented Rust build for cargo-llvm-cov
-      # to attribute Python-driven coverage to the Rust source files. Once
-      # the env from `cargo llvm-cov show-env` is exported, `maturin
-      # develop` produces a .so with profraw emission wired in; pytest
-      # invocations then accumulate Python-driven coverage into the same
-      # llvm-cov target dir as the Rust unit tests.
+      # The pyo3 extension must be an instrumented Rust cdylib so pytest
+      # writes LLVM profraw that cargo-llvm-cov can attribute back to
+      # crates/{python,schemas}/src and Sonar can merge via
+      # sonar.rust.lcov.reportPaths (show-env → maturin develop → pytest →
+      # report). Do not `cargo llvm-cov clean` here: it drops the target-dir
+      # bookkeeping report needs and makes it look under plain `target/`.
       - name: Install Rust toolchain (with llvm-tools)
         uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9 # master
         with:
@@ -266,20 +415,163 @@ jobs:
           pip install maturin pytest junitparser numpy pycdr2==1.0.0
 
       - name: Run pytest under cargo-llvm-cov
-        # `cargo llvm-cov` exports RUSTFLAGS / LLVM_PROFILE_FILE so any
-        # subsequent maturin build picks up the instrumentation. The
-        # Python module is built via `maturin develop` directly, not
-        # `pip install`, because maturin is what links the cdylib with
-        # cargo's instrumentation flags. After the suite runs, the .lcov
-        # report attributes Python-driven coverage to Rust source files.
         run: |
           set -euo pipefail
           source .venv/bin/activate
+
+          # Export RUSTFLAGS / LLVM_PROFILE_FILE so maturin builds an
+          # instrumented cdylib. Explicitly pin CARGO_TARGET_DIR: some
+          # cargo-llvm-cov versions do not export it via show-env, and
+          # `set -u` would then abort on ${CARGO_TARGET_DIR}.
           source <(cargo llvm-cov show-env --export-prefix)
+          COV_DIR="${PWD}/target/llvm-cov-target"
+          mkdir -p "${COV_DIR}"
+          export CARGO_TARGET_DIR="${COV_DIR}"
+          export LLVM_PROFILE_FILE="${COV_DIR}/schemas-py-%p-%m.profraw"
+          echo "CARGO_TARGET_DIR=${CARGO_TARGET_DIR}"
+          echo "LLVM_PROFILE_FILE=${LLVM_PROFILE_FILE}"
+
+          # maturin develop (not pip install -e) reuses cargo’s instrumented
+          # RUSTFLAGS for the pyo3 cdylib.
           maturin develop --manifest-path crates/python/Cargo.toml
+
+          EXT_SO=$(python - <<'PY'
+          import edgefirst.schemas as m
+          print(m.__file__)
+          PY
+          )
+          echo "PyO3 extension module: ${EXT_SO}"
+          if [ ! -f "${EXT_SO}" ]; then
+            echo "::error::PyO3 extension module not found at ${EXT_SO}"
+            exit 1
+          fi
+          PROFILE_SYMS=$(nm "${EXT_SO}" 2>/dev/null | grep -c "__llvm_profile" || true)
+          echo "Profile symbols in PyO3 extension: ${PROFILE_SYMS}"
+          if [ "${PROFILE_SYMS}" -eq 0 ]; then
+            echo "::error::PyO3 extension is not coverage-instrumented (maturin did not pick up llvm-cov RUSTFLAGS)"
+            exit 1
+          fi
+
+          PY_PROFRAW_BEFORE=$(find "${COV_DIR}" -name 'schemas-py-*.profraw' 2>/dev/null | wc -l)
           pytest tests/python/ --junitxml=pytest-results.xml -v
-          cargo llvm-cov report --lcov --output-path coverage-python.lcov
+          PY_PROFRAW_AFTER=$(find "${COV_DIR}" -name 'schemas-py-*.profraw' 2>/dev/null | wc -l)
+          echo "Python profraw files: before=${PY_PROFRAW_BEFORE} after=${PY_PROFRAW_AFTER}"
+          if [ "${PY_PROFRAW_AFTER}" -le "${PY_PROFRAW_BEFORE}" ]; then
+            echo "::error::pytest did not emit schemas-py-*.profraw under ${COV_DIR}"
+            exit 1
+          fi
+
+          # Prefer cargo-llvm-cov report (historically ~85% on python/src/lib.rs).
+          # Fall back to a direct llvm-cov export from the loaded extension if
+          # report cannot find objects (external-test bookkeeping).
+          if ! cargo llvm-cov report --lcov --output-path coverage-python.raw.lcov; then
+            echo "cargo llvm-cov report failed; falling back to direct llvm-cov export"
+            HOST=$(rustc -vV | sed -n 's/^host: //p')
+            SYSROOT=$(rustc --print sysroot)
+            LLVM_PROFDATA="${SYSROOT}/lib/rustlib/${HOST}/bin/llvm-profdata"
+            LLVM_COV="${SYSROOT}/lib/rustlib/${HOST}/bin/llvm-cov"
+            find "${COV_DIR}" -name 'schemas-py-*.profraw' > "${COV_DIR}/py-profraw.list"
+            "${LLVM_PROFDATA}" merge -sparse -f "${COV_DIR}/py-profraw.list" \
+              -o "${COV_DIR}/py.profdata"
+            "${LLVM_COV}" export -format=lcov \
+              -instr-profile="${COV_DIR}/py.profdata" \
+              "${EXT_SO}" \
+              --ignore-filename-regex='/\.cargo/|/rustc/|/rustlib/' \
+              > coverage-python.raw.lcov
+          fi
+
+          # Keep only workspace crates/* sources and rewrite to relative SF:
+          # paths. Direct llvm-cov export otherwise includes /rustc/... stdlib
+          # entries that Sonar cannot map (and that trip absolute-path checks).
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          workspace = Path(os.environ.get("GITHUB_WORKSPACE", os.getcwd())).resolve()
+          out = []
+          keep = False
+          buf = []
+
+          def flush():
+              global keep, buf
+              if keep and buf:
+                  out.extend(buf)
+              keep = False
+              buf = []
+
+          def normalize(sf: str) -> str | None:
+              p = Path(sf)
+              try:
+                  rel = p.resolve().relative_to(workspace)
+              except Exception:
+                  prefix = str(workspace) + "/"
+                  if sf.startswith(prefix):
+                      rel = Path(sf[len(prefix) :])
+                  else:
+                      return None
+              rel_s = str(rel)
+              if not rel_s.startswith("crates/"):
+                  return None
+              return rel_s
+
+          for line in Path("coverage-python.raw.lcov").read_text().splitlines():
+              if line.startswith("SF:"):
+                  flush()
+                  norm = normalize(line[3:])
+                  if norm is None:
+                      keep = False
+                      buf = []
+                  else:
+                      keep = True
+                      buf = [f"SF:{norm}"]
+              elif line == "end_of_record":
+                  if keep:
+                      buf.append(line)
+                      flush()
+                  else:
+                      buf = []
+                      keep = False
+              elif keep:
+                  buf.append(line)
+          flush()
+          Path("coverage-python.lcov").write_text("\n".join(out) + ("\n" if out else ""))
+          print(f"Filtered LCOV: {sum(1 for l in out if l.startswith('SF:'))} workspace files")
+          PY
+
           echo "=== Python-driven Rust source coverage written to coverage-python.lcov ==="
+          python3 - <<'PY'
+          from pathlib import Path
+          covered = total = 0
+          in_file = False
+          for line in Path("coverage-python.lcov").read_text().splitlines():
+              if line.startswith("SF:"):
+                  in_file = line.rstrip() == "SF:crates/python/src/lib.rs"
+              elif in_file and line.startswith("DA:"):
+                  _, hits = line[3:].split(",")[:2]
+                  total += 1
+                  if int(hits) > 0:
+                      covered += 1
+              elif in_file and line == "end_of_record":
+                  break
+          pct = 100.0 * covered / total if total else 0.0
+          print(f"coverage canary: crates/python/src/lib.rs {covered}/{total} = {pct:.1f}%")
+          if total < 1000 or pct < 50.0:
+              raise SystemExit(
+                  "Python→Rust coverage canary failed: expected "
+                  f"crates/python/src/lib.rs coverage >= 50% with >=1000 "
+                  f"instrumented lines (got {covered}/{total} = {pct:.1f}%)"
+              )
+          abs_workspace = [
+              l
+              for l in Path("coverage-python.lcov").read_text().splitlines()
+              if l.startswith("SF:/")
+          ]
+          if abs_workspace:
+              raise SystemExit(
+                  "coverage-python.lcov still has absolute SF: paths; "
+                  f"Sonar will not merge them (sample: {abs_workspace[0]})"
+              )
+          PY
 
       - name: Verify package import
         run: |
@@ -513,15 +805,26 @@ jobs:
           echo "=== Coverage Files ==="
           ls -la lcov.info coverage-python.lcov clippy-report.json 2>/dev/null || echo "Some files missing"
           echo ""
-          if [ -f lcov.info ]; then
-            echo "=== Combined LCOV Summary (Rust unit + C API) ==="
-            RUST_FILES=$(grep -c "^SF:" lcov.info || echo "0")
-            echo "Source files with coverage: $RUST_FILES"
+          if [ ! -f lcov.info ] || [ ! -f coverage-python.lcov ]; then
+            echo "::error::Missing required coverage artifact(s) for Sonar"
+            exit 1
           fi
-          if [ -f coverage-python.lcov ]; then
-            echo "=== Python-driven Rust LCOV Summary ==="
-            PY_FILES=$(grep -c "^SF:" coverage-python.lcov || echo "0")
-            echo "Source files with Python-driven coverage: $PY_FILES"
+          echo "=== Combined LCOV Summary (Rust unit + C API) ==="
+          RUST_FILES=$(grep -c "^SF:" lcov.info || echo "0")
+          echo "Source files with coverage: $RUST_FILES"
+          echo "=== Python-driven Rust LCOV Summary ==="
+          PY_FILES=$(grep -c "^SF:" coverage-python.lcov || echo "0")
+          echo "Source files with Python-driven coverage: $PY_FILES"
+          # Absolute SF: paths do not map onto sonar.sources and silently
+          # drop PyO3 / schemas hits from the merged Sonar coverage.
+          if grep -q '^SF:/' lcov.info coverage-python.lcov; then
+            echo "::error::Coverage LCOV still contains absolute SF: paths"
+            grep '^SF:/' lcov.info coverage-python.lcov | head -20
+            exit 1
+          fi
+          if ! grep -q 'SF:crates/python/src/lib.rs' coverage-python.lcov; then
+            echo "::error::coverage-python.lcov missing crates/python/src/lib.rs"
+            exit 1
           fi
 
       - name: SonarCloud Scan
@@ -536,6 +839,7 @@ jobs:
           # counts toward the line/branch totals. The Python module is now
           # written in Rust (pyo3); there's no separate Python-language
           # source to track via the old `sonar.python.coverage` setting.
+          # Paths in both reports must be workspace-relative (SF:crates/...).
           args: >
             -Dsonar.rust.lcov.reportPaths=lcov.info,coverage-python.lcov
             -Dsonar.rust.clippy.reportPaths=clippy-report.json

@@ -3,13 +3,152 @@
 #include <edgefirst/schemas.hpp>
 
 namespace ef = edgefirst::schemas;
+using ef::builtin_interfaces::Time;
+using ef::builtin_interfaces::Duration;
+using ef::geometry_msgs::Vector3;
+using ef::geometry_msgs::Point;
+using ef::geometry_msgs::Point32;
+using ef::geometry_msgs::Quaternion;
+using ef::geometry_msgs::Pose;
+using ef::geometry_msgs::Transform;
+using ef::geometry_msgs::Twist;
+using ef::geometry_msgs::Accel;
+using ef::geometry_msgs::Wrench;
+using ef::geometry_msgs::PoseWithCovariance;
+using ef::geometry_msgs::TwistWithCovariance;
+using ef::geometry_msgs::AccelWithCovariance;
+using ef::geometry_msgs::AccelStampedView;
+using ef::geometry_msgs::AccelStampedBuilder;
+using ef::geometry_msgs::TwistStampedView;
+using ef::geometry_msgs::TwistStampedBuilder;
+using ef::geometry_msgs::WrenchStampedView;
+using ef::geometry_msgs::WrenchStampedBuilder;
+using ef::geometry_msgs::PointStampedView;
+using ef::geometry_msgs::PointStampedBuilder;
+using ef::geometry_msgs::InertiaStampedView;
+using ef::geometry_msgs::InertiaStampedBuilder;
+using ef::geometry_msgs::Vector3StampedView;
+using ef::geometry_msgs::Vector3StampedBuilder;
+using ef::geometry_msgs::PoseStampedView;
+using ef::geometry_msgs::PoseStampedBuilder;
+using ef::geometry_msgs::QuaternionStampedView;
+using ef::geometry_msgs::QuaternionStampedBuilder;
+using ef::geometry_msgs::PoseWithCovarianceStampedView;
+using ef::geometry_msgs::PoseWithCovarianceStampedBuilder;
+using ef::geometry_msgs::TwistWithCovarianceStampedView;
+using ef::geometry_msgs::TwistWithCovarianceStampedBuilder;
+using ef::geometry_msgs::AccelWithCovarianceStampedView;
+using ef::geometry_msgs::AccelWithCovarianceStampedBuilder;
+using ef::geometry_msgs::PolygonView;
+using ef::geometry_msgs::PolygonBuilder;
+using ef::geometry_msgs::PolygonStampedView;
+using ef::geometry_msgs::PolygonStampedBuilder;
+using ef::geometry_msgs::PoseArrayView;
+using ef::geometry_msgs::PoseArrayBuilder;
+using ef::geometry_msgs::TransformStampedView;
+using ef::geometry_msgs::TransformStampedBuilder;
+using ef::std_msgs::Header;
+using ef::std_msgs::HeaderView;
+using ef::std_msgs::HeaderBuilder;
+using ef::sensor_msgs::NavSatStatus;
+using ef::sensor_msgs::CompressedImage;
+using ef::sensor_msgs::CompressedImageView;
+using ef::sensor_msgs::CompressedImageBuilder;
+using ef::sensor_msgs::Image;
+using ef::sensor_msgs::ImageView;
+using ef::sensor_msgs::ImageBuilder;
+using ef::sensor_msgs::ImuView;
+using ef::sensor_msgs::ImuBuilder;
+using ef::sensor_msgs::NavSatFixView;
+using ef::sensor_msgs::NavSatFixBuilder;
+using ef::sensor_msgs::CameraInfoView;
+using ef::sensor_msgs::CameraInfoBuilder;
+using ef::sensor_msgs::PointCloud2View;
+using ef::sensor_msgs::PointCloud2Builder;
+using ef::sensor_msgs::PointFieldBuilder;
+using ef::sensor_msgs::MagneticFieldView;
+using ef::sensor_msgs::MagneticFieldBuilder;
+using ef::sensor_msgs::FluidPressureView;
+using ef::sensor_msgs::FluidPressureBuilder;
+using ef::sensor_msgs::TemperatureView;
+using ef::sensor_msgs::TemperatureBuilder;
+using ef::sensor_msgs::BatteryStateView;
+using ef::sensor_msgs::BatteryStateBuilder;
+using ef::sensor_msgs::RelativeHumidityView;
+using ef::sensor_msgs::RelativeHumidityBuilder;
+using ef::sensor_msgs::TimeReferenceView;
+using ef::sensor_msgs::TimeReferenceBuilder;
+using ef::nav_msgs::MapMetaData;
+using ef::nav_msgs::OdometryView;
+using ef::nav_msgs::OdometryBuilder;
+using ef::nav_msgs::GridCellsView;
+using ef::nav_msgs::GridCellsBuilder;
+using ef::nav_msgs::OccupancyGridView;
+using ef::nav_msgs::OccupancyGridBuilder;
+using ef::nav_msgs::PathView;
+using ef::nav_msgs::PathBuilder;
+using ef::foxglove_msgs::CompressedVideo;
+using ef::foxglove_msgs::CompressedVideoView;
+using ef::foxglove_msgs::CompressedVideoBuilder;
+using ef::foxglove_msgs::TextAnnotationBuilder;
+using ef::foxglove_msgs::PointAnnotationBuilder;
+using ef::foxglove_msgs::ImageAnnotationBuilder;
+using ef::mavros_msgs::AltitudeView;
+using ef::mavros_msgs::AltitudeBuilder;
+using ef::mavros_msgs::VfrHudView;
+using ef::mavros_msgs::VfrHudBuilder;
+using ef::mavros_msgs::EstimatorStatusView;
+using ef::mavros_msgs::EstimatorStatusBuilder;
+using ef::mavros_msgs::ExtendedStateView;
+using ef::mavros_msgs::ExtendedStateBuilder;
+using ef::mavros_msgs::SysStatusView;
+using ef::mavros_msgs::SysStatusBuilder;
+using ef::mavros_msgs::StateView;
+using ef::mavros_msgs::StateBuilder;
+using ef::mavros_msgs::StatusTextView;
+using ef::mavros_msgs::StatusTextBuilder;
+using ef::mavros_msgs::GpsRawView;
+using ef::mavros_msgs::GpsRawBuilder;
+using ef::mavros_msgs::TimesyncStatusView;
+using ef::mavros_msgs::TimesyncStatusBuilder;
+using ef::edgefirst_msgs::Mask;
+using ef::edgefirst_msgs::MaskView;
+using ef::edgefirst_msgs::MaskBuilder;
+using ef::edgefirst_msgs::LocalTimeView;
+using ef::edgefirst_msgs::LocalTimeBuilder;
+using ef::edgefirst_msgs::TrackView;
+using ef::edgefirst_msgs::TrackBuilder;
+using ef::edgefirst_msgs::BoxView;
+using ef::edgefirst_msgs::DetectView;
+using ef::edgefirst_msgs::DetectBuilder;
+using ef::edgefirst_msgs::DetectBoxBuilder;
+using ef::edgefirst_msgs::ModelView;
+using ef::edgefirst_msgs::ModelBuilder;
+using ef::edgefirst_msgs::ModelInfoView;
+using ef::edgefirst_msgs::ModelInfoBuilder;
+using ef::edgefirst_msgs::RadarCubeView;
+using ef::edgefirst_msgs::RadarCubeBuilder;
+using ef::edgefirst_msgs::RadarInfoView;
+using ef::edgefirst_msgs::RadarInfoBuilder;
+using ef::edgefirst_msgs::VibrationView;
+using ef::edgefirst_msgs::VibrationBuilder;
+using ef::edgefirst_msgs::TensorView;
+using ef::edgefirst_msgs::TensorBuilder;
+using ef::edgefirst_msgs::TensorStampedView;
+using ef::edgefirst_msgs::TensorStampedBuilder;
+using ef::edgefirst_msgs::CameraFrameView;
+using ef::edgefirst_msgs::CameraFrameBuilder;
+using FoxgloveCompressedImage = ef::foxglove_msgs::CompressedImage;
+using FoxgloveCompressedImageView = ef::foxglove_msgs::CompressedImageView;
+using FoxgloveCompressedImageBuilder = ef::foxglove_msgs::CompressedImageBuilder;
+
 
 // ---------------------------------------------------------------------------
 // Time
 // ---------------------------------------------------------------------------
 
 TEST_CASE("Time roundtrip", "[cdr_fixed][time]") {
-    ef::Time t{1234567890, 123456789};
+    Time t{1234567890, 123456789};
 
     auto sz = t.encoded_size();
     REQUIRE(sz.has_value());
@@ -20,14 +159,14 @@ TEST_CASE("Time roundtrip", "[cdr_fixed][time]") {
     REQUIRE(written.has_value());
     REQUIRE(*written == 12);
 
-    auto decoded = ef::Time::decode(ef::span<const std::uint8_t>{buf, *written});
+    auto decoded = Time::decode(ef::span<const std::uint8_t>{buf, *written});
     REQUIRE(decoded.has_value());
     CHECK(decoded->sec == 1234567890);
     CHECK(decoded->nanosec == 123456789);
 }
 
 TEST_CASE("Time buffer too small", "[cdr_fixed][time]") {
-    ef::Time t{1, 2};
+    Time t{1, 2};
     std::uint8_t buf[1]{};
     auto result = t.encode(ef::span<std::uint8_t>{buf, 1});
     REQUIRE_FALSE(result.has_value());
@@ -36,7 +175,7 @@ TEST_CASE("Time buffer too small", "[cdr_fixed][time]") {
 
 TEST_CASE("Time decode error", "[cdr_fixed][time]") {
     ef::span<const std::uint8_t> empty{};
-    auto result = ef::Time::decode(empty);
+    auto result = Time::decode(empty);
     REQUIRE_FALSE(result.has_value());
 }
 
@@ -45,7 +184,7 @@ TEST_CASE("Time decode error", "[cdr_fixed][time]") {
 // ---------------------------------------------------------------------------
 
 TEST_CASE("Duration roundtrip", "[cdr_fixed][duration]") {
-    ef::Duration d{-500, 999999999};
+    Duration d{-500, 999999999};
 
     auto sz = d.encoded_size();
     REQUIRE(sz.has_value());
@@ -56,7 +195,7 @@ TEST_CASE("Duration roundtrip", "[cdr_fixed][duration]") {
     REQUIRE(written.has_value());
     REQUIRE(*written == 12);
 
-    auto decoded = ef::Duration::decode(ef::span<const std::uint8_t>{buf, *written});
+    auto decoded = Duration::decode(ef::span<const std::uint8_t>{buf, *written});
     REQUIRE(decoded.has_value());
     CHECK(decoded->sec == -500);
     CHECK(decoded->nanosec == 999999999);
@@ -67,7 +206,7 @@ TEST_CASE("Duration roundtrip", "[cdr_fixed][duration]") {
 // ---------------------------------------------------------------------------
 
 TEST_CASE("Vector3 roundtrip", "[cdr_fixed][vector3]") {
-    ef::Vector3 v{1.0, 2.0, 3.0};
+    Vector3 v{1.0, 2.0, 3.0};
 
     auto sz = v.encoded_size();
     REQUIRE(sz.has_value());
@@ -78,7 +217,7 @@ TEST_CASE("Vector3 roundtrip", "[cdr_fixed][vector3]") {
     REQUIRE(written.has_value());
     REQUIRE(*written == 28);
 
-    auto decoded = ef::Vector3::decode(ef::span<const std::uint8_t>{buf, *written});
+    auto decoded = Vector3::decode(ef::span<const std::uint8_t>{buf, *written});
     REQUIRE(decoded.has_value());
     CHECK(decoded->x == 1.0);
     CHECK(decoded->y == 2.0);
@@ -90,7 +229,7 @@ TEST_CASE("Vector3 roundtrip", "[cdr_fixed][vector3]") {
 // ---------------------------------------------------------------------------
 
 TEST_CASE("Point roundtrip", "[cdr_fixed][point]") {
-    ef::Point p{10.5, -3.14, 0.0};
+    Point p{10.5, -3.14, 0.0};
 
     auto sz = p.encoded_size();
     REQUIRE(sz.has_value());
@@ -101,7 +240,7 @@ TEST_CASE("Point roundtrip", "[cdr_fixed][point]") {
     REQUIRE(written.has_value());
     REQUIRE(*written == 28);
 
-    auto decoded = ef::Point::decode(ef::span<const std::uint8_t>{buf, *written});
+    auto decoded = Point::decode(ef::span<const std::uint8_t>{buf, *written});
     REQUIRE(decoded.has_value());
     CHECK(decoded->x == 10.5);
     CHECK(decoded->y == -3.14);
@@ -113,7 +252,7 @@ TEST_CASE("Point roundtrip", "[cdr_fixed][point]") {
 // ---------------------------------------------------------------------------
 
 TEST_CASE("Quaternion roundtrip", "[cdr_fixed][quaternion]") {
-    ef::Quaternion q{0.0, 0.0, 0.0, 1.0};
+    Quaternion q{0.0, 0.0, 0.0, 1.0};
 
     auto sz = q.encoded_size();
     REQUIRE(sz.has_value());
@@ -124,7 +263,7 @@ TEST_CASE("Quaternion roundtrip", "[cdr_fixed][quaternion]") {
     REQUIRE(written.has_value());
     REQUIRE(*written == 36);
 
-    auto decoded = ef::Quaternion::decode(ef::span<const std::uint8_t>{buf, *written});
+    auto decoded = Quaternion::decode(ef::span<const std::uint8_t>{buf, *written});
     REQUIRE(decoded.has_value());
     CHECK(decoded->x == 0.0);
     CHECK(decoded->y == 0.0);
@@ -137,7 +276,7 @@ TEST_CASE("Quaternion roundtrip", "[cdr_fixed][quaternion]") {
 // ---------------------------------------------------------------------------
 
 TEST_CASE("Pose roundtrip", "[cdr_fixed][pose]") {
-    ef::Pose p{1.0, 2.0, 3.0, 0.0, 0.0, 0.707, 0.707};
+    Pose p{1.0, 2.0, 3.0, 0.0, 0.0, 0.707, 0.707};
 
     auto sz = p.encoded_size();
     REQUIRE(sz.has_value());
@@ -148,7 +287,7 @@ TEST_CASE("Pose roundtrip", "[cdr_fixed][pose]") {
     REQUIRE(written.has_value());
     REQUIRE(*written == 60);
 
-    auto decoded = ef::Pose::decode(ef::span<const std::uint8_t>{buf, *written});
+    auto decoded = Pose::decode(ef::span<const std::uint8_t>{buf, *written});
     REQUIRE(decoded.has_value());
     CHECK(decoded->px == 1.0);
     CHECK(decoded->py == 2.0);
@@ -160,7 +299,7 @@ TEST_CASE("Pose roundtrip", "[cdr_fixed][pose]") {
 }
 
 TEST_CASE("Pose buffer too small", "[cdr_fixed][pose]") {
-    ef::Pose p{1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0};
+    Pose p{1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0};
     std::uint8_t buf[1]{};
     auto result = p.encode(ef::span<std::uint8_t>{buf, 1});
     REQUIRE_FALSE(result.has_value());
@@ -169,7 +308,7 @@ TEST_CASE("Pose buffer too small", "[cdr_fixed][pose]") {
 
 TEST_CASE("Pose decode error", "[cdr_fixed][pose]") {
     ef::span<const std::uint8_t> empty{};
-    auto result = ef::Pose::decode(empty);
+    auto result = Pose::decode(empty);
     REQUIRE_FALSE(result.has_value());
 }
 
@@ -178,7 +317,7 @@ TEST_CASE("Pose decode error", "[cdr_fixed][pose]") {
 // ---------------------------------------------------------------------------
 
 TEST_CASE("Transform roundtrip", "[cdr_fixed][transform]") {
-    ef::Transform tf{1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0};
+    Transform tf{1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0};
 
     auto sz = tf.encoded_size();
     REQUIRE(sz.has_value());
@@ -189,7 +328,7 @@ TEST_CASE("Transform roundtrip", "[cdr_fixed][transform]") {
     REQUIRE(written.has_value());
     REQUIRE(*written == 60);
 
-    auto decoded = ef::Transform::decode(ef::span<const std::uint8_t>{buf, *written});
+    auto decoded = Transform::decode(ef::span<const std::uint8_t>{buf, *written});
     REQUIRE(decoded.has_value());
     CHECK(decoded->tx == 1.0);
     CHECK(decoded->ty == 2.0);
@@ -205,7 +344,7 @@ TEST_CASE("Transform roundtrip", "[cdr_fixed][transform]") {
 // ---------------------------------------------------------------------------
 
 TEST_CASE("Twist roundtrip", "[cdr_fixed][twist]") {
-    ef::Twist tw{1.5, -0.5, 0.0, 0.1, 0.2, 0.3};
+    Twist tw{1.5, -0.5, 0.0, 0.1, 0.2, 0.3};
 
     auto sz = tw.encoded_size();
     REQUIRE(sz.has_value());
@@ -216,7 +355,7 @@ TEST_CASE("Twist roundtrip", "[cdr_fixed][twist]") {
     REQUIRE(written.has_value());
     REQUIRE(*written == 52);
 
-    auto decoded = ef::Twist::decode(ef::span<const std::uint8_t>{buf, *written});
+    auto decoded = Twist::decode(ef::span<const std::uint8_t>{buf, *written});
     REQUIRE(decoded.has_value());
     CHECK(decoded->lx == 1.5);
     CHECK(decoded->ly == -0.5);
@@ -231,7 +370,7 @@ TEST_CASE("Twist roundtrip", "[cdr_fixed][twist]") {
 // ---------------------------------------------------------------------------
 
 TEST_CASE("Accel roundtrip", "[cdr_fixed][accel]") {
-    ef::Accel a{9.81, 0.0, 0.0, 0.0, 0.0, 0.0};
+    Accel a{9.81, 0.0, 0.0, 0.0, 0.0, 0.0};
 
     auto sz = a.encoded_size();
     REQUIRE(sz.has_value());
@@ -242,7 +381,7 @@ TEST_CASE("Accel roundtrip", "[cdr_fixed][accel]") {
     REQUIRE(written.has_value());
     REQUIRE(*written == 52);
 
-    auto decoded = ef::Accel::decode(ef::span<const std::uint8_t>{buf, *written});
+    auto decoded = Accel::decode(ef::span<const std::uint8_t>{buf, *written});
     REQUIRE(decoded.has_value());
     CHECK(decoded->lx == 9.81);
     CHECK(decoded->ly == 0.0);
@@ -257,7 +396,7 @@ TEST_CASE("Accel roundtrip", "[cdr_fixed][accel]") {
 // ---------------------------------------------------------------------------
 
 TEST_CASE("NavSatStatus roundtrip", "[cdr_fixed][nav_sat_status]") {
-    ef::NavSatStatus n{2, 15};
+    NavSatStatus n{2, 15};
 
     auto sz = n.encoded_size();
     REQUIRE(sz.has_value());
@@ -268,14 +407,14 @@ TEST_CASE("NavSatStatus roundtrip", "[cdr_fixed][nav_sat_status]") {
     REQUIRE(written.has_value());
     REQUIRE(*written == 8);
 
-    auto decoded = ef::NavSatStatus::decode(ef::span<const std::uint8_t>{buf, *written});
+    auto decoded = NavSatStatus::decode(ef::span<const std::uint8_t>{buf, *written});
     REQUIRE(decoded.has_value());
     CHECK(decoded->status == 2);
     CHECK(decoded->service == 15);
 }
 
 TEST_CASE("NavSatStatus buffer too small", "[cdr_fixed][nav_sat_status]") {
-    ef::NavSatStatus n{1, 1};
+    NavSatStatus n{1, 1};
     std::uint8_t buf[1]{};
     auto result = n.encode(ef::span<std::uint8_t>{buf, 1});
     REQUIRE_FALSE(result.has_value());
@@ -284,6 +423,6 @@ TEST_CASE("NavSatStatus buffer too small", "[cdr_fixed][nav_sat_status]") {
 
 TEST_CASE("NavSatStatus decode error", "[cdr_fixed][nav_sat_status]") {
     ef::span<const std::uint8_t> empty{};
-    auto result = ef::NavSatStatus::decode(empty);
+    auto result = NavSatStatus::decode(empty);
     REQUIRE_FALSE(result.has_value());
 }

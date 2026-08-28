@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright © 2026 Au-Zone Technologies. All Rights Reserved.
 
-//! Smoke tests for the in-place `ros_<type>_set_<field>(buf, len, ...)` FFI.
+//! Smoke tests for the in-place `<package>_<type>_set_<field>(buf, len, ...)` FFI.
 //!
 //! Each test builds a representative message via the Rust builder, mutates a
 //! fixed-size field through the C FFI setter, decodes the result, and asserts
@@ -25,44 +25,69 @@ use edgefirst_schemas::std_msgs;
 
 extern "C" {
     // std_msgs
-    fn ros_header_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32;
+    fn std_msgs_header_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32;
 
     // sensor_msgs::Image
-    fn ros_image_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32;
-    fn ros_image_set_height(buf: *mut u8, len: usize, v: u32) -> i32;
-    fn ros_image_set_width(buf: *mut u8, len: usize, v: u32) -> i32;
-    fn ros_image_set_is_bigendian(buf: *mut u8, len: usize, v: u8) -> i32;
-    fn ros_image_set_step(buf: *mut u8, len: usize, v: u32) -> i32;
+    fn sensor_msgs_image_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32;
+    fn sensor_msgs_image_set_height(buf: *mut u8, len: usize, v: u32) -> i32;
+    fn sensor_msgs_image_set_width(buf: *mut u8, len: usize, v: u32) -> i32;
+    fn sensor_msgs_image_set_is_bigendian(buf: *mut u8, len: usize, v: u8) -> i32;
+    fn sensor_msgs_image_set_step(buf: *mut u8, len: usize, v: u32) -> i32;
 
     // sensor_msgs::CompressedImage
-    fn ros_compressed_image_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32;
+    fn sensor_msgs_compressed_image_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32)
+        -> i32;
 
     // sensor_msgs::Imu
-    fn ros_imu_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32;
-    fn ros_imu_set_orientation(buf: *mut u8, len: usize, x: f64, y: f64, z: f64, w: f64) -> i32;
-    fn ros_imu_set_orientation_covariance(buf: *mut u8, len: usize, c: *const f64) -> i32;
-    fn ros_imu_set_angular_velocity(buf: *mut u8, len: usize, x: f64, y: f64, z: f64) -> i32;
-    fn ros_imu_set_linear_acceleration(buf: *mut u8, len: usize, x: f64, y: f64, z: f64) -> i32;
+    fn sensor_msgs_imu_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32;
+    fn sensor_msgs_imu_set_orientation(
+        buf: *mut u8,
+        len: usize,
+        x: f64,
+        y: f64,
+        z: f64,
+        w: f64,
+    ) -> i32;
+    fn sensor_msgs_imu_set_orientation_covariance(buf: *mut u8, len: usize, c: *const f64) -> i32;
+    fn sensor_msgs_imu_set_angular_velocity(
+        buf: *mut u8,
+        len: usize,
+        x: f64,
+        y: f64,
+        z: f64,
+    ) -> i32;
+    fn sensor_msgs_imu_set_linear_acceleration(
+        buf: *mut u8,
+        len: usize,
+        x: f64,
+        y: f64,
+        z: f64,
+    ) -> i32;
 
     // sensor_msgs::NavSatFix
-    fn ros_nav_sat_fix_set_status(buf: *mut u8, len: usize, status: i8, service: u16) -> i32;
-    fn ros_nav_sat_fix_set_latitude(buf: *mut u8, len: usize, v: f64) -> i32;
-    fn ros_nav_sat_fix_set_altitude(buf: *mut u8, len: usize, v: f64) -> i32;
+    fn sensor_msgs_nav_sat_fix_set_status(
+        buf: *mut u8,
+        len: usize,
+        status: i8,
+        service: u16,
+    ) -> i32;
+    fn sensor_msgs_nav_sat_fix_set_latitude(buf: *mut u8, len: usize, v: f64) -> i32;
+    fn sensor_msgs_nav_sat_fix_set_altitude(buf: *mut u8, len: usize, v: f64) -> i32;
 
     // sensor_msgs::PointField
-    fn ros_point_field_set_offset(buf: *mut u8, len: usize, v: u32) -> i32;
-    fn ros_point_field_set_datatype(buf: *mut u8, len: usize, v: u8) -> i32;
+    fn sensor_msgs_point_field_set_offset(buf: *mut u8, len: usize, v: u32) -> i32;
+    fn sensor_msgs_point_field_set_datatype(buf: *mut u8, len: usize, v: u8) -> i32;
 
     // sensor_msgs::PointCloud2
-    fn ros_point_cloud2_set_height(buf: *mut u8, len: usize, v: u32) -> i32;
-    fn ros_point_cloud2_set_is_bigendian(buf: *mut u8, len: usize, v: u8) -> i32;
-    fn ros_point_cloud2_set_is_dense(buf: *mut u8, len: usize, v: u8) -> i32;
+    fn sensor_msgs_point_cloud2_set_height(buf: *mut u8, len: usize, v: u32) -> i32;
+    fn sensor_msgs_point_cloud2_set_is_bigendian(buf: *mut u8, len: usize, v: u8) -> i32;
+    fn sensor_msgs_point_cloud2_set_is_dense(buf: *mut u8, len: usize, v: u8) -> i32;
 
     // sensor_msgs::CameraInfo
-    fn ros_camera_info_set_height(buf: *mut u8, len: usize, v: u32) -> i32;
-    fn ros_camera_info_set_k(buf: *mut u8, len: usize, k: *const f64) -> i32;
-    fn ros_camera_info_set_p(buf: *mut u8, len: usize, p: *const f64) -> i32;
-    fn ros_camera_info_set_roi(
+    fn sensor_msgs_camera_info_set_height(buf: *mut u8, len: usize, v: u32) -> i32;
+    fn sensor_msgs_camera_info_set_k(buf: *mut u8, len: usize, k: *const f64) -> i32;
+    fn sensor_msgs_camera_info_set_p(buf: *mut u8, len: usize, p: *const f64) -> i32;
+    fn sensor_msgs_camera_info_set_roi(
         buf: *mut u8,
         len: usize,
         x_offset: u32,
@@ -73,7 +98,7 @@ extern "C" {
     ) -> i32;
 
     // sensor_msgs::MagneticField
-    fn ros_magnetic_field_set_magnetic_field(
+    fn sensor_msgs_magnetic_field_set_magnetic_field(
         buf: *mut u8,
         len: usize,
         x: f64,
@@ -82,53 +107,64 @@ extern "C" {
     ) -> i32;
 
     // sensor_msgs::FluidPressure
-    fn ros_fluid_pressure_set_variance(buf: *mut u8, len: usize, v: f64) -> i32;
+    fn sensor_msgs_fluid_pressure_set_variance(buf: *mut u8, len: usize, v: f64) -> i32;
 
     // sensor_msgs::Temperature
-    fn ros_temperature_set_temperature(buf: *mut u8, len: usize, v: f64) -> i32;
+    fn sensor_msgs_temperature_set_temperature(buf: *mut u8, len: usize, v: f64) -> i32;
 
     // sensor_msgs::BatteryState
-    fn ros_battery_state_set_voltage(buf: *mut u8, len: usize, v: f32) -> i32;
-    fn ros_battery_state_set_present(buf: *mut u8, len: usize, v: u8) -> i32;
+    fn sensor_msgs_battery_state_set_voltage(buf: *mut u8, len: usize, v: f32) -> i32;
+    fn sensor_msgs_battery_state_set_present(buf: *mut u8, len: usize, v: u8) -> i32;
 
     // edgefirst_msgs::Mask
-    fn ros_mask_set_height(buf: *mut u8, len: usize, v: u32) -> i32;
-    fn ros_mask_set_boxed(buf: *mut u8, len: usize, v: u8) -> i32;
+    fn edgefirst_msgs_mask_set_height(buf: *mut u8, len: usize, v: u32) -> i32;
+    fn edgefirst_msgs_mask_set_boxed(buf: *mut u8, len: usize, v: u8) -> i32;
 
     // edgefirst_msgs::LocalTime
-    fn ros_local_time_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32;
-    fn ros_local_time_set_date(buf: *mut u8, len: usize, year: u16, month: u8, day: u8) -> i32;
-    fn ros_local_time_set_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32;
-    fn ros_local_time_set_timezone(buf: *mut u8, len: usize, v: i16) -> i32;
+    fn edgefirst_msgs_local_time_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32;
+    fn edgefirst_msgs_local_time_set_date(
+        buf: *mut u8,
+        len: usize,
+        year: u16,
+        month: u8,
+        day: u8,
+    ) -> i32;
+    fn edgefirst_msgs_local_time_set_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32;
+    fn edgefirst_msgs_local_time_set_timezone(buf: *mut u8, len: usize, v: i16) -> i32;
 
     // edgefirst_msgs::RadarCube
-    fn ros_radar_cube_set_timestamp(buf: *mut u8, len: usize, v: u64) -> i32;
+    fn edgefirst_msgs_radar_cube_set_timestamp(buf: *mut u8, len: usize, v: u64) -> i32;
 
     // edgefirst_msgs::RadarInfo
-    fn ros_radar_info_set_cube(buf: *mut u8, len: usize, v: u8) -> i32;
+    fn edgefirst_msgs_radar_info_set_cube(buf: *mut u8, len: usize, v: u8) -> i32;
 
     // edgefirst_msgs::Track
-    fn ros_track_set_lifetime(buf: *mut u8, len: usize, v: i32) -> i32;
+    fn edgefirst_msgs_track_set_lifetime(buf: *mut u8, len: usize, v: i32) -> i32;
 
     // edgefirst_msgs::DetectBox
-    fn ros_detect_box_set_center_x(buf: *mut u8, len: usize, v: f32) -> i32;
-    fn ros_detect_box_set_score(buf: *mut u8, len: usize, v: f32) -> i32;
+    fn edgefirst_msgs_detect_box_set_center_x(buf: *mut u8, len: usize, v: f32) -> i32;
+    fn edgefirst_msgs_detect_box_set_score(buf: *mut u8, len: usize, v: f32) -> i32;
 
     // edgefirst_msgs::Detect
-    fn ros_detect_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32;
-    fn ros_detect_set_input_timestamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32;
+    fn edgefirst_msgs_detect_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32;
+    fn edgefirst_msgs_detect_set_input_timestamp(
+        buf: *mut u8,
+        len: usize,
+        sec: i32,
+        nsec: u32,
+    ) -> i32;
 
     // edgefirst_msgs::Model
-    fn ros_model_set_input_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32;
+    fn edgefirst_msgs_model_set_input_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32;
 
     // edgefirst_msgs::ModelInfo
-    fn ros_model_info_set_input_type(buf: *mut u8, len: usize, v: u8) -> i32;
+    fn edgefirst_msgs_model_info_set_input_type(buf: *mut u8, len: usize, v: u8) -> i32;
 
     // edgefirst_msgs::Vibration
-    fn ros_vibration_set_band_lower_hz(buf: *mut u8, len: usize, v: f32) -> i32;
+    fn edgefirst_msgs_vibration_set_band_lower_hz(buf: *mut u8, len: usize, v: f32) -> i32;
 
     // foxglove_msgs::FoxgloveCompressedVideo
-    fn ros_foxglove_compressed_video_set_stamp(
+    fn foxglove_msgs_compressed_video_set_stamp(
         buf: *mut u8,
         len: usize,
         sec: i32,
@@ -136,7 +172,7 @@ extern "C" {
     ) -> i32;
 
     // foxglove_msgs::FoxgloveCompressedImage
-    fn ros_foxglove_compressed_image_set_stamp(
+    fn foxglove_msgs_compressed_image_set_stamp(
         buf: *mut u8,
         len: usize,
         sec: i32,
@@ -144,12 +180,12 @@ extern "C" {
     ) -> i32;
 
     // foxglove_msgs::FoxgloveTextAnnotation
-    fn ros_foxglove_text_annotation_set_position(buf: *mut u8, len: usize, x: f64, y: f64) -> i32;
-    fn ros_foxglove_text_annotation_set_font_size(buf: *mut u8, len: usize, v: f64) -> i32;
+    fn foxglove_msgs_text_annotation_set_position(buf: *mut u8, len: usize, x: f64, y: f64) -> i32;
+    fn foxglove_msgs_text_annotation_set_font_size(buf: *mut u8, len: usize, v: f64) -> i32;
 
     // foxglove_msgs::FoxglovePointAnnotation
-    fn ros_foxglove_point_annotation_set_type(buf: *mut u8, len: usize, v: u8) -> i32;
-    fn ros_foxglove_point_annotation_set_thickness(buf: *mut u8, len: usize, v: f64) -> i32;
+    fn foxglove_msgs_point_annotation_set_type(buf: *mut u8, len: usize, v: u8) -> i32;
+    fn foxglove_msgs_point_annotation_set_thickness(buf: *mut u8, len: usize, v: f64) -> i32;
 }
 
 fn errno() -> i32 {
@@ -159,7 +195,7 @@ fn errno() -> i32 {
 // ----- std_msgs::Header -----
 
 #[test]
-fn ros_header_in_place_set_stamp_mutates_only_stamp() {
+fn std_msgs_header_in_place_set_stamp_mutates_only_stamp() {
     let hdr = std_msgs::Header::builder()
         .stamp(Time::new(100, 200))
         .frame_id("base_link")
@@ -168,7 +204,7 @@ fn ros_header_in_place_set_stamp_mutates_only_stamp() {
     let mut buf = hdr.to_cdr();
     let len = buf.len();
 
-    let rc = unsafe { ros_header_set_stamp(buf.as_mut_ptr(), len, 999, 7) };
+    let rc = unsafe { std_msgs_header_set_stamp(buf.as_mut_ptr(), len, 999, 7) };
     assert_eq!(rc, 0);
 
     let decoded = std_msgs::Header::from_cdr(&buf[..]).unwrap();
@@ -179,7 +215,7 @@ fn ros_header_in_place_set_stamp_mutates_only_stamp() {
 // ----- sensor_msgs::Image -----
 
 #[test]
-fn ros_image_in_place_setters_mutate_selected_fields() {
+fn sensor_msgs_image_in_place_setters_mutate_selected_fields() {
     let msg = sensor_msgs::Image::builder()
         .stamp(Time::new(1, 2))
         .frame_id("cam")
@@ -195,19 +231,25 @@ fn ros_image_in_place_setters_mutate_selected_fields() {
     let len = buf.len();
 
     assert_eq!(
-        unsafe { ros_image_set_stamp(buf.as_mut_ptr(), len, 1234, 5678) },
+        unsafe { sensor_msgs_image_set_stamp(buf.as_mut_ptr(), len, 1234, 5678) },
         0
     );
     assert_eq!(
-        unsafe { ros_image_set_height(buf.as_mut_ptr(), len, 40) },
+        unsafe { sensor_msgs_image_set_height(buf.as_mut_ptr(), len, 40) },
         0
     );
-    assert_eq!(unsafe { ros_image_set_width(buf.as_mut_ptr(), len, 30) }, 0);
     assert_eq!(
-        unsafe { ros_image_set_is_bigendian(buf.as_mut_ptr(), len, 1) },
+        unsafe { sensor_msgs_image_set_width(buf.as_mut_ptr(), len, 30) },
         0
     );
-    assert_eq!(unsafe { ros_image_set_step(buf.as_mut_ptr(), len, 90) }, 0);
+    assert_eq!(
+        unsafe { sensor_msgs_image_set_is_bigendian(buf.as_mut_ptr(), len, 1) },
+        0
+    );
+    assert_eq!(
+        unsafe { sensor_msgs_image_set_step(buf.as_mut_ptr(), len, 90) },
+        0
+    );
 
     let decoded = sensor_msgs::Image::from_cdr(&buf[..]).unwrap();
     assert_eq!(decoded.stamp(), Time::new(1234, 5678));
@@ -223,7 +265,7 @@ fn ros_image_in_place_setters_mutate_selected_fields() {
 // ----- sensor_msgs::CompressedImage -----
 
 #[test]
-fn ros_compressed_image_in_place_set_stamp() {
+fn sensor_msgs_compressed_image_in_place_set_stamp() {
     let msg = sensor_msgs::CompressedImage::builder()
         .stamp(Time::new(1, 2))
         .frame_id("cam")
@@ -234,7 +276,7 @@ fn ros_compressed_image_in_place_set_stamp() {
     let mut buf = msg.into_cdr();
     let len = buf.len();
     assert_eq!(
-        unsafe { ros_compressed_image_set_stamp(buf.as_mut_ptr(), len, 77, 88) },
+        unsafe { sensor_msgs_compressed_image_set_stamp(buf.as_mut_ptr(), len, 77, 88) },
         0
     );
     let decoded = sensor_msgs::CompressedImage::from_cdr(&buf[..]).unwrap();
@@ -245,7 +287,7 @@ fn ros_compressed_image_in_place_set_stamp() {
 // ----- sensor_msgs::Imu -----
 
 #[test]
-fn ros_imu_in_place_setters_mutate_orientation_and_covariance() {
+fn sensor_msgs_imu_in_place_setters_mutate_orientation_and_covariance() {
     let msg = sensor_msgs::Imu::builder()
         .stamp(Time::new(0, 0))
         .frame_id("imu")
@@ -261,24 +303,24 @@ fn ros_imu_in_place_setters_mutate_orientation_and_covariance() {
     let len = buf.len();
 
     assert_eq!(
-        unsafe { ros_imu_set_stamp(buf.as_mut_ptr(), len, 100, 200) },
+        unsafe { sensor_msgs_imu_set_stamp(buf.as_mut_ptr(), len, 100, 200) },
         0
     );
     assert_eq!(
-        unsafe { ros_imu_set_orientation(buf.as_mut_ptr(), len, 0.1, 0.2, 0.3, 0.9) },
+        unsafe { sensor_msgs_imu_set_orientation(buf.as_mut_ptr(), len, 0.1, 0.2, 0.3, 0.9) },
         0
     );
     let cov = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0];
     assert_eq!(
-        unsafe { ros_imu_set_orientation_covariance(buf.as_mut_ptr(), len, cov.as_ptr()) },
+        unsafe { sensor_msgs_imu_set_orientation_covariance(buf.as_mut_ptr(), len, cov.as_ptr()) },
         0
     );
     assert_eq!(
-        unsafe { ros_imu_set_angular_velocity(buf.as_mut_ptr(), len, 1.0, 2.0, 3.0) },
+        unsafe { sensor_msgs_imu_set_angular_velocity(buf.as_mut_ptr(), len, 1.0, 2.0, 3.0) },
         0
     );
     assert_eq!(
-        unsafe { ros_imu_set_linear_acceleration(buf.as_mut_ptr(), len, 4.0, 5.0, 6.0) },
+        unsafe { sensor_msgs_imu_set_linear_acceleration(buf.as_mut_ptr(), len, 4.0, 5.0, 6.0) },
         0
     );
 
@@ -293,7 +335,7 @@ fn ros_imu_in_place_setters_mutate_orientation_and_covariance() {
 // ----- sensor_msgs::NavSatFix -----
 
 #[test]
-fn ros_nav_sat_fix_in_place_setters() {
+fn sensor_msgs_nav_sat_fix_in_place_setters() {
     let msg = sensor_msgs::NavSatFix::builder()
         .frame_id("gps")
         .latitude(12.0)
@@ -305,15 +347,15 @@ fn ros_nav_sat_fix_in_place_setters() {
     let len = buf.len();
 
     assert_eq!(
-        unsafe { ros_nav_sat_fix_set_status(buf.as_mut_ptr(), len, 2, 5) },
+        unsafe { sensor_msgs_nav_sat_fix_set_status(buf.as_mut_ptr(), len, 2, 5) },
         0
     );
     assert_eq!(
-        unsafe { ros_nav_sat_fix_set_latitude(buf.as_mut_ptr(), len, 98.25) },
+        unsafe { sensor_msgs_nav_sat_fix_set_latitude(buf.as_mut_ptr(), len, 98.25) },
         0
     );
     assert_eq!(
-        unsafe { ros_nav_sat_fix_set_altitude(buf.as_mut_ptr(), len, 123.0) },
+        unsafe { sensor_msgs_nav_sat_fix_set_altitude(buf.as_mut_ptr(), len, 123.0) },
         0
     );
 
@@ -328,7 +370,7 @@ fn ros_nav_sat_fix_in_place_setters() {
 // ----- sensor_msgs::PointField -----
 
 #[test]
-fn ros_point_field_in_place_setters() {
+fn sensor_msgs_point_field_in_place_setters() {
     let msg = sensor_msgs::PointField::builder()
         .name("x")
         .offset(0)
@@ -340,11 +382,11 @@ fn ros_point_field_in_place_setters() {
     let len = buf.len();
 
     assert_eq!(
-        unsafe { ros_point_field_set_offset(buf.as_mut_ptr(), len, 12) },
+        unsafe { sensor_msgs_point_field_set_offset(buf.as_mut_ptr(), len, 12) },
         0
     );
     assert_eq!(
-        unsafe { ros_point_field_set_datatype(buf.as_mut_ptr(), len, 8) },
+        unsafe { sensor_msgs_point_field_set_datatype(buf.as_mut_ptr(), len, 8) },
         0
     );
     let decoded = sensor_msgs::PointField::from_cdr(&buf[..]).unwrap();
@@ -356,7 +398,7 @@ fn ros_point_field_in_place_setters() {
 // ----- sensor_msgs::PointCloud2 -----
 
 #[test]
-fn ros_point_cloud2_in_place_setters() {
+fn sensor_msgs_point_cloud2_in_place_setters() {
     let msg = sensor_msgs::PointCloud2::builder()
         .frame_id("lidar")
         .height(1)
@@ -370,15 +412,15 @@ fn ros_point_cloud2_in_place_setters() {
     let len = buf.len();
 
     assert_eq!(
-        unsafe { ros_point_cloud2_set_height(buf.as_mut_ptr(), len, 5) },
+        unsafe { sensor_msgs_point_cloud2_set_height(buf.as_mut_ptr(), len, 5) },
         0
     );
     assert_eq!(
-        unsafe { ros_point_cloud2_set_is_bigendian(buf.as_mut_ptr(), len, 1) },
+        unsafe { sensor_msgs_point_cloud2_set_is_bigendian(buf.as_mut_ptr(), len, 1) },
         0
     );
     assert_eq!(
-        unsafe { ros_point_cloud2_set_is_dense(buf.as_mut_ptr(), len, 1) },
+        unsafe { sensor_msgs_point_cloud2_set_is_dense(buf.as_mut_ptr(), len, 1) },
         0
     );
     let decoded = sensor_msgs::PointCloud2::from_cdr(&buf[..]).unwrap();
@@ -390,7 +432,7 @@ fn ros_point_cloud2_in_place_setters() {
 // ----- sensor_msgs::CameraInfo -----
 
 #[test]
-fn ros_camera_info_in_place_setters() {
+fn sensor_msgs_camera_info_in_place_setters() {
     let msg = sensor_msgs::CameraInfo::builder()
         .frame_id("cam")
         .height(480)
@@ -403,23 +445,23 @@ fn ros_camera_info_in_place_setters() {
     let len = buf.len();
 
     assert_eq!(
-        unsafe { ros_camera_info_set_height(buf.as_mut_ptr(), len, 1024) },
+        unsafe { sensor_msgs_camera_info_set_height(buf.as_mut_ptr(), len, 1024) },
         0
     );
     let k = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0];
     assert_eq!(
-        unsafe { ros_camera_info_set_k(buf.as_mut_ptr(), len, k.as_ptr()) },
+        unsafe { sensor_msgs_camera_info_set_k(buf.as_mut_ptr(), len, k.as_ptr()) },
         0
     );
     let p = [
         10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0, 110.0, 120.0,
     ];
     assert_eq!(
-        unsafe { ros_camera_info_set_p(buf.as_mut_ptr(), len, p.as_ptr()) },
+        unsafe { sensor_msgs_camera_info_set_p(buf.as_mut_ptr(), len, p.as_ptr()) },
         0
     );
     assert_eq!(
-        unsafe { ros_camera_info_set_roi(buf.as_mut_ptr(), len, 1, 2, 3, 4, 1) },
+        unsafe { sensor_msgs_camera_info_set_roi(buf.as_mut_ptr(), len, 1, 2, 3, 4, 1) },
         0
     );
     let decoded = sensor_msgs::CameraInfo::from_cdr(&buf[..]).unwrap();
@@ -435,7 +477,7 @@ fn ros_camera_info_in_place_setters() {
 // ----- sensor_msgs::MagneticField -----
 
 #[test]
-fn ros_magnetic_field_in_place_setters() {
+fn sensor_msgs_magnetic_field_in_place_setters() {
     let msg = sensor_msgs::MagneticField::builder()
         .frame_id("mag")
         .build()
@@ -443,7 +485,9 @@ fn ros_magnetic_field_in_place_setters() {
     let mut buf = msg.into_cdr();
     let len = buf.len();
     assert_eq!(
-        unsafe { ros_magnetic_field_set_magnetic_field(buf.as_mut_ptr(), len, 1.0, 2.0, 3.0) },
+        unsafe {
+            sensor_msgs_magnetic_field_set_magnetic_field(buf.as_mut_ptr(), len, 1.0, 2.0, 3.0)
+        },
         0
     );
     let decoded = sensor_msgs::MagneticField::from_cdr(&buf[..]).unwrap();
@@ -455,7 +499,7 @@ fn ros_magnetic_field_in_place_setters() {
 // ----- sensor_msgs::FluidPressure -----
 
 #[test]
-fn ros_fluid_pressure_in_place_setters() {
+fn sensor_msgs_fluid_pressure_in_place_setters() {
     let msg = sensor_msgs::FluidPressure::builder()
         .frame_id("fp")
         .fluid_pressure(100.0)
@@ -465,7 +509,7 @@ fn ros_fluid_pressure_in_place_setters() {
     let mut buf = msg.into_cdr();
     let len = buf.len();
     assert_eq!(
-        unsafe { ros_fluid_pressure_set_variance(buf.as_mut_ptr(), len, 42.0) },
+        unsafe { sensor_msgs_fluid_pressure_set_variance(buf.as_mut_ptr(), len, 42.0) },
         0
     );
     let decoded = sensor_msgs::FluidPressure::from_cdr(&buf[..]).unwrap();
@@ -476,7 +520,7 @@ fn ros_fluid_pressure_in_place_setters() {
 // ----- sensor_msgs::Temperature -----
 
 #[test]
-fn ros_temperature_in_place_setters() {
+fn sensor_msgs_temperature_in_place_setters() {
     let msg = sensor_msgs::Temperature::builder()
         .frame_id("t")
         .temperature(25.0)
@@ -485,7 +529,7 @@ fn ros_temperature_in_place_setters() {
     let mut buf = msg.into_cdr();
     let len = buf.len();
     assert_eq!(
-        unsafe { ros_temperature_set_temperature(buf.as_mut_ptr(), len, -10.5) },
+        unsafe { sensor_msgs_temperature_set_temperature(buf.as_mut_ptr(), len, -10.5) },
         0
     );
     let decoded = sensor_msgs::Temperature::from_cdr(&buf[..]).unwrap();
@@ -495,7 +539,7 @@ fn ros_temperature_in_place_setters() {
 // ----- sensor_msgs::BatteryState -----
 
 #[test]
-fn ros_battery_state_in_place_setters() {
+fn sensor_msgs_battery_state_in_place_setters() {
     let msg = sensor_msgs::BatteryState::builder()
         .frame_id("bat")
         .voltage(11.0)
@@ -505,11 +549,11 @@ fn ros_battery_state_in_place_setters() {
     let mut buf = msg.into_cdr();
     let len = buf.len();
     assert_eq!(
-        unsafe { ros_battery_state_set_voltage(buf.as_mut_ptr(), len, 12.5) },
+        unsafe { sensor_msgs_battery_state_set_voltage(buf.as_mut_ptr(), len, 12.5) },
         0
     );
     assert_eq!(
-        unsafe { ros_battery_state_set_present(buf.as_mut_ptr(), len, 1) },
+        unsafe { sensor_msgs_battery_state_set_present(buf.as_mut_ptr(), len, 1) },
         0
     );
     let decoded = sensor_msgs::BatteryState::from_cdr(&buf[..]).unwrap();
@@ -520,7 +564,7 @@ fn ros_battery_state_in_place_setters() {
 // ----- edgefirst_msgs::Mask -----
 
 #[test]
-fn ros_mask_in_place_setters() {
+fn edgefirst_msgs_mask_in_place_setters() {
     let msg = edgefirst_msgs::Mask::builder()
         .height(4)
         .width(4)
@@ -532,8 +576,14 @@ fn ros_mask_in_place_setters() {
         .unwrap();
     let mut buf = msg.into_cdr();
     let len = buf.len();
-    assert_eq!(unsafe { ros_mask_set_height(buf.as_mut_ptr(), len, 8) }, 0);
-    assert_eq!(unsafe { ros_mask_set_boxed(buf.as_mut_ptr(), len, 1) }, 0);
+    assert_eq!(
+        unsafe { edgefirst_msgs_mask_set_height(buf.as_mut_ptr(), len, 8) },
+        0
+    );
+    assert_eq!(
+        unsafe { edgefirst_msgs_mask_set_boxed(buf.as_mut_ptr(), len, 1) },
+        0
+    );
     let decoded = edgefirst_msgs::Mask::from_cdr(&buf[..]).unwrap();
     assert_eq!(decoded.height(), 8);
     assert!(decoded.boxed());
@@ -542,7 +592,7 @@ fn ros_mask_in_place_setters() {
 // ----- edgefirst_msgs::LocalTime -----
 
 #[test]
-fn ros_local_time_in_place_setters_round_trip() {
+fn edgefirst_msgs_local_time_in_place_setters_round_trip() {
     // LocalTime's date / time / timezone fields live at CDR-dynamic offsets
     // (after the Header's variable-length frame_id string). The setter
     // must apply CDR alignment to locate those fields — u16 year needs
@@ -565,22 +615,22 @@ fn ros_local_time_in_place_setters_round_trip() {
         let len = buf.len();
 
         assert_eq!(
-            unsafe { ros_local_time_set_stamp(buf.as_mut_ptr(), len, 50, 60) },
+            unsafe { edgefirst_msgs_local_time_set_stamp(buf.as_mut_ptr(), len, 50, 60) },
             0,
             "frame_id={frame_id:?}",
         );
         assert_eq!(
-            unsafe { ros_local_time_set_date(buf.as_mut_ptr(), len, 2026, 4, 23) },
+            unsafe { edgefirst_msgs_local_time_set_date(buf.as_mut_ptr(), len, 2026, 4, 23) },
             0,
             "frame_id={frame_id:?}",
         );
         assert_eq!(
-            unsafe { ros_local_time_set_time(buf.as_mut_ptr(), len, 77, 88) },
+            unsafe { edgefirst_msgs_local_time_set_time(buf.as_mut_ptr(), len, 77, 88) },
             0,
             "frame_id={frame_id:?}",
         );
         assert_eq!(
-            unsafe { ros_local_time_set_timezone(buf.as_mut_ptr(), len, -300) },
+            unsafe { edgefirst_msgs_local_time_set_timezone(buf.as_mut_ptr(), len, -300) },
             0,
             "frame_id={frame_id:?}",
         );
@@ -603,7 +653,7 @@ fn ros_local_time_in_place_setters_round_trip() {
 // ----- edgefirst_msgs::RadarCube -----
 
 #[test]
-fn ros_radar_cube_in_place_set_timestamp() {
+fn edgefirst_msgs_radar_cube_in_place_set_timestamp() {
     let msg = edgefirst_msgs::RadarCube::builder()
         .frame_id("radar")
         .build()
@@ -611,7 +661,9 @@ fn ros_radar_cube_in_place_set_timestamp() {
     let mut buf = msg.into_cdr();
     let len = buf.len();
     assert_eq!(
-        unsafe { ros_radar_cube_set_timestamp(buf.as_mut_ptr(), len, 1_234_567_890_u64) },
+        unsafe {
+            edgefirst_msgs_radar_cube_set_timestamp(buf.as_mut_ptr(), len, 1_234_567_890_u64)
+        },
         0
     );
     let decoded = edgefirst_msgs::RadarCube::from_cdr(&buf[..]).unwrap();
@@ -621,7 +673,7 @@ fn ros_radar_cube_in_place_set_timestamp() {
 // ----- edgefirst_msgs::RadarInfo -----
 
 #[test]
-fn ros_radar_info_in_place_set_cube() {
+fn edgefirst_msgs_radar_info_in_place_set_cube() {
     let msg = edgefirst_msgs::RadarInfo::builder()
         .frame_id("radar")
         .build()
@@ -629,7 +681,7 @@ fn ros_radar_info_in_place_set_cube() {
     let mut buf = msg.into_cdr();
     let len = buf.len();
     assert_eq!(
-        unsafe { ros_radar_info_set_cube(buf.as_mut_ptr(), len, 1) },
+        unsafe { edgefirst_msgs_radar_info_set_cube(buf.as_mut_ptr(), len, 1) },
         0
     );
     let decoded = edgefirst_msgs::RadarInfo::from_cdr(&buf[..]).unwrap();
@@ -639,7 +691,7 @@ fn ros_radar_info_in_place_set_cube() {
 // ----- edgefirst_msgs::Track -----
 
 #[test]
-fn ros_track_in_place_set_lifetime() {
+fn edgefirst_msgs_track_in_place_set_lifetime() {
     let msg = edgefirst_msgs::Track::builder()
         .id("tr-1")
         .lifetime(10)
@@ -648,7 +700,7 @@ fn ros_track_in_place_set_lifetime() {
     let mut buf = msg.into_cdr();
     let len = buf.len();
     assert_eq!(
-        unsafe { ros_track_set_lifetime(buf.as_mut_ptr(), len, 999) },
+        unsafe { edgefirst_msgs_track_set_lifetime(buf.as_mut_ptr(), len, 999) },
         0
     );
     let decoded = edgefirst_msgs::Track::from_cdr(&buf[..]).unwrap();
@@ -659,7 +711,7 @@ fn ros_track_in_place_set_lifetime() {
 // ----- edgefirst_msgs::DetectBox -----
 
 #[test]
-fn ros_detect_box_in_place_setters() {
+fn edgefirst_msgs_detect_box_in_place_setters() {
     let msg = edgefirst_msgs::DetectBox::builder()
         .center_x(1.0)
         .center_y(2.0)
@@ -673,11 +725,11 @@ fn ros_detect_box_in_place_setters() {
     let mut buf = msg.into_cdr();
     let len = buf.len();
     assert_eq!(
-        unsafe { ros_detect_box_set_center_x(buf.as_mut_ptr(), len, 99.0) },
+        unsafe { edgefirst_msgs_detect_box_set_center_x(buf.as_mut_ptr(), len, 99.0) },
         0
     );
     assert_eq!(
-        unsafe { ros_detect_box_set_score(buf.as_mut_ptr(), len, 0.95) },
+        unsafe { edgefirst_msgs_detect_box_set_score(buf.as_mut_ptr(), len, 0.95) },
         0
     );
     let decoded = edgefirst_msgs::DetectBox::from_cdr(&buf[..]).unwrap();
@@ -689,7 +741,7 @@ fn ros_detect_box_in_place_setters() {
 // ----- edgefirst_msgs::Detect -----
 
 #[test]
-fn ros_detect_in_place_setters() {
+fn edgefirst_msgs_detect_in_place_setters() {
     let msg = edgefirst_msgs::Detect::builder()
         .frame_id("det")
         .build()
@@ -697,11 +749,11 @@ fn ros_detect_in_place_setters() {
     let mut buf = msg.into_cdr();
     let len = buf.len();
     assert_eq!(
-        unsafe { ros_detect_set_stamp(buf.as_mut_ptr(), len, 10, 20) },
+        unsafe { edgefirst_msgs_detect_set_stamp(buf.as_mut_ptr(), len, 10, 20) },
         0
     );
     assert_eq!(
-        unsafe { ros_detect_set_input_timestamp(buf.as_mut_ptr(), len, 30, 40) },
+        unsafe { edgefirst_msgs_detect_set_input_timestamp(buf.as_mut_ptr(), len, 30, 40) },
         0
     );
     let decoded = edgefirst_msgs::Detect::from_cdr(&buf[..]).unwrap();
@@ -712,7 +764,7 @@ fn ros_detect_in_place_setters() {
 // ----- edgefirst_msgs::Model -----
 
 #[test]
-fn ros_model_in_place_set_input_time() {
+fn edgefirst_msgs_model_in_place_set_input_time() {
     let msg = edgefirst_msgs::Model::builder()
         .frame_id("m")
         .input_time(Duration::new(0, 0))
@@ -724,7 +776,7 @@ fn ros_model_in_place_set_input_time() {
     let mut buf = msg.into_cdr();
     let len = buf.len();
     assert_eq!(
-        unsafe { ros_model_set_input_time(buf.as_mut_ptr(), len, 5, 6) },
+        unsafe { edgefirst_msgs_model_set_input_time(buf.as_mut_ptr(), len, 5, 6) },
         0
     );
     let decoded = edgefirst_msgs::Model::from_cdr(&buf[..]).unwrap();
@@ -734,7 +786,7 @@ fn ros_model_in_place_set_input_time() {
 // ----- edgefirst_msgs::ModelInfo -----
 
 #[test]
-fn ros_model_info_in_place_set_input_type() {
+fn edgefirst_msgs_model_info_in_place_set_input_type() {
     let msg = edgefirst_msgs::ModelInfo::builder()
         .frame_id("mi")
         .build()
@@ -742,7 +794,7 @@ fn ros_model_info_in_place_set_input_type() {
     let mut buf = msg.into_cdr();
     let len = buf.len();
     assert_eq!(
-        unsafe { ros_model_info_set_input_type(buf.as_mut_ptr(), len, 3) },
+        unsafe { edgefirst_msgs_model_info_set_input_type(buf.as_mut_ptr(), len, 3) },
         0
     );
     let decoded = edgefirst_msgs::ModelInfo::from_cdr(&buf[..]).unwrap();
@@ -752,7 +804,7 @@ fn ros_model_info_in_place_set_input_type() {
 // ----- edgefirst_msgs::Vibration -----
 
 #[test]
-fn ros_vibration_in_place_set_band_lower_hz() {
+fn edgefirst_msgs_vibration_in_place_set_band_lower_hz() {
     let msg = edgefirst_msgs::Vibration::builder()
         .frame_id("v")
         .band_lower_hz(10.0)
@@ -762,7 +814,7 @@ fn ros_vibration_in_place_set_band_lower_hz() {
     let mut buf = msg.into_cdr();
     let len = buf.len();
     assert_eq!(
-        unsafe { ros_vibration_set_band_lower_hz(buf.as_mut_ptr(), len, 20.0) },
+        unsafe { edgefirst_msgs_vibration_set_band_lower_hz(buf.as_mut_ptr(), len, 20.0) },
         0
     );
     let decoded = edgefirst_msgs::Vibration::from_cdr(&buf[..]).unwrap();
@@ -773,7 +825,7 @@ fn ros_vibration_in_place_set_band_lower_hz() {
 // ----- foxglove_msgs::FoxgloveCompressedVideo -----
 
 #[test]
-fn ros_foxglove_compressed_video_in_place_set_stamp() {
+fn foxglove_msgs_compressed_video_in_place_set_stamp() {
     let msg = foxglove_msgs::FoxgloveCompressedVideo::builder()
         .frame_id("cam")
         .format("h264")
@@ -783,7 +835,7 @@ fn ros_foxglove_compressed_video_in_place_set_stamp() {
     let mut buf = msg.into_cdr();
     let len = buf.len();
     assert_eq!(
-        unsafe { ros_foxglove_compressed_video_set_stamp(buf.as_mut_ptr(), len, 50, 60) },
+        unsafe { foxglove_msgs_compressed_video_set_stamp(buf.as_mut_ptr(), len, 50, 60) },
         0
     );
     let decoded = foxglove_msgs::FoxgloveCompressedVideo::from_cdr(&buf[..]).unwrap();
@@ -793,7 +845,7 @@ fn ros_foxglove_compressed_video_in_place_set_stamp() {
 // ----- foxglove_msgs::FoxgloveCompressedImage -----
 
 #[test]
-fn ros_foxglove_compressed_image_in_place_set_stamp() {
+fn foxglove_msgs_compressed_image_in_place_set_stamp() {
     let msg = foxglove_msgs::FoxgloveCompressedImage::builder()
         .frame_id("cam")
         .format("jpeg")
@@ -803,7 +855,7 @@ fn ros_foxglove_compressed_image_in_place_set_stamp() {
     let mut buf = msg.into_cdr();
     let len = buf.len();
     assert_eq!(
-        unsafe { ros_foxglove_compressed_image_set_stamp(buf.as_mut_ptr(), len, 50, 60) },
+        unsafe { foxglove_msgs_compressed_image_set_stamp(buf.as_mut_ptr(), len, 50, 60) },
         0
     );
     let decoded = foxglove_msgs::FoxgloveCompressedImage::from_cdr(&buf[..]).unwrap();
@@ -813,7 +865,7 @@ fn ros_foxglove_compressed_image_in_place_set_stamp() {
 // ----- foxglove_msgs::FoxgloveTextAnnotation -----
 
 #[test]
-fn ros_foxglove_text_annotation_in_place_setters() {
+fn foxglove_msgs_text_annotation_in_place_setters() {
     let msg = foxglove_msgs::FoxgloveTextAnnotation::builder()
         .timestamp(Time::new(0, 0))
         .text("hi")
@@ -822,11 +874,11 @@ fn ros_foxglove_text_annotation_in_place_setters() {
     let mut buf = msg.into_cdr();
     let len = buf.len();
     assert_eq!(
-        unsafe { ros_foxglove_text_annotation_set_position(buf.as_mut_ptr(), len, 1.5, 2.5) },
+        unsafe { foxglove_msgs_text_annotation_set_position(buf.as_mut_ptr(), len, 1.5, 2.5) },
         0
     );
     assert_eq!(
-        unsafe { ros_foxglove_text_annotation_set_font_size(buf.as_mut_ptr(), len, 14.0) },
+        unsafe { foxglove_msgs_text_annotation_set_font_size(buf.as_mut_ptr(), len, 14.0) },
         0
     );
     let decoded = foxglove_msgs::FoxgloveTextAnnotation::from_cdr(&buf[..]).unwrap();
@@ -840,7 +892,7 @@ fn ros_foxglove_text_annotation_in_place_setters() {
 // ----- foxglove_msgs::FoxglovePointAnnotation -----
 
 #[test]
-fn ros_foxglove_point_annotation_in_place_setters() {
+fn foxglove_msgs_point_annotation_in_place_setters() {
     let msg = foxglove_msgs::FoxglovePointAnnotation::builder()
         .timestamp(Time::new(0, 0))
         .build()
@@ -848,11 +900,11 @@ fn ros_foxglove_point_annotation_in_place_setters() {
     let mut buf = msg.into_cdr();
     let len = buf.len();
     assert_eq!(
-        unsafe { ros_foxglove_point_annotation_set_type(buf.as_mut_ptr(), len, 2) },
+        unsafe { foxglove_msgs_point_annotation_set_type(buf.as_mut_ptr(), len, 2) },
         0
     );
     assert_eq!(
-        unsafe { ros_foxglove_point_annotation_set_thickness(buf.as_mut_ptr(), len, 3.5) },
+        unsafe { foxglove_msgs_point_annotation_set_thickness(buf.as_mut_ptr(), len, 3.5) },
         0
     );
     let decoded = foxglove_msgs::FoxglovePointAnnotation::from_cdr(&buf[..]).unwrap();
@@ -863,25 +915,25 @@ fn ros_foxglove_point_annotation_in_place_setters() {
 // ----- Error paths -----
 
 #[test]
-fn ros_image_set_stamp_null_buf_returns_einval() {
+fn sensor_msgs_image_set_stamp_null_buf_returns_einval() {
     errno::set_errno(errno::Errno(0));
-    let rc = unsafe { ros_image_set_stamp(std::ptr::null_mut(), 0, 0, 0) };
+    let rc = unsafe { sensor_msgs_image_set_stamp(std::ptr::null_mut(), 0, 0, 0) };
     assert_eq!(rc, -1);
     assert_eq!(errno(), libc::EINVAL);
 }
 
 #[test]
-fn ros_image_set_stamp_malformed_buf_returns_ebadmsg() {
+fn sensor_msgs_image_set_stamp_malformed_buf_returns_ebadmsg() {
     errno::set_errno(errno::Errno(0));
     // Too-short buffer is not a valid CDR Image.
     let mut buf = [0u8; 4];
-    let rc = unsafe { ros_image_set_stamp(buf.as_mut_ptr(), buf.len(), 0, 0) };
+    let rc = unsafe { sensor_msgs_image_set_stamp(buf.as_mut_ptr(), buf.len(), 0, 0) };
     assert_eq!(rc, -1);
     assert_eq!(errno(), libc::EBADMSG);
 }
 
 #[test]
-fn ros_imu_set_orientation_covariance_null_array_returns_einval() {
+fn sensor_msgs_imu_set_orientation_covariance_null_array_returns_einval() {
     // Build a valid Imu buffer so the check precedes from_cdr.
     let msg = sensor_msgs::Imu::builder()
         .frame_id("imu")
@@ -896,7 +948,9 @@ fn ros_imu_set_orientation_covariance_null_array_returns_einval() {
     let mut buf = msg.into_cdr();
     let len = buf.len();
     errno::set_errno(errno::Errno(0));
-    let rc = unsafe { ros_imu_set_orientation_covariance(buf.as_mut_ptr(), len, std::ptr::null()) };
+    let rc = unsafe {
+        sensor_msgs_imu_set_orientation_covariance(buf.as_mut_ptr(), len, std::ptr::null())
+    };
     assert_eq!(rc, -1);
     assert_eq!(errno(), libc::EINVAL);
 }

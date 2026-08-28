@@ -43,6 +43,145 @@
 #include "common.hpp"
 
 namespace ef = edgefirst::schemas;
+using ef::builtin_interfaces::Time;
+using ef::builtin_interfaces::Duration;
+using ef::geometry_msgs::Vector3;
+using ef::geometry_msgs::Point;
+using ef::geometry_msgs::Point32;
+using ef::geometry_msgs::Quaternion;
+using ef::geometry_msgs::Pose;
+using ef::geometry_msgs::Transform;
+using ef::geometry_msgs::Twist;
+using ef::geometry_msgs::Accel;
+using ef::geometry_msgs::Wrench;
+using ef::geometry_msgs::PoseWithCovariance;
+using ef::geometry_msgs::TwistWithCovariance;
+using ef::geometry_msgs::AccelWithCovariance;
+using ef::geometry_msgs::AccelStampedView;
+using ef::geometry_msgs::AccelStampedBuilder;
+using ef::geometry_msgs::TwistStampedView;
+using ef::geometry_msgs::TwistStampedBuilder;
+using ef::geometry_msgs::WrenchStampedView;
+using ef::geometry_msgs::WrenchStampedBuilder;
+using ef::geometry_msgs::PointStampedView;
+using ef::geometry_msgs::PointStampedBuilder;
+using ef::geometry_msgs::InertiaStampedView;
+using ef::geometry_msgs::InertiaStampedBuilder;
+using ef::geometry_msgs::Vector3StampedView;
+using ef::geometry_msgs::Vector3StampedBuilder;
+using ef::geometry_msgs::PoseStampedView;
+using ef::geometry_msgs::PoseStampedBuilder;
+using ef::geometry_msgs::QuaternionStampedView;
+using ef::geometry_msgs::QuaternionStampedBuilder;
+using ef::geometry_msgs::PoseWithCovarianceStampedView;
+using ef::geometry_msgs::PoseWithCovarianceStampedBuilder;
+using ef::geometry_msgs::TwistWithCovarianceStampedView;
+using ef::geometry_msgs::TwistWithCovarianceStampedBuilder;
+using ef::geometry_msgs::AccelWithCovarianceStampedView;
+using ef::geometry_msgs::AccelWithCovarianceStampedBuilder;
+using ef::geometry_msgs::PolygonView;
+using ef::geometry_msgs::PolygonBuilder;
+using ef::geometry_msgs::PolygonStampedView;
+using ef::geometry_msgs::PolygonStampedBuilder;
+using ef::geometry_msgs::PoseArrayView;
+using ef::geometry_msgs::PoseArrayBuilder;
+using ef::geometry_msgs::TransformStampedView;
+using ef::geometry_msgs::TransformStampedBuilder;
+using ef::std_msgs::Header;
+using ef::std_msgs::HeaderView;
+using ef::std_msgs::HeaderBuilder;
+using ef::sensor_msgs::NavSatStatus;
+using ef::sensor_msgs::CompressedImage;
+using ef::sensor_msgs::CompressedImageView;
+using ef::sensor_msgs::CompressedImageBuilder;
+using ef::sensor_msgs::Image;
+using ef::sensor_msgs::ImageView;
+using ef::sensor_msgs::ImageBuilder;
+using ef::sensor_msgs::ImuView;
+using ef::sensor_msgs::ImuBuilder;
+using ef::sensor_msgs::NavSatFixView;
+using ef::sensor_msgs::NavSatFixBuilder;
+using ef::sensor_msgs::CameraInfoView;
+using ef::sensor_msgs::CameraInfoBuilder;
+using ef::sensor_msgs::PointCloud2View;
+using ef::sensor_msgs::PointCloud2Builder;
+using ef::sensor_msgs::PointFieldBuilder;
+using ef::sensor_msgs::MagneticFieldView;
+using ef::sensor_msgs::MagneticFieldBuilder;
+using ef::sensor_msgs::FluidPressureView;
+using ef::sensor_msgs::FluidPressureBuilder;
+using ef::sensor_msgs::TemperatureView;
+using ef::sensor_msgs::TemperatureBuilder;
+using ef::sensor_msgs::BatteryStateView;
+using ef::sensor_msgs::BatteryStateBuilder;
+using ef::sensor_msgs::RelativeHumidityView;
+using ef::sensor_msgs::RelativeHumidityBuilder;
+using ef::sensor_msgs::TimeReferenceView;
+using ef::sensor_msgs::TimeReferenceBuilder;
+using ef::nav_msgs::MapMetaData;
+using ef::nav_msgs::OdometryView;
+using ef::nav_msgs::OdometryBuilder;
+using ef::nav_msgs::GridCellsView;
+using ef::nav_msgs::GridCellsBuilder;
+using ef::nav_msgs::OccupancyGridView;
+using ef::nav_msgs::OccupancyGridBuilder;
+using ef::nav_msgs::PathView;
+using ef::nav_msgs::PathBuilder;
+using ef::foxglove_msgs::CompressedVideo;
+using ef::foxglove_msgs::CompressedVideoView;
+using ef::foxglove_msgs::CompressedVideoBuilder;
+using ef::foxglove_msgs::TextAnnotationBuilder;
+using ef::foxglove_msgs::PointAnnotationBuilder;
+using ef::foxglove_msgs::ImageAnnotationBuilder;
+using ef::mavros_msgs::AltitudeView;
+using ef::mavros_msgs::AltitudeBuilder;
+using ef::mavros_msgs::VfrHudView;
+using ef::mavros_msgs::VfrHudBuilder;
+using ef::mavros_msgs::EstimatorStatusView;
+using ef::mavros_msgs::EstimatorStatusBuilder;
+using ef::mavros_msgs::ExtendedStateView;
+using ef::mavros_msgs::ExtendedStateBuilder;
+using ef::mavros_msgs::SysStatusView;
+using ef::mavros_msgs::SysStatusBuilder;
+using ef::mavros_msgs::StateView;
+using ef::mavros_msgs::StateBuilder;
+using ef::mavros_msgs::StatusTextView;
+using ef::mavros_msgs::StatusTextBuilder;
+using ef::mavros_msgs::GpsRawView;
+using ef::mavros_msgs::GpsRawBuilder;
+using ef::mavros_msgs::TimesyncStatusView;
+using ef::mavros_msgs::TimesyncStatusBuilder;
+using ef::edgefirst_msgs::Mask;
+using ef::edgefirst_msgs::MaskView;
+using ef::edgefirst_msgs::MaskBuilder;
+using ef::edgefirst_msgs::LocalTimeView;
+using ef::edgefirst_msgs::LocalTimeBuilder;
+using ef::edgefirst_msgs::TrackView;
+using ef::edgefirst_msgs::TrackBuilder;
+using ef::edgefirst_msgs::BoxView;
+using ef::edgefirst_msgs::DetectView;
+using ef::edgefirst_msgs::DetectBuilder;
+using ef::edgefirst_msgs::DetectBoxBuilder;
+using ef::edgefirst_msgs::ModelView;
+using ef::edgefirst_msgs::ModelBuilder;
+using ef::edgefirst_msgs::ModelInfoView;
+using ef::edgefirst_msgs::ModelInfoBuilder;
+using ef::edgefirst_msgs::RadarCubeView;
+using ef::edgefirst_msgs::RadarCubeBuilder;
+using ef::edgefirst_msgs::RadarInfoView;
+using ef::edgefirst_msgs::RadarInfoBuilder;
+using ef::edgefirst_msgs::VibrationView;
+using ef::edgefirst_msgs::VibrationBuilder;
+using ef::edgefirst_msgs::TensorView;
+using ef::edgefirst_msgs::TensorBuilder;
+using ef::edgefirst_msgs::TensorStampedView;
+using ef::edgefirst_msgs::TensorStampedBuilder;
+using ef::edgefirst_msgs::CameraFrameView;
+using ef::edgefirst_msgs::CameraFrameBuilder;
+using FoxgloveCompressedImage = ef::foxglove_msgs::CompressedImage;
+using FoxgloveCompressedImageView = ef::foxglove_msgs::CompressedImageView;
+using FoxgloveCompressedImageBuilder = ef::foxglove_msgs::CompressedImageBuilder;
+
 
 // Declarations for Cyclone DDS parity encoders (defined in parity_cyclonedds.cpp,
 // compiled with only the cyclonedds type headers in its include path so they don't
@@ -67,16 +206,16 @@ std::vector<std::uint8_t> encode_pointcloud2(const bench::fixtures::PointCloud2V
 
 static std::vector<std::uint8_t> encode_with_edgefirst(const bench::fixtures::HeaderFixture& f) {
     // Copy the proven pattern from bench_edgefirst.cpp's header_wire_bytes().
-    auto b = ef::HeaderBuilder::create();
+    auto b = HeaderBuilder::create();
     if (!b) { std::fprintf(stderr, "edgefirst HeaderBuilder::create failed\n"); std::abort(); }
-    b->stamp(ef::Time{f.stamp_sec, f.stamp_nanos});
+    b->stamp(Time{f.stamp_sec, f.stamp_nanos});
     auto fi = b->frame_id(f.frame_id.c_str());
     (void)fi;
     auto built = b->build();
     if (!built) { std::fprintf(stderr, "edgefirst HeaderBuilder::build failed\n"); std::abort(); }
     auto& r = *built;
     std::vector<std::uint8_t> out(r.data, r.data + r.size);
-    ros_bytes_free(r.data, r.size);
+    edgefirst_schemas_bytes_free(r.data, r.size);
     return out;
 }
 
@@ -130,7 +269,7 @@ static std::vector<std::uint8_t> fastcdr_encode(const T& msg) {
 // ---------------------------------------------------------------------------
 
 static std::vector<std::uint8_t> encode_time_with_edgefirst(const bench::fixtures::TimeFixture& f) {
-    ef::Time t{f.sec, f.nanos};
+    Time t{f.sec, f.nanos};
     auto sz = t.encoded_size();
     std::vector<std::uint8_t> buf(*sz);
     (void)t.encode({buf.data(), buf.size()});
@@ -149,7 +288,7 @@ static std::vector<std::uint8_t> encode_time_with_fastcdr(const bench::fixtures:
 // ---------------------------------------------------------------------------
 
 static std::vector<std::uint8_t> encode_vector3_with_edgefirst(const bench::fixtures::Vector3Fixture& f) {
-    ef::Vector3 v{f.x, f.y, f.z};
+    Vector3 v{f.x, f.y, f.z};
     auto sz = v.encoded_size();
     std::vector<std::uint8_t> buf(*sz);
     (void)v.encode({buf.data(), buf.size()});
@@ -167,7 +306,7 @@ static std::vector<std::uint8_t> encode_vector3_with_fastcdr(const bench::fixtur
 // ---------------------------------------------------------------------------
 
 static std::vector<std::uint8_t> encode_pose_with_edgefirst(const bench::fixtures::PoseFixture& f) {
-    ef::Pose p{f.px, f.py, f.pz, f.qx, f.qy, f.qz, f.qw};
+    Pose p{f.px, f.py, f.pz, f.qx, f.qy, f.qz, f.qw};
     auto sz = p.encoded_size();
     std::vector<std::uint8_t> buf(*sz);
     (void)p.encode({buf.data(), buf.size()});
@@ -217,8 +356,8 @@ static std::vector<std::uint8_t> encode_image_with_edgefirst(
         const bench::fixtures::ImageVariant& v,
         const std::vector<std::uint8_t>& payload) {
     std::uint32_t step = v.width * v.step_bpp;
-    auto r = ef::Image::encode(
-        ef::Time{1234567890, 123456789},
+    auto r = Image::encode(
+        Time{1234567890, 123456789},
         "cam",
         v.height, v.width,
         std::string(v.encoding),
@@ -261,9 +400,9 @@ static std::vector<std::uint8_t> encode_radarcube_with_edgefirst(
         const bench::fixtures::RadarCubeVariant& v,
         const std::vector<std::int16_t>& cube) {
     std::uint16_t shape[4] = {v.shape[0], v.shape[1], v.shape[2], v.shape[3]};
-    auto b = ef::RadarCubeBuilder::create();
+    auto b = RadarCubeBuilder::create();
     if (!b) { std::fprintf(stderr, "RadarCubeBuilder::create failed\n"); std::abort(); }
-    b->stamp(ef::Time{1234567890, 0});
+    b->stamp(Time{1234567890, 0});
     (void)b->frame_id("radar");
     b->timestamp(0);
     (void)b->shape({shape, 4});
@@ -272,7 +411,7 @@ static std::vector<std::uint8_t> encode_radarcube_with_edgefirst(
     auto r = b->build();
     if (!r) { std::fprintf(stderr, "RadarCubeBuilder::build failed\n"); std::abort(); }
     std::vector<std::uint8_t> out(r->data, r->data + r->size);
-    ros_bytes_free(r->data, r->size);
+    edgefirst_schemas_bytes_free(r->data, r->size);
     return out;
 }
 
@@ -304,7 +443,7 @@ static const bench::fixtures::MaskVariant& find_mask_variant(std::string_view na
 static std::vector<std::uint8_t> encode_mask_with_edgefirst(
         const bench::fixtures::MaskVariant& v,
         const std::vector<std::uint8_t>& payload) {
-    auto r = ef::Mask::encode(
+    auto r = Mask::encode(
         v.height, v.width,
         static_cast<std::uint32_t>(payload.size()),
         "mono8",
@@ -341,8 +480,8 @@ static const bench::fixtures::CompressedVideoVariant& find_cv_variant(std::strin
 
 static std::vector<std::uint8_t> encode_cv_with_edgefirst(
         const std::vector<std::uint8_t>& payload) {
-    auto r = ef::CompressedVideo::encode(
-        ef::Time{1234567890, 123456789},
+    auto r = CompressedVideo::encode(
+        Time{1234567890, 123456789},
         "cam",
         {payload.data(), payload.size()},
         "h264");
@@ -377,15 +516,15 @@ static std::vector<std::uint8_t> encode_pc2_with_edgefirst(
         const bench::fixtures::PointCloud2Variant& v,
         const std::vector<std::uint8_t>& payload) {
     // datatype 7 = FLOAT32
-    static const ros_point_field_elem_t kFields[] = {
+    static const sensor_msgs_point_field_elem_t kFields[] = {
         {"x",         0,  7, 1},
         {"y",         4,  7, 1},
         {"z",         8,  7, 1},
         {"intensity", 12, 7, 1},
     };
-    auto b = ef::PointCloud2Builder::create();
+    auto b = PointCloud2Builder::create();
     if (!b) { std::fprintf(stderr, "PointCloud2Builder::create failed\n"); std::abort(); }
-    b->stamp(ef::Time{1234567890, 123456789});
+    b->stamp(Time{1234567890, 123456789});
     (void)b->frame_id("lidar");
     b->height(1);
     b->width(v.num_points);
@@ -398,7 +537,7 @@ static std::vector<std::uint8_t> encode_pc2_with_edgefirst(
     auto r = b->build();
     if (!r) { std::fprintf(stderr, "PointCloud2Builder::build failed\n"); std::abort(); }
     std::vector<std::uint8_t> out(r->data, r->data + r->size);
-    ros_bytes_free(r->data, r->size);
+    edgefirst_schemas_bytes_free(r->data, r->size);
     return out;
 }
 

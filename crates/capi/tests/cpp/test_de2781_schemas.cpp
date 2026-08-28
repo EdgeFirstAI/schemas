@@ -31,10 +31,149 @@
 #include <vector>
 
 namespace ef = edgefirst::schemas;
+using ef::builtin_interfaces::Time;
+using ef::builtin_interfaces::Duration;
+using ef::geometry_msgs::Vector3;
+using ef::geometry_msgs::Point;
+using ef::geometry_msgs::Point32;
+using ef::geometry_msgs::Quaternion;
+using ef::geometry_msgs::Pose;
+using ef::geometry_msgs::Transform;
+using ef::geometry_msgs::Twist;
+using ef::geometry_msgs::Accel;
+using ef::geometry_msgs::Wrench;
+using ef::geometry_msgs::PoseWithCovariance;
+using ef::geometry_msgs::TwistWithCovariance;
+using ef::geometry_msgs::AccelWithCovariance;
+using ef::geometry_msgs::AccelStampedView;
+using ef::geometry_msgs::AccelStampedBuilder;
+using ef::geometry_msgs::TwistStampedView;
+using ef::geometry_msgs::TwistStampedBuilder;
+using ef::geometry_msgs::WrenchStampedView;
+using ef::geometry_msgs::WrenchStampedBuilder;
+using ef::geometry_msgs::PointStampedView;
+using ef::geometry_msgs::PointStampedBuilder;
+using ef::geometry_msgs::InertiaStampedView;
+using ef::geometry_msgs::InertiaStampedBuilder;
+using ef::geometry_msgs::Vector3StampedView;
+using ef::geometry_msgs::Vector3StampedBuilder;
+using ef::geometry_msgs::PoseStampedView;
+using ef::geometry_msgs::PoseStampedBuilder;
+using ef::geometry_msgs::QuaternionStampedView;
+using ef::geometry_msgs::QuaternionStampedBuilder;
+using ef::geometry_msgs::PoseWithCovarianceStampedView;
+using ef::geometry_msgs::PoseWithCovarianceStampedBuilder;
+using ef::geometry_msgs::TwistWithCovarianceStampedView;
+using ef::geometry_msgs::TwistWithCovarianceStampedBuilder;
+using ef::geometry_msgs::AccelWithCovarianceStampedView;
+using ef::geometry_msgs::AccelWithCovarianceStampedBuilder;
+using ef::geometry_msgs::PolygonView;
+using ef::geometry_msgs::PolygonBuilder;
+using ef::geometry_msgs::PolygonStampedView;
+using ef::geometry_msgs::PolygonStampedBuilder;
+using ef::geometry_msgs::PoseArrayView;
+using ef::geometry_msgs::PoseArrayBuilder;
+using ef::geometry_msgs::TransformStampedView;
+using ef::geometry_msgs::TransformStampedBuilder;
+using ef::std_msgs::Header;
+using ef::std_msgs::HeaderView;
+using ef::std_msgs::HeaderBuilder;
+using ef::sensor_msgs::NavSatStatus;
+using ef::sensor_msgs::CompressedImage;
+using ef::sensor_msgs::CompressedImageView;
+using ef::sensor_msgs::CompressedImageBuilder;
+using ef::sensor_msgs::Image;
+using ef::sensor_msgs::ImageView;
+using ef::sensor_msgs::ImageBuilder;
+using ef::sensor_msgs::ImuView;
+using ef::sensor_msgs::ImuBuilder;
+using ef::sensor_msgs::NavSatFixView;
+using ef::sensor_msgs::NavSatFixBuilder;
+using ef::sensor_msgs::CameraInfoView;
+using ef::sensor_msgs::CameraInfoBuilder;
+using ef::sensor_msgs::PointCloud2View;
+using ef::sensor_msgs::PointCloud2Builder;
+using ef::sensor_msgs::PointFieldBuilder;
+using ef::sensor_msgs::MagneticFieldView;
+using ef::sensor_msgs::MagneticFieldBuilder;
+using ef::sensor_msgs::FluidPressureView;
+using ef::sensor_msgs::FluidPressureBuilder;
+using ef::sensor_msgs::TemperatureView;
+using ef::sensor_msgs::TemperatureBuilder;
+using ef::sensor_msgs::BatteryStateView;
+using ef::sensor_msgs::BatteryStateBuilder;
+using ef::sensor_msgs::RelativeHumidityView;
+using ef::sensor_msgs::RelativeHumidityBuilder;
+using ef::sensor_msgs::TimeReferenceView;
+using ef::sensor_msgs::TimeReferenceBuilder;
+using ef::nav_msgs::MapMetaData;
+using ef::nav_msgs::OdometryView;
+using ef::nav_msgs::OdometryBuilder;
+using ef::nav_msgs::GridCellsView;
+using ef::nav_msgs::GridCellsBuilder;
+using ef::nav_msgs::OccupancyGridView;
+using ef::nav_msgs::OccupancyGridBuilder;
+using ef::nav_msgs::PathView;
+using ef::nav_msgs::PathBuilder;
+using ef::foxglove_msgs::CompressedVideo;
+using ef::foxglove_msgs::CompressedVideoView;
+using ef::foxglove_msgs::CompressedVideoBuilder;
+using ef::foxglove_msgs::TextAnnotationBuilder;
+using ef::foxglove_msgs::PointAnnotationBuilder;
+using ef::foxglove_msgs::ImageAnnotationBuilder;
+using ef::mavros_msgs::AltitudeView;
+using ef::mavros_msgs::AltitudeBuilder;
+using ef::mavros_msgs::VfrHudView;
+using ef::mavros_msgs::VfrHudBuilder;
+using ef::mavros_msgs::EstimatorStatusView;
+using ef::mavros_msgs::EstimatorStatusBuilder;
+using ef::mavros_msgs::ExtendedStateView;
+using ef::mavros_msgs::ExtendedStateBuilder;
+using ef::mavros_msgs::SysStatusView;
+using ef::mavros_msgs::SysStatusBuilder;
+using ef::mavros_msgs::StateView;
+using ef::mavros_msgs::StateBuilder;
+using ef::mavros_msgs::StatusTextView;
+using ef::mavros_msgs::StatusTextBuilder;
+using ef::mavros_msgs::GpsRawView;
+using ef::mavros_msgs::GpsRawBuilder;
+using ef::mavros_msgs::TimesyncStatusView;
+using ef::mavros_msgs::TimesyncStatusBuilder;
+using ef::edgefirst_msgs::Mask;
+using ef::edgefirst_msgs::MaskView;
+using ef::edgefirst_msgs::MaskBuilder;
+using ef::edgefirst_msgs::LocalTimeView;
+using ef::edgefirst_msgs::LocalTimeBuilder;
+using ef::edgefirst_msgs::TrackView;
+using ef::edgefirst_msgs::TrackBuilder;
+using ef::edgefirst_msgs::BoxView;
+using ef::edgefirst_msgs::DetectView;
+using ef::edgefirst_msgs::DetectBuilder;
+using ef::edgefirst_msgs::DetectBoxBuilder;
+using ef::edgefirst_msgs::ModelView;
+using ef::edgefirst_msgs::ModelBuilder;
+using ef::edgefirst_msgs::ModelInfoView;
+using ef::edgefirst_msgs::ModelInfoBuilder;
+using ef::edgefirst_msgs::RadarCubeView;
+using ef::edgefirst_msgs::RadarCubeBuilder;
+using ef::edgefirst_msgs::RadarInfoView;
+using ef::edgefirst_msgs::RadarInfoBuilder;
+using ef::edgefirst_msgs::VibrationView;
+using ef::edgefirst_msgs::VibrationBuilder;
+using ef::edgefirst_msgs::TensorView;
+using ef::edgefirst_msgs::TensorBuilder;
+using ef::edgefirst_msgs::TensorStampedView;
+using ef::edgefirst_msgs::TensorStampedBuilder;
+using ef::edgefirst_msgs::CameraFrameView;
+using ef::edgefirst_msgs::CameraFrameBuilder;
+using FoxgloveCompressedImage = ef::foxglove_msgs::CompressedImage;
+using FoxgloveCompressedImageView = ef::foxglove_msgs::CompressedImageView;
+using FoxgloveCompressedImageBuilder = ef::foxglove_msgs::CompressedImageBuilder;
+
 
 // All golden fixtures share this header stamp / frame_id (see
 // scripts/generate_cdr_testdata.py).
-static constexpr ef::Time kStamp{1234567890, 123456789};
+static constexpr Time kStamp{1234567890, 123456789};
 static constexpr const char* kFrame = "test_frame";
 
 static std::vector<std::uint8_t> load_fixture(const std::string& relpath) {
@@ -57,21 +196,21 @@ template <typename BuildResult>
 static std::vector<std::uint8_t> take_bytes(BuildResult&& r) {
     REQUIRE(r.has_value());
     std::vector<std::uint8_t> out(r->data, r->data + r->size);
-    ros_bytes_free(r->data, r->size);
+    edgefirst_schemas_bytes_free(r->data, r->size);
     return out;
 }
 
 // ── nav_msgs/MapMetaData (CdrFixed value class) ───────────────────────────
 
 TEST_CASE("MapMetaData encode/decode roundtrip", "[de2781]") {
-    ef::MapMetaData m{ef::Time{0, 0}, 0.05f, 200, 200,
-                      ef::Pose{-5.0, -5.0, 0.0, 0.0, 0.0, 0.0, 1.0}};
+    MapMetaData m{Time{0, 0}, 0.05f, 200, 200,
+                      Pose{-5.0, -5.0, 0.0, 0.0, 0.0, 0.0, 1.0}};
     auto sz = m.encoded_size();
     REQUIRE(sz.has_value());
     std::vector<std::uint8_t> buf(*sz);
     auto w = m.encode(ef::span<std::uint8_t>{buf.data(), buf.size()});
     REQUIRE(w.has_value());
-    auto dec = ef::MapMetaData::decode(
+    auto dec = MapMetaData::decode(
         ef::span<const std::uint8_t>{buf.data(), *w});
     REQUIRE(dec.has_value());
     CHECK(dec->resolution == Approx(0.05f));
@@ -84,7 +223,7 @@ TEST_CASE("MapMetaData encode/decode roundtrip", "[de2781]") {
 
 TEST_CASE("MapMetaData decodes golden fixture", "[de2781]") {
     auto bytes = load_fixture("testdata/cdr/nav_msgs/MapMetaData.cdr");
-    auto m = ef::MapMetaData::decode(
+    auto m = MapMetaData::decode(
         ef::span<const std::uint8_t>{bytes.data(), bytes.size()});
     REQUIRE(m.has_value());
     CHECK(m->map_load_time.sec == kStamp.sec);
@@ -99,8 +238,8 @@ TEST_CASE("MapMetaData decodes golden fixture", "[de2781]") {
 
 TEST_CASE("MapMetaData encode matches golden bytes", "[de2781]") {
     auto golden = load_fixture("testdata/cdr/nav_msgs/MapMetaData.cdr");
-    ef::MapMetaData m{kStamp, 0.05f, 200, 200,
-                      ef::Pose{-5.0, -5.0, 0.0, 0.0, 0.0, 0.0, 1.0}};
+    MapMetaData m{kStamp, 0.05f, 200, 200,
+                      Pose{-5.0, -5.0, 0.0, 0.0, 0.0, 0.0, 1.0}};
     std::vector<std::uint8_t> buf(golden.size());
     auto w = m.encode(ef::span<std::uint8_t>{buf.data(), buf.size()});
     REQUIRE(w.has_value());
@@ -112,7 +251,7 @@ TEST_CASE("MapMetaData encode matches golden bytes", "[de2781]") {
 
 TEST_CASE("RelativeHumidityView decodes golden fixture", "[de2781]") {
     auto bytes = load_fixture("testdata/cdr/sensor_msgs/RelativeHumidity.cdr");
-    auto v = ef::RelativeHumidityView::from_cdr(
+    auto v = RelativeHumidityView::from_cdr(
         ef::span<const std::uint8_t>{bytes.data(), bytes.size()});
     REQUIRE(v.has_value());
     CHECK(v->frame_id() == kFrame);
@@ -123,7 +262,7 @@ TEST_CASE("RelativeHumidityView decodes golden fixture", "[de2781]") {
 
 TEST_CASE("RelativeHumidityBuilder bytes match golden", "[de2781]") {
     auto golden = load_fixture("testdata/cdr/sensor_msgs/RelativeHumidity.cdr");
-    auto b = ef::RelativeHumidityBuilder::create();
+    auto b = RelativeHumidityBuilder::create();
     REQUIRE(b.has_value());
     b->stamp(kStamp);
     REQUIRE(b->frame_id(kFrame).has_value());
@@ -136,7 +275,7 @@ TEST_CASE("RelativeHumidityBuilder bytes match golden", "[de2781]") {
 
 TEST_CASE("TimeReferenceView decodes golden fixture", "[de2781]") {
     auto bytes = load_fixture("testdata/cdr/sensor_msgs/TimeReference.cdr");
-    auto v = ef::TimeReferenceView::from_cdr(
+    auto v = TimeReferenceView::from_cdr(
         ef::span<const std::uint8_t>{bytes.data(), bytes.size()});
     REQUIRE(v.has_value());
     CHECK(v->frame_id() == kFrame);
@@ -147,9 +286,9 @@ TEST_CASE("TimeReferenceView decodes golden fixture", "[de2781]") {
 
 TEST_CASE("TimeReferenceBuilder bytes match golden", "[de2781]") {
     auto golden = load_fixture("testdata/cdr/sensor_msgs/TimeReference.cdr");
-    auto b = ef::TimeReferenceBuilder::create();
+    auto b = TimeReferenceBuilder::create();
     REQUIRE(b.has_value());
-    b->stamp(kStamp).time_ref(ef::Time{1234567890, 987654321});
+    b->stamp(kStamp).time_ref(Time{1234567890, 987654321});
     REQUIRE(b->frame_id(kFrame).has_value());
     REQUIRE(b->source("GPS_UTC").has_value());
     auto built = take_bytes(b->build());
@@ -160,7 +299,7 @@ TEST_CASE("TimeReferenceBuilder bytes match golden", "[de2781]") {
 
 TEST_CASE("GridCellsView decodes golden fixture", "[de2781]") {
     auto bytes = load_fixture("testdata/cdr/nav_msgs/GridCells.cdr");
-    auto v = ef::GridCellsView::from_cdr(
+    auto v = GridCellsView::from_cdr(
         ef::span<const std::uint8_t>{bytes.data(), bytes.size()});
     REQUIRE(v.has_value());
     CHECK(v->frame_id() == kFrame);
@@ -185,7 +324,7 @@ TEST_CASE("GridCellsView decodes golden fixture", "[de2781]") {
 
 TEST_CASE("GridCellsBuilder bytes match golden", "[de2781]") {
     auto golden = load_fixture("testdata/cdr/nav_msgs/GridCells.cdr");
-    auto b = ef::GridCellsBuilder::create();
+    auto b = GridCellsBuilder::create();
     REQUIRE(b.has_value());
     b->stamp(kStamp).cell_width(0.5f).cell_height(0.5f);
     REQUIRE(b->frame_id(kFrame).has_value());
@@ -199,7 +338,7 @@ TEST_CASE("GridCellsBuilder bytes match golden", "[de2781]") {
 
 TEST_CASE("OccupancyGridView decodes golden fixture", "[de2781]") {
     auto bytes = load_fixture("testdata/cdr/nav_msgs/OccupancyGrid.cdr");
-    auto v = ef::OccupancyGridView::from_cdr(
+    auto v = OccupancyGridView::from_cdr(
         ef::span<const std::uint8_t>{bytes.data(), bytes.size()});
     REQUIRE(v.has_value());
     CHECK(v->frame_id() == kFrame);
@@ -219,7 +358,7 @@ TEST_CASE("OccupancyGridView decodes golden fixture", "[de2781]") {
 
 TEST_CASE("OccupancyGridView::data() is zero-copy into as_cdr()", "[de2781][zero_copy]") {
     auto bytes = load_fixture("testdata/cdr/nav_msgs/OccupancyGrid.cdr");
-    auto v = ef::OccupancyGridView::from_cdr(
+    auto v = OccupancyGridView::from_cdr(
         ef::span<const std::uint8_t>{bytes.data(), bytes.size()});
     REQUIRE(v.has_value());
 
@@ -237,10 +376,10 @@ TEST_CASE("OccupancyGridView::data() is zero-copy into as_cdr()", "[de2781][zero
 
 TEST_CASE("OccupancyGridBuilder bytes match golden", "[de2781]") {
     auto golden = load_fixture("testdata/cdr/nav_msgs/OccupancyGrid.cdr");
-    auto b = ef::OccupancyGridBuilder::create();
+    auto b = OccupancyGridBuilder::create();
     REQUIRE(b.has_value());
-    b->stamp(kStamp).info(ef::MapMetaData{
-        kStamp, 0.1f, 4, 2, ef::Pose{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0}});
+    b->stamp(kStamp).info(MapMetaData{
+        kStamp, 0.1f, 4, 2, Pose{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0}});
     REQUIRE(b->frame_id(kFrame).has_value());
     const std::int8_t data[] = {0, 50, 100, -1, 25, 75, 0, 0};
     REQUIRE(b->data(ef::span<const std::int8_t>{data, 8}).has_value());
@@ -252,7 +391,7 @@ TEST_CASE("OccupancyGridBuilder bytes match golden", "[de2781]") {
 
 TEST_CASE("PathView decodes golden fixture", "[de2781]") {
     auto bytes = load_fixture("testdata/cdr/nav_msgs/Path.cdr");
-    auto v = ef::PathView::from_cdr(
+    auto v = PathView::from_cdr(
         ef::span<const std::uint8_t>{bytes.data(), bytes.size()});
     REQUIRE(v.has_value());
     CHECK(v->frame_id() == kFrame);
@@ -276,7 +415,7 @@ TEST_CASE("PathView decodes golden fixture", "[de2781]") {
 
 TEST_CASE("PathView iterator yields the same poses as pose(index)", "[de2781]") {
     auto bytes = load_fixture("testdata/cdr/nav_msgs/Path.cdr");
-    auto v = ef::PathView::from_cdr(
+    auto v = PathView::from_cdr(
         ef::span<const std::uint8_t>{bytes.data(), bytes.size()});
     REQUIRE(v.has_value());
 
@@ -299,7 +438,7 @@ TEST_CASE("PathView iterator yields the same poses as pose(index)", "[de2781]") 
 
 TEST_CASE("PathView iterator frame_id is zero-copy into as_cdr()", "[de2781][zero_copy]") {
     auto bytes = load_fixture("testdata/cdr/nav_msgs/Path.cdr");
-    auto v = ef::PathView::from_cdr(
+    auto v = PathView::from_cdr(
         ef::span<const std::uint8_t>{bytes.data(), bytes.size()});
     REQUIRE(v.has_value());
 
@@ -320,16 +459,16 @@ TEST_CASE("PathView iterator frame_id is zero-copy into as_cdr()", "[de2781][zer
 
 TEST_CASE("PathBuilder bytes match golden", "[de2781]") {
     auto golden = load_fixture("testdata/cdr/nav_msgs/Path.cdr");
-    auto b = ef::PathBuilder::create();
+    auto b = PathBuilder::create();
     REQUIRE(b.has_value());
     b->stamp(kStamp);
     REQUIRE(b->frame_id(kFrame).has_value());
-    REQUIRE(b->add_pose(ef::Time{1, 0}, "map",
-                        ef::Pose{1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0}).has_value());
-    REQUIRE(b->add_pose(ef::Time{2, 0}, "map",
-                        ef::Pose{2.0, 1.0, 0.0, 0.0, 0.0, 0.707, 0.707}).has_value());
-    REQUIRE(b->add_pose(ef::Time{3, 0}, "map",
-                        ef::Pose{3.0, 2.0, 0.0, 0.0, 0.0, 1.0, 0.0}).has_value());
+    REQUIRE(b->add_pose(Time{1, 0}, "map",
+                        Pose{1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0}).has_value());
+    REQUIRE(b->add_pose(Time{2, 0}, "map",
+                        Pose{2.0, 1.0, 0.0, 0.0, 0.0, 0.707, 0.707}).has_value());
+    REQUIRE(b->add_pose(Time{3, 0}, "map",
+                        Pose{3.0, 2.0, 0.0, 0.0, 0.0, 1.0, 0.0}).has_value());
     auto built = take_bytes(b->build());
     CHECK(built == golden);
 }
@@ -337,23 +476,23 @@ TEST_CASE("PathBuilder bytes match golden", "[de2781]") {
 // ── Type-property checks ──────────────────────────────────────────────────
 
 TEST_CASE("new view types are move-only", "[de2781][lifetime]") {
-    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<ef::RelativeHumidityView>);
-    STATIC_REQUIRE(std::is_move_constructible_v<ef::RelativeHumidityView>);
-    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<ef::TimeReferenceView>);
-    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<ef::GridCellsView>);
-    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<ef::OccupancyGridView>);
-    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<ef::PathView>);
-    STATIC_REQUIRE(std::is_move_constructible_v<ef::PathView>);
+    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<RelativeHumidityView>);
+    STATIC_REQUIRE(std::is_move_constructible_v<RelativeHumidityView>);
+    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<TimeReferenceView>);
+    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<GridCellsView>);
+    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<OccupancyGridView>);
+    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<PathView>);
+    STATIC_REQUIRE(std::is_move_constructible_v<PathView>);
 }
 
 TEST_CASE("new builders are move-only", "[de2781][lifetime]") {
-    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<ef::RelativeHumidityBuilder>);
-    STATIC_REQUIRE(std::is_move_constructible_v<ef::GridCellsBuilder>);
-    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<ef::PathBuilder>);
+    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<RelativeHumidityBuilder>);
+    STATIC_REQUIRE(std::is_move_constructible_v<GridCellsBuilder>);
+    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<PathBuilder>);
 }
 
 TEST_CASE("Path iterator is move-only input iterator", "[de2781][lifetime]") {
-    using It = ef::PathView::iterator;
+    using It = PathView::iterator;
     STATIC_REQUIRE(std::is_same_v<It::iterator_category, std::input_iterator_tag>);
     STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<It>);
     STATIC_REQUIRE(std::is_move_constructible_v<It>);
@@ -361,6 +500,6 @@ TEST_CASE("Path iterator is move-only input iterator", "[de2781][lifetime]") {
 
 // MapMetaData is a plain copyable value type (CdrFixed).
 TEST_CASE("MapMetaData is a copyable value type", "[de2781]") {
-    STATIC_REQUIRE(std::is_copy_constructible_v<ef::MapMetaData>);
-    STATIC_REQUIRE(std::is_trivially_copyable_v<ef::MapMetaData>);
+    STATIC_REQUIRE(std::is_copy_constructible_v<MapMetaData>);
+    STATIC_REQUIRE(std::is_trivially_copyable_v<MapMetaData>);
 }

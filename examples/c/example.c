@@ -9,7 +9,7 @@
  * - CdrFixed encode/decode (Time, Vector3) into stack buffers
  * - Buffer-backed encode (Header, Image) with allocated output
  * - Buffer-backed decode from CDR bytes via opaque view handles
- * - Proper memory management (ros_bytes_free, _free, borrowed pointers)
+ * - Proper memory management (edgefirst_schemas_bytes_free, _free, borrowed pointers)
  * - errno-based error handling
  */
 
@@ -26,8 +26,8 @@ static int example_time(void) {
     size_t written = 0;
 
     // Encode Time into a stack buffer
-    if (ros_time_encode(buf, sizeof(buf), &written, 1234567890, 123456789) != 0) {
-        fprintf(stderr, "ros_time_encode failed: %s\n", strerror(errno));
+    if (builtin_interfaces_time_encode(buf, sizeof(buf), &written, 1234567890, 123456789) != 0) {
+        fprintf(stderr, "builtin_interfaces_time_encode failed: %s\n", strerror(errno));
         return -1;
     }
     printf("Encoded Time: %zu CDR bytes\n", written);
@@ -35,8 +35,8 @@ static int example_time(void) {
     // Decode individual fields
     int32_t sec = 0;
     uint32_t nanosec = 0;
-    if (ros_time_decode(buf, written, &sec, &nanosec) != 0) {
-        fprintf(stderr, "ros_time_decode failed: %s\n", strerror(errno));
+    if (builtin_interfaces_time_decode(buf, written, &sec, &nanosec) != 0) {
+        fprintf(stderr, "builtin_interfaces_time_decode failed: %s\n", strerror(errno));
         return -1;
     }
     printf("Decoded: %d.%09u\n", sec, nanosec);
@@ -57,16 +57,16 @@ static int example_vector3(void) {
     size_t written = 0;
 
     // Encode Vector3 into a stack buffer
-    if (ros_vector3_encode(buf, sizeof(buf), &written, 1.5, 2.5, 3.5) != 0) {
-        fprintf(stderr, "ros_vector3_encode failed: %s\n", strerror(errno));
+    if (geometry_msgs_vector3_encode(buf, sizeof(buf), &written, 1.5, 2.5, 3.5) != 0) {
+        fprintf(stderr, "geometry_msgs_vector3_encode failed: %s\n", strerror(errno));
         return -1;
     }
     printf("Encoded Vector3: %zu CDR bytes\n", written);
 
     // Decode
     double x, y, z;
-    if (ros_vector3_decode(buf, written, &x, &y, &z) != 0) {
-        fprintf(stderr, "ros_vector3_decode failed: %s\n", strerror(errno));
+    if (geometry_msgs_vector3_decode(buf, written, &x, &y, &z) != 0) {
+        fprintf(stderr, "geometry_msgs_vector3_decode failed: %s\n", strerror(errno));
         return -1;
     }
     printf("Decoded: (%.1f, %.1f, %.1f)\n", x, y, z);
@@ -86,33 +86,33 @@ static int example_header(void) {
     // Encode a Header — allocates output bytes
     uint8_t* bytes = NULL;
     size_t len = 0;
-    ros_header_builder_t *hb = ros_header_builder_new();
+    std_msgs_header_builder_t *hb = std_msgs_header_builder_new();
     if (!hb) {
-        fprintf(stderr, "ros_header_builder_new failed\n");
+        fprintf(stderr, "std_msgs_header_builder_new failed\n");
         return -1;
     }
-    ros_header_builder_set_stamp(hb, 1234567890, 123456789);
-    if (ros_header_builder_set_frame_id(hb, "camera_frame") != 0 ||
-        ros_header_builder_build(hb, &bytes, &len) != 0) {
-        fprintf(stderr, "ros_header_builder failed: %s\n", strerror(errno));
-        ros_header_builder_free(hb);
+    std_msgs_header_builder_set_stamp(hb, 1234567890, 123456789);
+    if (std_msgs_header_builder_set_frame_id(hb, "camera_frame") != 0 ||
+        std_msgs_header_builder_build(hb, &bytes, &len) != 0) {
+        fprintf(stderr, "std_msgs_header_builder failed: %s\n", strerror(errno));
+        std_msgs_header_builder_free(hb);
         return -1;
     }
-    ros_header_builder_free(hb);
+    std_msgs_header_builder_free(hb);
     printf("Encoded Header: %zu CDR bytes\n", len);
 
     // Decode: zero-copy view over `bytes` — bytes must stay alive until _free()
-    ros_header_t* hdr = ros_header_from_cdr(bytes, len);
+    std_msgs_header_t* hdr = std_msgs_header_from_cdr(bytes, len);
     if (!hdr) {
-        fprintf(stderr, "ros_header_from_cdr failed: %s\n", strerror(errno));
-        ros_bytes_free(bytes, len);
+        fprintf(stderr, "std_msgs_header_from_cdr failed: %s\n", strerror(errno));
+        edgefirst_schemas_bytes_free(bytes, len);
         return -1;
     }
 
     // Access fields — borrowed from `bytes`, do NOT free
-    int32_t sec = ros_header_get_stamp_sec(hdr);
-    uint32_t nanosec = ros_header_get_stamp_nanosec(hdr);
-    const char* frame_id = ros_header_get_frame_id(hdr);
+    int32_t sec = std_msgs_header_get_stamp_sec(hdr);
+    uint32_t nanosec = std_msgs_header_get_stamp_nanosec(hdr);
+    const char* frame_id = std_msgs_header_get_frame_id(hdr);
 
     printf("Decoded: stamp=%d.%09u frame_id=\"%s\"\n", sec, nanosec, frame_id);
 
@@ -120,8 +120,8 @@ static int example_header(void) {
               && strcmp(frame_id, "camera_frame") == 0);
 
     // Cleanup: free handle first, THEN free the source buffer
-    ros_header_free(hdr);        // releases handle (does NOT free bytes)
-    ros_bytes_free(bytes, len);  // NOW safe to free the source buffer
+    std_msgs_header_free(hdr);        // releases handle (does NOT free bytes)
+    edgefirst_schemas_bytes_free(bytes, len);  // NOW safe to free the source buffer
 
     if (!ok) {
         fprintf(stderr, "Header roundtrip mismatch\n");
@@ -149,45 +149,45 @@ static int example_image(void) {
     // Encode an Image via the builder API
     uint8_t* bytes = NULL;
     size_t len = 0;
-    ros_image_builder_t *ib = ros_image_builder_new();
+    sensor_msgs_image_builder_t *ib = sensor_msgs_image_builder_new();
     if (!ib) {
-        fprintf(stderr, "ros_image_builder_new failed\n");
+        fprintf(stderr, "sensor_msgs_image_builder_new failed\n");
         free(pixel_data);
         return -1;
     }
-    ros_image_builder_set_stamp(ib, 1000, 500000);
-    ros_image_builder_set_height(ib, 480);
-    ros_image_builder_set_width(ib, 640);
-    ros_image_builder_set_is_bigendian(ib, 0);
-    ros_image_builder_set_step(ib, 640 * 3);
-    if (ros_image_builder_set_frame_id(ib, "camera") != 0 ||
-        ros_image_builder_set_encoding(ib, "rgb8") != 0 ||
-        ros_image_builder_set_data(ib, pixel_data, data_size) != 0 ||
-        ros_image_builder_build(ib, &bytes, &len) != 0) {
-        fprintf(stderr, "ros_image_builder failed: %s\n", strerror(errno));
-        ros_image_builder_free(ib);
+    sensor_msgs_image_builder_set_stamp(ib, 1000, 500000);
+    sensor_msgs_image_builder_set_height(ib, 480);
+    sensor_msgs_image_builder_set_width(ib, 640);
+    sensor_msgs_image_builder_set_is_bigendian(ib, 0);
+    sensor_msgs_image_builder_set_step(ib, 640 * 3);
+    if (sensor_msgs_image_builder_set_frame_id(ib, "camera") != 0 ||
+        sensor_msgs_image_builder_set_encoding(ib, "rgb8") != 0 ||
+        sensor_msgs_image_builder_set_data(ib, pixel_data, data_size) != 0 ||
+        sensor_msgs_image_builder_build(ib, &bytes, &len) != 0) {
+        fprintf(stderr, "sensor_msgs_image_builder failed: %s\n", strerror(errno));
+        sensor_msgs_image_builder_free(ib);
         free(pixel_data);
         return -1;
     }
-    ros_image_builder_free(ib);
+    sensor_msgs_image_builder_free(ib);
     free(pixel_data);  // Our source data, normal free
     printf("Encoded Image: %zu CDR bytes\n", len);
 
     // Decode: zero-copy view over `bytes` — bytes must stay alive until _free()
-    ros_image_t* img = ros_image_from_cdr(bytes, len);
+    sensor_msgs_image_t* img = sensor_msgs_image_from_cdr(bytes, len);
     if (!img) {
-        fprintf(stderr, "ros_image_from_cdr failed: %s\n", strerror(errno));
-        ros_bytes_free(bytes, len);
+        fprintf(stderr, "sensor_msgs_image_from_cdr failed: %s\n", strerror(errno));
+        edgefirst_schemas_bytes_free(bytes, len);
         return -1;
     }
 
     // Access fields
-    uint32_t width = ros_image_get_width(img);
-    uint32_t height = ros_image_get_height(img);
-    const char* encoding = ros_image_get_encoding(img);  // borrowed
+    uint32_t width = sensor_msgs_image_get_width(img);
+    uint32_t height = sensor_msgs_image_get_height(img);
+    const char* encoding = sensor_msgs_image_get_encoding(img);  // borrowed
 
     size_t retrieved_len = 0;
-    (void)ros_image_get_data(img, &retrieved_len);  // borrowed, used for length check
+    (void)sensor_msgs_image_get_data(img, &retrieved_len);  // borrowed, used for length check
 
     printf("Decoded: %ux%u encoding=\"%s\" data=%zu bytes\n",
            width, height, encoding, retrieved_len);
@@ -198,13 +198,13 @@ static int example_image(void) {
 
     // Forward the raw CDR bytes (zero re-serialization cost)
     size_t cdr_len;
-    const uint8_t* cdr = ros_image_as_cdr(img, &cdr_len);
+    const uint8_t* cdr = sensor_msgs_image_as_cdr(img, &cdr_len);
     printf("CDR bytes available for forwarding: %zu bytes at %p\n",
            cdr_len, (const void*)cdr);
 
     // Cleanup: free handle first, THEN free the source buffer
-    ros_image_free(img);
-    ros_bytes_free(bytes, len);
+    sensor_msgs_image_free(img);
+    edgefirst_schemas_bytes_free(bytes, len);
 
     if (!ok) {
         fprintf(stderr, "Image roundtrip mismatch\n");
@@ -220,11 +220,11 @@ static int example_error_handling(void) {
 
     // NULL data → EINVAL
     errno = 0;
-    ros_header_t* hdr = ros_header_from_cdr(NULL, 100);
+    std_msgs_header_t* hdr = std_msgs_header_from_cdr(NULL, 100);
     if (hdr != NULL || errno != EINVAL) {
         fprintf(stderr, "Expected NULL + EINVAL for NULL data, got %p errno=%d\n",
                 (void*)hdr, errno);
-        ros_header_free(hdr);
+        std_msgs_header_free(hdr);
         return -1;
     }
     printf("NULL data: errno=%d (%s)\n", errno, strerror(errno));
@@ -232,11 +232,11 @@ static int example_error_handling(void) {
     // Corrupt data → EBADMSG
     errno = 0;
     uint8_t bad[10] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-    hdr = ros_header_from_cdr(bad, sizeof(bad));
+    hdr = std_msgs_header_from_cdr(bad, sizeof(bad));
     if (hdr != NULL || errno != EBADMSG) {
         fprintf(stderr, "Expected NULL + EBADMSG for bad data, got %p errno=%d\n",
                 (void*)hdr, errno);
-        ros_header_free(hdr);
+        std_msgs_header_free(hdr);
         return -1;
     }
     printf("Bad data:  errno=%d (%s)\n", errno, strerror(errno));
@@ -245,7 +245,7 @@ static int example_error_handling(void) {
     errno = 0;
     uint8_t tiny[2];
     size_t written;
-    int ret = ros_time_encode(tiny, sizeof(tiny), &written, 42, 0);
+    int ret = builtin_interfaces_time_encode(tiny, sizeof(tiny), &written, 42, 0);
     if (ret != -1 || errno != ENOBUFS) {
         fprintf(stderr, "Expected -1 + ENOBUFS for tiny buffer, got ret=%d errno=%d\n",
                 ret, errno);

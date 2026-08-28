@@ -9,14 +9,14 @@
 //! ## API Pattern
 //!
 //! **CdrFixed types** (Time, Duration, Vector3, etc.):
-//!   - `ros_<type>_encode(buf, cap, &written, ...fields)` → write CDR to caller buffer
-//!   - `ros_<type>_decode(data, len, ...out_fields)` → read fields from CDR
+//!   - `<package>_<type>_encode(buf, cap, &written, ...fields)` → write CDR to caller buffer
+//!   - `<package>_<type>_decode(data, len, ...out_fields)` → read fields from CDR
 //!
 //! **Buffer-backed types** (Image, CompressedImage, etc.):
-//!   - `ros_<type>_from_cdr(data, len)` → opaque handle (zero-copy borrow of `data`)
-//!   - `ros_<type>_get_<field>(handle)` → O(1) field access
-//!   - `ros_<type>_free(handle)` → release handle
-//!   - `ros_<type>_builder_*` → allocate + write CDR (replaces legacy one-shot encode)
+//!   - `<package>_<type>_from_cdr(data, len)` → opaque handle (zero-copy borrow of `data`)
+//!   - `<package>_<type>_get_<field>(handle)` → O(1) field access
+//!   - `<package>_<type>_free(handle)` → release handle
+//!   - `<package>_<type>_builder_*` → allocate + write CDR (replaces legacy one-shot encode)
 //!
 //! `from_cdr` borrows the caller's buffer — the returned handle stores a pointer
 //! into `data`, not a copy. The caller must keep `data` alive until `_free()`.
@@ -149,7 +149,7 @@ mod tensor;
 // Memory management
 // =============================================================================
 
-/// Free a byte buffer returned by any `ros_*_encode()` function.
+/// Free a byte buffer returned by any `<package>_*_encode()` function.
 ///
 /// # Safety
 /// `bytes` must have been returned by a prior encode call. Passing any other
@@ -160,7 +160,7 @@ mod tensor;
 /// first, guaranteeing `capacity == len`. We reconstruct the Vec with
 /// `capacity = len` here, matching the original allocation.
 #[no_mangle]
-pub extern "C" fn ros_bytes_free(bytes: *mut u8, len: usize) {
+pub extern "C" fn edgefirst_schemas_bytes_free(bytes: *mut u8, len: usize) {
     if !bytes.is_null() && len > 0 {
         unsafe {
             drop(Vec::from_raw_parts(bytes, len, len));
@@ -229,7 +229,7 @@ fn decode_fixed_from_buf<T: CdrFixed>(data: *const u8, len: usize) -> Result<T, 
 // =============================================================================
 
 #[no_mangle]
-pub extern "C" fn ros_time_encode(
+pub extern "C" fn builtin_interfaces_time_encode(
     buf: *mut u8,
     cap: usize,
     written: *mut usize,
@@ -241,7 +241,7 @@ pub extern "C" fn ros_time_encode(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_time_decode(
+pub extern "C" fn builtin_interfaces_time_decode(
     data: *const u8,
     len: usize,
     sec: *mut i32,
@@ -266,7 +266,7 @@ pub extern "C" fn ros_time_decode(
 // =============================================================================
 
 #[no_mangle]
-pub extern "C" fn ros_duration_encode(
+pub extern "C" fn builtin_interfaces_duration_encode(
     buf: *mut u8,
     cap: usize,
     written: *mut usize,
@@ -278,7 +278,7 @@ pub extern "C" fn ros_duration_encode(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_duration_decode(
+pub extern "C" fn builtin_interfaces_duration_decode(
     data: *const u8,
     len: usize,
     sec: *mut i32,
@@ -304,7 +304,7 @@ pub extern "C" fn ros_duration_decode(
 
 // Vector3
 #[no_mangle]
-pub extern "C" fn ros_vector3_encode(
+pub extern "C" fn geometry_msgs_vector3_encode(
     buf: *mut u8,
     cap: usize,
     written: *mut usize,
@@ -316,7 +316,7 @@ pub extern "C" fn ros_vector3_encode(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vector3_decode(
+pub extern "C" fn geometry_msgs_vector3_decode(
     data: *const u8,
     len: usize,
     x: *mut f64,
@@ -342,7 +342,7 @@ pub extern "C" fn ros_vector3_decode(
 
 // Point
 #[no_mangle]
-pub extern "C" fn ros_point_encode(
+pub extern "C" fn geometry_msgs_point_encode(
     buf: *mut u8,
     cap: usize,
     written: *mut usize,
@@ -354,7 +354,7 @@ pub extern "C" fn ros_point_encode(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_decode(
+pub extern "C" fn geometry_msgs_point_decode(
     data: *const u8,
     len: usize,
     x: *mut f64,
@@ -380,7 +380,7 @@ pub extern "C" fn ros_point_decode(
 
 // Quaternion
 #[no_mangle]
-pub extern "C" fn ros_quaternion_encode(
+pub extern "C" fn geometry_msgs_quaternion_encode(
     buf: *mut u8,
     cap: usize,
     written: *mut usize,
@@ -393,7 +393,7 @@ pub extern "C" fn ros_quaternion_encode(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_quaternion_decode(
+pub extern "C" fn geometry_msgs_quaternion_decode(
     data: *const u8,
     len: usize,
     x: *mut f64,
@@ -423,7 +423,7 @@ pub extern "C" fn ros_quaternion_decode(
 
 // Pose
 #[no_mangle]
-pub extern "C" fn ros_pose_encode(
+pub extern "C" fn geometry_msgs_pose_encode(
     buf: *mut u8,
     cap: usize,
     written: *mut usize,
@@ -452,7 +452,7 @@ pub extern "C" fn ros_pose_encode(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_pose_decode(
+pub extern "C" fn geometry_msgs_pose_decode(
     data: *const u8,
     len: usize,
     px: *mut f64,
@@ -494,7 +494,7 @@ pub extern "C" fn ros_pose_decode(
 
 // Transform
 #[no_mangle]
-pub extern "C" fn ros_transform_encode(
+pub extern "C" fn geometry_msgs_transform_encode(
     buf: *mut u8,
     cap: usize,
     written: *mut usize,
@@ -523,7 +523,7 @@ pub extern "C" fn ros_transform_encode(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_transform_decode(
+pub extern "C" fn geometry_msgs_transform_decode(
     data: *const u8,
     len: usize,
     tx: *mut f64,
@@ -565,7 +565,7 @@ pub extern "C" fn ros_transform_decode(
 
 // Twist
 #[no_mangle]
-pub extern "C" fn ros_twist_encode(
+pub extern "C" fn geometry_msgs_twist_encode(
     buf: *mut u8,
     cap: usize,
     written: *mut usize,
@@ -592,7 +592,7 @@ pub extern "C" fn ros_twist_encode(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_twist_decode(
+pub extern "C" fn geometry_msgs_twist_decode(
     data: *const u8,
     len: usize,
     lx: *mut f64,
@@ -630,7 +630,7 @@ pub extern "C" fn ros_twist_decode(
 
 // Accel
 #[no_mangle]
-pub extern "C" fn ros_accel_encode(
+pub extern "C" fn geometry_msgs_accel_encode(
     buf: *mut u8,
     cap: usize,
     written: *mut usize,
@@ -657,7 +657,7 @@ pub extern "C" fn ros_accel_encode(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_accel_decode(
+pub extern "C" fn geometry_msgs_accel_decode(
     data: *const u8,
     len: usize,
     lx: *mut f64,
@@ -695,7 +695,7 @@ pub extern "C" fn ros_accel_decode(
 
 // Wrench
 #[no_mangle]
-pub extern "C" fn ros_wrench_encode(
+pub extern "C" fn geometry_msgs_wrench_encode(
     buf: *mut u8,
     cap: usize,
     written: *mut usize,
@@ -722,7 +722,7 @@ pub extern "C" fn ros_wrench_encode(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_wrench_decode(
+pub extern "C" fn geometry_msgs_wrench_decode(
     data: *const u8,
     len: usize,
     fx: *mut f64,
@@ -760,7 +760,7 @@ pub extern "C" fn ros_wrench_decode(
 
 // AccelWithCovariance
 #[no_mangle]
-pub extern "C" fn ros_accel_with_covariance_encode(
+pub extern "C" fn geometry_msgs_accel_with_covariance_encode(
     buf: *mut u8,
     cap: usize,
     written: *mut usize,
@@ -799,7 +799,7 @@ pub extern "C" fn ros_accel_with_covariance_encode(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_accel_with_covariance_decode(
+pub extern "C" fn geometry_msgs_accel_with_covariance_decode(
     data: *const u8,
     len: usize,
     lx: *mut f64,
@@ -841,7 +841,7 @@ pub extern "C" fn ros_accel_with_covariance_decode(
 
 // NavSatStatus
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_status_encode(
+pub extern "C" fn sensor_msgs_nav_sat_status_encode(
     buf: *mut u8,
     cap: usize,
     written: *mut usize,
@@ -852,7 +852,7 @@ pub extern "C" fn ros_nav_sat_status_encode(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_status_decode(
+pub extern "C" fn sensor_msgs_nav_sat_status_decode(
     data: *const u8,
     len: usize,
     status: *mut i8,
@@ -934,7 +934,7 @@ fn copy_le_u32_seq(data: &[u8], seq_off: usize, out: *mut u32, cap: usize) -> u3
 }
 
 /// Helper to return CDR bytes from an owned view (encode result).
-/// Leaks the Vec as a raw pointer; caller must use ros_bytes_free().
+/// Leaks the Vec as a raw pointer; caller must use edgefirst_schemas_bytes_free().
 fn return_cdr_bytes(cdr: Vec<u8>, out_bytes: *mut *mut u8, out_len: *mut usize) -> i32 {
     if out_bytes.is_null() || out_len.is_null() {
         set_errno(EINVAL);
@@ -953,18 +953,18 @@ fn return_cdr_bytes(cdr: Vec<u8>, out_bytes: *mut *mut u8, out_len: *mut usize) 
 // Header (buffer-backed)
 // =============================================================================
 
-pub struct ros_header_t(std_msgs::Header<&'static [u8]>);
+pub struct std_msgs_header_t(std_msgs::Header<&'static [u8]>);
 
 /// @brief Create a Header view from CDR bytes.
 /// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
 /// @param len Length of data
 /// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
-pub extern "C" fn ros_header_from_cdr(data: *const u8, len: usize) -> *mut ros_header_t {
+pub extern "C" fn std_msgs_header_from_cdr(data: *const u8, len: usize) -> *mut std_msgs_header_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match std_msgs::Header::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_header_t(v))),
+        Ok(v) => Box::into_raw(Box::new(std_msgs_header_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -973,7 +973,7 @@ pub extern "C" fn ros_header_from_cdr(data: *const u8, len: usize) -> *mut ros_h
 }
 
 #[no_mangle]
-pub extern "C" fn ros_header_free(view: *mut ros_header_t) {
+pub extern "C" fn std_msgs_header_free(view: *mut std_msgs_header_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -982,7 +982,7 @@ pub extern "C" fn ros_header_free(view: *mut ros_header_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_header_get_stamp_sec(view: *const ros_header_t) -> i32 {
+pub extern "C" fn std_msgs_header_get_stamp_sec(view: *const std_msgs_header_t) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -990,7 +990,7 @@ pub extern "C" fn ros_header_get_stamp_sec(view: *const ros_header_t) -> i32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_header_get_stamp_nanosec(view: *const ros_header_t) -> u32 {
+pub extern "C" fn std_msgs_header_get_stamp_nanosec(view: *const std_msgs_header_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -998,7 +998,7 @@ pub extern "C" fn ros_header_get_stamp_nanosec(view: *const ros_header_t) -> u32
 }
 
 #[no_mangle]
-pub extern "C" fn ros_header_get_frame_id(view: *const ros_header_t) -> *const c_char {
+pub extern "C" fn std_msgs_header_get_frame_id(view: *const std_msgs_header_t) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -1009,18 +1009,21 @@ pub extern "C" fn ros_header_get_frame_id(view: *const ros_header_t) -> *const c
 // Image (buffer-backed)
 // =============================================================================
 
-pub struct ros_image_t(sensor_msgs::Image<&'static [u8]>);
+pub struct sensor_msgs_image_t(sensor_msgs::Image<&'static [u8]>);
 
 /// @brief Create an Image view from CDR bytes.
 /// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
 /// @param len Length of data
 /// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
-pub extern "C" fn ros_image_from_cdr(data: *const u8, len: usize) -> *mut ros_image_t {
+pub extern "C" fn sensor_msgs_image_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut sensor_msgs_image_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match sensor_msgs::Image::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_image_t(v))),
+        Ok(v) => Box::into_raw(Box::new(sensor_msgs_image_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -1029,7 +1032,7 @@ pub extern "C" fn ros_image_from_cdr(data: *const u8, len: usize) -> *mut ros_im
 }
 
 #[no_mangle]
-pub extern "C" fn ros_image_free(view: *mut ros_image_t) {
+pub extern "C" fn sensor_msgs_image_free(view: *mut sensor_msgs_image_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -1038,7 +1041,7 @@ pub extern "C" fn ros_image_free(view: *mut ros_image_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_image_get_stamp_sec(view: *const ros_image_t) -> i32 {
+pub extern "C" fn sensor_msgs_image_get_stamp_sec(view: *const sensor_msgs_image_t) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -1046,7 +1049,7 @@ pub extern "C" fn ros_image_get_stamp_sec(view: *const ros_image_t) -> i32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_image_get_stamp_nanosec(view: *const ros_image_t) -> u32 {
+pub extern "C" fn sensor_msgs_image_get_stamp_nanosec(view: *const sensor_msgs_image_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -1054,7 +1057,9 @@ pub extern "C" fn ros_image_get_stamp_nanosec(view: *const ros_image_t) -> u32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_image_get_frame_id(view: *const ros_image_t) -> *const c_char {
+pub extern "C" fn sensor_msgs_image_get_frame_id(
+    view: *const sensor_msgs_image_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -1062,7 +1067,7 @@ pub extern "C" fn ros_image_get_frame_id(view: *const ros_image_t) -> *const c_c
 }
 
 #[no_mangle]
-pub extern "C" fn ros_image_get_height(view: *const ros_image_t) -> u32 {
+pub extern "C" fn sensor_msgs_image_get_height(view: *const sensor_msgs_image_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -1070,7 +1075,7 @@ pub extern "C" fn ros_image_get_height(view: *const ros_image_t) -> u32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_image_get_width(view: *const ros_image_t) -> u32 {
+pub extern "C" fn sensor_msgs_image_get_width(view: *const sensor_msgs_image_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -1078,7 +1083,9 @@ pub extern "C" fn ros_image_get_width(view: *const ros_image_t) -> u32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_image_get_encoding(view: *const ros_image_t) -> *const c_char {
+pub extern "C" fn sensor_msgs_image_get_encoding(
+    view: *const sensor_msgs_image_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -1086,7 +1093,7 @@ pub extern "C" fn ros_image_get_encoding(view: *const ros_image_t) -> *const c_c
 }
 
 #[no_mangle]
-pub extern "C" fn ros_image_get_is_bigendian(view: *const ros_image_t) -> u8 {
+pub extern "C" fn sensor_msgs_image_get_is_bigendian(view: *const sensor_msgs_image_t) -> u8 {
     if view.is_null() {
         return 0;
     }
@@ -1094,7 +1101,7 @@ pub extern "C" fn ros_image_get_is_bigendian(view: *const ros_image_t) -> u8 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_image_get_step(view: *const ros_image_t) -> u32 {
+pub extern "C" fn sensor_msgs_image_get_step(view: *const sensor_msgs_image_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -1102,7 +1109,10 @@ pub extern "C" fn ros_image_get_step(view: *const ros_image_t) -> u32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_image_get_data(view: *const ros_image_t, out_len: *mut usize) -> *const u8 {
+pub extern "C" fn sensor_msgs_image_get_data(
+    view: *const sensor_msgs_image_t,
+    out_len: *mut usize,
+) -> *const u8 {
     if view.is_null() {
         if !out_len.is_null() {
             unsafe {
@@ -1124,21 +1134,21 @@ pub extern "C" fn ros_image_get_data(view: *const ros_image_t, out_len: *mut usi
 // CompressedImage (buffer-backed)
 // =============================================================================
 
-pub struct ros_compressed_image_t(sensor_msgs::CompressedImage<&'static [u8]>);
+pub struct sensor_msgs_compressed_image_t(sensor_msgs::CompressedImage<&'static [u8]>);
 
 /// @brief Create a CompressedImage view from CDR bytes.
 /// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
 /// @param len Length of data
 /// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
-pub extern "C" fn ros_compressed_image_from_cdr(
+pub extern "C" fn sensor_msgs_compressed_image_from_cdr(
     data: *const u8,
     len: usize,
-) -> *mut ros_compressed_image_t {
+) -> *mut sensor_msgs_compressed_image_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match sensor_msgs::CompressedImage::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_compressed_image_t(v))),
+        Ok(v) => Box::into_raw(Box::new(sensor_msgs_compressed_image_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -1147,7 +1157,7 @@ pub extern "C" fn ros_compressed_image_from_cdr(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_compressed_image_free(view: *mut ros_compressed_image_t) {
+pub extern "C" fn sensor_msgs_compressed_image_free(view: *mut sensor_msgs_compressed_image_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -1156,7 +1166,9 @@ pub extern "C" fn ros_compressed_image_free(view: *mut ros_compressed_image_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_compressed_image_get_stamp_sec(view: *const ros_compressed_image_t) -> i32 {
+pub extern "C" fn sensor_msgs_compressed_image_get_stamp_sec(
+    view: *const sensor_msgs_compressed_image_t,
+) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -1164,8 +1176,8 @@ pub extern "C" fn ros_compressed_image_get_stamp_sec(view: *const ros_compressed
 }
 
 #[no_mangle]
-pub extern "C" fn ros_compressed_image_get_stamp_nanosec(
-    view: *const ros_compressed_image_t,
+pub extern "C" fn sensor_msgs_compressed_image_get_stamp_nanosec(
+    view: *const sensor_msgs_compressed_image_t,
 ) -> u32 {
     if view.is_null() {
         return 0;
@@ -1174,8 +1186,8 @@ pub extern "C" fn ros_compressed_image_get_stamp_nanosec(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_compressed_image_get_frame_id(
-    view: *const ros_compressed_image_t,
+pub extern "C" fn sensor_msgs_compressed_image_get_frame_id(
+    view: *const sensor_msgs_compressed_image_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -1184,8 +1196,8 @@ pub extern "C" fn ros_compressed_image_get_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_compressed_image_get_format(
-    view: *const ros_compressed_image_t,
+pub extern "C" fn sensor_msgs_compressed_image_get_format(
+    view: *const sensor_msgs_compressed_image_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -1194,8 +1206,8 @@ pub extern "C" fn ros_compressed_image_get_format(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_compressed_image_get_data(
-    view: *const ros_compressed_image_t,
+pub extern "C" fn sensor_msgs_compressed_image_get_data(
+    view: *const sensor_msgs_compressed_image_t,
     out_len: *mut usize,
 ) -> *const u8 {
     if view.is_null() {
@@ -1219,21 +1231,21 @@ pub extern "C" fn ros_compressed_image_get_data(
 // FoxgloveCompressedVideo (buffer-backed)
 // =============================================================================
 
-pub struct ros_compressed_video_t(foxglove_msgs::FoxgloveCompressedVideo<&'static [u8]>);
+pub struct foxglove_msgs_compressed_video_t(foxglove_msgs::FoxgloveCompressedVideo<&'static [u8]>);
 
 /// @brief Create a CompressedVideo view from CDR bytes.
 /// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
 /// @param len Length of data
 /// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
-pub extern "C" fn ros_compressed_video_from_cdr(
+pub extern "C" fn foxglove_msgs_compressed_video_from_cdr(
     data: *const u8,
     len: usize,
-) -> *mut ros_compressed_video_t {
+) -> *mut foxglove_msgs_compressed_video_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match foxglove_msgs::FoxgloveCompressedVideo::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_compressed_video_t(v))),
+        Ok(v) => Box::into_raw(Box::new(foxglove_msgs_compressed_video_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -1242,7 +1254,7 @@ pub extern "C" fn ros_compressed_video_from_cdr(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_compressed_video_free(view: *mut ros_compressed_video_t) {
+pub extern "C" fn foxglove_msgs_compressed_video_free(view: *mut foxglove_msgs_compressed_video_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -1251,24 +1263,26 @@ pub extern "C" fn ros_compressed_video_free(view: *mut ros_compressed_video_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_compressed_video_get_stamp_sec(view: *const ros_compressed_video_t) -> i32 {
+pub extern "C" fn foxglove_msgs_compressed_video_get_stamp_sec(
+    view: *const foxglove_msgs_compressed_video_t,
+) -> i32 {
     if view.is_null() {
         return 0;
     }
     unsafe { (*view).0.stamp().sec }
 }
 
-/// Alias for `ros_compressed_video_get_stamp_sec`; matches the Foxglove schema field name.
+/// Alias for `foxglove_msgs_compressed_video_get_stamp_sec`; matches the Foxglove schema field name.
 #[no_mangle]
-pub unsafe extern "C" fn ros_compressed_video_get_timestamp_sec(
-    view: *const ros_compressed_video_t,
+pub unsafe extern "C" fn foxglove_msgs_compressed_video_get_timestamp_sec(
+    view: *const foxglove_msgs_compressed_video_t,
 ) -> i32 {
-    ros_compressed_video_get_stamp_sec(view)
+    foxglove_msgs_compressed_video_get_stamp_sec(view)
 }
 
 #[no_mangle]
-pub extern "C" fn ros_compressed_video_get_stamp_nanosec(
-    view: *const ros_compressed_video_t,
+pub extern "C" fn foxglove_msgs_compressed_video_get_stamp_nanosec(
+    view: *const foxglove_msgs_compressed_video_t,
 ) -> u32 {
     if view.is_null() {
         return 0;
@@ -1276,17 +1290,17 @@ pub extern "C" fn ros_compressed_video_get_stamp_nanosec(
     unsafe { (*view).0.stamp().nanosec }
 }
 
-/// Alias for `ros_compressed_video_get_stamp_nanosec`; matches the Foxglove schema field name.
+/// Alias for `foxglove_msgs_compressed_video_get_stamp_nanosec`; matches the Foxglove schema field name.
 #[no_mangle]
-pub unsafe extern "C" fn ros_compressed_video_get_timestamp_nanosec(
-    view: *const ros_compressed_video_t,
+pub unsafe extern "C" fn foxglove_msgs_compressed_video_get_timestamp_nanosec(
+    view: *const foxglove_msgs_compressed_video_t,
 ) -> u32 {
-    ros_compressed_video_get_stamp_nanosec(view)
+    foxglove_msgs_compressed_video_get_stamp_nanosec(view)
 }
 
 #[no_mangle]
-pub extern "C" fn ros_compressed_video_get_frame_id(
-    view: *const ros_compressed_video_t,
+pub extern "C" fn foxglove_msgs_compressed_video_get_frame_id(
+    view: *const foxglove_msgs_compressed_video_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -1295,8 +1309,8 @@ pub extern "C" fn ros_compressed_video_get_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_compressed_video_get_data(
-    view: *const ros_compressed_video_t,
+pub extern "C" fn foxglove_msgs_compressed_video_get_data(
+    view: *const foxglove_msgs_compressed_video_t,
     out_len: *mut usize,
 ) -> *const u8 {
     if view.is_null() {
@@ -1317,8 +1331,8 @@ pub extern "C" fn ros_compressed_video_get_data(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_compressed_video_get_format(
-    view: *const ros_compressed_video_t,
+pub extern "C" fn foxglove_msgs_compressed_video_get_format(
+    view: *const foxglove_msgs_compressed_video_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -1330,25 +1344,25 @@ pub extern "C" fn ros_compressed_video_get_format(
 // FoxgloveCompressedImage (buffer-backed)
 // =============================================================================
 //
-// NOTE: the short `ros_compressed_image_` prefix belongs to
+// NOTE: the short `sensor_msgs_compressed_image_` prefix belongs to
 // `sensor_msgs::CompressedImage`; the Foxglove variant uses the
-// `ros_foxglove_compressed_image_` prefix (matching the builder-side naming).
+// `foxglove_msgs_compressed_image_` prefix (matching the builder-side naming).
 
-pub struct ros_foxglove_compressed_image_t(foxglove_msgs::FoxgloveCompressedImage<&'static [u8]>);
+pub struct foxglove_msgs_compressed_image_t(foxglove_msgs::FoxgloveCompressedImage<&'static [u8]>);
 
 /// @brief Create a Foxglove CompressedImage view from CDR bytes.
 /// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
 /// @param len Length of data
 /// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_image_from_cdr(
+pub extern "C" fn foxglove_msgs_compressed_image_from_cdr(
     data: *const u8,
     len: usize,
-) -> *mut ros_foxglove_compressed_image_t {
+) -> *mut foxglove_msgs_compressed_image_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match foxglove_msgs::FoxgloveCompressedImage::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_foxglove_compressed_image_t(v))),
+        Ok(v) => Box::into_raw(Box::new(foxglove_msgs_compressed_image_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -1357,7 +1371,7 @@ pub extern "C" fn ros_foxglove_compressed_image_from_cdr(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_image_free(view: *mut ros_foxglove_compressed_image_t) {
+pub extern "C" fn foxglove_msgs_compressed_image_free(view: *mut foxglove_msgs_compressed_image_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -1366,8 +1380,8 @@ pub extern "C" fn ros_foxglove_compressed_image_free(view: *mut ros_foxglove_com
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_image_get_stamp_sec(
-    view: *const ros_foxglove_compressed_image_t,
+pub extern "C" fn foxglove_msgs_compressed_image_get_stamp_sec(
+    view: *const foxglove_msgs_compressed_image_t,
 ) -> i32 {
     if view.is_null() {
         return 0;
@@ -1375,17 +1389,17 @@ pub extern "C" fn ros_foxglove_compressed_image_get_stamp_sec(
     unsafe { (*view).0.stamp().sec }
 }
 
-/// Alias for `ros_foxglove_compressed_image_get_stamp_sec`; matches the Foxglove schema field name.
+/// Alias for `foxglove_msgs_compressed_image_get_stamp_sec`; matches the Foxglove schema field name.
 #[no_mangle]
-pub unsafe extern "C" fn ros_foxglove_compressed_image_get_timestamp_sec(
-    view: *const ros_foxglove_compressed_image_t,
+pub unsafe extern "C" fn foxglove_msgs_compressed_image_get_timestamp_sec(
+    view: *const foxglove_msgs_compressed_image_t,
 ) -> i32 {
-    ros_foxglove_compressed_image_get_stamp_sec(view)
+    foxglove_msgs_compressed_image_get_stamp_sec(view)
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_image_get_stamp_nanosec(
-    view: *const ros_foxglove_compressed_image_t,
+pub extern "C" fn foxglove_msgs_compressed_image_get_stamp_nanosec(
+    view: *const foxglove_msgs_compressed_image_t,
 ) -> u32 {
     if view.is_null() {
         return 0;
@@ -1393,17 +1407,17 @@ pub extern "C" fn ros_foxglove_compressed_image_get_stamp_nanosec(
     unsafe { (*view).0.stamp().nanosec }
 }
 
-/// Alias for `ros_foxglove_compressed_image_get_stamp_nanosec`; matches the Foxglove schema field name.
+/// Alias for `foxglove_msgs_compressed_image_get_stamp_nanosec`; matches the Foxglove schema field name.
 #[no_mangle]
-pub unsafe extern "C" fn ros_foxglove_compressed_image_get_timestamp_nanosec(
-    view: *const ros_foxglove_compressed_image_t,
+pub unsafe extern "C" fn foxglove_msgs_compressed_image_get_timestamp_nanosec(
+    view: *const foxglove_msgs_compressed_image_t,
 ) -> u32 {
-    ros_foxglove_compressed_image_get_stamp_nanosec(view)
+    foxglove_msgs_compressed_image_get_stamp_nanosec(view)
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_image_get_frame_id(
-    view: *const ros_foxglove_compressed_image_t,
+pub extern "C" fn foxglove_msgs_compressed_image_get_frame_id(
+    view: *const foxglove_msgs_compressed_image_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -1412,8 +1426,8 @@ pub extern "C" fn ros_foxglove_compressed_image_get_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_image_get_data(
-    view: *const ros_foxglove_compressed_image_t,
+pub extern "C" fn foxglove_msgs_compressed_image_get_data(
+    view: *const foxglove_msgs_compressed_image_t,
     out_len: *mut usize,
 ) -> *const u8 {
     if view.is_null() {
@@ -1434,8 +1448,8 @@ pub extern "C" fn ros_foxglove_compressed_image_get_data(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_image_get_format(
-    view: *const ros_foxglove_compressed_image_t,
+pub extern "C" fn foxglove_msgs_compressed_image_get_format(
+    view: *const foxglove_msgs_compressed_image_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -1447,14 +1461,14 @@ pub extern "C" fn ros_foxglove_compressed_image_get_format(
 // Mask (buffer-backed)
 // =============================================================================
 
-pub struct ros_mask_t {
+pub struct edgefirst_msgs_mask_t {
     view: edgefirst_msgs::MaskView<'static>,
-    /// `true` if this handle was heap-allocated by `ros_mask_from_cdr`
-    /// (and must be freed by `ros_mask_free`). `false` if this handle
-    /// lives inside a parent `ros_model_t`'s `child_masks` vector and
-    /// is borrowed from there; calling `ros_mask_free` on a borrowed
+    /// `true` if this handle was heap-allocated by `edgefirst_msgs_mask_from_cdr`
+    /// (and must be freed by `edgefirst_msgs_mask_free`). `false` if this handle
+    /// lives inside a parent `edgefirst_msgs_model_t`'s `child_masks` vector and
+    /// is borrowed from there; calling `edgefirst_msgs_mask_free` on a borrowed
     /// handle would `Box::from_raw` an address inside someone else's
-    /// allocation and corrupt the heap, so `ros_mask_free` checks this
+    /// allocation and corrupt the heap, so `edgefirst_msgs_mask_free` checks this
     /// flag and no-ops with `errno=EINVAL` when it's `false`.
     owned: bool,
 }
@@ -1464,7 +1478,10 @@ pub struct ros_mask_t {
 /// @param len Length of data
 /// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
-pub extern "C" fn ros_mask_from_cdr(data: *const u8, len: usize) -> *mut ros_mask_t {
+pub extern "C" fn edgefirst_msgs_mask_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut edgefirst_msgs_mask_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     let static_slice: &'static [u8] = unsafe { erase_lifetime(slice) };
@@ -1473,7 +1490,7 @@ pub extern "C" fn ros_mask_from_cdr(data: *const u8, len: usize) -> *mut ros_mas
     // are structurally tied to the buffer's `'static` lifetime, so no unsafe
     // `mem::transmute` is required to widen method-returned references.
     match edgefirst_msgs::Mask::from_cdr_as_view(static_slice) {
-        Ok(view) => Box::into_raw(Box::new(ros_mask_t { view, owned: true })),
+        Ok(view) => Box::into_raw(Box::new(edgefirst_msgs_mask_t { view, owned: true })),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -1481,17 +1498,17 @@ pub extern "C" fn ros_mask_from_cdr(data: *const u8, len: usize) -> *mut ros_mas
     }
 }
 
-/// @brief Free a Mask handle obtained from `ros_mask_from_cdr`.
+/// @brief Free a Mask handle obtained from `edgefirst_msgs_mask_from_cdr`.
 ///
 /// Safe to call with a NULL pointer. If the handle was obtained from
-/// `ros_model_get_mask` (a parent-borrowed child), this function does
-/// **not** free it — the parent `ros_model_t` owns the child storage,
+/// `edgefirst_msgs_model_get_mask` (a parent-borrowed child), this function does
+/// **not** free it — the parent `edgefirst_msgs_model_t` owns the child storage,
 /// and freeing here would corrupt the parent's `child_masks` vector.
 /// In that case the function sets `errno=EINVAL` and returns without
 /// touching the pointer. Passing a borrowed handle here is an API
 /// misuse (Rule 5 in CAPI.md); this is defense-in-depth against it.
 #[no_mangle]
-pub extern "C" fn ros_mask_free(view: *mut ros_mask_t) {
+pub extern "C" fn edgefirst_msgs_mask_free(view: *mut edgefirst_msgs_mask_t) {
     if view.is_null() {
         return;
     }
@@ -1506,7 +1523,7 @@ pub extern "C" fn ros_mask_free(view: *mut ros_mask_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mask_get_height(view: *const ros_mask_t) -> u32 {
+pub extern "C" fn edgefirst_msgs_mask_get_height(view: *const edgefirst_msgs_mask_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -1514,7 +1531,7 @@ pub extern "C" fn ros_mask_get_height(view: *const ros_mask_t) -> u32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mask_get_width(view: *const ros_mask_t) -> u32 {
+pub extern "C" fn edgefirst_msgs_mask_get_width(view: *const edgefirst_msgs_mask_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -1522,7 +1539,7 @@ pub extern "C" fn ros_mask_get_width(view: *const ros_mask_t) -> u32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mask_get_length(view: *const ros_mask_t) -> u32 {
+pub extern "C" fn edgefirst_msgs_mask_get_length(view: *const edgefirst_msgs_mask_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -1530,7 +1547,9 @@ pub extern "C" fn ros_mask_get_length(view: *const ros_mask_t) -> u32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mask_get_encoding(view: *const ros_mask_t) -> *const c_char {
+pub extern "C" fn edgefirst_msgs_mask_get_encoding(
+    view: *const edgefirst_msgs_mask_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -1538,7 +1557,10 @@ pub extern "C" fn ros_mask_get_encoding(view: *const ros_mask_t) -> *const c_cha
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mask_get_data(view: *const ros_mask_t, out_len: *mut usize) -> *const u8 {
+pub extern "C" fn edgefirst_msgs_mask_get_data(
+    view: *const edgefirst_msgs_mask_t,
+    out_len: *mut usize,
+) -> *const u8 {
     if view.is_null() {
         if !out_len.is_null() {
             unsafe {
@@ -1557,7 +1579,7 @@ pub extern "C" fn ros_mask_get_data(view: *const ros_mask_t, out_len: *mut usize
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mask_get_boxed(view: *const ros_mask_t) -> bool {
+pub extern "C" fn edgefirst_msgs_mask_get_boxed(view: *const edgefirst_msgs_mask_t) -> bool {
     if view.is_null() {
         return false;
     }
@@ -1568,18 +1590,18 @@ pub extern "C" fn ros_mask_get_boxed(view: *const ros_mask_t) -> bool {
 // IMU (buffer-backed)
 // =============================================================================
 
-pub struct ros_imu_t(sensor_msgs::Imu<&'static [u8]>);
+pub struct sensor_msgs_imu_t(sensor_msgs::Imu<&'static [u8]>);
 
 /// @brief Create an Imu view from CDR bytes.
 /// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
 /// @param len Length of data
 /// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
-pub extern "C" fn ros_imu_from_cdr(data: *const u8, len: usize) -> *mut ros_imu_t {
+pub extern "C" fn sensor_msgs_imu_from_cdr(data: *const u8, len: usize) -> *mut sensor_msgs_imu_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match sensor_msgs::Imu::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_imu_t(v))),
+        Ok(v) => Box::into_raw(Box::new(sensor_msgs_imu_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -1588,7 +1610,7 @@ pub extern "C" fn ros_imu_from_cdr(data: *const u8, len: usize) -> *mut ros_imu_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_imu_free(view: *mut ros_imu_t) {
+pub extern "C" fn sensor_msgs_imu_free(view: *mut sensor_msgs_imu_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -1597,7 +1619,7 @@ pub extern "C" fn ros_imu_free(view: *mut ros_imu_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_imu_get_stamp_sec(view: *const ros_imu_t) -> i32 {
+pub extern "C" fn sensor_msgs_imu_get_stamp_sec(view: *const sensor_msgs_imu_t) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -1605,7 +1627,7 @@ pub extern "C" fn ros_imu_get_stamp_sec(view: *const ros_imu_t) -> i32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_imu_get_stamp_nanosec(view: *const ros_imu_t) -> u32 {
+pub extern "C" fn sensor_msgs_imu_get_stamp_nanosec(view: *const sensor_msgs_imu_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -1613,7 +1635,7 @@ pub extern "C" fn ros_imu_get_stamp_nanosec(view: *const ros_imu_t) -> u32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_imu_get_frame_id(view: *const ros_imu_t) -> *const c_char {
+pub extern "C" fn sensor_msgs_imu_get_frame_id(view: *const sensor_msgs_imu_t) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -1622,8 +1644,8 @@ pub extern "C" fn ros_imu_get_frame_id(view: *const ros_imu_t) -> *const c_char 
 
 /// Write the IMU orientation quaternion (x, y, z, w) to the provided output pointers.
 #[no_mangle]
-pub extern "C" fn ros_imu_get_orientation(
-    view: *const ros_imu_t,
+pub extern "C" fn sensor_msgs_imu_get_orientation(
+    view: *const sensor_msgs_imu_t,
     x: *mut f64,
     y: *mut f64,
     z: *mut f64,
@@ -1651,7 +1673,10 @@ pub extern "C" fn ros_imu_get_orientation(
 
 /// Write the 9-element orientation covariance to `out` (row-major 3×3).
 #[no_mangle]
-pub extern "C" fn ros_imu_get_orientation_covariance(view: *const ros_imu_t, out: *mut f64) {
+pub extern "C" fn sensor_msgs_imu_get_orientation_covariance(
+    view: *const sensor_msgs_imu_t,
+    out: *mut f64,
+) {
     if view.is_null() || out.is_null() {
         return;
     }
@@ -1663,8 +1688,8 @@ pub extern "C" fn ros_imu_get_orientation_covariance(view: *const ros_imu_t, out
 
 /// Write the IMU angular velocity (x, y, z) to the provided output pointers.
 #[no_mangle]
-pub extern "C" fn ros_imu_get_angular_velocity(
-    view: *const ros_imu_t,
+pub extern "C" fn sensor_msgs_imu_get_angular_velocity(
+    view: *const sensor_msgs_imu_t,
     x: *mut f64,
     y: *mut f64,
     z: *mut f64,
@@ -1688,7 +1713,10 @@ pub extern "C" fn ros_imu_get_angular_velocity(
 
 /// Write the 9-element angular velocity covariance to `out` (row-major 3×3).
 #[no_mangle]
-pub extern "C" fn ros_imu_get_angular_velocity_covariance(view: *const ros_imu_t, out: *mut f64) {
+pub extern "C" fn sensor_msgs_imu_get_angular_velocity_covariance(
+    view: *const sensor_msgs_imu_t,
+    out: *mut f64,
+) {
     if view.is_null() || out.is_null() {
         return;
     }
@@ -1700,8 +1728,8 @@ pub extern "C" fn ros_imu_get_angular_velocity_covariance(view: *const ros_imu_t
 
 /// Write the IMU linear acceleration (x, y, z) to the provided output pointers.
 #[no_mangle]
-pub extern "C" fn ros_imu_get_linear_acceleration(
-    view: *const ros_imu_t,
+pub extern "C" fn sensor_msgs_imu_get_linear_acceleration(
+    view: *const sensor_msgs_imu_t,
     x: *mut f64,
     y: *mut f64,
     z: *mut f64,
@@ -1725,8 +1753,8 @@ pub extern "C" fn ros_imu_get_linear_acceleration(
 
 /// Write the 9-element linear acceleration covariance to `out` (row-major 3×3).
 #[no_mangle]
-pub extern "C" fn ros_imu_get_linear_acceleration_covariance(
-    view: *const ros_imu_t,
+pub extern "C" fn sensor_msgs_imu_get_linear_acceleration_covariance(
+    view: *const sensor_msgs_imu_t,
     out: *mut f64,
 ) {
     if view.is_null() || out.is_null() {
@@ -1742,18 +1770,21 @@ pub extern "C" fn ros_imu_get_linear_acceleration_covariance(
 // NavSatFix (buffer-backed)
 // =============================================================================
 
-pub struct ros_nav_sat_fix_t(sensor_msgs::NavSatFix<&'static [u8]>);
+pub struct sensor_msgs_nav_sat_fix_t(sensor_msgs::NavSatFix<&'static [u8]>);
 
 /// @brief Create a NavSatFix view from CDR bytes.
 /// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
 /// @param len Length of data
 /// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_from_cdr(data: *const u8, len: usize) -> *mut ros_nav_sat_fix_t {
+pub extern "C" fn sensor_msgs_nav_sat_fix_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut sensor_msgs_nav_sat_fix_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match sensor_msgs::NavSatFix::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_nav_sat_fix_t(v))),
+        Ok(v) => Box::into_raw(Box::new(sensor_msgs_nav_sat_fix_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -1762,7 +1793,7 @@ pub extern "C" fn ros_nav_sat_fix_from_cdr(data: *const u8, len: usize) -> *mut 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_free(view: *mut ros_nav_sat_fix_t) {
+pub extern "C" fn sensor_msgs_nav_sat_fix_free(view: *mut sensor_msgs_nav_sat_fix_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -1771,7 +1802,9 @@ pub extern "C" fn ros_nav_sat_fix_free(view: *mut ros_nav_sat_fix_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_get_stamp_sec(view: *const ros_nav_sat_fix_t) -> i32 {
+pub extern "C" fn sensor_msgs_nav_sat_fix_get_stamp_sec(
+    view: *const sensor_msgs_nav_sat_fix_t,
+) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -1779,7 +1812,9 @@ pub extern "C" fn ros_nav_sat_fix_get_stamp_sec(view: *const ros_nav_sat_fix_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_get_stamp_nanosec(view: *const ros_nav_sat_fix_t) -> u32 {
+pub extern "C" fn sensor_msgs_nav_sat_fix_get_stamp_nanosec(
+    view: *const sensor_msgs_nav_sat_fix_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -1787,7 +1822,9 @@ pub extern "C" fn ros_nav_sat_fix_get_stamp_nanosec(view: *const ros_nav_sat_fix
 }
 
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_get_frame_id(view: *const ros_nav_sat_fix_t) -> *const c_char {
+pub extern "C" fn sensor_msgs_nav_sat_fix_get_frame_id(
+    view: *const sensor_msgs_nav_sat_fix_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -1795,7 +1832,9 @@ pub extern "C" fn ros_nav_sat_fix_get_frame_id(view: *const ros_nav_sat_fix_t) -
 }
 
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_get_latitude(view: *const ros_nav_sat_fix_t) -> f64 {
+pub extern "C" fn sensor_msgs_nav_sat_fix_get_latitude(
+    view: *const sensor_msgs_nav_sat_fix_t,
+) -> f64 {
     if view.is_null() {
         return 0.0;
     }
@@ -1803,7 +1842,9 @@ pub extern "C" fn ros_nav_sat_fix_get_latitude(view: *const ros_nav_sat_fix_t) -
 }
 
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_get_longitude(view: *const ros_nav_sat_fix_t) -> f64 {
+pub extern "C" fn sensor_msgs_nav_sat_fix_get_longitude(
+    view: *const sensor_msgs_nav_sat_fix_t,
+) -> f64 {
     if view.is_null() {
         return 0.0;
     }
@@ -1811,7 +1852,9 @@ pub extern "C" fn ros_nav_sat_fix_get_longitude(view: *const ros_nav_sat_fix_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_get_altitude(view: *const ros_nav_sat_fix_t) -> f64 {
+pub extern "C" fn sensor_msgs_nav_sat_fix_get_altitude(
+    view: *const sensor_msgs_nav_sat_fix_t,
+) -> f64 {
     if view.is_null() {
         return 0.0;
     }
@@ -1822,21 +1865,21 @@ pub extern "C" fn ros_nav_sat_fix_get_altitude(view: *const ros_nav_sat_fix_t) -
 // TransformStamped (buffer-backed)
 // =============================================================================
 
-pub struct ros_transform_stamped_t(geometry_msgs::TransformStamped<&'static [u8]>);
+pub struct geometry_msgs_transform_stamped_t(geometry_msgs::TransformStamped<&'static [u8]>);
 
 /// @brief Create a TransformStamped view from CDR bytes.
 /// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
 /// @param len Length of data
 /// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
-pub extern "C" fn ros_transform_stamped_from_cdr(
+pub extern "C" fn geometry_msgs_transform_stamped_from_cdr(
     data: *const u8,
     len: usize,
-) -> *mut ros_transform_stamped_t {
+) -> *mut geometry_msgs_transform_stamped_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match geometry_msgs::TransformStamped::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_transform_stamped_t(v))),
+        Ok(v) => Box::into_raw(Box::new(geometry_msgs_transform_stamped_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -1845,7 +1888,9 @@ pub extern "C" fn ros_transform_stamped_from_cdr(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_transform_stamped_free(view: *mut ros_transform_stamped_t) {
+pub extern "C" fn geometry_msgs_transform_stamped_free(
+    view: *mut geometry_msgs_transform_stamped_t,
+) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -1854,7 +1899,9 @@ pub extern "C" fn ros_transform_stamped_free(view: *mut ros_transform_stamped_t)
 }
 
 #[no_mangle]
-pub extern "C" fn ros_transform_stamped_get_stamp_sec(view: *const ros_transform_stamped_t) -> i32 {
+pub extern "C" fn geometry_msgs_transform_stamped_get_stamp_sec(
+    view: *const geometry_msgs_transform_stamped_t,
+) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -1862,8 +1909,8 @@ pub extern "C" fn ros_transform_stamped_get_stamp_sec(view: *const ros_transform
 }
 
 #[no_mangle]
-pub extern "C" fn ros_transform_stamped_get_stamp_nanosec(
-    view: *const ros_transform_stamped_t,
+pub extern "C" fn geometry_msgs_transform_stamped_get_stamp_nanosec(
+    view: *const geometry_msgs_transform_stamped_t,
 ) -> u32 {
     if view.is_null() {
         return 0;
@@ -1872,8 +1919,8 @@ pub extern "C" fn ros_transform_stamped_get_stamp_nanosec(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_transform_stamped_get_frame_id(
-    view: *const ros_transform_stamped_t,
+pub extern "C" fn geometry_msgs_transform_stamped_get_frame_id(
+    view: *const geometry_msgs_transform_stamped_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -1882,8 +1929,8 @@ pub extern "C" fn ros_transform_stamped_get_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_transform_stamped_get_child_frame_id(
-    view: *const ros_transform_stamped_t,
+pub extern "C" fn geometry_msgs_transform_stamped_get_child_frame_id(
+    view: *const geometry_msgs_transform_stamped_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -1955,126 +2002,129 @@ macro_rules! impl_simple_stamped {
 }
 
 impl_simple_stamped!(
-    ros_twist_stamped_t,
+    geometry_msgs_twist_stamped_t,
     geometry_msgs::TwistStamped<&'static [u8]>,
-    ros_twist_stamped_from_cdr,
-    ros_twist_stamped_free,
-    ros_twist_stamped_get_stamp_sec,
-    ros_twist_stamped_get_stamp_nanosec,
-    ros_twist_stamped_get_frame_id
+    geometry_msgs_twist_stamped_from_cdr,
+    geometry_msgs_twist_stamped_free,
+    geometry_msgs_twist_stamped_get_stamp_sec,
+    geometry_msgs_twist_stamped_get_stamp_nanosec,
+    geometry_msgs_twist_stamped_get_frame_id
 );
 
 impl_simple_stamped!(
-    ros_accel_stamped_t,
+    geometry_msgs_accel_stamped_t,
     geometry_msgs::AccelStamped<&'static [u8]>,
-    ros_accel_stamped_from_cdr,
-    ros_accel_stamped_free,
-    ros_accel_stamped_get_stamp_sec,
-    ros_accel_stamped_get_stamp_nanosec,
-    ros_accel_stamped_get_frame_id
+    geometry_msgs_accel_stamped_from_cdr,
+    geometry_msgs_accel_stamped_free,
+    geometry_msgs_accel_stamped_get_stamp_sec,
+    geometry_msgs_accel_stamped_get_stamp_nanosec,
+    geometry_msgs_accel_stamped_get_frame_id
 );
 
 impl_simple_stamped!(
-    ros_point_stamped_t,
+    geometry_msgs_point_stamped_t,
     geometry_msgs::PointStamped<&'static [u8]>,
-    ros_point_stamped_from_cdr,
-    ros_point_stamped_free,
-    ros_point_stamped_get_stamp_sec,
-    ros_point_stamped_get_stamp_nanosec,
-    ros_point_stamped_get_frame_id
+    geometry_msgs_point_stamped_from_cdr,
+    geometry_msgs_point_stamped_free,
+    geometry_msgs_point_stamped_get_stamp_sec,
+    geometry_msgs_point_stamped_get_stamp_nanosec,
+    geometry_msgs_point_stamped_get_frame_id
 );
 
 impl_simple_stamped!(
-    ros_inertia_stamped_t,
+    geometry_msgs_inertia_stamped_t,
     geometry_msgs::InertiaStamped<&'static [u8]>,
-    ros_inertia_stamped_from_cdr,
-    ros_inertia_stamped_free,
-    ros_inertia_stamped_get_stamp_sec,
-    ros_inertia_stamped_get_stamp_nanosec,
-    ros_inertia_stamped_get_frame_id
+    geometry_msgs_inertia_stamped_from_cdr,
+    geometry_msgs_inertia_stamped_free,
+    geometry_msgs_inertia_stamped_get_stamp_sec,
+    geometry_msgs_inertia_stamped_get_stamp_nanosec,
+    geometry_msgs_inertia_stamped_get_frame_id
 );
 
 impl_simple_stamped!(
-    ros_vector3_stamped_t,
+    geometry_msgs_vector3_stamped_t,
     geometry_msgs::Vector3Stamped<&'static [u8]>,
-    ros_vector3_stamped_from_cdr,
-    ros_vector3_stamped_free,
-    ros_vector3_stamped_get_stamp_sec,
-    ros_vector3_stamped_get_stamp_nanosec,
-    ros_vector3_stamped_get_frame_id
+    geometry_msgs_vector3_stamped_from_cdr,
+    geometry_msgs_vector3_stamped_free,
+    geometry_msgs_vector3_stamped_get_stamp_sec,
+    geometry_msgs_vector3_stamped_get_stamp_nanosec,
+    geometry_msgs_vector3_stamped_get_frame_id
 );
 
 impl_simple_stamped!(
-    ros_pose_stamped_t,
+    geometry_msgs_pose_stamped_t,
     geometry_msgs::PoseStamped<&'static [u8]>,
-    ros_pose_stamped_from_cdr,
-    ros_pose_stamped_free,
-    ros_pose_stamped_get_stamp_sec,
-    ros_pose_stamped_get_stamp_nanosec,
-    ros_pose_stamped_get_frame_id
+    geometry_msgs_pose_stamped_from_cdr,
+    geometry_msgs_pose_stamped_free,
+    geometry_msgs_pose_stamped_get_stamp_sec,
+    geometry_msgs_pose_stamped_get_stamp_nanosec,
+    geometry_msgs_pose_stamped_get_frame_id
 );
 
 impl_simple_stamped!(
-    ros_quaternion_stamped_t,
+    geometry_msgs_quaternion_stamped_t,
     geometry_msgs::QuaternionStamped<&'static [u8]>,
-    ros_quaternion_stamped_from_cdr,
-    ros_quaternion_stamped_free,
-    ros_quaternion_stamped_get_stamp_sec,
-    ros_quaternion_stamped_get_stamp_nanosec,
-    ros_quaternion_stamped_get_frame_id
+    geometry_msgs_quaternion_stamped_from_cdr,
+    geometry_msgs_quaternion_stamped_free,
+    geometry_msgs_quaternion_stamped_get_stamp_sec,
+    geometry_msgs_quaternion_stamped_get_stamp_nanosec,
+    geometry_msgs_quaternion_stamped_get_frame_id
 );
 
 impl_simple_stamped!(
-    ros_wrench_stamped_t,
+    geometry_msgs_wrench_stamped_t,
     geometry_msgs::WrenchStamped<&'static [u8]>,
-    ros_wrench_stamped_from_cdr,
-    ros_wrench_stamped_free,
-    ros_wrench_stamped_get_stamp_sec,
-    ros_wrench_stamped_get_stamp_nanosec,
-    ros_wrench_stamped_get_frame_id
+    geometry_msgs_wrench_stamped_from_cdr,
+    geometry_msgs_wrench_stamped_free,
+    geometry_msgs_wrench_stamped_get_stamp_sec,
+    geometry_msgs_wrench_stamped_get_stamp_nanosec,
+    geometry_msgs_wrench_stamped_get_frame_id
 );
 
 impl_simple_stamped!(
-    ros_pose_with_covariance_stamped_t,
+    geometry_msgs_pose_with_covariance_stamped_t,
     geometry_msgs::PoseWithCovarianceStamped<&'static [u8]>,
-    ros_pose_with_covariance_stamped_from_cdr,
-    ros_pose_with_covariance_stamped_free,
-    ros_pose_with_covariance_stamped_get_stamp_sec,
-    ros_pose_with_covariance_stamped_get_stamp_nanosec,
-    ros_pose_with_covariance_stamped_get_frame_id
+    geometry_msgs_pose_with_covariance_stamped_from_cdr,
+    geometry_msgs_pose_with_covariance_stamped_free,
+    geometry_msgs_pose_with_covariance_stamped_get_stamp_sec,
+    geometry_msgs_pose_with_covariance_stamped_get_stamp_nanosec,
+    geometry_msgs_pose_with_covariance_stamped_get_frame_id
 );
 
 impl_simple_stamped!(
-    ros_twist_with_covariance_stamped_t,
+    geometry_msgs_twist_with_covariance_stamped_t,
     geometry_msgs::TwistWithCovarianceStamped<&'static [u8]>,
-    ros_twist_with_covariance_stamped_from_cdr,
-    ros_twist_with_covariance_stamped_free,
-    ros_twist_with_covariance_stamped_get_stamp_sec,
-    ros_twist_with_covariance_stamped_get_stamp_nanosec,
-    ros_twist_with_covariance_stamped_get_frame_id
+    geometry_msgs_twist_with_covariance_stamped_from_cdr,
+    geometry_msgs_twist_with_covariance_stamped_free,
+    geometry_msgs_twist_with_covariance_stamped_get_stamp_sec,
+    geometry_msgs_twist_with_covariance_stamped_get_stamp_nanosec,
+    geometry_msgs_twist_with_covariance_stamped_get_frame_id
 );
 
 impl_simple_stamped!(
-    ros_accel_with_covariance_stamped_t,
+    geometry_msgs_accel_with_covariance_stamped_t,
     geometry_msgs::AccelWithCovarianceStamped<&'static [u8]>,
-    ros_accel_with_covariance_stamped_from_cdr,
-    ros_accel_with_covariance_stamped_free,
-    ros_accel_with_covariance_stamped_get_stamp_sec,
-    ros_accel_with_covariance_stamped_get_stamp_nanosec,
-    ros_accel_with_covariance_stamped_get_frame_id
+    geometry_msgs_accel_with_covariance_stamped_from_cdr,
+    geometry_msgs_accel_with_covariance_stamped_free,
+    geometry_msgs_accel_with_covariance_stamped_get_stamp_sec,
+    geometry_msgs_accel_with_covariance_stamped_get_stamp_nanosec,
+    geometry_msgs_accel_with_covariance_stamped_get_frame_id
 );
 
 // ── Polygon (buffer-backed, sequence type) ──────────────────────────
 
-pub struct ros_polygon_t(geometry_msgs::Polygon<&'static [u8]>);
+pub struct geometry_msgs_polygon_t(geometry_msgs::Polygon<&'static [u8]>);
 
 /// Parse CDR bytes into a Polygon view handle.
 #[no_mangle]
-pub extern "C" fn ros_polygon_from_cdr(data: *const u8, len: usize) -> *mut ros_polygon_t {
+pub extern "C" fn geometry_msgs_polygon_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut geometry_msgs_polygon_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match geometry_msgs::Polygon::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_polygon_t(v))),
+        Ok(v) => Box::into_raw(Box::new(geometry_msgs_polygon_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -2084,7 +2134,7 @@ pub extern "C" fn ros_polygon_from_cdr(data: *const u8, len: usize) -> *mut ros_
 
 /// Free a Polygon view handle.
 #[no_mangle]
-pub extern "C" fn ros_polygon_free(view: *mut ros_polygon_t) {
+pub extern "C" fn geometry_msgs_polygon_free(view: *mut geometry_msgs_polygon_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -2094,7 +2144,7 @@ pub extern "C" fn ros_polygon_free(view: *mut ros_polygon_t) {
 
 /// Get the number of points in the polygon.
 #[no_mangle]
-pub extern "C" fn ros_polygon_get_len(view: *const ros_polygon_t) -> usize {
+pub extern "C" fn geometry_msgs_polygon_get_len(view: *const geometry_msgs_polygon_t) -> usize {
     if view.is_null() {
         return 0;
     }
@@ -2103,8 +2153,8 @@ pub extern "C" fn ros_polygon_get_len(view: *const ros_polygon_t) -> usize {
 
 /// Get a point by index. Returns 0 on success, -1 if index out of range.
 #[no_mangle]
-pub extern "C" fn ros_polygon_get_point(
-    view: *const ros_polygon_t,
+pub extern "C" fn geometry_msgs_polygon_get_point(
+    view: *const geometry_msgs_polygon_t,
     index: usize,
     x: *mut f32,
     y: *mut f32,
@@ -2136,18 +2186,18 @@ pub extern "C" fn ros_polygon_get_point(
 
 // ── PolygonStamped (buffer-backed) ──────────────────────────────────
 
-pub struct ros_polygon_stamped_t(geometry_msgs::PolygonStamped<&'static [u8]>);
+pub struct geometry_msgs_polygon_stamped_t(geometry_msgs::PolygonStamped<&'static [u8]>);
 
 /// Parse CDR bytes into a PolygonStamped view handle.
 #[no_mangle]
-pub extern "C" fn ros_polygon_stamped_from_cdr(
+pub extern "C" fn geometry_msgs_polygon_stamped_from_cdr(
     data: *const u8,
     len: usize,
-) -> *mut ros_polygon_stamped_t {
+) -> *mut geometry_msgs_polygon_stamped_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match geometry_msgs::PolygonStamped::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_polygon_stamped_t(v))),
+        Ok(v) => Box::into_raw(Box::new(geometry_msgs_polygon_stamped_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -2157,7 +2207,7 @@ pub extern "C" fn ros_polygon_stamped_from_cdr(
 
 /// Free a PolygonStamped view handle.
 #[no_mangle]
-pub extern "C" fn ros_polygon_stamped_free(view: *mut ros_polygon_stamped_t) {
+pub extern "C" fn geometry_msgs_polygon_stamped_free(view: *mut geometry_msgs_polygon_stamped_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -2167,7 +2217,9 @@ pub extern "C" fn ros_polygon_stamped_free(view: *mut ros_polygon_stamped_t) {
 
 /// Get stamp seconds.
 #[no_mangle]
-pub extern "C" fn ros_polygon_stamped_get_stamp_sec(view: *const ros_polygon_stamped_t) -> i32 {
+pub extern "C" fn geometry_msgs_polygon_stamped_get_stamp_sec(
+    view: *const geometry_msgs_polygon_stamped_t,
+) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -2176,7 +2228,9 @@ pub extern "C" fn ros_polygon_stamped_get_stamp_sec(view: *const ros_polygon_sta
 
 /// Get stamp nanoseconds.
 #[no_mangle]
-pub extern "C" fn ros_polygon_stamped_get_stamp_nanosec(view: *const ros_polygon_stamped_t) -> u32 {
+pub extern "C" fn geometry_msgs_polygon_stamped_get_stamp_nanosec(
+    view: *const geometry_msgs_polygon_stamped_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -2185,8 +2239,8 @@ pub extern "C" fn ros_polygon_stamped_get_stamp_nanosec(view: *const ros_polygon
 
 /// Get frame_id (borrowed pointer valid while handle lives).
 #[no_mangle]
-pub extern "C" fn ros_polygon_stamped_get_frame_id(
-    view: *const ros_polygon_stamped_t,
+pub extern "C" fn geometry_msgs_polygon_stamped_get_frame_id(
+    view: *const geometry_msgs_polygon_stamped_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -2196,7 +2250,9 @@ pub extern "C" fn ros_polygon_stamped_get_frame_id(
 
 /// Get the number of points in the polygon.
 #[no_mangle]
-pub extern "C" fn ros_polygon_stamped_get_len(view: *const ros_polygon_stamped_t) -> usize {
+pub extern "C" fn geometry_msgs_polygon_stamped_get_len(
+    view: *const geometry_msgs_polygon_stamped_t,
+) -> usize {
     if view.is_null() {
         return 0;
     }
@@ -2205,8 +2261,8 @@ pub extern "C" fn ros_polygon_stamped_get_len(view: *const ros_polygon_stamped_t
 
 /// Get a point by index. Returns 0 on success, -1 if index out of range.
 #[no_mangle]
-pub extern "C" fn ros_polygon_stamped_get_point(
-    view: *const ros_polygon_stamped_t,
+pub extern "C" fn geometry_msgs_polygon_stamped_get_point(
+    view: *const geometry_msgs_polygon_stamped_t,
     index: usize,
     x: *mut f32,
     y: *mut f32,
@@ -2238,15 +2294,18 @@ pub extern "C" fn ros_polygon_stamped_get_point(
 
 // ── PoseArray (buffer-backed) ───────────────────────────────────────
 
-pub struct ros_pose_array_t(geometry_msgs::PoseArray<&'static [u8]>);
+pub struct geometry_msgs_pose_array_t(geometry_msgs::PoseArray<&'static [u8]>);
 
 /// Parse CDR bytes into a PoseArray view handle.
 #[no_mangle]
-pub extern "C" fn ros_pose_array_from_cdr(data: *const u8, len: usize) -> *mut ros_pose_array_t {
+pub extern "C" fn geometry_msgs_pose_array_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut geometry_msgs_pose_array_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match geometry_msgs::PoseArray::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_pose_array_t(v))),
+        Ok(v) => Box::into_raw(Box::new(geometry_msgs_pose_array_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -2256,7 +2315,7 @@ pub extern "C" fn ros_pose_array_from_cdr(data: *const u8, len: usize) -> *mut r
 
 /// Free a PoseArray view handle.
 #[no_mangle]
-pub extern "C" fn ros_pose_array_free(view: *mut ros_pose_array_t) {
+pub extern "C" fn geometry_msgs_pose_array_free(view: *mut geometry_msgs_pose_array_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -2266,7 +2325,9 @@ pub extern "C" fn ros_pose_array_free(view: *mut ros_pose_array_t) {
 
 /// Get stamp seconds.
 #[no_mangle]
-pub extern "C" fn ros_pose_array_get_stamp_sec(view: *const ros_pose_array_t) -> i32 {
+pub extern "C" fn geometry_msgs_pose_array_get_stamp_sec(
+    view: *const geometry_msgs_pose_array_t,
+) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -2275,7 +2336,9 @@ pub extern "C" fn ros_pose_array_get_stamp_sec(view: *const ros_pose_array_t) ->
 
 /// Get stamp nanoseconds.
 #[no_mangle]
-pub extern "C" fn ros_pose_array_get_stamp_nanosec(view: *const ros_pose_array_t) -> u32 {
+pub extern "C" fn geometry_msgs_pose_array_get_stamp_nanosec(
+    view: *const geometry_msgs_pose_array_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -2284,7 +2347,9 @@ pub extern "C" fn ros_pose_array_get_stamp_nanosec(view: *const ros_pose_array_t
 
 /// Get frame_id (borrowed pointer valid while handle lives).
 #[no_mangle]
-pub extern "C" fn ros_pose_array_get_frame_id(view: *const ros_pose_array_t) -> *const c_char {
+pub extern "C" fn geometry_msgs_pose_array_get_frame_id(
+    view: *const geometry_msgs_pose_array_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -2293,7 +2358,9 @@ pub extern "C" fn ros_pose_array_get_frame_id(view: *const ros_pose_array_t) -> 
 
 /// Get the number of poses in the array.
 #[no_mangle]
-pub extern "C" fn ros_pose_array_get_len(view: *const ros_pose_array_t) -> usize {
+pub extern "C" fn geometry_msgs_pose_array_get_len(
+    view: *const geometry_msgs_pose_array_t,
+) -> usize {
     if view.is_null() {
         return 0;
     }
@@ -2302,8 +2369,8 @@ pub extern "C" fn ros_pose_array_get_len(view: *const ros_pose_array_t) -> usize
 
 /// Get a pose by index. Returns 0 on success, -1 if index out of range.
 #[no_mangle]
-pub extern "C" fn ros_pose_array_get_pose(
-    view: *const ros_pose_array_t,
+pub extern "C" fn geometry_msgs_pose_array_get_pose(
+    view: *const geometry_msgs_pose_array_t,
     index: usize,
     px: *mut f64,
     py: *mut f64,
@@ -2353,18 +2420,18 @@ pub extern "C" fn ros_pose_array_get_pose(
 // mavros_msgs — Altitude
 // =============================================================================
 
-pub struct ros_mavros_altitude_t(mavros_msgs::Altitude<&'static [u8]>);
+pub struct mavros_msgs_altitude_t(mavros_msgs::Altitude<&'static [u8]>);
 
 /// @brief Create a Altitude view from CDR bytes.
 #[no_mangle]
-pub extern "C" fn ros_mavros_altitude_from_cdr(
+pub extern "C" fn mavros_msgs_altitude_from_cdr(
     data: *const u8,
     len: usize,
-) -> *mut ros_mavros_altitude_t {
+) -> *mut mavros_msgs_altitude_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match mavros_msgs::Altitude::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_mavros_altitude_t(v))),
+        Ok(v) => Box::into_raw(Box::new(mavros_msgs_altitude_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -2373,14 +2440,14 @@ pub extern "C" fn ros_mavros_altitude_from_cdr(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_altitude_free(view: *mut ros_mavros_altitude_t) {
+pub extern "C" fn mavros_msgs_altitude_free(view: *mut mavros_msgs_altitude_t) {
     if !view.is_null() {
         unsafe { drop(Box::from_raw(view)) }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_altitude_get_stamp_sec(view: *const ros_mavros_altitude_t) -> i32 {
+pub extern "C" fn mavros_msgs_altitude_get_stamp_sec(view: *const mavros_msgs_altitude_t) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -2388,7 +2455,9 @@ pub extern "C" fn ros_mavros_altitude_get_stamp_sec(view: *const ros_mavros_alti
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_altitude_get_stamp_nanosec(view: *const ros_mavros_altitude_t) -> u32 {
+pub extern "C" fn mavros_msgs_altitude_get_stamp_nanosec(
+    view: *const mavros_msgs_altitude_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -2396,8 +2465,8 @@ pub extern "C" fn ros_mavros_altitude_get_stamp_nanosec(view: *const ros_mavros_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_altitude_get_frame_id(
-    view: *const ros_mavros_altitude_t,
+pub extern "C" fn mavros_msgs_altitude_get_frame_id(
+    view: *const mavros_msgs_altitude_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -2406,7 +2475,7 @@ pub extern "C" fn ros_mavros_altitude_get_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_altitude_get_monotonic(view: *const ros_mavros_altitude_t) -> f32 {
+pub extern "C" fn mavros_msgs_altitude_get_monotonic(view: *const mavros_msgs_altitude_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -2414,7 +2483,7 @@ pub extern "C" fn ros_mavros_altitude_get_monotonic(view: *const ros_mavros_alti
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_altitude_get_amsl(view: *const ros_mavros_altitude_t) -> f32 {
+pub extern "C" fn mavros_msgs_altitude_get_amsl(view: *const mavros_msgs_altitude_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -2422,7 +2491,7 @@ pub extern "C" fn ros_mavros_altitude_get_amsl(view: *const ros_mavros_altitude_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_altitude_get_local(view: *const ros_mavros_altitude_t) -> f32 {
+pub extern "C" fn mavros_msgs_altitude_get_local(view: *const mavros_msgs_altitude_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -2430,7 +2499,7 @@ pub extern "C" fn ros_mavros_altitude_get_local(view: *const ros_mavros_altitude
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_altitude_get_relative(view: *const ros_mavros_altitude_t) -> f32 {
+pub extern "C" fn mavros_msgs_altitude_get_relative(view: *const mavros_msgs_altitude_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -2438,7 +2507,7 @@ pub extern "C" fn ros_mavros_altitude_get_relative(view: *const ros_mavros_altit
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_altitude_get_terrain(view: *const ros_mavros_altitude_t) -> f32 {
+pub extern "C" fn mavros_msgs_altitude_get_terrain(view: *const mavros_msgs_altitude_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -2446,8 +2515,8 @@ pub extern "C" fn ros_mavros_altitude_get_terrain(view: *const ros_mavros_altitu
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_altitude_get_bottom_clearance(
-    view: *const ros_mavros_altitude_t,
+pub extern "C" fn mavros_msgs_altitude_get_bottom_clearance(
+    view: *const mavros_msgs_altitude_t,
 ) -> f32 {
     if view.is_null() {
         return 0.0;
@@ -2459,17 +2528,17 @@ pub extern "C" fn ros_mavros_altitude_get_bottom_clearance(
 // mavros_msgs — VfrHud
 // =============================================================================
 
-pub struct ros_mavros_vfrhud_t(mavros_msgs::VfrHud<&'static [u8]>);
+pub struct mavros_msgs_vfrhud_t(mavros_msgs::VfrHud<&'static [u8]>);
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_vfrhud_from_cdr(
+pub extern "C" fn mavros_msgs_vfrhud_from_cdr(
     data: *const u8,
     len: usize,
-) -> *mut ros_mavros_vfrhud_t {
+) -> *mut mavros_msgs_vfrhud_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match mavros_msgs::VfrHud::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_mavros_vfrhud_t(v))),
+        Ok(v) => Box::into_raw(Box::new(mavros_msgs_vfrhud_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -2478,14 +2547,14 @@ pub extern "C" fn ros_mavros_vfrhud_from_cdr(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_vfrhud_free(view: *mut ros_mavros_vfrhud_t) {
+pub extern "C" fn mavros_msgs_vfrhud_free(view: *mut mavros_msgs_vfrhud_t) {
     if !view.is_null() {
         unsafe { drop(Box::from_raw(view)) }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_vfrhud_get_stamp_sec(view: *const ros_mavros_vfrhud_t) -> i32 {
+pub extern "C" fn mavros_msgs_vfrhud_get_stamp_sec(view: *const mavros_msgs_vfrhud_t) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -2493,7 +2562,7 @@ pub extern "C" fn ros_mavros_vfrhud_get_stamp_sec(view: *const ros_mavros_vfrhud
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_vfrhud_get_stamp_nanosec(view: *const ros_mavros_vfrhud_t) -> u32 {
+pub extern "C" fn mavros_msgs_vfrhud_get_stamp_nanosec(view: *const mavros_msgs_vfrhud_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -2501,8 +2570,8 @@ pub extern "C" fn ros_mavros_vfrhud_get_stamp_nanosec(view: *const ros_mavros_vf
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_vfrhud_get_frame_id(
-    view: *const ros_mavros_vfrhud_t,
+pub extern "C" fn mavros_msgs_vfrhud_get_frame_id(
+    view: *const mavros_msgs_vfrhud_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -2511,7 +2580,7 @@ pub extern "C" fn ros_mavros_vfrhud_get_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_vfrhud_get_airspeed(view: *const ros_mavros_vfrhud_t) -> f32 {
+pub extern "C" fn mavros_msgs_vfrhud_get_airspeed(view: *const mavros_msgs_vfrhud_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -2519,7 +2588,7 @@ pub extern "C" fn ros_mavros_vfrhud_get_airspeed(view: *const ros_mavros_vfrhud_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_vfrhud_get_groundspeed(view: *const ros_mavros_vfrhud_t) -> f32 {
+pub extern "C" fn mavros_msgs_vfrhud_get_groundspeed(view: *const mavros_msgs_vfrhud_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -2527,7 +2596,7 @@ pub extern "C" fn ros_mavros_vfrhud_get_groundspeed(view: *const ros_mavros_vfrh
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_vfrhud_get_heading(view: *const ros_mavros_vfrhud_t) -> i16 {
+pub extern "C" fn mavros_msgs_vfrhud_get_heading(view: *const mavros_msgs_vfrhud_t) -> i16 {
     if view.is_null() {
         return 0;
     }
@@ -2535,7 +2604,7 @@ pub extern "C" fn ros_mavros_vfrhud_get_heading(view: *const ros_mavros_vfrhud_t
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_vfrhud_get_throttle(view: *const ros_mavros_vfrhud_t) -> f32 {
+pub extern "C" fn mavros_msgs_vfrhud_get_throttle(view: *const mavros_msgs_vfrhud_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -2543,7 +2612,7 @@ pub extern "C" fn ros_mavros_vfrhud_get_throttle(view: *const ros_mavros_vfrhud_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_vfrhud_get_altitude(view: *const ros_mavros_vfrhud_t) -> f32 {
+pub extern "C" fn mavros_msgs_vfrhud_get_altitude(view: *const mavros_msgs_vfrhud_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -2551,7 +2620,7 @@ pub extern "C" fn ros_mavros_vfrhud_get_altitude(view: *const ros_mavros_vfrhud_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_vfrhud_get_climb(view: *const ros_mavros_vfrhud_t) -> f32 {
+pub extern "C" fn mavros_msgs_vfrhud_get_climb(view: *const mavros_msgs_vfrhud_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -2562,17 +2631,17 @@ pub extern "C" fn ros_mavros_vfrhud_get_climb(view: *const ros_mavros_vfrhud_t) 
 // mavros_msgs — EstimatorStatus
 // =============================================================================
 
-pub struct ros_mavros_estimator_status_t(mavros_msgs::EstimatorStatus<&'static [u8]>);
+pub struct mavros_msgs_estimator_status_t(mavros_msgs::EstimatorStatus<&'static [u8]>);
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_from_cdr(
+pub extern "C" fn mavros_msgs_estimator_status_from_cdr(
     data: *const u8,
     len: usize,
-) -> *mut ros_mavros_estimator_status_t {
+) -> *mut mavros_msgs_estimator_status_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match mavros_msgs::EstimatorStatus::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_mavros_estimator_status_t(v))),
+        Ok(v) => Box::into_raw(Box::new(mavros_msgs_estimator_status_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -2581,15 +2650,15 @@ pub extern "C" fn ros_mavros_estimator_status_from_cdr(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_free(view: *mut ros_mavros_estimator_status_t) {
+pub extern "C" fn mavros_msgs_estimator_status_free(view: *mut mavros_msgs_estimator_status_t) {
     if !view.is_null() {
         unsafe { drop(Box::from_raw(view)) }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_get_stamp_sec(
-    view: *const ros_mavros_estimator_status_t,
+pub extern "C" fn mavros_msgs_estimator_status_get_stamp_sec(
+    view: *const mavros_msgs_estimator_status_t,
 ) -> i32 {
     if view.is_null() {
         return 0;
@@ -2598,8 +2667,8 @@ pub extern "C" fn ros_mavros_estimator_status_get_stamp_sec(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_get_stamp_nanosec(
-    view: *const ros_mavros_estimator_status_t,
+pub extern "C" fn mavros_msgs_estimator_status_get_stamp_nanosec(
+    view: *const mavros_msgs_estimator_status_t,
 ) -> u32 {
     if view.is_null() {
         return 0;
@@ -2608,8 +2677,8 @@ pub extern "C" fn ros_mavros_estimator_status_get_stamp_nanosec(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_get_frame_id(
-    view: *const ros_mavros_estimator_status_t,
+pub extern "C" fn mavros_msgs_estimator_status_get_frame_id(
+    view: *const mavros_msgs_estimator_status_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -2618,8 +2687,8 @@ pub extern "C" fn ros_mavros_estimator_status_get_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_get_attitude_status_flag(
-    view: *const ros_mavros_estimator_status_t,
+pub extern "C" fn mavros_msgs_estimator_status_get_attitude_status_flag(
+    view: *const mavros_msgs_estimator_status_t,
 ) -> bool {
     if view.is_null() {
         return false;
@@ -2628,8 +2697,8 @@ pub extern "C" fn ros_mavros_estimator_status_get_attitude_status_flag(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_get_velocity_horiz_status_flag(
-    view: *const ros_mavros_estimator_status_t,
+pub extern "C" fn mavros_msgs_estimator_status_get_velocity_horiz_status_flag(
+    view: *const mavros_msgs_estimator_status_t,
 ) -> bool {
     if view.is_null() {
         return false;
@@ -2638,8 +2707,8 @@ pub extern "C" fn ros_mavros_estimator_status_get_velocity_horiz_status_flag(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_get_velocity_vert_status_flag(
-    view: *const ros_mavros_estimator_status_t,
+pub extern "C" fn mavros_msgs_estimator_status_get_velocity_vert_status_flag(
+    view: *const mavros_msgs_estimator_status_t,
 ) -> bool {
     if view.is_null() {
         return false;
@@ -2648,8 +2717,8 @@ pub extern "C" fn ros_mavros_estimator_status_get_velocity_vert_status_flag(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_get_pos_horiz_rel_status_flag(
-    view: *const ros_mavros_estimator_status_t,
+pub extern "C" fn mavros_msgs_estimator_status_get_pos_horiz_rel_status_flag(
+    view: *const mavros_msgs_estimator_status_t,
 ) -> bool {
     if view.is_null() {
         return false;
@@ -2658,8 +2727,8 @@ pub extern "C" fn ros_mavros_estimator_status_get_pos_horiz_rel_status_flag(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_get_pos_horiz_abs_status_flag(
-    view: *const ros_mavros_estimator_status_t,
+pub extern "C" fn mavros_msgs_estimator_status_get_pos_horiz_abs_status_flag(
+    view: *const mavros_msgs_estimator_status_t,
 ) -> bool {
     if view.is_null() {
         return false;
@@ -2668,8 +2737,8 @@ pub extern "C" fn ros_mavros_estimator_status_get_pos_horiz_abs_status_flag(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_get_pos_vert_abs_status_flag(
-    view: *const ros_mavros_estimator_status_t,
+pub extern "C" fn mavros_msgs_estimator_status_get_pos_vert_abs_status_flag(
+    view: *const mavros_msgs_estimator_status_t,
 ) -> bool {
     if view.is_null() {
         return false;
@@ -2678,8 +2747,8 @@ pub extern "C" fn ros_mavros_estimator_status_get_pos_vert_abs_status_flag(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_get_pos_vert_agl_status_flag(
-    view: *const ros_mavros_estimator_status_t,
+pub extern "C" fn mavros_msgs_estimator_status_get_pos_vert_agl_status_flag(
+    view: *const mavros_msgs_estimator_status_t,
 ) -> bool {
     if view.is_null() {
         return false;
@@ -2688,8 +2757,8 @@ pub extern "C" fn ros_mavros_estimator_status_get_pos_vert_agl_status_flag(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_get_const_pos_mode_status_flag(
-    view: *const ros_mavros_estimator_status_t,
+pub extern "C" fn mavros_msgs_estimator_status_get_const_pos_mode_status_flag(
+    view: *const mavros_msgs_estimator_status_t,
 ) -> bool {
     if view.is_null() {
         return false;
@@ -2698,8 +2767,8 @@ pub extern "C" fn ros_mavros_estimator_status_get_const_pos_mode_status_flag(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_get_pred_pos_horiz_rel_status_flag(
-    view: *const ros_mavros_estimator_status_t,
+pub extern "C" fn mavros_msgs_estimator_status_get_pred_pos_horiz_rel_status_flag(
+    view: *const mavros_msgs_estimator_status_t,
 ) -> bool {
     if view.is_null() {
         return false;
@@ -2708,8 +2777,8 @@ pub extern "C" fn ros_mavros_estimator_status_get_pred_pos_horiz_rel_status_flag
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_get_pred_pos_horiz_abs_status_flag(
-    view: *const ros_mavros_estimator_status_t,
+pub extern "C" fn mavros_msgs_estimator_status_get_pred_pos_horiz_abs_status_flag(
+    view: *const mavros_msgs_estimator_status_t,
 ) -> bool {
     if view.is_null() {
         return false;
@@ -2718,8 +2787,8 @@ pub extern "C" fn ros_mavros_estimator_status_get_pred_pos_horiz_abs_status_flag
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_get_gps_glitch_status_flag(
-    view: *const ros_mavros_estimator_status_t,
+pub extern "C" fn mavros_msgs_estimator_status_get_gps_glitch_status_flag(
+    view: *const mavros_msgs_estimator_status_t,
 ) -> bool {
     if view.is_null() {
         return false;
@@ -2728,8 +2797,8 @@ pub extern "C" fn ros_mavros_estimator_status_get_gps_glitch_status_flag(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_get_accel_error_status_flag(
-    view: *const ros_mavros_estimator_status_t,
+pub extern "C" fn mavros_msgs_estimator_status_get_accel_error_status_flag(
+    view: *const mavros_msgs_estimator_status_t,
 ) -> bool {
     if view.is_null() {
         return false;
@@ -2741,17 +2810,17 @@ pub extern "C" fn ros_mavros_estimator_status_get_accel_error_status_flag(
 // mavros_msgs — ExtendedState
 // =============================================================================
 
-pub struct ros_mavros_extended_state_t(mavros_msgs::ExtendedState<&'static [u8]>);
+pub struct mavros_msgs_extended_state_t(mavros_msgs::ExtendedState<&'static [u8]>);
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_extended_state_from_cdr(
+pub extern "C" fn mavros_msgs_extended_state_from_cdr(
     data: *const u8,
     len: usize,
-) -> *mut ros_mavros_extended_state_t {
+) -> *mut mavros_msgs_extended_state_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match mavros_msgs::ExtendedState::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_mavros_extended_state_t(v))),
+        Ok(v) => Box::into_raw(Box::new(mavros_msgs_extended_state_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -2760,15 +2829,15 @@ pub extern "C" fn ros_mavros_extended_state_from_cdr(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_extended_state_free(view: *mut ros_mavros_extended_state_t) {
+pub extern "C" fn mavros_msgs_extended_state_free(view: *mut mavros_msgs_extended_state_t) {
     if !view.is_null() {
         unsafe { drop(Box::from_raw(view)) }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_extended_state_get_stamp_sec(
-    view: *const ros_mavros_extended_state_t,
+pub extern "C" fn mavros_msgs_extended_state_get_stamp_sec(
+    view: *const mavros_msgs_extended_state_t,
 ) -> i32 {
     if view.is_null() {
         return 0;
@@ -2777,8 +2846,8 @@ pub extern "C" fn ros_mavros_extended_state_get_stamp_sec(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_extended_state_get_stamp_nanosec(
-    view: *const ros_mavros_extended_state_t,
+pub extern "C" fn mavros_msgs_extended_state_get_stamp_nanosec(
+    view: *const mavros_msgs_extended_state_t,
 ) -> u32 {
     if view.is_null() {
         return 0;
@@ -2787,8 +2856,8 @@ pub extern "C" fn ros_mavros_extended_state_get_stamp_nanosec(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_extended_state_get_frame_id(
-    view: *const ros_mavros_extended_state_t,
+pub extern "C" fn mavros_msgs_extended_state_get_frame_id(
+    view: *const mavros_msgs_extended_state_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -2797,8 +2866,8 @@ pub extern "C" fn ros_mavros_extended_state_get_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_extended_state_get_vtol_state(
-    view: *const ros_mavros_extended_state_t,
+pub extern "C" fn mavros_msgs_extended_state_get_vtol_state(
+    view: *const mavros_msgs_extended_state_t,
 ) -> u8 {
     if view.is_null() {
         return 0;
@@ -2807,8 +2876,8 @@ pub extern "C" fn ros_mavros_extended_state_get_vtol_state(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_extended_state_get_landed_state(
-    view: *const ros_mavros_extended_state_t,
+pub extern "C" fn mavros_msgs_extended_state_get_landed_state(
+    view: *const mavros_msgs_extended_state_t,
 ) -> u8 {
     if view.is_null() {
         return 0;
@@ -2820,17 +2889,17 @@ pub extern "C" fn ros_mavros_extended_state_get_landed_state(
 // mavros_msgs — SysStatus
 // =============================================================================
 
-pub struct ros_mavros_sys_status_t(mavros_msgs::SysStatus<&'static [u8]>);
+pub struct mavros_msgs_sys_status_t(mavros_msgs::SysStatus<&'static [u8]>);
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_from_cdr(
+pub extern "C" fn mavros_msgs_sys_status_from_cdr(
     data: *const u8,
     len: usize,
-) -> *mut ros_mavros_sys_status_t {
+) -> *mut mavros_msgs_sys_status_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match mavros_msgs::SysStatus::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_mavros_sys_status_t(v))),
+        Ok(v) => Box::into_raw(Box::new(mavros_msgs_sys_status_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -2839,14 +2908,16 @@ pub extern "C" fn ros_mavros_sys_status_from_cdr(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_free(view: *mut ros_mavros_sys_status_t) {
+pub extern "C" fn mavros_msgs_sys_status_free(view: *mut mavros_msgs_sys_status_t) {
     if !view.is_null() {
         unsafe { drop(Box::from_raw(view)) }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_get_stamp_sec(view: *const ros_mavros_sys_status_t) -> i32 {
+pub extern "C" fn mavros_msgs_sys_status_get_stamp_sec(
+    view: *const mavros_msgs_sys_status_t,
+) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -2854,8 +2925,8 @@ pub extern "C" fn ros_mavros_sys_status_get_stamp_sec(view: *const ros_mavros_sy
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_get_stamp_nanosec(
-    view: *const ros_mavros_sys_status_t,
+pub extern "C" fn mavros_msgs_sys_status_get_stamp_nanosec(
+    view: *const mavros_msgs_sys_status_t,
 ) -> u32 {
     if view.is_null() {
         return 0;
@@ -2864,8 +2935,8 @@ pub extern "C" fn ros_mavros_sys_status_get_stamp_nanosec(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_get_frame_id(
-    view: *const ros_mavros_sys_status_t,
+pub extern "C" fn mavros_msgs_sys_status_get_frame_id(
+    view: *const mavros_msgs_sys_status_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -2874,8 +2945,8 @@ pub extern "C" fn ros_mavros_sys_status_get_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_get_sensors_present(
-    view: *const ros_mavros_sys_status_t,
+pub extern "C" fn mavros_msgs_sys_status_get_sensors_present(
+    view: *const mavros_msgs_sys_status_t,
 ) -> u32 {
     if view.is_null() {
         return 0;
@@ -2884,8 +2955,8 @@ pub extern "C" fn ros_mavros_sys_status_get_sensors_present(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_get_sensors_enabled(
-    view: *const ros_mavros_sys_status_t,
+pub extern "C" fn mavros_msgs_sys_status_get_sensors_enabled(
+    view: *const mavros_msgs_sys_status_t,
 ) -> u32 {
     if view.is_null() {
         return 0;
@@ -2894,8 +2965,8 @@ pub extern "C" fn ros_mavros_sys_status_get_sensors_enabled(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_get_sensors_health(
-    view: *const ros_mavros_sys_status_t,
+pub extern "C" fn mavros_msgs_sys_status_get_sensors_health(
+    view: *const mavros_msgs_sys_status_t,
 ) -> u32 {
     if view.is_null() {
         return 0;
@@ -2904,7 +2975,7 @@ pub extern "C" fn ros_mavros_sys_status_get_sensors_health(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_get_load(view: *const ros_mavros_sys_status_t) -> u16 {
+pub extern "C" fn mavros_msgs_sys_status_get_load(view: *const mavros_msgs_sys_status_t) -> u16 {
     if view.is_null() {
         return 0;
     }
@@ -2912,8 +2983,8 @@ pub extern "C" fn ros_mavros_sys_status_get_load(view: *const ros_mavros_sys_sta
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_get_voltage_battery(
-    view: *const ros_mavros_sys_status_t,
+pub extern "C" fn mavros_msgs_sys_status_get_voltage_battery(
+    view: *const mavros_msgs_sys_status_t,
 ) -> u16 {
     if view.is_null() {
         return 0;
@@ -2922,8 +2993,8 @@ pub extern "C" fn ros_mavros_sys_status_get_voltage_battery(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_get_current_battery(
-    view: *const ros_mavros_sys_status_t,
+pub extern "C" fn mavros_msgs_sys_status_get_current_battery(
+    view: *const mavros_msgs_sys_status_t,
 ) -> i16 {
     if view.is_null() {
         return 0;
@@ -2932,8 +3003,8 @@ pub extern "C" fn ros_mavros_sys_status_get_current_battery(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_get_battery_remaining(
-    view: *const ros_mavros_sys_status_t,
+pub extern "C" fn mavros_msgs_sys_status_get_battery_remaining(
+    view: *const mavros_msgs_sys_status_t,
 ) -> i8 {
     if view.is_null() {
         return 0;
@@ -2942,8 +3013,8 @@ pub extern "C" fn ros_mavros_sys_status_get_battery_remaining(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_get_drop_rate_comm(
-    view: *const ros_mavros_sys_status_t,
+pub extern "C" fn mavros_msgs_sys_status_get_drop_rate_comm(
+    view: *const mavros_msgs_sys_status_t,
 ) -> u16 {
     if view.is_null() {
         return 0;
@@ -2952,8 +3023,8 @@ pub extern "C" fn ros_mavros_sys_status_get_drop_rate_comm(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_get_errors_comm(
-    view: *const ros_mavros_sys_status_t,
+pub extern "C" fn mavros_msgs_sys_status_get_errors_comm(
+    view: *const mavros_msgs_sys_status_t,
 ) -> u16 {
     if view.is_null() {
         return 0;
@@ -2962,8 +3033,8 @@ pub extern "C" fn ros_mavros_sys_status_get_errors_comm(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_get_errors_count1(
-    view: *const ros_mavros_sys_status_t,
+pub extern "C" fn mavros_msgs_sys_status_get_errors_count1(
+    view: *const mavros_msgs_sys_status_t,
 ) -> u16 {
     if view.is_null() {
         return 0;
@@ -2972,8 +3043,8 @@ pub extern "C" fn ros_mavros_sys_status_get_errors_count1(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_get_errors_count2(
-    view: *const ros_mavros_sys_status_t,
+pub extern "C" fn mavros_msgs_sys_status_get_errors_count2(
+    view: *const mavros_msgs_sys_status_t,
 ) -> u16 {
     if view.is_null() {
         return 0;
@@ -2982,8 +3053,8 @@ pub extern "C" fn ros_mavros_sys_status_get_errors_count2(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_get_errors_count3(
-    view: *const ros_mavros_sys_status_t,
+pub extern "C" fn mavros_msgs_sys_status_get_errors_count3(
+    view: *const mavros_msgs_sys_status_t,
 ) -> u16 {
     if view.is_null() {
         return 0;
@@ -2992,8 +3063,8 @@ pub extern "C" fn ros_mavros_sys_status_get_errors_count3(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_get_errors_count4(
-    view: *const ros_mavros_sys_status_t,
+pub extern "C" fn mavros_msgs_sys_status_get_errors_count4(
+    view: *const mavros_msgs_sys_status_t,
 ) -> u16 {
     if view.is_null() {
         return 0;
@@ -3005,17 +3076,17 @@ pub extern "C" fn ros_mavros_sys_status_get_errors_count4(
 // mavros_msgs — State
 // =============================================================================
 
-pub struct ros_mavros_state_t(mavros_msgs::State<&'static [u8]>);
+pub struct mavros_msgs_state_t(mavros_msgs::State<&'static [u8]>);
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_state_from_cdr(
+pub extern "C" fn mavros_msgs_state_from_cdr(
     data: *const u8,
     len: usize,
-) -> *mut ros_mavros_state_t {
+) -> *mut mavros_msgs_state_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match mavros_msgs::State::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_mavros_state_t(v))),
+        Ok(v) => Box::into_raw(Box::new(mavros_msgs_state_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -3024,14 +3095,14 @@ pub extern "C" fn ros_mavros_state_from_cdr(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_state_free(view: *mut ros_mavros_state_t) {
+pub extern "C" fn mavros_msgs_state_free(view: *mut mavros_msgs_state_t) {
     if !view.is_null() {
         unsafe { drop(Box::from_raw(view)) }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_state_get_stamp_sec(view: *const ros_mavros_state_t) -> i32 {
+pub extern "C" fn mavros_msgs_state_get_stamp_sec(view: *const mavros_msgs_state_t) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -3039,7 +3110,7 @@ pub extern "C" fn ros_mavros_state_get_stamp_sec(view: *const ros_mavros_state_t
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_state_get_stamp_nanosec(view: *const ros_mavros_state_t) -> u32 {
+pub extern "C" fn mavros_msgs_state_get_stamp_nanosec(view: *const mavros_msgs_state_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -3047,7 +3118,9 @@ pub extern "C" fn ros_mavros_state_get_stamp_nanosec(view: *const ros_mavros_sta
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_state_get_frame_id(view: *const ros_mavros_state_t) -> *const c_char {
+pub extern "C" fn mavros_msgs_state_get_frame_id(
+    view: *const mavros_msgs_state_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -3055,7 +3128,7 @@ pub extern "C" fn ros_mavros_state_get_frame_id(view: *const ros_mavros_state_t)
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_state_get_connected(view: *const ros_mavros_state_t) -> bool {
+pub extern "C" fn mavros_msgs_state_get_connected(view: *const mavros_msgs_state_t) -> bool {
     if view.is_null() {
         return false;
     }
@@ -3063,7 +3136,7 @@ pub extern "C" fn ros_mavros_state_get_connected(view: *const ros_mavros_state_t
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_state_get_armed(view: *const ros_mavros_state_t) -> bool {
+pub extern "C" fn mavros_msgs_state_get_armed(view: *const mavros_msgs_state_t) -> bool {
     if view.is_null() {
         return false;
     }
@@ -3071,7 +3144,7 @@ pub extern "C" fn ros_mavros_state_get_armed(view: *const ros_mavros_state_t) ->
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_state_get_guided(view: *const ros_mavros_state_t) -> bool {
+pub extern "C" fn mavros_msgs_state_get_guided(view: *const mavros_msgs_state_t) -> bool {
     if view.is_null() {
         return false;
     }
@@ -3079,7 +3152,7 @@ pub extern "C" fn ros_mavros_state_get_guided(view: *const ros_mavros_state_t) -
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_state_get_manual_input(view: *const ros_mavros_state_t) -> bool {
+pub extern "C" fn mavros_msgs_state_get_manual_input(view: *const mavros_msgs_state_t) -> bool {
     if view.is_null() {
         return false;
     }
@@ -3087,7 +3160,7 @@ pub extern "C" fn ros_mavros_state_get_manual_input(view: *const ros_mavros_stat
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_state_get_mode(view: *const ros_mavros_state_t) -> *const c_char {
+pub extern "C" fn mavros_msgs_state_get_mode(view: *const mavros_msgs_state_t) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -3095,7 +3168,7 @@ pub extern "C" fn ros_mavros_state_get_mode(view: *const ros_mavros_state_t) -> 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_state_get_system_status(view: *const ros_mavros_state_t) -> u8 {
+pub extern "C" fn mavros_msgs_state_get_system_status(view: *const mavros_msgs_state_t) -> u8 {
     if view.is_null() {
         return 0;
     }
@@ -3106,17 +3179,17 @@ pub extern "C" fn ros_mavros_state_get_system_status(view: *const ros_mavros_sta
 // mavros_msgs — StatusText
 // =============================================================================
 
-pub struct ros_mavros_status_text_t(mavros_msgs::StatusText<&'static [u8]>);
+pub struct mavros_msgs_status_text_t(mavros_msgs::StatusText<&'static [u8]>);
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_status_text_from_cdr(
+pub extern "C" fn mavros_msgs_status_text_from_cdr(
     data: *const u8,
     len: usize,
-) -> *mut ros_mavros_status_text_t {
+) -> *mut mavros_msgs_status_text_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match mavros_msgs::StatusText::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_mavros_status_text_t(v))),
+        Ok(v) => Box::into_raw(Box::new(mavros_msgs_status_text_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -3125,15 +3198,15 @@ pub extern "C" fn ros_mavros_status_text_from_cdr(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_status_text_free(view: *mut ros_mavros_status_text_t) {
+pub extern "C" fn mavros_msgs_status_text_free(view: *mut mavros_msgs_status_text_t) {
     if !view.is_null() {
         unsafe { drop(Box::from_raw(view)) }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_status_text_get_stamp_sec(
-    view: *const ros_mavros_status_text_t,
+pub extern "C" fn mavros_msgs_status_text_get_stamp_sec(
+    view: *const mavros_msgs_status_text_t,
 ) -> i32 {
     if view.is_null() {
         return 0;
@@ -3142,8 +3215,8 @@ pub extern "C" fn ros_mavros_status_text_get_stamp_sec(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_status_text_get_stamp_nanosec(
-    view: *const ros_mavros_status_text_t,
+pub extern "C" fn mavros_msgs_status_text_get_stamp_nanosec(
+    view: *const mavros_msgs_status_text_t,
 ) -> u32 {
     if view.is_null() {
         return 0;
@@ -3152,8 +3225,8 @@ pub extern "C" fn ros_mavros_status_text_get_stamp_nanosec(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_status_text_get_frame_id(
-    view: *const ros_mavros_status_text_t,
+pub extern "C" fn mavros_msgs_status_text_get_frame_id(
+    view: *const mavros_msgs_status_text_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -3162,7 +3235,9 @@ pub extern "C" fn ros_mavros_status_text_get_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_status_text_get_severity(view: *const ros_mavros_status_text_t) -> u8 {
+pub extern "C" fn mavros_msgs_status_text_get_severity(
+    view: *const mavros_msgs_status_text_t,
+) -> u8 {
     if view.is_null() {
         return 0;
     }
@@ -3170,8 +3245,8 @@ pub extern "C" fn ros_mavros_status_text_get_severity(view: *const ros_mavros_st
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_status_text_get_text(
-    view: *const ros_mavros_status_text_t,
+pub extern "C" fn mavros_msgs_status_text_get_text(
+    view: *const mavros_msgs_status_text_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -3183,17 +3258,17 @@ pub extern "C" fn ros_mavros_status_text_get_text(
 // mavros_msgs — GpsRaw
 // =============================================================================
 
-pub struct ros_mavros_gps_raw_t(mavros_msgs::GpsRaw<&'static [u8]>);
+pub struct mavros_msgs_gps_raw_t(mavros_msgs::GpsRaw<&'static [u8]>);
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_from_cdr(
+pub extern "C" fn mavros_msgs_gps_raw_from_cdr(
     data: *const u8,
     len: usize,
-) -> *mut ros_mavros_gps_raw_t {
+) -> *mut mavros_msgs_gps_raw_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match mavros_msgs::GpsRaw::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_mavros_gps_raw_t(v))),
+        Ok(v) => Box::into_raw(Box::new(mavros_msgs_gps_raw_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -3202,14 +3277,14 @@ pub extern "C" fn ros_mavros_gps_raw_from_cdr(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_free(view: *mut ros_mavros_gps_raw_t) {
+pub extern "C" fn mavros_msgs_gps_raw_free(view: *mut mavros_msgs_gps_raw_t) {
     if !view.is_null() {
         unsafe { drop(Box::from_raw(view)) }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_get_stamp_sec(view: *const ros_mavros_gps_raw_t) -> i32 {
+pub extern "C" fn mavros_msgs_gps_raw_get_stamp_sec(view: *const mavros_msgs_gps_raw_t) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -3217,7 +3292,7 @@ pub extern "C" fn ros_mavros_gps_raw_get_stamp_sec(view: *const ros_mavros_gps_r
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_get_stamp_nanosec(view: *const ros_mavros_gps_raw_t) -> u32 {
+pub extern "C" fn mavros_msgs_gps_raw_get_stamp_nanosec(view: *const mavros_msgs_gps_raw_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -3225,8 +3300,8 @@ pub extern "C" fn ros_mavros_gps_raw_get_stamp_nanosec(view: *const ros_mavros_g
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_get_frame_id(
-    view: *const ros_mavros_gps_raw_t,
+pub extern "C" fn mavros_msgs_gps_raw_get_frame_id(
+    view: *const mavros_msgs_gps_raw_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -3235,7 +3310,7 @@ pub extern "C" fn ros_mavros_gps_raw_get_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_get_fix_type(view: *const ros_mavros_gps_raw_t) -> u8 {
+pub extern "C" fn mavros_msgs_gps_raw_get_fix_type(view: *const mavros_msgs_gps_raw_t) -> u8 {
     if view.is_null() {
         return 0;
     }
@@ -3243,7 +3318,7 @@ pub extern "C" fn ros_mavros_gps_raw_get_fix_type(view: *const ros_mavros_gps_ra
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_get_lat(view: *const ros_mavros_gps_raw_t) -> i32 {
+pub extern "C" fn mavros_msgs_gps_raw_get_lat(view: *const mavros_msgs_gps_raw_t) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -3251,7 +3326,7 @@ pub extern "C" fn ros_mavros_gps_raw_get_lat(view: *const ros_mavros_gps_raw_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_get_lon(view: *const ros_mavros_gps_raw_t) -> i32 {
+pub extern "C" fn mavros_msgs_gps_raw_get_lon(view: *const mavros_msgs_gps_raw_t) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -3259,7 +3334,7 @@ pub extern "C" fn ros_mavros_gps_raw_get_lon(view: *const ros_mavros_gps_raw_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_get_alt(view: *const ros_mavros_gps_raw_t) -> i32 {
+pub extern "C" fn mavros_msgs_gps_raw_get_alt(view: *const mavros_msgs_gps_raw_t) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -3267,7 +3342,7 @@ pub extern "C" fn ros_mavros_gps_raw_get_alt(view: *const ros_mavros_gps_raw_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_get_eph(view: *const ros_mavros_gps_raw_t) -> u16 {
+pub extern "C" fn mavros_msgs_gps_raw_get_eph(view: *const mavros_msgs_gps_raw_t) -> u16 {
     if view.is_null() {
         return 0;
     }
@@ -3275,7 +3350,7 @@ pub extern "C" fn ros_mavros_gps_raw_get_eph(view: *const ros_mavros_gps_raw_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_get_epv(view: *const ros_mavros_gps_raw_t) -> u16 {
+pub extern "C" fn mavros_msgs_gps_raw_get_epv(view: *const mavros_msgs_gps_raw_t) -> u16 {
     if view.is_null() {
         return 0;
     }
@@ -3283,7 +3358,7 @@ pub extern "C" fn ros_mavros_gps_raw_get_epv(view: *const ros_mavros_gps_raw_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_get_vel(view: *const ros_mavros_gps_raw_t) -> u16 {
+pub extern "C" fn mavros_msgs_gps_raw_get_vel(view: *const mavros_msgs_gps_raw_t) -> u16 {
     if view.is_null() {
         return 0;
     }
@@ -3291,7 +3366,7 @@ pub extern "C" fn ros_mavros_gps_raw_get_vel(view: *const ros_mavros_gps_raw_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_get_cog(view: *const ros_mavros_gps_raw_t) -> u16 {
+pub extern "C" fn mavros_msgs_gps_raw_get_cog(view: *const mavros_msgs_gps_raw_t) -> u16 {
     if view.is_null() {
         return 0;
     }
@@ -3299,8 +3374,8 @@ pub extern "C" fn ros_mavros_gps_raw_get_cog(view: *const ros_mavros_gps_raw_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_get_satellites_visible(
-    view: *const ros_mavros_gps_raw_t,
+pub extern "C" fn mavros_msgs_gps_raw_get_satellites_visible(
+    view: *const mavros_msgs_gps_raw_t,
 ) -> u8 {
     if view.is_null() {
         return 0;
@@ -3309,7 +3384,7 @@ pub extern "C" fn ros_mavros_gps_raw_get_satellites_visible(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_get_alt_ellipsoid(view: *const ros_mavros_gps_raw_t) -> i32 {
+pub extern "C" fn mavros_msgs_gps_raw_get_alt_ellipsoid(view: *const mavros_msgs_gps_raw_t) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -3317,7 +3392,7 @@ pub extern "C" fn ros_mavros_gps_raw_get_alt_ellipsoid(view: *const ros_mavros_g
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_get_h_acc(view: *const ros_mavros_gps_raw_t) -> u32 {
+pub extern "C" fn mavros_msgs_gps_raw_get_h_acc(view: *const mavros_msgs_gps_raw_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -3325,7 +3400,7 @@ pub extern "C" fn ros_mavros_gps_raw_get_h_acc(view: *const ros_mavros_gps_raw_t
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_get_v_acc(view: *const ros_mavros_gps_raw_t) -> u32 {
+pub extern "C" fn mavros_msgs_gps_raw_get_v_acc(view: *const mavros_msgs_gps_raw_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -3333,7 +3408,7 @@ pub extern "C" fn ros_mavros_gps_raw_get_v_acc(view: *const ros_mavros_gps_raw_t
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_get_vel_acc(view: *const ros_mavros_gps_raw_t) -> u32 {
+pub extern "C" fn mavros_msgs_gps_raw_get_vel_acc(view: *const mavros_msgs_gps_raw_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -3341,7 +3416,7 @@ pub extern "C" fn ros_mavros_gps_raw_get_vel_acc(view: *const ros_mavros_gps_raw
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_get_hdg_acc(view: *const ros_mavros_gps_raw_t) -> i32 {
+pub extern "C" fn mavros_msgs_gps_raw_get_hdg_acc(view: *const mavros_msgs_gps_raw_t) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -3349,7 +3424,7 @@ pub extern "C" fn ros_mavros_gps_raw_get_hdg_acc(view: *const ros_mavros_gps_raw
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_get_yaw(view: *const ros_mavros_gps_raw_t) -> u16 {
+pub extern "C" fn mavros_msgs_gps_raw_get_yaw(view: *const mavros_msgs_gps_raw_t) -> u16 {
     if view.is_null() {
         return 0;
     }
@@ -3357,7 +3432,7 @@ pub extern "C" fn ros_mavros_gps_raw_get_yaw(view: *const ros_mavros_gps_raw_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_get_dgps_numch(view: *const ros_mavros_gps_raw_t) -> u8 {
+pub extern "C" fn mavros_msgs_gps_raw_get_dgps_numch(view: *const mavros_msgs_gps_raw_t) -> u8 {
     if view.is_null() {
         return 0;
     }
@@ -3365,7 +3440,7 @@ pub extern "C" fn ros_mavros_gps_raw_get_dgps_numch(view: *const ros_mavros_gps_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_get_dgps_age(view: *const ros_mavros_gps_raw_t) -> u32 {
+pub extern "C" fn mavros_msgs_gps_raw_get_dgps_age(view: *const mavros_msgs_gps_raw_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -3376,17 +3451,17 @@ pub extern "C" fn ros_mavros_gps_raw_get_dgps_age(view: *const ros_mavros_gps_ra
 // mavros_msgs — TimesyncStatus
 // =============================================================================
 
-pub struct ros_mavros_timesync_status_t(mavros_msgs::TimesyncStatus<&'static [u8]>);
+pub struct mavros_msgs_timesync_status_t(mavros_msgs::TimesyncStatus<&'static [u8]>);
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_timesync_status_from_cdr(
+pub extern "C" fn mavros_msgs_timesync_status_from_cdr(
     data: *const u8,
     len: usize,
-) -> *mut ros_mavros_timesync_status_t {
+) -> *mut mavros_msgs_timesync_status_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match mavros_msgs::TimesyncStatus::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_mavros_timesync_status_t(v))),
+        Ok(v) => Box::into_raw(Box::new(mavros_msgs_timesync_status_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -3395,15 +3470,15 @@ pub extern "C" fn ros_mavros_timesync_status_from_cdr(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_timesync_status_free(view: *mut ros_mavros_timesync_status_t) {
+pub extern "C" fn mavros_msgs_timesync_status_free(view: *mut mavros_msgs_timesync_status_t) {
     if !view.is_null() {
         unsafe { drop(Box::from_raw(view)) }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_timesync_status_get_stamp_sec(
-    view: *const ros_mavros_timesync_status_t,
+pub extern "C" fn mavros_msgs_timesync_status_get_stamp_sec(
+    view: *const mavros_msgs_timesync_status_t,
 ) -> i32 {
     if view.is_null() {
         return 0;
@@ -3412,8 +3487,8 @@ pub extern "C" fn ros_mavros_timesync_status_get_stamp_sec(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_timesync_status_get_stamp_nanosec(
-    view: *const ros_mavros_timesync_status_t,
+pub extern "C" fn mavros_msgs_timesync_status_get_stamp_nanosec(
+    view: *const mavros_msgs_timesync_status_t,
 ) -> u32 {
     if view.is_null() {
         return 0;
@@ -3422,8 +3497,8 @@ pub extern "C" fn ros_mavros_timesync_status_get_stamp_nanosec(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_timesync_status_get_frame_id(
-    view: *const ros_mavros_timesync_status_t,
+pub extern "C" fn mavros_msgs_timesync_status_get_frame_id(
+    view: *const mavros_msgs_timesync_status_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -3432,8 +3507,8 @@ pub extern "C" fn ros_mavros_timesync_status_get_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_timesync_status_get_remote_timestamp_ns(
-    view: *const ros_mavros_timesync_status_t,
+pub extern "C" fn mavros_msgs_timesync_status_get_remote_timestamp_ns(
+    view: *const mavros_msgs_timesync_status_t,
 ) -> u64 {
     if view.is_null() {
         return 0;
@@ -3442,8 +3517,8 @@ pub extern "C" fn ros_mavros_timesync_status_get_remote_timestamp_ns(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_timesync_status_get_observed_offset_ns(
-    view: *const ros_mavros_timesync_status_t,
+pub extern "C" fn mavros_msgs_timesync_status_get_observed_offset_ns(
+    view: *const mavros_msgs_timesync_status_t,
 ) -> i64 {
     if view.is_null() {
         return 0;
@@ -3452,8 +3527,8 @@ pub extern "C" fn ros_mavros_timesync_status_get_observed_offset_ns(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_timesync_status_get_estimated_offset_ns(
-    view: *const ros_mavros_timesync_status_t,
+pub extern "C" fn mavros_msgs_timesync_status_get_estimated_offset_ns(
+    view: *const mavros_msgs_timesync_status_t,
 ) -> i64 {
     if view.is_null() {
         return 0;
@@ -3462,8 +3537,8 @@ pub extern "C" fn ros_mavros_timesync_status_get_estimated_offset_ns(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_timesync_status_get_round_trip_time_ms(
-    view: *const ros_mavros_timesync_status_t,
+pub extern "C" fn mavros_msgs_timesync_status_get_round_trip_time_ms(
+    view: *const mavros_msgs_timesync_status_t,
 ) -> f32 {
     if view.is_null() {
         return 0.0;
@@ -3475,18 +3550,21 @@ pub extern "C" fn ros_mavros_timesync_status_get_round_trip_time_ms(
 // RadarCube (buffer-backed)
 // =============================================================================
 
-pub struct ros_radar_cube_t(edgefirst_msgs::RadarCube<&'static [u8]>);
+pub struct edgefirst_msgs_radar_cube_t(edgefirst_msgs::RadarCube<&'static [u8]>);
 
 /// @brief Create a RadarCube view from CDR bytes.
 /// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
 /// @param len Length of data
 /// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_from_cdr(data: *const u8, len: usize) -> *mut ros_radar_cube_t {
+pub extern "C" fn edgefirst_msgs_radar_cube_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut edgefirst_msgs_radar_cube_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match edgefirst_msgs::RadarCube::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_radar_cube_t(v))),
+        Ok(v) => Box::into_raw(Box::new(edgefirst_msgs_radar_cube_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -3495,7 +3573,7 @@ pub extern "C" fn ros_radar_cube_from_cdr(data: *const u8, len: usize) -> *mut r
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_free(view: *mut ros_radar_cube_t) {
+pub extern "C" fn edgefirst_msgs_radar_cube_free(view: *mut edgefirst_msgs_radar_cube_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -3504,7 +3582,9 @@ pub extern "C" fn ros_radar_cube_free(view: *mut ros_radar_cube_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_get_stamp_sec(view: *const ros_radar_cube_t) -> i32 {
+pub extern "C" fn edgefirst_msgs_radar_cube_get_stamp_sec(
+    view: *const edgefirst_msgs_radar_cube_t,
+) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -3512,7 +3592,9 @@ pub extern "C" fn ros_radar_cube_get_stamp_sec(view: *const ros_radar_cube_t) ->
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_get_stamp_nanosec(view: *const ros_radar_cube_t) -> u32 {
+pub extern "C" fn edgefirst_msgs_radar_cube_get_stamp_nanosec(
+    view: *const edgefirst_msgs_radar_cube_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -3520,7 +3602,9 @@ pub extern "C" fn ros_radar_cube_get_stamp_nanosec(view: *const ros_radar_cube_t
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_get_frame_id(view: *const ros_radar_cube_t) -> *const c_char {
+pub extern "C" fn edgefirst_msgs_radar_cube_get_frame_id(
+    view: *const edgefirst_msgs_radar_cube_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -3528,7 +3612,9 @@ pub extern "C" fn ros_radar_cube_get_frame_id(view: *const ros_radar_cube_t) -> 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_get_timestamp(view: *const ros_radar_cube_t) -> u64 {
+pub extern "C" fn edgefirst_msgs_radar_cube_get_timestamp(
+    view: *const edgefirst_msgs_radar_cube_t,
+) -> u64 {
     if view.is_null() {
         return 0;
     }
@@ -3536,8 +3622,8 @@ pub extern "C" fn ros_radar_cube_get_timestamp(view: *const ros_radar_cube_t) ->
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_get_layout(
-    view: *const ros_radar_cube_t,
+pub extern "C" fn edgefirst_msgs_radar_cube_get_layout(
+    view: *const edgefirst_msgs_radar_cube_t,
     out_len: *mut usize,
 ) -> *const u8 {
     if view.is_null() {
@@ -3558,8 +3644,8 @@ pub extern "C" fn ros_radar_cube_get_layout(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_get_cube_raw(
-    view: *const ros_radar_cube_t,
+pub extern "C" fn edgefirst_msgs_radar_cube_get_cube_raw(
+    view: *const edgefirst_msgs_radar_cube_t,
     out_len: *mut usize,
 ) -> *const u8 {
     if view.is_null() {
@@ -3580,7 +3666,9 @@ pub extern "C" fn ros_radar_cube_get_cube_raw(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_get_cube_len(view: *const ros_radar_cube_t) -> u32 {
+pub extern "C" fn edgefirst_msgs_radar_cube_get_cube_len(
+    view: *const edgefirst_msgs_radar_cube_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -3588,7 +3676,9 @@ pub extern "C" fn ros_radar_cube_get_cube_len(view: *const ros_radar_cube_t) -> 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_get_is_complex(view: *const ros_radar_cube_t) -> bool {
+pub extern "C" fn edgefirst_msgs_radar_cube_get_is_complex(
+    view: *const edgefirst_msgs_radar_cube_t,
+) -> bool {
     if view.is_null() {
         return false;
     }
@@ -3599,18 +3689,21 @@ pub extern "C" fn ros_radar_cube_get_is_complex(view: *const ros_radar_cube_t) -
 // RadarInfo (buffer-backed)
 // =============================================================================
 
-pub struct ros_radar_info_t(edgefirst_msgs::RadarInfo<&'static [u8]>);
+pub struct edgefirst_msgs_radar_info_t(edgefirst_msgs::RadarInfo<&'static [u8]>);
 
 /// @brief Create a RadarInfo view from CDR bytes.
 /// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
 /// @param len Length of data
 /// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
-pub extern "C" fn ros_radar_info_from_cdr(data: *const u8, len: usize) -> *mut ros_radar_info_t {
+pub extern "C" fn edgefirst_msgs_radar_info_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut edgefirst_msgs_radar_info_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match edgefirst_msgs::RadarInfo::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_radar_info_t(v))),
+        Ok(v) => Box::into_raw(Box::new(edgefirst_msgs_radar_info_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -3619,7 +3712,7 @@ pub extern "C" fn ros_radar_info_from_cdr(data: *const u8, len: usize) -> *mut r
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_info_free(view: *mut ros_radar_info_t) {
+pub extern "C" fn edgefirst_msgs_radar_info_free(view: *mut edgefirst_msgs_radar_info_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -3628,7 +3721,9 @@ pub extern "C" fn ros_radar_info_free(view: *mut ros_radar_info_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_info_get_stamp_sec(view: *const ros_radar_info_t) -> i32 {
+pub extern "C" fn edgefirst_msgs_radar_info_get_stamp_sec(
+    view: *const edgefirst_msgs_radar_info_t,
+) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -3636,7 +3731,9 @@ pub extern "C" fn ros_radar_info_get_stamp_sec(view: *const ros_radar_info_t) ->
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_info_get_stamp_nanosec(view: *const ros_radar_info_t) -> u32 {
+pub extern "C" fn edgefirst_msgs_radar_info_get_stamp_nanosec(
+    view: *const edgefirst_msgs_radar_info_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -3644,7 +3741,9 @@ pub extern "C" fn ros_radar_info_get_stamp_nanosec(view: *const ros_radar_info_t
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_info_get_frame_id(view: *const ros_radar_info_t) -> *const c_char {
+pub extern "C" fn edgefirst_msgs_radar_info_get_frame_id(
+    view: *const edgefirst_msgs_radar_info_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -3652,8 +3751,8 @@ pub extern "C" fn ros_radar_info_get_frame_id(view: *const ros_radar_info_t) -> 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_info_get_center_frequency(
-    view: *const ros_radar_info_t,
+pub extern "C" fn edgefirst_msgs_radar_info_get_center_frequency(
+    view: *const edgefirst_msgs_radar_info_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -3662,8 +3761,8 @@ pub extern "C" fn ros_radar_info_get_center_frequency(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_info_get_frequency_sweep(
-    view: *const ros_radar_info_t,
+pub extern "C" fn edgefirst_msgs_radar_info_get_frequency_sweep(
+    view: *const edgefirst_msgs_radar_info_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -3672,7 +3771,9 @@ pub extern "C" fn ros_radar_info_get_frequency_sweep(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_info_get_range_toggle(view: *const ros_radar_info_t) -> *const c_char {
+pub extern "C" fn edgefirst_msgs_radar_info_get_range_toggle(
+    view: *const edgefirst_msgs_radar_info_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -3680,8 +3781,8 @@ pub extern "C" fn ros_radar_info_get_range_toggle(view: *const ros_radar_info_t)
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_info_get_detection_sensitivity(
-    view: *const ros_radar_info_t,
+pub extern "C" fn edgefirst_msgs_radar_info_get_detection_sensitivity(
+    view: *const edgefirst_msgs_radar_info_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -3690,7 +3791,9 @@ pub extern "C" fn ros_radar_info_get_detection_sensitivity(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_info_get_cube(view: *const ros_radar_info_t) -> bool {
+pub extern "C" fn edgefirst_msgs_radar_info_get_cube(
+    view: *const edgefirst_msgs_radar_info_t,
+) -> bool {
     if view.is_null() {
         return false;
     }
@@ -3701,13 +3804,13 @@ pub extern "C" fn ros_radar_info_get_cube(view: *const ros_radar_info_t) -> bool
 // Detect (buffer-backed)
 // =============================================================================
 
-pub struct ros_detect_t {
+pub struct edgefirst_msgs_detect_t {
     inner: edgefirst_msgs::Detect<&'static [u8]>,
     /// Pre-materialized child box views, one per box in the parent. Each view's
     /// `&str` fields borrow directly from `inner`'s CDR buffer — no data
-    /// duplication. This is bookkeeping allocation (Vec header + N*sizeof(ros_box_t))
+    /// duplication. This is bookkeeping allocation (Vec header + N*sizeof(edgefirst_msgs_box_t))
     /// in the same category as the offset tables already built during from_cdr.
-    child_boxes: Vec<ros_box_t>,
+    child_boxes: Vec<edgefirst_msgs_box_t>,
 }
 
 /// @brief Create a Detect view from CDR bytes.
@@ -3715,23 +3818,26 @@ pub struct ros_detect_t {
 /// @param len Length of data
 /// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
-pub extern "C" fn ros_detect_from_cdr(data: *const u8, len: usize) -> *mut ros_detect_t {
+pub extern "C" fn edgefirst_msgs_detect_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut edgefirst_msgs_detect_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match edgefirst_msgs::Detect::from_cdr_collect_boxes(unsafe { erase_lifetime(slice) }) {
         Ok((v, box_views)) => {
             // box_views were collected during the single validation walk;
             // no second pass over the CDR buffer is needed here. Each child
-            // is marked `owned: false` so ros_box_free safely no-ops if a
+            // is marked `owned: false` so edgefirst_msgs_box_free safely no-ops if a
             // caller mistakenly casts away const and passes a borrowed child.
-            let child_boxes: Vec<ros_box_t> = box_views
+            let child_boxes: Vec<edgefirst_msgs_box_t> = box_views
                 .into_iter()
-                .map(|bv| ros_box_t {
+                .map(|bv| edgefirst_msgs_box_t {
                     view: bv,
                     owned: false,
                 })
                 .collect();
-            Box::into_raw(Box::new(ros_detect_t {
+            Box::into_raw(Box::new(edgefirst_msgs_detect_t {
                 inner: v,
                 child_boxes,
             }))
@@ -3744,7 +3850,7 @@ pub extern "C" fn ros_detect_from_cdr(data: *const u8, len: usize) -> *mut ros_d
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_free(view: *mut ros_detect_t) {
+pub extern "C" fn edgefirst_msgs_detect_free(view: *mut edgefirst_msgs_detect_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -3753,7 +3859,7 @@ pub extern "C" fn ros_detect_free(view: *mut ros_detect_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_get_stamp_sec(view: *const ros_detect_t) -> i32 {
+pub extern "C" fn edgefirst_msgs_detect_get_stamp_sec(view: *const edgefirst_msgs_detect_t) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -3761,7 +3867,9 @@ pub extern "C" fn ros_detect_get_stamp_sec(view: *const ros_detect_t) -> i32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_get_stamp_nanosec(view: *const ros_detect_t) -> u32 {
+pub extern "C" fn edgefirst_msgs_detect_get_stamp_nanosec(
+    view: *const edgefirst_msgs_detect_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -3769,7 +3877,9 @@ pub extern "C" fn ros_detect_get_stamp_nanosec(view: *const ros_detect_t) -> u32
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_get_frame_id(view: *const ros_detect_t) -> *const c_char {
+pub extern "C" fn edgefirst_msgs_detect_get_frame_id(
+    view: *const edgefirst_msgs_detect_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -3777,7 +3887,7 @@ pub extern "C" fn ros_detect_get_frame_id(view: *const ros_detect_t) -> *const c
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_get_boxes_len(view: *const ros_detect_t) -> u32 {
+pub extern "C" fn edgefirst_msgs_detect_get_boxes_len(view: *const edgefirst_msgs_detect_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -3786,23 +3896,26 @@ pub extern "C" fn ros_detect_get_boxes_len(view: *const ros_detect_t) -> u32 {
 
 /// @brief Get a borrowed view of the i-th detection box.
 /// @param view Detect handle
-/// @param index Zero-based box index (must be < ros_detect_get_boxes_len(view))
-/// @return Borrowed ros_box_t* whose lifetime is tied to the parent Detect handle,
+/// @param index Zero-based box index (must be < edgefirst_msgs_detect_get_boxes_len(view))
+/// @return Borrowed edgefirst_msgs_box_t* whose lifetime is tied to the parent Detect handle,
 ///         or NULL on error (errno set to EINVAL).
 ///
 /// The returned pointer is NOT a separately-owned handle: do NOT pass it to
-/// ros_box_free(). It becomes invalid when the parent Detect handle is freed.
-/// The parent's CDR buffer (passed to ros_detect_from_cdr) must also remain
+/// edgefirst_msgs_box_free(). It becomes invalid when the parent Detect handle is freed.
+/// The parent's CDR buffer (passed to edgefirst_msgs_detect_from_cdr) must also remain
 /// valid for as long as the returned pointer is used.
 ///
-/// Defense-in-depth: the returned `ros_box_t` has its internal `owned` tag
+/// Defense-in-depth: the returned `edgefirst_msgs_box_t` has its internal `owned` tag
 /// set to `false` (populated at parent `from_cdr` time). If a caller
-/// mistakenly casts away `const` and passes this pointer to `ros_box_free`,
+/// mistakenly casts away `const` and passes this pointer to `edgefirst_msgs_box_free`,
 /// the free function detects the borrowed tag, sets `errno=EINVAL`, and
 /// safely no-ops — the parent's internal `child_boxes` Vec is never
 /// touched, so heap corruption from misuse is not possible.
 #[no_mangle]
-pub extern "C" fn ros_detect_get_box(view: *const ros_detect_t, index: u32) -> *const ros_box_t {
+pub extern "C" fn edgefirst_msgs_detect_get_box(
+    view: *const edgefirst_msgs_detect_t,
+    index: u32,
+) -> *const edgefirst_msgs_box_t {
     if view.is_null() {
         set_errno(EINVAL);
         return ptr::null();
@@ -3813,22 +3926,22 @@ pub extern "C" fn ros_detect_get_box(view: *const ros_detect_t, index: u32) -> *
         set_errno(EINVAL);
         return ptr::null();
     }
-    &v.child_boxes[idx] as *const ros_box_t
+    &v.child_boxes[idx] as *const edgefirst_msgs_box_t
 }
 
 // =============================================================================
 // Model (buffer-backed)
 // =============================================================================
 
-pub struct ros_model_t {
+pub struct edgefirst_msgs_model_t {
     inner: edgefirst_msgs::Model<&'static [u8]>,
     /// Pre-materialized child box views, one per box in the parent. Each view's
     /// `&str` fields borrow directly from `inner`'s CDR buffer — no data
     /// duplication.
-    child_boxes: Vec<ros_box_t>,
+    child_boxes: Vec<edgefirst_msgs_box_t>,
     /// Pre-materialized child mask views, one per mask in the parent. Each view's
     /// `&str` and `&[u8]` fields borrow directly from `inner`'s CDR buffer.
-    child_masks: Vec<ros_mask_t>,
+    child_masks: Vec<edgefirst_msgs_mask_t>,
 }
 
 /// @brief Create a Model view from CDR bytes.
@@ -3836,31 +3949,34 @@ pub struct ros_model_t {
 /// @param len Length of data
 /// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
-pub extern "C" fn ros_model_from_cdr(data: *const u8, len: usize) -> *mut ros_model_t {
+pub extern "C" fn edgefirst_msgs_model_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut edgefirst_msgs_model_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match edgefirst_msgs::Model::from_cdr_collect_children(unsafe { erase_lifetime(slice) }) {
         Ok((v, box_views, mask_views)) => {
             // box_views and mask_views were collected during the single
             // validation walk; no second pass over the CDR buffer is needed.
-            // Each child is marked `owned: false` so ros_box_free /
-            // ros_mask_free safely no-op if a caller mistakenly casts
+            // Each child is marked `owned: false` so edgefirst_msgs_box_free /
+            // edgefirst_msgs_mask_free safely no-op if a caller mistakenly casts
             // away const and passes a borrowed child.
-            let child_boxes: Vec<ros_box_t> = box_views
+            let child_boxes: Vec<edgefirst_msgs_box_t> = box_views
                 .into_iter()
-                .map(|bv| ros_box_t {
+                .map(|bv| edgefirst_msgs_box_t {
                     view: bv,
                     owned: false,
                 })
                 .collect();
-            let child_masks: Vec<ros_mask_t> = mask_views
+            let child_masks: Vec<edgefirst_msgs_mask_t> = mask_views
                 .into_iter()
-                .map(|mv| ros_mask_t {
+                .map(|mv| edgefirst_msgs_mask_t {
                     view: mv,
                     owned: false,
                 })
                 .collect();
-            Box::into_raw(Box::new(ros_model_t {
+            Box::into_raw(Box::new(edgefirst_msgs_model_t {
                 inner: v,
                 child_boxes,
                 child_masks,
@@ -3874,7 +3990,7 @@ pub extern "C" fn ros_model_from_cdr(data: *const u8, len: usize) -> *mut ros_mo
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_free(view: *mut ros_model_t) {
+pub extern "C" fn edgefirst_msgs_model_free(view: *mut edgefirst_msgs_model_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -3883,7 +3999,7 @@ pub extern "C" fn ros_model_free(view: *mut ros_model_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_get_stamp_sec(view: *const ros_model_t) -> i32 {
+pub extern "C" fn edgefirst_msgs_model_get_stamp_sec(view: *const edgefirst_msgs_model_t) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -3891,7 +4007,9 @@ pub extern "C" fn ros_model_get_stamp_sec(view: *const ros_model_t) -> i32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_get_stamp_nanosec(view: *const ros_model_t) -> u32 {
+pub extern "C" fn edgefirst_msgs_model_get_stamp_nanosec(
+    view: *const edgefirst_msgs_model_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -3899,7 +4017,9 @@ pub extern "C" fn ros_model_get_stamp_nanosec(view: *const ros_model_t) -> u32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_get_frame_id(view: *const ros_model_t) -> *const c_char {
+pub extern "C" fn edgefirst_msgs_model_get_frame_id(
+    view: *const edgefirst_msgs_model_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -3907,7 +4027,7 @@ pub extern "C" fn ros_model_get_frame_id(view: *const ros_model_t) -> *const c_c
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_get_boxes_len(view: *const ros_model_t) -> u32 {
+pub extern "C" fn edgefirst_msgs_model_get_boxes_len(view: *const edgefirst_msgs_model_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -3915,7 +4035,7 @@ pub extern "C" fn ros_model_get_boxes_len(view: *const ros_model_t) -> u32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_get_masks_len(view: *const ros_model_t) -> u32 {
+pub extern "C" fn edgefirst_msgs_model_get_masks_len(view: *const edgefirst_msgs_model_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -3924,21 +4044,24 @@ pub extern "C" fn ros_model_get_masks_len(view: *const ros_model_t) -> u32 {
 
 /// @brief Get a borrowed view of the i-th model box.
 /// @param view Model handle
-/// @param index Zero-based box index (must be < ros_model_get_boxes_len(view))
-/// @return Borrowed ros_box_t* whose lifetime is tied to the parent Model handle,
+/// @param index Zero-based box index (must be < edgefirst_msgs_model_get_boxes_len(view))
+/// @return Borrowed edgefirst_msgs_box_t* whose lifetime is tied to the parent Model handle,
 ///         or NULL on error (errno set to EINVAL).
 ///
 /// The returned pointer is NOT a separately-owned handle: do NOT pass it to
-/// ros_box_free(). It becomes invalid when the parent Model handle is freed.
+/// edgefirst_msgs_box_free(). It becomes invalid when the parent Model handle is freed.
 ///
-/// Defense-in-depth: the returned `ros_box_t` has its internal `owned` tag
+/// Defense-in-depth: the returned `edgefirst_msgs_box_t` has its internal `owned` tag
 /// set to `false`. If a caller mistakenly casts away `const` and passes
-/// this pointer to `ros_box_free`, the free function detects the borrowed
+/// this pointer to `edgefirst_msgs_box_free`, the free function detects the borrowed
 /// tag, sets `errno=EINVAL`, and safely no-ops — the parent's internal
 /// `child_boxes` Vec is never touched, so heap corruption from misuse is
 /// not possible.
 #[no_mangle]
-pub extern "C" fn ros_model_get_box(view: *const ros_model_t, index: u32) -> *const ros_box_t {
+pub extern "C" fn edgefirst_msgs_model_get_box(
+    view: *const edgefirst_msgs_model_t,
+    index: u32,
+) -> *const edgefirst_msgs_box_t {
     if view.is_null() {
         set_errno(EINVAL);
         return ptr::null();
@@ -3949,26 +4072,29 @@ pub extern "C" fn ros_model_get_box(view: *const ros_model_t, index: u32) -> *co
         set_errno(EINVAL);
         return ptr::null();
     }
-    &v.child_boxes[idx] as *const ros_box_t
+    &v.child_boxes[idx] as *const edgefirst_msgs_box_t
 }
 
 /// @brief Get a borrowed view of the i-th model mask.
 /// @param view Model handle
-/// @param index Zero-based mask index (must be < ros_model_get_masks_len(view))
-/// @return Borrowed ros_mask_t* whose lifetime is tied to the parent Model handle,
+/// @param index Zero-based mask index (must be < edgefirst_msgs_model_get_masks_len(view))
+/// @return Borrowed edgefirst_msgs_mask_t* whose lifetime is tied to the parent Model handle,
 ///         or NULL on error (errno set to EINVAL).
 ///
 /// The returned pointer is NOT a separately-owned handle: do NOT pass it to
-/// ros_mask_free(). It becomes invalid when the parent Model handle is freed.
+/// edgefirst_msgs_mask_free(). It becomes invalid when the parent Model handle is freed.
 ///
-/// Defense-in-depth: the returned `ros_mask_t` has its internal `owned` tag
+/// Defense-in-depth: the returned `edgefirst_msgs_mask_t` has its internal `owned` tag
 /// set to `false`. If a caller mistakenly casts away `const` and passes
-/// this pointer to `ros_mask_free`, the free function detects the borrowed
+/// this pointer to `edgefirst_msgs_mask_free`, the free function detects the borrowed
 /// tag, sets `errno=EINVAL`, and safely no-ops — the parent's internal
 /// `child_masks` Vec is never touched, so heap corruption from misuse is
 /// not possible.
 #[no_mangle]
-pub extern "C" fn ros_model_get_mask(view: *const ros_model_t, index: u32) -> *const ros_mask_t {
+pub extern "C" fn edgefirst_msgs_model_get_mask(
+    view: *const edgefirst_msgs_model_t,
+    index: u32,
+) -> *const edgefirst_msgs_mask_t {
     if view.is_null() {
         set_errno(EINVAL);
         return ptr::null();
@@ -3979,25 +4105,28 @@ pub extern "C" fn ros_model_get_mask(view: *const ros_model_t, index: u32) -> *c
         set_errno(EINVAL);
         return ptr::null();
     }
-    &v.child_masks[idx] as *const ros_mask_t
+    &v.child_masks[idx] as *const edgefirst_msgs_mask_t
 }
 
 // =============================================================================
 // ModelInfo (buffer-backed)
 // =============================================================================
 
-pub struct ros_model_info_t(edgefirst_msgs::ModelInfo<&'static [u8]>);
+pub struct edgefirst_msgs_model_info_t(edgefirst_msgs::ModelInfo<&'static [u8]>);
 
 /// @brief Create a ModelInfo view from CDR bytes.
 /// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
 /// @param len Length of data
 /// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
-pub extern "C" fn ros_model_info_from_cdr(data: *const u8, len: usize) -> *mut ros_model_info_t {
+pub extern "C" fn edgefirst_msgs_model_info_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut edgefirst_msgs_model_info_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match edgefirst_msgs::ModelInfo::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_model_info_t(v))),
+        Ok(v) => Box::into_raw(Box::new(edgefirst_msgs_model_info_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -4006,7 +4135,7 @@ pub extern "C" fn ros_model_info_from_cdr(data: *const u8, len: usize) -> *mut r
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_free(view: *mut ros_model_info_t) {
+pub extern "C" fn edgefirst_msgs_model_info_free(view: *mut edgefirst_msgs_model_info_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -4015,7 +4144,9 @@ pub extern "C" fn ros_model_info_free(view: *mut ros_model_info_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_get_stamp_sec(view: *const ros_model_info_t) -> i32 {
+pub extern "C" fn edgefirst_msgs_model_info_get_stamp_sec(
+    view: *const edgefirst_msgs_model_info_t,
+) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -4023,7 +4154,9 @@ pub extern "C" fn ros_model_info_get_stamp_sec(view: *const ros_model_info_t) ->
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_get_stamp_nanosec(view: *const ros_model_info_t) -> u32 {
+pub extern "C" fn edgefirst_msgs_model_info_get_stamp_nanosec(
+    view: *const edgefirst_msgs_model_info_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -4031,7 +4164,9 @@ pub extern "C" fn ros_model_info_get_stamp_nanosec(view: *const ros_model_info_t
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_get_frame_id(view: *const ros_model_info_t) -> *const c_char {
+pub extern "C" fn edgefirst_msgs_model_info_get_frame_id(
+    view: *const edgefirst_msgs_model_info_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -4039,7 +4174,9 @@ pub extern "C" fn ros_model_info_get_frame_id(view: *const ros_model_info_t) -> 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_get_model_type(view: *const ros_model_info_t) -> *const c_char {
+pub extern "C" fn edgefirst_msgs_model_info_get_model_type(
+    view: *const edgefirst_msgs_model_info_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -4047,7 +4184,9 @@ pub extern "C" fn ros_model_info_get_model_type(view: *const ros_model_info_t) -
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_get_model_format(view: *const ros_model_info_t) -> *const c_char {
+pub extern "C" fn edgefirst_msgs_model_info_get_model_format(
+    view: *const edgefirst_msgs_model_info_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -4055,7 +4194,9 @@ pub extern "C" fn ros_model_info_get_model_format(view: *const ros_model_info_t)
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_get_model_name(view: *const ros_model_info_t) -> *const c_char {
+pub extern "C" fn edgefirst_msgs_model_info_get_model_name(
+    view: *const edgefirst_msgs_model_info_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -4063,7 +4204,9 @@ pub extern "C" fn ros_model_info_get_model_name(view: *const ros_model_info_t) -
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_get_input_type(view: *const ros_model_info_t) -> u8 {
+pub extern "C" fn edgefirst_msgs_model_info_get_input_type(
+    view: *const edgefirst_msgs_model_info_t,
+) -> u8 {
     if view.is_null() {
         return 0;
     }
@@ -4071,7 +4214,9 @@ pub extern "C" fn ros_model_info_get_input_type(view: *const ros_model_info_t) -
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_get_output_type(view: *const ros_model_info_t) -> u8 {
+pub extern "C" fn edgefirst_msgs_model_info_get_output_type(
+    view: *const edgefirst_msgs_model_info_t,
+) -> u8 {
     if view.is_null() {
         return 0;
     }
@@ -4079,8 +4224,8 @@ pub extern "C" fn ros_model_info_get_output_type(view: *const ros_model_info_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_get_input_shape(
-    view: *const ros_model_info_t,
+pub extern "C" fn edgefirst_msgs_model_info_get_input_shape(
+    view: *const edgefirst_msgs_model_info_t,
     out_len: *mut usize,
 ) -> *const u32 {
     if view.is_null() {
@@ -4101,8 +4246,8 @@ pub extern "C" fn ros_model_info_get_input_shape(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_get_output_shape(
-    view: *const ros_model_info_t,
+pub extern "C" fn edgefirst_msgs_model_info_get_output_shape(
+    view: *const edgefirst_msgs_model_info_t,
     out_len: *mut usize,
 ) -> *const u32 {
     if view.is_null() {
@@ -4123,7 +4268,9 @@ pub extern "C" fn ros_model_info_get_output_shape(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_get_labels_len(view: *const ros_model_info_t) -> u32 {
+pub extern "C" fn edgefirst_msgs_model_info_get_labels_len(
+    view: *const edgefirst_msgs_model_info_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -4131,8 +4278,8 @@ pub extern "C" fn ros_model_info_get_labels_len(view: *const ros_model_info_t) -
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_get_label(
-    view: *const ros_model_info_t,
+pub extern "C" fn edgefirst_msgs_model_info_get_label(
+    view: *const edgefirst_msgs_model_info_t,
     index: u32,
 ) -> *const c_char {
     if view.is_null() {
@@ -4152,21 +4299,21 @@ pub extern "C" fn ros_model_info_get_label(
 // PointCloud2 (buffer-backed)
 // =============================================================================
 
-pub struct ros_point_cloud2_t(sensor_msgs::PointCloud2<&'static [u8]>);
+pub struct sensor_msgs_point_cloud2_t(sensor_msgs::PointCloud2<&'static [u8]>);
 
 /// @brief Create a PointCloud2 view from CDR bytes.
 /// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
 /// @param len Length of data
 /// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_from_cdr(
+pub extern "C" fn sensor_msgs_point_cloud2_from_cdr(
     data: *const u8,
     len: usize,
-) -> *mut ros_point_cloud2_t {
+) -> *mut sensor_msgs_point_cloud2_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match sensor_msgs::PointCloud2::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_point_cloud2_t(v))),
+        Ok(v) => Box::into_raw(Box::new(sensor_msgs_point_cloud2_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -4175,7 +4322,7 @@ pub extern "C" fn ros_point_cloud2_from_cdr(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_free(view: *mut ros_point_cloud2_t) {
+pub extern "C" fn sensor_msgs_point_cloud2_free(view: *mut sensor_msgs_point_cloud2_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -4184,7 +4331,9 @@ pub extern "C" fn ros_point_cloud2_free(view: *mut ros_point_cloud2_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_get_stamp_sec(view: *const ros_point_cloud2_t) -> i32 {
+pub extern "C" fn sensor_msgs_point_cloud2_get_stamp_sec(
+    view: *const sensor_msgs_point_cloud2_t,
+) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -4192,7 +4341,9 @@ pub extern "C" fn ros_point_cloud2_get_stamp_sec(view: *const ros_point_cloud2_t
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_get_stamp_nanosec(view: *const ros_point_cloud2_t) -> u32 {
+pub extern "C" fn sensor_msgs_point_cloud2_get_stamp_nanosec(
+    view: *const sensor_msgs_point_cloud2_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -4200,7 +4351,9 @@ pub extern "C" fn ros_point_cloud2_get_stamp_nanosec(view: *const ros_point_clou
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_get_frame_id(view: *const ros_point_cloud2_t) -> *const c_char {
+pub extern "C" fn sensor_msgs_point_cloud2_get_frame_id(
+    view: *const sensor_msgs_point_cloud2_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -4208,7 +4361,9 @@ pub extern "C" fn ros_point_cloud2_get_frame_id(view: *const ros_point_cloud2_t)
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_get_height(view: *const ros_point_cloud2_t) -> u32 {
+pub extern "C" fn sensor_msgs_point_cloud2_get_height(
+    view: *const sensor_msgs_point_cloud2_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -4216,7 +4371,9 @@ pub extern "C" fn ros_point_cloud2_get_height(view: *const ros_point_cloud2_t) -
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_get_width(view: *const ros_point_cloud2_t) -> u32 {
+pub extern "C" fn sensor_msgs_point_cloud2_get_width(
+    view: *const sensor_msgs_point_cloud2_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -4224,7 +4381,9 @@ pub extern "C" fn ros_point_cloud2_get_width(view: *const ros_point_cloud2_t) ->
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_get_point_step(view: *const ros_point_cloud2_t) -> u32 {
+pub extern "C" fn sensor_msgs_point_cloud2_get_point_step(
+    view: *const sensor_msgs_point_cloud2_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -4232,7 +4391,9 @@ pub extern "C" fn ros_point_cloud2_get_point_step(view: *const ros_point_cloud2_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_get_row_step(view: *const ros_point_cloud2_t) -> u32 {
+pub extern "C" fn sensor_msgs_point_cloud2_get_row_step(
+    view: *const sensor_msgs_point_cloud2_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -4240,8 +4401,8 @@ pub extern "C" fn ros_point_cloud2_get_row_step(view: *const ros_point_cloud2_t)
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_get_data(
-    view: *const ros_point_cloud2_t,
+pub extern "C" fn sensor_msgs_point_cloud2_get_data(
+    view: *const sensor_msgs_point_cloud2_t,
     out_len: *mut usize,
 ) -> *const u8 {
     if view.is_null() {
@@ -4262,7 +4423,9 @@ pub extern "C" fn ros_point_cloud2_get_data(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_get_is_dense(view: *const ros_point_cloud2_t) -> bool {
+pub extern "C" fn sensor_msgs_point_cloud2_get_is_dense(
+    view: *const sensor_msgs_point_cloud2_t,
+) -> bool {
     if view.is_null() {
         return false;
     }
@@ -4270,7 +4433,9 @@ pub extern "C" fn ros_point_cloud2_get_is_dense(view: *const ros_point_cloud2_t)
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_get_is_bigendian(view: *const ros_point_cloud2_t) -> bool {
+pub extern "C" fn sensor_msgs_point_cloud2_get_is_bigendian(
+    view: *const sensor_msgs_point_cloud2_t,
+) -> bool {
     if view.is_null() {
         return false;
     }
@@ -4278,7 +4443,9 @@ pub extern "C" fn ros_point_cloud2_get_is_bigendian(view: *const ros_point_cloud
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_get_fields_len(view: *const ros_point_cloud2_t) -> u32 {
+pub extern "C" fn sensor_msgs_point_cloud2_get_fields_len(
+    view: *const sensor_msgs_point_cloud2_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -4289,18 +4456,21 @@ pub extern "C" fn ros_point_cloud2_get_fields_len(view: *const ros_point_cloud2_
 // CameraInfo (buffer-backed)
 // =============================================================================
 
-pub struct ros_camera_info_t(sensor_msgs::CameraInfo<&'static [u8]>);
+pub struct sensor_msgs_camera_info_t(sensor_msgs::CameraInfo<&'static [u8]>);
 
 /// @brief Create a CameraInfo view from CDR bytes.
 /// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
 /// @param len Length of data
 /// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
-pub extern "C" fn ros_camera_info_from_cdr(data: *const u8, len: usize) -> *mut ros_camera_info_t {
+pub extern "C" fn sensor_msgs_camera_info_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut sensor_msgs_camera_info_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match sensor_msgs::CameraInfo::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_camera_info_t(v))),
+        Ok(v) => Box::into_raw(Box::new(sensor_msgs_camera_info_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -4309,7 +4479,7 @@ pub extern "C" fn ros_camera_info_from_cdr(data: *const u8, len: usize) -> *mut 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_free(view: *mut ros_camera_info_t) {
+pub extern "C" fn sensor_msgs_camera_info_free(view: *mut sensor_msgs_camera_info_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -4318,7 +4488,9 @@ pub extern "C" fn ros_camera_info_free(view: *mut ros_camera_info_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_get_stamp_sec(view: *const ros_camera_info_t) -> i32 {
+pub extern "C" fn sensor_msgs_camera_info_get_stamp_sec(
+    view: *const sensor_msgs_camera_info_t,
+) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -4326,7 +4498,9 @@ pub extern "C" fn ros_camera_info_get_stamp_sec(view: *const ros_camera_info_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_get_stamp_nanosec(view: *const ros_camera_info_t) -> u32 {
+pub extern "C" fn sensor_msgs_camera_info_get_stamp_nanosec(
+    view: *const sensor_msgs_camera_info_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -4334,7 +4508,9 @@ pub extern "C" fn ros_camera_info_get_stamp_nanosec(view: *const ros_camera_info
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_get_frame_id(view: *const ros_camera_info_t) -> *const c_char {
+pub extern "C" fn sensor_msgs_camera_info_get_frame_id(
+    view: *const sensor_msgs_camera_info_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -4342,7 +4518,9 @@ pub extern "C" fn ros_camera_info_get_frame_id(view: *const ros_camera_info_t) -
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_get_height(view: *const ros_camera_info_t) -> u32 {
+pub extern "C" fn sensor_msgs_camera_info_get_height(
+    view: *const sensor_msgs_camera_info_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -4350,7 +4528,7 @@ pub extern "C" fn ros_camera_info_get_height(view: *const ros_camera_info_t) -> 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_get_width(view: *const ros_camera_info_t) -> u32 {
+pub extern "C" fn sensor_msgs_camera_info_get_width(view: *const sensor_msgs_camera_info_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -4358,8 +4536,8 @@ pub extern "C" fn ros_camera_info_get_width(view: *const ros_camera_info_t) -> u
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_get_distortion_model(
-    view: *const ros_camera_info_t,
+pub extern "C" fn sensor_msgs_camera_info_get_distortion_model(
+    view: *const sensor_msgs_camera_info_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -4368,7 +4546,9 @@ pub extern "C" fn ros_camera_info_get_distortion_model(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_get_binning_x(view: *const ros_camera_info_t) -> u32 {
+pub extern "C" fn sensor_msgs_camera_info_get_binning_x(
+    view: *const sensor_msgs_camera_info_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -4376,7 +4556,9 @@ pub extern "C" fn ros_camera_info_get_binning_x(view: *const ros_camera_info_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_get_binning_y(view: *const ros_camera_info_t) -> u32 {
+pub extern "C" fn sensor_msgs_camera_info_get_binning_y(
+    view: *const sensor_msgs_camera_info_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -4387,18 +4569,21 @@ pub extern "C" fn ros_camera_info_get_binning_y(view: *const ros_camera_info_t) 
 // Track (buffer-backed)
 // =============================================================================
 
-pub struct ros_track_t(edgefirst_msgs::Track<&'static [u8]>);
+pub struct edgefirst_msgs_track_t(edgefirst_msgs::Track<&'static [u8]>);
 
 /// @brief Create a Track view from CDR bytes.
 /// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
 /// @param len Length of data
 /// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
-pub extern "C" fn ros_track_from_cdr(data: *const u8, len: usize) -> *mut ros_track_t {
+pub extern "C" fn edgefirst_msgs_track_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut edgefirst_msgs_track_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match edgefirst_msgs::Track::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_track_t(v))),
+        Ok(v) => Box::into_raw(Box::new(edgefirst_msgs_track_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -4407,7 +4592,7 @@ pub extern "C" fn ros_track_from_cdr(data: *const u8, len: usize) -> *mut ros_tr
 }
 
 #[no_mangle]
-pub extern "C" fn ros_track_free(view: *mut ros_track_t) {
+pub extern "C" fn edgefirst_msgs_track_free(view: *mut edgefirst_msgs_track_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -4416,7 +4601,9 @@ pub extern "C" fn ros_track_free(view: *mut ros_track_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_track_get_id(view: *const ros_track_t) -> *const c_char {
+pub extern "C" fn edgefirst_msgs_track_get_id(
+    view: *const edgefirst_msgs_track_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -4424,7 +4611,7 @@ pub extern "C" fn ros_track_get_id(view: *const ros_track_t) -> *const c_char {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_track_get_lifetime(view: *const ros_track_t) -> i32 {
+pub extern "C" fn edgefirst_msgs_track_get_lifetime(view: *const edgefirst_msgs_track_t) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -4435,15 +4622,15 @@ pub extern "C" fn ros_track_get_lifetime(view: *const ros_track_t) -> i32 {
 // DetectBox (buffer-backed)
 // =============================================================================
 
-pub struct ros_box_t {
+pub struct edgefirst_msgs_box_t {
     view: edgefirst_msgs::DetectBoxView<'static>,
-    /// `true` if this handle was heap-allocated by `ros_box_from_cdr`
-    /// (and must be freed by `ros_box_free`). `false` if this handle
-    /// lives inside a parent `ros_detect_t` / `ros_model_t`'s
+    /// `true` if this handle was heap-allocated by `edgefirst_msgs_box_from_cdr`
+    /// (and must be freed by `edgefirst_msgs_box_free`). `false` if this handle
+    /// lives inside a parent `edgefirst_msgs_detect_t` / `edgefirst_msgs_model_t`'s
     /// `child_boxes` vector and is borrowed from there; calling
-    /// `ros_box_free` on a borrowed handle would `Box::from_raw` an
+    /// `edgefirst_msgs_box_free` on a borrowed handle would `Box::from_raw` an
     /// address inside someone else's allocation and corrupt the heap,
-    /// so `ros_box_free` checks this flag and no-ops with
+    /// so `edgefirst_msgs_box_free` checks this flag and no-ops with
     /// `errno=EINVAL` when it's `false`.
     owned: bool,
 }
@@ -4453,7 +4640,10 @@ pub struct ros_box_t {
 /// @param len Length of data
 /// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
-pub extern "C" fn ros_box_from_cdr(data: *const u8, len: usize) -> *mut ros_box_t {
+pub extern "C" fn edgefirst_msgs_box_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut edgefirst_msgs_box_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     let static_slice: &'static [u8] = unsafe { erase_lifetime(slice) };
@@ -4462,7 +4652,7 @@ pub extern "C" fn ros_box_from_cdr(data: *const u8, len: usize) -> *mut ros_box_
     // structurally tied to the buffer's `'static` lifetime, so no unsafe
     // `mem::transmute` is required to widen method-returned references.
     match edgefirst_msgs::DetectBox::from_cdr_as_view(static_slice) {
-        Ok(view) => Box::into_raw(Box::new(ros_box_t { view, owned: true })),
+        Ok(view) => Box::into_raw(Box::new(edgefirst_msgs_box_t { view, owned: true })),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -4470,18 +4660,18 @@ pub extern "C" fn ros_box_from_cdr(data: *const u8, len: usize) -> *mut ros_box_
     }
 }
 
-/// @brief Free a DetectBox handle obtained from `ros_box_from_cdr`.
+/// @brief Free a DetectBox handle obtained from `edgefirst_msgs_box_from_cdr`.
 ///
 /// Safe to call with a NULL pointer. If the handle was obtained from
-/// `ros_detect_get_box` / `ros_model_get_box` (a parent-borrowed
+/// `edgefirst_msgs_detect_get_box` / `edgefirst_msgs_model_get_box` (a parent-borrowed
 /// child), this function does **not** free it — the parent
-/// `ros_detect_t` / `ros_model_t` owns the child storage, and freeing
+/// `edgefirst_msgs_detect_t` / `edgefirst_msgs_model_t` owns the child storage, and freeing
 /// here would corrupt the parent's `child_boxes` vector. In that case
 /// the function sets `errno=EINVAL` and returns without touching the
 /// pointer. Passing a borrowed handle here is an API misuse (Rule 5
 /// in CAPI.md); this is defense-in-depth against it.
 #[no_mangle]
-pub extern "C" fn ros_box_free(view: *mut ros_box_t) {
+pub extern "C" fn edgefirst_msgs_box_free(view: *mut edgefirst_msgs_box_t) {
     if view.is_null() {
         return;
     }
@@ -4496,7 +4686,7 @@ pub extern "C" fn ros_box_free(view: *mut ros_box_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_box_get_center_x(view: *const ros_box_t) -> f32 {
+pub extern "C" fn edgefirst_msgs_box_get_center_x(view: *const edgefirst_msgs_box_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -4504,7 +4694,7 @@ pub extern "C" fn ros_box_get_center_x(view: *const ros_box_t) -> f32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_box_get_center_y(view: *const ros_box_t) -> f32 {
+pub extern "C" fn edgefirst_msgs_box_get_center_y(view: *const edgefirst_msgs_box_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -4512,7 +4702,7 @@ pub extern "C" fn ros_box_get_center_y(view: *const ros_box_t) -> f32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_box_get_width(view: *const ros_box_t) -> f32 {
+pub extern "C" fn edgefirst_msgs_box_get_width(view: *const edgefirst_msgs_box_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -4520,7 +4710,7 @@ pub extern "C" fn ros_box_get_width(view: *const ros_box_t) -> f32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_box_get_height(view: *const ros_box_t) -> f32 {
+pub extern "C" fn edgefirst_msgs_box_get_height(view: *const edgefirst_msgs_box_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -4528,7 +4718,7 @@ pub extern "C" fn ros_box_get_height(view: *const ros_box_t) -> f32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_box_get_label(view: *const ros_box_t) -> *const c_char {
+pub extern "C" fn edgefirst_msgs_box_get_label(view: *const edgefirst_msgs_box_t) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -4536,7 +4726,7 @@ pub extern "C" fn ros_box_get_label(view: *const ros_box_t) -> *const c_char {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_box_get_score(view: *const ros_box_t) -> f32 {
+pub extern "C" fn edgefirst_msgs_box_get_score(view: *const edgefirst_msgs_box_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -4544,7 +4734,7 @@ pub extern "C" fn ros_box_get_score(view: *const ros_box_t) -> f32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_box_get_distance(view: *const ros_box_t) -> f32 {
+pub extern "C" fn edgefirst_msgs_box_get_distance(view: *const edgefirst_msgs_box_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -4552,7 +4742,7 @@ pub extern "C" fn ros_box_get_distance(view: *const ros_box_t) -> f32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_box_get_speed(view: *const ros_box_t) -> f32 {
+pub extern "C" fn edgefirst_msgs_box_get_speed(view: *const edgefirst_msgs_box_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -4560,7 +4750,9 @@ pub extern "C" fn ros_box_get_speed(view: *const ros_box_t) -> f32 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_box_get_track_id(view: *const ros_box_t) -> *const c_char {
+pub extern "C" fn edgefirst_msgs_box_get_track_id(
+    view: *const edgefirst_msgs_box_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -4568,7 +4760,7 @@ pub extern "C" fn ros_box_get_track_id(view: *const ros_box_t) -> *const c_char 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_box_get_track_lifetime(view: *const ros_box_t) -> i32 {
+pub extern "C" fn edgefirst_msgs_box_get_track_lifetime(view: *const edgefirst_msgs_box_t) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -4579,7 +4771,9 @@ pub extern "C" fn ros_box_get_track_lifetime(view: *const ros_box_t) -> i32 {
 /// @param view Box handle
 /// @return Time.sec or 0 if view is NULL
 #[no_mangle]
-pub extern "C" fn ros_box_get_track_created_sec(view: *const ros_box_t) -> i32 {
+pub extern "C" fn edgefirst_msgs_box_get_track_created_sec(
+    view: *const edgefirst_msgs_box_t,
+) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -4590,7 +4784,9 @@ pub extern "C" fn ros_box_get_track_created_sec(view: *const ros_box_t) -> i32 {
 /// @param view Box handle
 /// @return Time.nanosec or 0 if view is NULL
 #[no_mangle]
-pub extern "C" fn ros_box_get_track_created_nanosec(view: *const ros_box_t) -> u32 {
+pub extern "C" fn edgefirst_msgs_box_get_track_created_nanosec(
+    view: *const edgefirst_msgs_box_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -4601,18 +4797,21 @@ pub extern "C" fn ros_box_get_track_created_nanosec(view: *const ros_box_t) -> u
 // LocalTime (buffer-backed)
 // =============================================================================
 
-pub struct ros_local_time_t(edgefirst_msgs::LocalTime<&'static [u8]>);
+pub struct edgefirst_msgs_local_time_t(edgefirst_msgs::LocalTime<&'static [u8]>);
 
 /// @brief Create a LocalTime view from CDR bytes.
 /// @param data CDR encoded bytes (borrowed; must outlive the returned handle)
 /// @param len Length of data
 /// @return Opaque handle or NULL on error (errno set)
 #[no_mangle]
-pub extern "C" fn ros_local_time_from_cdr(data: *const u8, len: usize) -> *mut ros_local_time_t {
+pub extern "C" fn edgefirst_msgs_local_time_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut edgefirst_msgs_local_time_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match edgefirst_msgs::LocalTime::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_local_time_t(v))),
+        Ok(v) => Box::into_raw(Box::new(edgefirst_msgs_local_time_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -4621,7 +4820,7 @@ pub extern "C" fn ros_local_time_from_cdr(data: *const u8, len: usize) -> *mut r
 }
 
 #[no_mangle]
-pub extern "C" fn ros_local_time_free(view: *mut ros_local_time_t) {
+pub extern "C" fn edgefirst_msgs_local_time_free(view: *mut edgefirst_msgs_local_time_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -4630,7 +4829,9 @@ pub extern "C" fn ros_local_time_free(view: *mut ros_local_time_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_local_time_get_stamp_sec(view: *const ros_local_time_t) -> i32 {
+pub extern "C" fn edgefirst_msgs_local_time_get_stamp_sec(
+    view: *const edgefirst_msgs_local_time_t,
+) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -4638,7 +4839,9 @@ pub extern "C" fn ros_local_time_get_stamp_sec(view: *const ros_local_time_t) ->
 }
 
 #[no_mangle]
-pub extern "C" fn ros_local_time_get_stamp_nanosec(view: *const ros_local_time_t) -> u32 {
+pub extern "C" fn edgefirst_msgs_local_time_get_stamp_nanosec(
+    view: *const edgefirst_msgs_local_time_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -4646,7 +4849,9 @@ pub extern "C" fn ros_local_time_get_stamp_nanosec(view: *const ros_local_time_t
 }
 
 #[no_mangle]
-pub extern "C" fn ros_local_time_get_frame_id(view: *const ros_local_time_t) -> *const c_char {
+pub extern "C" fn edgefirst_msgs_local_time_get_frame_id(
+    view: *const edgefirst_msgs_local_time_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -4654,7 +4859,9 @@ pub extern "C" fn ros_local_time_get_frame_id(view: *const ros_local_time_t) -> 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_local_time_get_timezone(view: *const ros_local_time_t) -> i16 {
+pub extern "C" fn edgefirst_msgs_local_time_get_timezone(
+    view: *const edgefirst_msgs_local_time_t,
+) -> i16 {
     if view.is_null() {
         return 0;
     }
@@ -4691,81 +4898,147 @@ macro_rules! impl_as_cdr {
     };
 }
 
-impl_as_cdr!(ros_header_as_cdr, ros_header_t);
-impl_as_cdr!(ros_image_as_cdr, ros_image_t);
-impl_as_cdr!(ros_compressed_image_as_cdr, ros_compressed_image_t);
-impl_as_cdr!(ros_compressed_video_as_cdr, ros_compressed_video_t);
+impl_as_cdr!(std_msgs_header_as_cdr, std_msgs_header_t);
+impl_as_cdr!(sensor_msgs_image_as_cdr, sensor_msgs_image_t);
 impl_as_cdr!(
-    ros_foxglove_compressed_image_as_cdr,
-    ros_foxglove_compressed_image_t
-);
-impl_as_cdr!(ros_imu_as_cdr, ros_imu_t);
-impl_as_cdr!(ros_nav_sat_fix_as_cdr, ros_nav_sat_fix_t);
-impl_as_cdr!(ros_transform_stamped_as_cdr, ros_transform_stamped_t);
-impl_as_cdr!(ros_twist_stamped_as_cdr, ros_twist_stamped_t);
-impl_as_cdr!(ros_accel_stamped_as_cdr, ros_accel_stamped_t);
-impl_as_cdr!(ros_point_stamped_as_cdr, ros_point_stamped_t);
-impl_as_cdr!(ros_inertia_stamped_as_cdr, ros_inertia_stamped_t);
-impl_as_cdr!(ros_vector3_stamped_as_cdr, ros_vector3_stamped_t);
-impl_as_cdr!(ros_pose_stamped_as_cdr, ros_pose_stamped_t);
-impl_as_cdr!(ros_quaternion_stamped_as_cdr, ros_quaternion_stamped_t);
-impl_as_cdr!(ros_wrench_stamped_as_cdr, ros_wrench_stamped_t);
-impl_as_cdr!(
-    ros_pose_with_covariance_stamped_as_cdr,
-    ros_pose_with_covariance_stamped_t
+    sensor_msgs_compressed_image_as_cdr,
+    sensor_msgs_compressed_image_t
 );
 impl_as_cdr!(
-    ros_twist_with_covariance_stamped_as_cdr,
-    ros_twist_with_covariance_stamped_t
+    foxglove_msgs_compressed_video_as_cdr,
+    foxglove_msgs_compressed_video_t
 );
 impl_as_cdr!(
-    ros_accel_with_covariance_stamped_as_cdr,
-    ros_accel_with_covariance_stamped_t
+    foxglove_msgs_compressed_image_as_cdr,
+    foxglove_msgs_compressed_image_t
 );
-impl_as_cdr!(ros_polygon_as_cdr, ros_polygon_t);
-impl_as_cdr!(ros_polygon_stamped_as_cdr, ros_polygon_stamped_t);
-impl_as_cdr!(ros_pose_array_as_cdr, ros_pose_array_t);
-impl_as_cdr!(ros_radar_cube_as_cdr, ros_radar_cube_t);
-impl_as_cdr!(ros_radar_info_as_cdr, ros_radar_info_t);
-impl_as_cdr!(ros_model_info_as_cdr, ros_model_info_t);
-impl_as_cdr!(ros_point_cloud2_as_cdr, ros_point_cloud2_t);
-impl_as_cdr!(ros_camera_info_as_cdr, ros_camera_info_t);
-impl_as_cdr!(ros_track_as_cdr, ros_track_t);
-impl_as_cdr!(ros_local_time_as_cdr, ros_local_time_t);
-impl_as_cdr!(ros_magnetic_field_as_cdr, ros_magnetic_field_t);
-impl_as_cdr!(ros_fluid_pressure_as_cdr, ros_fluid_pressure_t);
-impl_as_cdr!(ros_temperature_as_cdr, ros_temperature_t);
-impl_as_cdr!(ros_battery_state_as_cdr, ros_battery_state_t);
-impl_as_cdr!(ros_relative_humidity_as_cdr, ros_relative_humidity_t);
-impl_as_cdr!(ros_time_reference_as_cdr, ros_time_reference_t);
-impl_as_cdr!(ros_odometry_as_cdr, ros_odometry_t);
-impl_as_cdr!(ros_grid_cells_as_cdr, ros_grid_cells_t);
-impl_as_cdr!(ros_occupancy_grid_as_cdr, ros_occupancy_grid_t);
-impl_as_cdr!(ros_path_as_cdr, ros_path_t);
-impl_as_cdr!(ros_vibration_as_cdr, ros_vibration_t);
-impl_as_cdr!(ros_mavros_altitude_as_cdr, ros_mavros_altitude_t);
-impl_as_cdr!(ros_mavros_vfrhud_as_cdr, ros_mavros_vfrhud_t);
+impl_as_cdr!(sensor_msgs_imu_as_cdr, sensor_msgs_imu_t);
+impl_as_cdr!(sensor_msgs_nav_sat_fix_as_cdr, sensor_msgs_nav_sat_fix_t);
 impl_as_cdr!(
-    ros_mavros_estimator_status_as_cdr,
-    ros_mavros_estimator_status_t
+    geometry_msgs_transform_stamped_as_cdr,
+    geometry_msgs_transform_stamped_t
 );
 impl_as_cdr!(
-    ros_mavros_extended_state_as_cdr,
-    ros_mavros_extended_state_t
+    geometry_msgs_twist_stamped_as_cdr,
+    geometry_msgs_twist_stamped_t
 );
-impl_as_cdr!(ros_mavros_sys_status_as_cdr, ros_mavros_sys_status_t);
-impl_as_cdr!(ros_mavros_state_as_cdr, ros_mavros_state_t);
-impl_as_cdr!(ros_mavros_status_text_as_cdr, ros_mavros_status_text_t);
-impl_as_cdr!(ros_mavros_gps_raw_as_cdr, ros_mavros_gps_raw_t);
 impl_as_cdr!(
-    ros_mavros_timesync_status_as_cdr,
-    ros_mavros_timesync_status_t
+    geometry_msgs_accel_stamped_as_cdr,
+    geometry_msgs_accel_stamped_t
+);
+impl_as_cdr!(
+    geometry_msgs_point_stamped_as_cdr,
+    geometry_msgs_point_stamped_t
+);
+impl_as_cdr!(
+    geometry_msgs_inertia_stamped_as_cdr,
+    geometry_msgs_inertia_stamped_t
+);
+impl_as_cdr!(
+    geometry_msgs_vector3_stamped_as_cdr,
+    geometry_msgs_vector3_stamped_t
+);
+impl_as_cdr!(
+    geometry_msgs_pose_stamped_as_cdr,
+    geometry_msgs_pose_stamped_t
+);
+impl_as_cdr!(
+    geometry_msgs_quaternion_stamped_as_cdr,
+    geometry_msgs_quaternion_stamped_t
+);
+impl_as_cdr!(
+    geometry_msgs_wrench_stamped_as_cdr,
+    geometry_msgs_wrench_stamped_t
+);
+impl_as_cdr!(
+    geometry_msgs_pose_with_covariance_stamped_as_cdr,
+    geometry_msgs_pose_with_covariance_stamped_t
+);
+impl_as_cdr!(
+    geometry_msgs_twist_with_covariance_stamped_as_cdr,
+    geometry_msgs_twist_with_covariance_stamped_t
+);
+impl_as_cdr!(
+    geometry_msgs_accel_with_covariance_stamped_as_cdr,
+    geometry_msgs_accel_with_covariance_stamped_t
+);
+impl_as_cdr!(geometry_msgs_polygon_as_cdr, geometry_msgs_polygon_t);
+impl_as_cdr!(
+    geometry_msgs_polygon_stamped_as_cdr,
+    geometry_msgs_polygon_stamped_t
+);
+impl_as_cdr!(geometry_msgs_pose_array_as_cdr, geometry_msgs_pose_array_t);
+impl_as_cdr!(
+    edgefirst_msgs_radar_cube_as_cdr,
+    edgefirst_msgs_radar_cube_t
+);
+impl_as_cdr!(
+    edgefirst_msgs_radar_info_as_cdr,
+    edgefirst_msgs_radar_info_t
+);
+impl_as_cdr!(
+    edgefirst_msgs_model_info_as_cdr,
+    edgefirst_msgs_model_info_t
+);
+impl_as_cdr!(sensor_msgs_point_cloud2_as_cdr, sensor_msgs_point_cloud2_t);
+impl_as_cdr!(sensor_msgs_camera_info_as_cdr, sensor_msgs_camera_info_t);
+impl_as_cdr!(edgefirst_msgs_track_as_cdr, edgefirst_msgs_track_t);
+impl_as_cdr!(
+    edgefirst_msgs_local_time_as_cdr,
+    edgefirst_msgs_local_time_t
+);
+impl_as_cdr!(
+    sensor_msgs_magnetic_field_as_cdr,
+    sensor_msgs_magnetic_field_t
+);
+impl_as_cdr!(
+    sensor_msgs_fluid_pressure_as_cdr,
+    sensor_msgs_fluid_pressure_t
+);
+impl_as_cdr!(sensor_msgs_temperature_as_cdr, sensor_msgs_temperature_t);
+impl_as_cdr!(
+    sensor_msgs_battery_state_as_cdr,
+    sensor_msgs_battery_state_t
+);
+impl_as_cdr!(
+    sensor_msgs_relative_humidity_as_cdr,
+    sensor_msgs_relative_humidity_t
+);
+impl_as_cdr!(
+    sensor_msgs_time_reference_as_cdr,
+    sensor_msgs_time_reference_t
+);
+impl_as_cdr!(nav_msgs_odometry_as_cdr, nav_msgs_odometry_t);
+impl_as_cdr!(nav_msgs_grid_cells_as_cdr, nav_msgs_grid_cells_t);
+impl_as_cdr!(nav_msgs_occupancy_grid_as_cdr, nav_msgs_occupancy_grid_t);
+impl_as_cdr!(nav_msgs_path_as_cdr, nav_msgs_path_t);
+impl_as_cdr!(edgefirst_msgs_vibration_as_cdr, edgefirst_msgs_vibration_t);
+impl_as_cdr!(mavros_msgs_altitude_as_cdr, mavros_msgs_altitude_t);
+impl_as_cdr!(mavros_msgs_vfrhud_as_cdr, mavros_msgs_vfrhud_t);
+impl_as_cdr!(
+    mavros_msgs_estimator_status_as_cdr,
+    mavros_msgs_estimator_status_t
+);
+impl_as_cdr!(
+    mavros_msgs_extended_state_as_cdr,
+    mavros_msgs_extended_state_t
+);
+impl_as_cdr!(mavros_msgs_sys_status_as_cdr, mavros_msgs_sys_status_t);
+impl_as_cdr!(mavros_msgs_state_as_cdr, mavros_msgs_state_t);
+impl_as_cdr!(mavros_msgs_status_text_as_cdr, mavros_msgs_status_text_t);
+impl_as_cdr!(mavros_msgs_gps_raw_as_cdr, mavros_msgs_gps_raw_t);
+impl_as_cdr!(
+    mavros_msgs_timesync_status_as_cdr,
+    mavros_msgs_timesync_status_t
 );
 
-// ros_detect_t and ros_model_t use named fields, so they need manual as_cdr impls.
+// edgefirst_msgs_detect_t and edgefirst_msgs_model_t use named fields, so they need manual as_cdr impls.
 
 #[no_mangle]
-pub extern "C" fn ros_detect_as_cdr(view: *const ros_detect_t, out_len: *mut usize) -> *const u8 {
+pub extern "C" fn edgefirst_msgs_detect_as_cdr(
+    view: *const edgefirst_msgs_detect_t,
+    out_len: *mut usize,
+) -> *const u8 {
     if view.is_null() {
         if !out_len.is_null() {
             unsafe {
@@ -4784,7 +5057,10 @@ pub extern "C" fn ros_detect_as_cdr(view: *const ros_detect_t, out_len: *mut usi
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_as_cdr(view: *const ros_model_t, out_len: *mut usize) -> *const u8 {
+pub extern "C" fn edgefirst_msgs_model_as_cdr(
+    view: *const edgefirst_msgs_model_t,
+    out_len: *mut usize,
+) -> *const u8 {
     if view.is_null() {
         if !out_len.is_null() {
             unsafe {
@@ -4802,7 +5078,7 @@ pub extern "C" fn ros_model_as_cdr(view: *const ros_model_t, out_len: *mut usize
     cdr.as_ptr()
 }
 
-// ros_box_as_cdr and ros_mask_as_cdr have been removed. Forwarding an embedded
+// edgefirst_msgs_box_as_cdr and edgefirst_msgs_mask_as_cdr have been removed. Forwarding an embedded
 // child box/mask as a standalone CDR would require re-encoding, which violates
 // the zero-copy contract. See CAPI.md for details.
 
@@ -4811,7 +5087,7 @@ pub extern "C" fn ros_model_as_cdr(view: *const ros_model_t, out_len: *mut usize
 // =============================================================================
 
 #[no_mangle]
-pub extern "C" fn ros_pose_with_covariance_encode(
+pub extern "C" fn geometry_msgs_pose_with_covariance_encode(
     buf: *mut u8,
     cap: usize,
     written: *mut usize,
@@ -4852,7 +5128,7 @@ pub extern "C" fn ros_pose_with_covariance_encode(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_pose_with_covariance_decode(
+pub extern "C" fn geometry_msgs_pose_with_covariance_decode(
     data: *const u8,
     len: usize,
     px: *mut f64,
@@ -4901,7 +5177,7 @@ pub extern "C" fn ros_pose_with_covariance_decode(
 // =============================================================================
 
 #[no_mangle]
-pub extern "C" fn ros_twist_with_covariance_encode(
+pub extern "C" fn geometry_msgs_twist_with_covariance_encode(
     buf: *mut u8,
     cap: usize,
     written: *mut usize,
@@ -4940,7 +5216,7 @@ pub extern "C" fn ros_twist_with_covariance_encode(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_twist_with_covariance_decode(
+pub extern "C" fn geometry_msgs_twist_with_covariance_decode(
     data: *const u8,
     len: usize,
     lx: *mut f64,
@@ -4984,17 +5260,17 @@ pub extern "C" fn ros_twist_with_covariance_decode(
 // MagneticField (buffer-backed)
 // =============================================================================
 
-pub struct ros_magnetic_field_t(sensor_msgs::MagneticField<&'static [u8]>);
+pub struct sensor_msgs_magnetic_field_t(sensor_msgs::MagneticField<&'static [u8]>);
 
 #[no_mangle]
-pub extern "C" fn ros_magnetic_field_from_cdr(
+pub extern "C" fn sensor_msgs_magnetic_field_from_cdr(
     data: *const u8,
     len: usize,
-) -> *mut ros_magnetic_field_t {
+) -> *mut sensor_msgs_magnetic_field_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match sensor_msgs::MagneticField::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_magnetic_field_t(v))),
+        Ok(v) => Box::into_raw(Box::new(sensor_msgs_magnetic_field_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -5003,7 +5279,7 @@ pub extern "C" fn ros_magnetic_field_from_cdr(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_magnetic_field_free(view: *mut ros_magnetic_field_t) {
+pub extern "C" fn sensor_msgs_magnetic_field_free(view: *mut sensor_msgs_magnetic_field_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -5012,7 +5288,9 @@ pub extern "C" fn ros_magnetic_field_free(view: *mut ros_magnetic_field_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_magnetic_field_get_stamp_sec(view: *const ros_magnetic_field_t) -> i32 {
+pub extern "C" fn sensor_msgs_magnetic_field_get_stamp_sec(
+    view: *const sensor_msgs_magnetic_field_t,
+) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -5020,7 +5298,9 @@ pub extern "C" fn ros_magnetic_field_get_stamp_sec(view: *const ros_magnetic_fie
 }
 
 #[no_mangle]
-pub extern "C" fn ros_magnetic_field_get_stamp_nanosec(view: *const ros_magnetic_field_t) -> u32 {
+pub extern "C" fn sensor_msgs_magnetic_field_get_stamp_nanosec(
+    view: *const sensor_msgs_magnetic_field_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -5028,8 +5308,8 @@ pub extern "C" fn ros_magnetic_field_get_stamp_nanosec(view: *const ros_magnetic
 }
 
 #[no_mangle]
-pub extern "C" fn ros_magnetic_field_get_frame_id(
-    view: *const ros_magnetic_field_t,
+pub extern "C" fn sensor_msgs_magnetic_field_get_frame_id(
+    view: *const sensor_msgs_magnetic_field_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -5038,8 +5318,8 @@ pub extern "C" fn ros_magnetic_field_get_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_magnetic_field_get_magnetic_field(
-    view: *const ros_magnetic_field_t,
+pub extern "C" fn sensor_msgs_magnetic_field_get_magnetic_field(
+    view: *const sensor_msgs_magnetic_field_t,
     x: *mut f64,
     y: *mut f64,
     z: *mut f64,
@@ -5062,8 +5342,8 @@ pub extern "C" fn ros_magnetic_field_get_magnetic_field(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_magnetic_field_get_magnetic_field_covariance(
-    view: *const ros_magnetic_field_t,
+pub extern "C" fn sensor_msgs_magnetic_field_get_magnetic_field_covariance(
+    view: *const sensor_msgs_magnetic_field_t,
     out: *mut f64,
 ) {
     if view.is_null() || out.is_null() {
@@ -5079,17 +5359,17 @@ pub extern "C" fn ros_magnetic_field_get_magnetic_field_covariance(
 // FluidPressure (buffer-backed)
 // =============================================================================
 
-pub struct ros_fluid_pressure_t(sensor_msgs::FluidPressure<&'static [u8]>);
+pub struct sensor_msgs_fluid_pressure_t(sensor_msgs::FluidPressure<&'static [u8]>);
 
 #[no_mangle]
-pub extern "C" fn ros_fluid_pressure_from_cdr(
+pub extern "C" fn sensor_msgs_fluid_pressure_from_cdr(
     data: *const u8,
     len: usize,
-) -> *mut ros_fluid_pressure_t {
+) -> *mut sensor_msgs_fluid_pressure_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match sensor_msgs::FluidPressure::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_fluid_pressure_t(v))),
+        Ok(v) => Box::into_raw(Box::new(sensor_msgs_fluid_pressure_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -5098,7 +5378,7 @@ pub extern "C" fn ros_fluid_pressure_from_cdr(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_fluid_pressure_free(view: *mut ros_fluid_pressure_t) {
+pub extern "C" fn sensor_msgs_fluid_pressure_free(view: *mut sensor_msgs_fluid_pressure_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -5107,7 +5387,9 @@ pub extern "C" fn ros_fluid_pressure_free(view: *mut ros_fluid_pressure_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_fluid_pressure_get_stamp_sec(view: *const ros_fluid_pressure_t) -> i32 {
+pub extern "C" fn sensor_msgs_fluid_pressure_get_stamp_sec(
+    view: *const sensor_msgs_fluid_pressure_t,
+) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -5115,7 +5397,9 @@ pub extern "C" fn ros_fluid_pressure_get_stamp_sec(view: *const ros_fluid_pressu
 }
 
 #[no_mangle]
-pub extern "C" fn ros_fluid_pressure_get_stamp_nanosec(view: *const ros_fluid_pressure_t) -> u32 {
+pub extern "C" fn sensor_msgs_fluid_pressure_get_stamp_nanosec(
+    view: *const sensor_msgs_fluid_pressure_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -5123,8 +5407,8 @@ pub extern "C" fn ros_fluid_pressure_get_stamp_nanosec(view: *const ros_fluid_pr
 }
 
 #[no_mangle]
-pub extern "C" fn ros_fluid_pressure_get_frame_id(
-    view: *const ros_fluid_pressure_t,
+pub extern "C" fn sensor_msgs_fluid_pressure_get_frame_id(
+    view: *const sensor_msgs_fluid_pressure_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -5133,7 +5417,9 @@ pub extern "C" fn ros_fluid_pressure_get_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_fluid_pressure_get_fluid_pressure(view: *const ros_fluid_pressure_t) -> f64 {
+pub extern "C" fn sensor_msgs_fluid_pressure_get_fluid_pressure(
+    view: *const sensor_msgs_fluid_pressure_t,
+) -> f64 {
     if view.is_null() {
         return 0.0;
     }
@@ -5141,7 +5427,9 @@ pub extern "C" fn ros_fluid_pressure_get_fluid_pressure(view: *const ros_fluid_p
 }
 
 #[no_mangle]
-pub extern "C" fn ros_fluid_pressure_get_variance(view: *const ros_fluid_pressure_t) -> f64 {
+pub extern "C" fn sensor_msgs_fluid_pressure_get_variance(
+    view: *const sensor_msgs_fluid_pressure_t,
+) -> f64 {
     if view.is_null() {
         return 0.0;
     }
@@ -5152,14 +5440,17 @@ pub extern "C" fn ros_fluid_pressure_get_variance(view: *const ros_fluid_pressur
 // Temperature (buffer-backed)
 // =============================================================================
 
-pub struct ros_temperature_t(sensor_msgs::Temperature<&'static [u8]>);
+pub struct sensor_msgs_temperature_t(sensor_msgs::Temperature<&'static [u8]>);
 
 #[no_mangle]
-pub extern "C" fn ros_temperature_from_cdr(data: *const u8, len: usize) -> *mut ros_temperature_t {
+pub extern "C" fn sensor_msgs_temperature_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut sensor_msgs_temperature_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match sensor_msgs::Temperature::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_temperature_t(v))),
+        Ok(v) => Box::into_raw(Box::new(sensor_msgs_temperature_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -5168,7 +5459,7 @@ pub extern "C" fn ros_temperature_from_cdr(data: *const u8, len: usize) -> *mut 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_temperature_free(view: *mut ros_temperature_t) {
+pub extern "C" fn sensor_msgs_temperature_free(view: *mut sensor_msgs_temperature_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -5177,7 +5468,9 @@ pub extern "C" fn ros_temperature_free(view: *mut ros_temperature_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_temperature_get_stamp_sec(view: *const ros_temperature_t) -> i32 {
+pub extern "C" fn sensor_msgs_temperature_get_stamp_sec(
+    view: *const sensor_msgs_temperature_t,
+) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -5185,7 +5478,9 @@ pub extern "C" fn ros_temperature_get_stamp_sec(view: *const ros_temperature_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_temperature_get_stamp_nanosec(view: *const ros_temperature_t) -> u32 {
+pub extern "C" fn sensor_msgs_temperature_get_stamp_nanosec(
+    view: *const sensor_msgs_temperature_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -5193,7 +5488,9 @@ pub extern "C" fn ros_temperature_get_stamp_nanosec(view: *const ros_temperature
 }
 
 #[no_mangle]
-pub extern "C" fn ros_temperature_get_frame_id(view: *const ros_temperature_t) -> *const c_char {
+pub extern "C" fn sensor_msgs_temperature_get_frame_id(
+    view: *const sensor_msgs_temperature_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -5201,7 +5498,9 @@ pub extern "C" fn ros_temperature_get_frame_id(view: *const ros_temperature_t) -
 }
 
 #[no_mangle]
-pub extern "C" fn ros_temperature_get_temperature(view: *const ros_temperature_t) -> f64 {
+pub extern "C" fn sensor_msgs_temperature_get_temperature(
+    view: *const sensor_msgs_temperature_t,
+) -> f64 {
     if view.is_null() {
         return 0.0;
     }
@@ -5209,7 +5508,9 @@ pub extern "C" fn ros_temperature_get_temperature(view: *const ros_temperature_t
 }
 
 #[no_mangle]
-pub extern "C" fn ros_temperature_get_variance(view: *const ros_temperature_t) -> f64 {
+pub extern "C" fn sensor_msgs_temperature_get_variance(
+    view: *const sensor_msgs_temperature_t,
+) -> f64 {
     if view.is_null() {
         return 0.0;
     }
@@ -5220,17 +5521,17 @@ pub extern "C" fn ros_temperature_get_variance(view: *const ros_temperature_t) -
 // BatteryState (buffer-backed)
 // =============================================================================
 
-pub struct ros_battery_state_t(sensor_msgs::BatteryState<&'static [u8]>);
+pub struct sensor_msgs_battery_state_t(sensor_msgs::BatteryState<&'static [u8]>);
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_from_cdr(
+pub extern "C" fn sensor_msgs_battery_state_from_cdr(
     data: *const u8,
     len: usize,
-) -> *mut ros_battery_state_t {
+) -> *mut sensor_msgs_battery_state_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match sensor_msgs::BatteryState::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_battery_state_t(v))),
+        Ok(v) => Box::into_raw(Box::new(sensor_msgs_battery_state_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -5239,7 +5540,7 @@ pub extern "C" fn ros_battery_state_from_cdr(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_free(view: *mut ros_battery_state_t) {
+pub extern "C" fn sensor_msgs_battery_state_free(view: *mut sensor_msgs_battery_state_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -5248,7 +5549,9 @@ pub extern "C" fn ros_battery_state_free(view: *mut ros_battery_state_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_get_stamp_sec(view: *const ros_battery_state_t) -> i32 {
+pub extern "C" fn sensor_msgs_battery_state_get_stamp_sec(
+    view: *const sensor_msgs_battery_state_t,
+) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -5256,7 +5559,9 @@ pub extern "C" fn ros_battery_state_get_stamp_sec(view: *const ros_battery_state
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_get_stamp_nanosec(view: *const ros_battery_state_t) -> u32 {
+pub extern "C" fn sensor_msgs_battery_state_get_stamp_nanosec(
+    view: *const sensor_msgs_battery_state_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -5264,8 +5569,8 @@ pub extern "C" fn ros_battery_state_get_stamp_nanosec(view: *const ros_battery_s
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_get_frame_id(
-    view: *const ros_battery_state_t,
+pub extern "C" fn sensor_msgs_battery_state_get_frame_id(
+    view: *const sensor_msgs_battery_state_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -5274,7 +5579,9 @@ pub extern "C" fn ros_battery_state_get_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_get_voltage(view: *const ros_battery_state_t) -> f32 {
+pub extern "C" fn sensor_msgs_battery_state_get_voltage(
+    view: *const sensor_msgs_battery_state_t,
+) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -5282,7 +5589,9 @@ pub extern "C" fn ros_battery_state_get_voltage(view: *const ros_battery_state_t
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_get_temperature(view: *const ros_battery_state_t) -> f32 {
+pub extern "C" fn sensor_msgs_battery_state_get_temperature(
+    view: *const sensor_msgs_battery_state_t,
+) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -5290,7 +5599,9 @@ pub extern "C" fn ros_battery_state_get_temperature(view: *const ros_battery_sta
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_get_current(view: *const ros_battery_state_t) -> f32 {
+pub extern "C" fn sensor_msgs_battery_state_get_current(
+    view: *const sensor_msgs_battery_state_t,
+) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -5298,7 +5609,9 @@ pub extern "C" fn ros_battery_state_get_current(view: *const ros_battery_state_t
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_get_charge(view: *const ros_battery_state_t) -> f32 {
+pub extern "C" fn sensor_msgs_battery_state_get_charge(
+    view: *const sensor_msgs_battery_state_t,
+) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -5306,7 +5619,9 @@ pub extern "C" fn ros_battery_state_get_charge(view: *const ros_battery_state_t)
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_get_capacity(view: *const ros_battery_state_t) -> f32 {
+pub extern "C" fn sensor_msgs_battery_state_get_capacity(
+    view: *const sensor_msgs_battery_state_t,
+) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -5314,7 +5629,9 @@ pub extern "C" fn ros_battery_state_get_capacity(view: *const ros_battery_state_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_get_design_capacity(view: *const ros_battery_state_t) -> f32 {
+pub extern "C" fn sensor_msgs_battery_state_get_design_capacity(
+    view: *const sensor_msgs_battery_state_t,
+) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -5322,7 +5639,9 @@ pub extern "C" fn ros_battery_state_get_design_capacity(view: *const ros_battery
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_get_percentage(view: *const ros_battery_state_t) -> f32 {
+pub extern "C" fn sensor_msgs_battery_state_get_percentage(
+    view: *const sensor_msgs_battery_state_t,
+) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -5330,8 +5649,8 @@ pub extern "C" fn ros_battery_state_get_percentage(view: *const ros_battery_stat
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_get_power_supply_status(
-    view: *const ros_battery_state_t,
+pub extern "C" fn sensor_msgs_battery_state_get_power_supply_status(
+    view: *const sensor_msgs_battery_state_t,
 ) -> u8 {
     if view.is_null() {
         return 0;
@@ -5340,8 +5659,8 @@ pub extern "C" fn ros_battery_state_get_power_supply_status(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_get_power_supply_health(
-    view: *const ros_battery_state_t,
+pub extern "C" fn sensor_msgs_battery_state_get_power_supply_health(
+    view: *const sensor_msgs_battery_state_t,
 ) -> u8 {
     if view.is_null() {
         return 0;
@@ -5350,8 +5669,8 @@ pub extern "C" fn ros_battery_state_get_power_supply_health(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_get_power_supply_technology(
-    view: *const ros_battery_state_t,
+pub extern "C" fn sensor_msgs_battery_state_get_power_supply_technology(
+    view: *const sensor_msgs_battery_state_t,
 ) -> u8 {
     if view.is_null() {
         return 0;
@@ -5360,7 +5679,9 @@ pub extern "C" fn ros_battery_state_get_power_supply_technology(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_get_present(view: *const ros_battery_state_t) -> bool {
+pub extern "C" fn sensor_msgs_battery_state_get_present(
+    view: *const sensor_msgs_battery_state_t,
+) -> bool {
     if view.is_null() {
         return false;
     }
@@ -5368,7 +5689,9 @@ pub extern "C" fn ros_battery_state_get_present(view: *const ros_battery_state_t
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_get_cell_voltage_len(view: *const ros_battery_state_t) -> u32 {
+pub extern "C" fn sensor_msgs_battery_state_get_cell_voltage_len(
+    view: *const sensor_msgs_battery_state_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -5380,8 +5703,8 @@ pub extern "C" fn ros_battery_state_get_cell_voltage_len(view: *const ros_batter
 /// Allocation-free: decodes directly from the backing CDR slice using the
 /// cached sequence offset.
 #[no_mangle]
-pub extern "C" fn ros_battery_state_get_cell_voltage(
-    view: *const ros_battery_state_t,
+pub extern "C" fn sensor_msgs_battery_state_get_cell_voltage(
+    view: *const sensor_msgs_battery_state_t,
     out: *mut f32,
     cap: usize,
 ) -> u32 {
@@ -5393,8 +5716,8 @@ pub extern "C" fn ros_battery_state_get_cell_voltage(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_get_cell_temperature_len(
-    view: *const ros_battery_state_t,
+pub extern "C" fn sensor_msgs_battery_state_get_cell_temperature_len(
+    view: *const sensor_msgs_battery_state_t,
 ) -> u32 {
     if view.is_null() {
         return 0;
@@ -5407,8 +5730,8 @@ pub extern "C" fn ros_battery_state_get_cell_temperature_len(
 /// Allocation-free: decodes directly from the backing CDR slice using the
 /// cached sequence offset.
 #[no_mangle]
-pub extern "C" fn ros_battery_state_get_cell_temperature(
-    view: *const ros_battery_state_t,
+pub extern "C" fn sensor_msgs_battery_state_get_cell_temperature(
+    view: *const sensor_msgs_battery_state_t,
     out: *mut f32,
     cap: usize,
 ) -> u32 {
@@ -5420,8 +5743,8 @@ pub extern "C" fn ros_battery_state_get_cell_temperature(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_get_location(
-    view: *const ros_battery_state_t,
+pub extern "C" fn sensor_msgs_battery_state_get_location(
+    view: *const sensor_msgs_battery_state_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -5430,8 +5753,8 @@ pub extern "C" fn ros_battery_state_get_location(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_get_serial_number(
-    view: *const ros_battery_state_t,
+pub extern "C" fn sensor_msgs_battery_state_get_serial_number(
+    view: *const sensor_msgs_battery_state_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -5443,14 +5766,17 @@ pub extern "C" fn ros_battery_state_get_serial_number(
 // Odometry (buffer-backed)
 // =============================================================================
 
-pub struct ros_odometry_t(nav_msgs::Odometry<&'static [u8]>);
+pub struct nav_msgs_odometry_t(nav_msgs::Odometry<&'static [u8]>);
 
 #[no_mangle]
-pub extern "C" fn ros_odometry_from_cdr(data: *const u8, len: usize) -> *mut ros_odometry_t {
+pub extern "C" fn nav_msgs_odometry_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut nav_msgs_odometry_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match nav_msgs::Odometry::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_odometry_t(v))),
+        Ok(v) => Box::into_raw(Box::new(nav_msgs_odometry_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -5459,7 +5785,7 @@ pub extern "C" fn ros_odometry_from_cdr(data: *const u8, len: usize) -> *mut ros
 }
 
 #[no_mangle]
-pub extern "C" fn ros_odometry_free(view: *mut ros_odometry_t) {
+pub extern "C" fn nav_msgs_odometry_free(view: *mut nav_msgs_odometry_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -5468,7 +5794,7 @@ pub extern "C" fn ros_odometry_free(view: *mut ros_odometry_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_odometry_get_stamp_sec(view: *const ros_odometry_t) -> i32 {
+pub extern "C" fn nav_msgs_odometry_get_stamp_sec(view: *const nav_msgs_odometry_t) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -5476,7 +5802,7 @@ pub extern "C" fn ros_odometry_get_stamp_sec(view: *const ros_odometry_t) -> i32
 }
 
 #[no_mangle]
-pub extern "C" fn ros_odometry_get_stamp_nanosec(view: *const ros_odometry_t) -> u32 {
+pub extern "C" fn nav_msgs_odometry_get_stamp_nanosec(view: *const nav_msgs_odometry_t) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -5484,7 +5810,9 @@ pub extern "C" fn ros_odometry_get_stamp_nanosec(view: *const ros_odometry_t) ->
 }
 
 #[no_mangle]
-pub extern "C" fn ros_odometry_get_frame_id(view: *const ros_odometry_t) -> *const c_char {
+pub extern "C" fn nav_msgs_odometry_get_frame_id(
+    view: *const nav_msgs_odometry_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -5492,7 +5820,9 @@ pub extern "C" fn ros_odometry_get_frame_id(view: *const ros_odometry_t) -> *con
 }
 
 #[no_mangle]
-pub extern "C" fn ros_odometry_get_child_frame_id(view: *const ros_odometry_t) -> *const c_char {
+pub extern "C" fn nav_msgs_odometry_get_child_frame_id(
+    view: *const nav_msgs_odometry_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -5501,8 +5831,8 @@ pub extern "C" fn ros_odometry_get_child_frame_id(view: *const ros_odometry_t) -
 
 /// Write pose position (x,y,z) + orientation (x,y,z,w) out.
 #[no_mangle]
-pub extern "C" fn ros_odometry_get_pose(
-    view: *const ros_odometry_t,
+pub extern "C" fn nav_msgs_odometry_get_pose(
+    view: *const nav_msgs_odometry_t,
     px: *mut f64,
     py: *mut f64,
     pz: *mut f64,
@@ -5542,7 +5872,10 @@ pub extern "C" fn ros_odometry_get_pose(
 
 /// Write 36-element pose covariance.
 #[no_mangle]
-pub extern "C" fn ros_odometry_get_pose_covariance(view: *const ros_odometry_t, out: *mut f64) {
+pub extern "C" fn nav_msgs_odometry_get_pose_covariance(
+    view: *const nav_msgs_odometry_t,
+    out: *mut f64,
+) {
     if view.is_null() || out.is_null() {
         return;
     }
@@ -5554,8 +5887,8 @@ pub extern "C" fn ros_odometry_get_pose_covariance(view: *const ros_odometry_t, 
 
 /// Write twist linear (x,y,z) + angular (x,y,z).
 #[no_mangle]
-pub extern "C" fn ros_odometry_get_twist(
-    view: *const ros_odometry_t,
+pub extern "C" fn nav_msgs_odometry_get_twist(
+    view: *const nav_msgs_odometry_t,
     lx: *mut f64,
     ly: *mut f64,
     lz: *mut f64,
@@ -5590,7 +5923,10 @@ pub extern "C" fn ros_odometry_get_twist(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_odometry_get_twist_covariance(view: *const ros_odometry_t, out: *mut f64) {
+pub extern "C" fn nav_msgs_odometry_get_twist_covariance(
+    view: *const nav_msgs_odometry_t,
+    out: *mut f64,
+) {
     if view.is_null() || out.is_null() {
         return;
     }
@@ -5610,7 +5946,7 @@ pub extern "C" fn ros_odometry_get_twist_covariance(view: *const ros_odometry_t,
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL written,
 /// ENOBUFS for buffer too small, EBADMSG for encoding error).
 #[no_mangle]
-pub extern "C" fn ros_map_meta_data_encode(
+pub extern "C" fn nav_msgs_map_meta_data_encode(
     buf: *mut u8,
     cap: usize,
     written: *mut usize,
@@ -5659,7 +5995,7 @@ pub extern "C" fn ros_map_meta_data_encode(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL data,
 /// EBADMSG for invalid CDR).
 #[no_mangle]
-pub extern "C" fn ros_map_meta_data_decode(
+pub extern "C" fn nav_msgs_map_meta_data_decode(
     data: *const u8,
     len: usize,
     map_load_time_sec: *mut i32,
@@ -5727,17 +6063,17 @@ pub extern "C" fn ros_map_meta_data_decode(
 // from the shared `impl_simple_stamped!` macro; the type-specific getters
 // (cell_width/height, len, cell) stay hand-written below.
 impl_simple_stamped!(
-    ros_grid_cells_t,
+    nav_msgs_grid_cells_t,
     nav_msgs::GridCells<&'static [u8]>,
-    ros_grid_cells_from_cdr,
-    ros_grid_cells_free,
-    ros_grid_cells_get_stamp_sec,
-    ros_grid_cells_get_stamp_nanosec,
-    ros_grid_cells_get_frame_id
+    nav_msgs_grid_cells_from_cdr,
+    nav_msgs_grid_cells_free,
+    nav_msgs_grid_cells_get_stamp_sec,
+    nav_msgs_grid_cells_get_stamp_nanosec,
+    nav_msgs_grid_cells_get_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_grid_cells_get_cell_width(view: *const ros_grid_cells_t) -> f32 {
+pub extern "C" fn nav_msgs_grid_cells_get_cell_width(view: *const nav_msgs_grid_cells_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -5745,7 +6081,7 @@ pub extern "C" fn ros_grid_cells_get_cell_width(view: *const ros_grid_cells_t) -
 }
 
 #[no_mangle]
-pub extern "C" fn ros_grid_cells_get_cell_height(view: *const ros_grid_cells_t) -> f32 {
+pub extern "C" fn nav_msgs_grid_cells_get_cell_height(view: *const nav_msgs_grid_cells_t) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -5754,7 +6090,7 @@ pub extern "C" fn ros_grid_cells_get_cell_height(view: *const ros_grid_cells_t) 
 
 /// Get the number of cells in the sequence.
 #[no_mangle]
-pub extern "C" fn ros_grid_cells_get_len(view: *const ros_grid_cells_t) -> usize {
+pub extern "C" fn nav_msgs_grid_cells_get_len(view: *const nav_msgs_grid_cells_t) -> usize {
     if view.is_null() {
         return 0;
     }
@@ -5763,8 +6099,8 @@ pub extern "C" fn ros_grid_cells_get_len(view: *const ros_grid_cells_t) -> usize
 
 /// Get a cell centre point by index.  Returns 0 on success, -1 if index out of range.
 #[no_mangle]
-pub extern "C" fn ros_grid_cells_get_cell(
-    view: *const ros_grid_cells_t,
+pub extern "C" fn nav_msgs_grid_cells_get_cell(
+    view: *const nav_msgs_grid_cells_t,
     index: usize,
     x: *mut f64,
     y: *mut f64,
@@ -5801,21 +6137,21 @@ pub extern "C" fn ros_grid_cells_get_cell(
 // Base view fns from the shared `impl_simple_stamped!` macro; the
 // type-specific getters (info, data_len, data) stay hand-written below.
 impl_simple_stamped!(
-    ros_occupancy_grid_t,
+    nav_msgs_occupancy_grid_t,
     nav_msgs::OccupancyGrid<&'static [u8]>,
-    ros_occupancy_grid_from_cdr,
-    ros_occupancy_grid_free,
-    ros_occupancy_grid_get_stamp_sec,
-    ros_occupancy_grid_get_stamp_nanosec,
-    ros_occupancy_grid_get_frame_id
+    nav_msgs_occupancy_grid_from_cdr,
+    nav_msgs_occupancy_grid_free,
+    nav_msgs_occupancy_grid_get_stamp_sec,
+    nav_msgs_occupancy_grid_get_stamp_nanosec,
+    nav_msgs_occupancy_grid_get_frame_id
 );
 
 /// Get map metadata info fields (resolution, width, height, origin).
 ///
 /// Passes all MapMetaData fields out via pointer arguments (any may be NULL).
 #[no_mangle]
-pub extern "C" fn ros_occupancy_grid_get_info(
-    view: *const ros_occupancy_grid_t,
+pub extern "C" fn nav_msgs_occupancy_grid_get_info(
+    view: *const nav_msgs_occupancy_grid_t,
     map_load_time_sec: *mut i32,
     map_load_time_nanosec: *mut u32,
     resolution: *mut f32,
@@ -5875,7 +6211,9 @@ pub extern "C" fn ros_occupancy_grid_get_info(
 
 /// Get the number of data cells in the occupancy grid.
 #[no_mangle]
-pub extern "C" fn ros_occupancy_grid_get_data_len(view: *const ros_occupancy_grid_t) -> usize {
+pub extern "C" fn nav_msgs_occupancy_grid_get_data_len(
+    view: *const nav_msgs_occupancy_grid_t,
+) -> usize {
     if view.is_null() {
         return 0;
     }
@@ -5886,7 +6224,9 @@ pub extern "C" fn ros_occupancy_grid_get_data_len(view: *const ros_occupancy_gri
 ///
 /// Returns NULL if view is NULL. The pointer is valid as long as the view handle lives.
 #[no_mangle]
-pub extern "C" fn ros_occupancy_grid_get_data(view: *const ros_occupancy_grid_t) -> *const i8 {
+pub extern "C" fn nav_msgs_occupancy_grid_get_data(
+    view: *const nav_msgs_occupancy_grid_t,
+) -> *const i8 {
     if view.is_null() {
         return ptr::null();
     }
@@ -5902,18 +6242,18 @@ pub extern "C" fn ros_occupancy_grid_get_data(view: *const ros_occupancy_grid_t)
 // type-specific getters (len, pose) and the cursor iterator stay
 // hand-written below.
 impl_simple_stamped!(
-    ros_path_t,
+    nav_msgs_path_t,
     nav_msgs::Path<&'static [u8]>,
-    ros_path_from_cdr,
-    ros_path_free,
-    ros_path_get_stamp_sec,
-    ros_path_get_stamp_nanosec,
-    ros_path_get_frame_id
+    nav_msgs_path_from_cdr,
+    nav_msgs_path_free,
+    nav_msgs_path_get_stamp_sec,
+    nav_msgs_path_get_stamp_nanosec,
+    nav_msgs_path_get_frame_id
 );
 
 /// Get the number of poses in the path.
 #[no_mangle]
-pub extern "C" fn ros_path_get_len(view: *const ros_path_t) -> usize {
+pub extern "C" fn nav_msgs_path_get_len(view: *const nav_msgs_path_t) -> usize {
     if view.is_null() {
         return 0;
     }
@@ -5925,12 +6265,12 @@ pub extern "C" fn ros_path_get_len(view: *const ros_path_t) -> usize {
 /// Note: the PoseStamped sequence is variable-length, so each call scans
 /// from the start to `index` — this function is **O(n) per call**. Calling
 /// it across `0..len` is therefore O(n²); for bulk traversal use the
-/// `ros_path_iter_*` cursor (a single O(n) pass) instead.
+/// `nav_msgs_path_iter_*` cursor (a single O(n) pass) instead.
 /// When `pose_frame_id` is non-null it is set to the per-element frame_id
 /// string (zero-copy, valid for the lifetime of the view).
 #[no_mangle]
-pub extern "C" fn ros_path_get_pose(
-    view: *const ros_path_t,
+pub extern "C" fn nav_msgs_path_get_pose(
+    view: *const nav_msgs_path_t,
     index: usize,
     stamp_sec: *mut i32,
     stamp_nanosec: *mut u32,
@@ -5986,27 +6326,29 @@ pub extern "C" fn ros_path_get_pose(
     0
 }
 
-/// Opaque cursor over a Path's `PoseStamped` sequence (see `ros_path_iter_new`).
-pub struct ros_path_iter_t(nav_msgs::PoseStampedIter<'static>);
+/// Opaque cursor over a Path's `PoseStamped` sequence (see `nav_msgs_path_iter_new`).
+pub struct nav_msgs_path_iter_t(nav_msgs::PoseStampedIter<'static>);
 
 /// Create a forward cursor over a Path's poses for O(n) bulk traversal.
 ///
 /// Returns a heap-allocated iterator handle, or NULL (errno `EINVAL`) if
-/// `view` is NULL. Walking the whole path with `ros_path_iter_next` is a
-/// single O(n) pass, unlike `ros_path_get_pose` which is O(n) per call
+/// `view` is NULL. Walking the whole path with `nav_msgs_path_iter_next` is a
+/// single O(n) pass, unlike `nav_msgs_path_get_pose` which is O(n) per call
 /// (O(n²) over the full path).
 ///
 /// Lifetime: the iterator borrows the same CDR buffer as `view`. It must
 /// not outlive `view` (nor the buffer `view` was parsed from). Free it with
-/// `ros_path_iter_free`.
+/// `nav_msgs_path_iter_free`.
 #[no_mangle]
-pub extern "C" fn ros_path_iter_new(view: *const ros_path_t) -> *mut ros_path_iter_t {
+pub extern "C" fn nav_msgs_path_iter_new(
+    view: *const nav_msgs_path_t,
+) -> *mut nav_msgs_path_iter_t {
     check_null_ret_null!(view);
     // SAFETY: the C caller guarantees the iterator does not outlive `view`
     // (documented above), so widening the borrow of the Path to 'static is
     // sound — the underlying buffer stays valid for the iterator's life.
     let path: &'static nav_msgs::Path<&'static [u8]> = unsafe { &(*view).0 };
-    Box::into_raw(Box::new(ros_path_iter_t(path.iter())))
+    Box::into_raw(Box::new(nav_msgs_path_iter_t(path.iter())))
 }
 
 /// Advance the cursor and yield the next pose.
@@ -6016,11 +6358,11 @@ pub extern "C" fn ros_path_iter_new(view: *const ros_path_t) -> *mut ros_path_it
 /// `EINVAL`. `out_frame_id` borrows the per-element frame_id string directly
 /// from the CDR buffer (NUL-terminated in place); it is valid for as long as
 /// the underlying buffer lives. The out-param shape matches the pose fields
-/// of `ros_path_get_pose`.
+/// of `nav_msgs_path_get_pose`.
 #[no_mangle]
 #[allow(clippy::too_many_arguments)]
-pub extern "C" fn ros_path_iter_next(
-    it: *mut ros_path_iter_t,
+pub extern "C" fn nav_msgs_path_iter_next(
+    it: *mut nav_msgs_path_iter_t,
     out_sec: *mut i32,
     out_nanosec: *mut u32,
     out_frame_id: *mut *const c_char,
@@ -6074,9 +6416,9 @@ pub extern "C" fn ros_path_iter_next(
     1
 }
 
-/// Free a Path pose cursor created by `ros_path_iter_new`. NULL-safe.
+/// Free a Path pose cursor created by `nav_msgs_path_iter_new`. NULL-safe.
 #[no_mangle]
-pub extern "C" fn ros_path_iter_free(it: *mut ros_path_iter_t) {
+pub extern "C" fn nav_msgs_path_iter_free(it: *mut nav_msgs_path_iter_t) {
     if !it.is_null() {
         unsafe {
             drop(Box::from_raw(it));
@@ -6098,7 +6440,7 @@ struct GridCellsBuilderOwned {
     cells_count: usize,
 }
 
-pub struct ros_grid_cells_builder_t(GridCellsBuilderOwned);
+pub struct nav_msgs_grid_cells_builder_t(GridCellsBuilderOwned);
 
 /// Collect the borrowed (x, y, z) triples into owned `Point`s.
 ///
@@ -6126,20 +6468,22 @@ fn grid_cells_points(inner: &GridCellsBuilderOwned) -> Vec<crate::geometry_msgs:
 }
 
 #[no_mangle]
-pub extern "C" fn ros_grid_cells_builder_new() -> *mut ros_grid_cells_builder_t {
-    Box::into_raw(Box::new(ros_grid_cells_builder_t(GridCellsBuilderOwned {
-        stamp_sec: 0,
-        stamp_nanosec: 0,
-        frame_id: String::new(),
-        cell_width: 0.0,
-        cell_height: 0.0,
-        cells_xyz: ptr::null(),
-        cells_count: 0,
-    })))
+pub extern "C" fn nav_msgs_grid_cells_builder_new() -> *mut nav_msgs_grid_cells_builder_t {
+    Box::into_raw(Box::new(nav_msgs_grid_cells_builder_t(
+        GridCellsBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            cell_width: 0.0,
+            cell_height: 0.0,
+            cells_xyz: ptr::null(),
+            cells_count: 0,
+        },
+    )))
 }
 
 #[no_mangle]
-pub extern "C" fn ros_grid_cells_builder_free(b: *mut ros_grid_cells_builder_t) {
+pub extern "C" fn nav_msgs_grid_cells_builder_free(b: *mut nav_msgs_grid_cells_builder_t) {
     if b.is_null() {
         return;
     }
@@ -6149,8 +6493,8 @@ pub extern "C" fn ros_grid_cells_builder_free(b: *mut ros_grid_cells_builder_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_grid_cells_builder_set_stamp(
-    b: *mut ros_grid_cells_builder_t,
+pub extern "C" fn nav_msgs_grid_cells_builder_set_stamp(
+    b: *mut nav_msgs_grid_cells_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -6163,8 +6507,8 @@ pub extern "C" fn ros_grid_cells_builder_set_stamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_grid_cells_builder_set_frame_id(
-    b: *mut ros_grid_cells_builder_t,
+pub extern "C" fn nav_msgs_grid_cells_builder_set_frame_id(
+    b: *mut nav_msgs_grid_cells_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -6182,7 +6526,10 @@ pub extern "C" fn ros_grid_cells_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_grid_cells_builder_set_cell_width(b: *mut ros_grid_cells_builder_t, v: f32) {
+pub extern "C" fn nav_msgs_grid_cells_builder_set_cell_width(
+    b: *mut nav_msgs_grid_cells_builder_t,
+    v: f32,
+) {
     if b.is_null() {
         return;
     }
@@ -6192,7 +6539,10 @@ pub extern "C" fn ros_grid_cells_builder_set_cell_width(b: *mut ros_grid_cells_b
 }
 
 #[no_mangle]
-pub extern "C" fn ros_grid_cells_builder_set_cell_height(b: *mut ros_grid_cells_builder_t, v: f32) {
+pub extern "C" fn nav_msgs_grid_cells_builder_set_cell_height(
+    b: *mut nav_msgs_grid_cells_builder_t,
+    v: f32,
+) {
     if b.is_null() {
         return;
     }
@@ -6208,8 +6558,8 @@ pub extern "C" fn ros_grid_cells_builder_set_cell_height(b: *mut ros_grid_cells_
 /// Passing NULL with `count == 0` clears the cells; NULL with `count > 0` is
 /// rejected with errno `EINVAL`.
 #[no_mangle]
-pub extern "C" fn ros_grid_cells_builder_set_cells(
-    b: *mut ros_grid_cells_builder_t,
+pub extern "C" fn nav_msgs_grid_cells_builder_set_cells(
+    b: *mut nav_msgs_grid_cells_builder_t,
     xyz: *const f64,
     count: usize,
 ) -> i32 {
@@ -6229,8 +6579,8 @@ pub extern "C" fn ros_grid_cells_builder_set_cells(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_grid_cells_builder_build(
-    b: *mut ros_grid_cells_builder_t,
+pub extern "C" fn nav_msgs_grid_cells_builder_build(
+    b: *mut nav_msgs_grid_cells_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -6257,8 +6607,8 @@ pub extern "C" fn ros_grid_cells_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_grid_cells_builder_encode_into(
-    b: *mut ros_grid_cells_builder_t,
+pub extern "C" fn nav_msgs_grid_cells_builder_encode_into(
+    b: *mut nav_msgs_grid_cells_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -6317,7 +6667,7 @@ struct OccupancyGridBuilderOwned {
     data_len: usize,
 }
 
-pub struct ros_occupancy_grid_builder_t(OccupancyGridBuilderOwned);
+pub struct nav_msgs_occupancy_grid_builder_t(OccupancyGridBuilderOwned);
 
 fn occupancy_grid_info(inner: &OccupancyGridBuilderOwned) -> nav_msgs::MapMetaData {
     use crate::geometry_msgs::{Point, Pose, Quaternion};
@@ -6351,8 +6701,8 @@ fn occupancy_grid_data(inner: &OccupancyGridBuilderOwned) -> &[i8] {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_occupancy_grid_builder_new() -> *mut ros_occupancy_grid_builder_t {
-    Box::into_raw(Box::new(ros_occupancy_grid_builder_t(
+pub extern "C" fn nav_msgs_occupancy_grid_builder_new() -> *mut nav_msgs_occupancy_grid_builder_t {
+    Box::into_raw(Box::new(nav_msgs_occupancy_grid_builder_t(
         OccupancyGridBuilderOwned {
             stamp_sec: 0,
             stamp_nanosec: 0,
@@ -6376,7 +6726,7 @@ pub extern "C" fn ros_occupancy_grid_builder_new() -> *mut ros_occupancy_grid_bu
 }
 
 #[no_mangle]
-pub extern "C" fn ros_occupancy_grid_builder_free(b: *mut ros_occupancy_grid_builder_t) {
+pub extern "C" fn nav_msgs_occupancy_grid_builder_free(b: *mut nav_msgs_occupancy_grid_builder_t) {
     if b.is_null() {
         return;
     }
@@ -6386,8 +6736,8 @@ pub extern "C" fn ros_occupancy_grid_builder_free(b: *mut ros_occupancy_grid_bui
 }
 
 #[no_mangle]
-pub extern "C" fn ros_occupancy_grid_builder_set_stamp(
-    b: *mut ros_occupancy_grid_builder_t,
+pub extern "C" fn nav_msgs_occupancy_grid_builder_set_stamp(
+    b: *mut nav_msgs_occupancy_grid_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -6400,8 +6750,8 @@ pub extern "C" fn ros_occupancy_grid_builder_set_stamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_occupancy_grid_builder_set_frame_id(
-    b: *mut ros_occupancy_grid_builder_t,
+pub extern "C" fn nav_msgs_occupancy_grid_builder_set_frame_id(
+    b: *mut nav_msgs_occupancy_grid_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -6420,13 +6770,13 @@ pub extern "C" fn ros_occupancy_grid_builder_set_frame_id(
 
 /// Set the `MapMetaData` info block.
 ///
-/// Field list mirrors `ros_map_meta_data_encode`: map_load_time (sec,
+/// Field list mirrors `nav_msgs_map_meta_data_encode`: map_load_time (sec,
 /// nanosec), resolution, width, height, and the origin pose (position
 /// x/y/z + orientation x/y/z/w).
 #[no_mangle]
 #[allow(clippy::too_many_arguments)]
-pub extern "C" fn ros_occupancy_grid_builder_set_info(
-    b: *mut ros_occupancy_grid_builder_t,
+pub extern "C" fn nav_msgs_occupancy_grid_builder_set_info(
+    b: *mut nav_msgs_occupancy_grid_builder_t,
     map_load_time_sec: i32,
     map_load_time_nanosec: u32,
     resolution: f32,
@@ -6463,8 +6813,8 @@ pub extern "C" fn ros_occupancy_grid_builder_set_info(
 /// `data` is borrowed and must stay valid until `build`/`encode_into`.
 /// NULL with `len == 0` clears the data; NULL with `len > 0` → errno `EINVAL`.
 #[no_mangle]
-pub extern "C" fn ros_occupancy_grid_builder_set_data(
-    b: *mut ros_occupancy_grid_builder_t,
+pub extern "C" fn nav_msgs_occupancy_grid_builder_set_data(
+    b: *mut nav_msgs_occupancy_grid_builder_t,
     data: *const i8,
     len: usize,
 ) -> i32 {
@@ -6484,8 +6834,8 @@ pub extern "C" fn ros_occupancy_grid_builder_set_data(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_occupancy_grid_builder_build(
-    b: *mut ros_occupancy_grid_builder_t,
+pub extern "C" fn nav_msgs_occupancy_grid_builder_build(
+    b: *mut nav_msgs_occupancy_grid_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -6510,8 +6860,8 @@ pub extern "C" fn ros_occupancy_grid_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_occupancy_grid_builder_encode_into(
-    b: *mut ros_occupancy_grid_builder_t,
+pub extern "C" fn nav_msgs_occupancy_grid_builder_encode_into(
+    b: *mut nav_msgs_occupancy_grid_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -6557,11 +6907,11 @@ struct PathBuilderOwned {
     poses: Vec<(Time, String, crate::geometry_msgs::Pose)>,
 }
 
-pub struct ros_path_builder_t(PathBuilderOwned);
+pub struct nav_msgs_path_builder_t(PathBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_path_builder_new() -> *mut ros_path_builder_t {
-    Box::into_raw(Box::new(ros_path_builder_t(PathBuilderOwned {
+pub extern "C" fn nav_msgs_path_builder_new() -> *mut nav_msgs_path_builder_t {
+    Box::into_raw(Box::new(nav_msgs_path_builder_t(PathBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
         frame_id: String::new(),
@@ -6570,7 +6920,7 @@ pub extern "C" fn ros_path_builder_new() -> *mut ros_path_builder_t {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_path_builder_free(b: *mut ros_path_builder_t) {
+pub extern "C" fn nav_msgs_path_builder_free(b: *mut nav_msgs_path_builder_t) {
     if b.is_null() {
         return;
     }
@@ -6580,7 +6930,11 @@ pub extern "C" fn ros_path_builder_free(b: *mut ros_path_builder_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_path_builder_set_stamp(b: *mut ros_path_builder_t, sec: i32, nanosec: u32) {
+pub extern "C" fn nav_msgs_path_builder_set_stamp(
+    b: *mut nav_msgs_path_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
     if b.is_null() {
         return;
     }
@@ -6590,8 +6944,8 @@ pub extern "C" fn ros_path_builder_set_stamp(b: *mut ros_path_builder_t, sec: i3
 }
 
 #[no_mangle]
-pub extern "C" fn ros_path_builder_set_frame_id(
-    b: *mut ros_path_builder_t,
+pub extern "C" fn nav_msgs_path_builder_set_frame_id(
+    b: *mut nav_msgs_path_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -6615,8 +6969,8 @@ pub extern "C" fn ros_path_builder_set_frame_id(
 /// `b` is NULL or `frame_id` is NULL / not valid UTF-8.
 #[no_mangle]
 #[allow(clippy::too_many_arguments)]
-pub extern "C" fn ros_path_builder_add_pose(
-    b: *mut ros_path_builder_t,
+pub extern "C" fn nav_msgs_path_builder_add_pose(
+    b: *mut nav_msgs_path_builder_t,
     sec: i32,
     nanosec: u32,
     frame_id: *const c_char,
@@ -6667,8 +7021,8 @@ fn path_pose_refs(inner: &PathBuilderOwned) -> Vec<(Time, &str, crate::geometry_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_path_builder_build(
-    b: *mut ros_path_builder_t,
+pub extern "C" fn nav_msgs_path_builder_build(
+    b: *mut nav_msgs_path_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -6693,8 +7047,8 @@ pub extern "C" fn ros_path_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_path_builder_encode_into(
-    b: *mut ros_path_builder_t,
+pub extern "C" fn nav_msgs_path_builder_encode_into(
+    b: *mut nav_msgs_path_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -6733,14 +7087,17 @@ pub extern "C" fn ros_path_builder_encode_into(
 // Vibration (buffer-backed)
 // =============================================================================
 
-pub struct ros_vibration_t(edgefirst_msgs::Vibration<&'static [u8]>);
+pub struct edgefirst_msgs_vibration_t(edgefirst_msgs::Vibration<&'static [u8]>);
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_from_cdr(data: *const u8, len: usize) -> *mut ros_vibration_t {
+pub extern "C" fn edgefirst_msgs_vibration_from_cdr(
+    data: *const u8,
+    len: usize,
+) -> *mut edgefirst_msgs_vibration_t {
     check_null_ret_null!(data);
     let slice = unsafe { slice::from_raw_parts(data, len) };
     match edgefirst_msgs::Vibration::from_cdr(unsafe { erase_lifetime(slice) }) {
-        Ok(v) => Box::into_raw(Box::new(ros_vibration_t(v))),
+        Ok(v) => Box::into_raw(Box::new(edgefirst_msgs_vibration_t(v))),
         Err(_) => {
             set_errno(EBADMSG);
             ptr::null_mut()
@@ -6749,7 +7106,7 @@ pub extern "C" fn ros_vibration_from_cdr(data: *const u8, len: usize) -> *mut ro
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_free(view: *mut ros_vibration_t) {
+pub extern "C" fn edgefirst_msgs_vibration_free(view: *mut edgefirst_msgs_vibration_t) {
     if !view.is_null() {
         unsafe {
             drop(Box::from_raw(view));
@@ -6758,7 +7115,9 @@ pub extern "C" fn ros_vibration_free(view: *mut ros_vibration_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_get_stamp_sec(view: *const ros_vibration_t) -> i32 {
+pub extern "C" fn edgefirst_msgs_vibration_get_stamp_sec(
+    view: *const edgefirst_msgs_vibration_t,
+) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -6766,7 +7125,9 @@ pub extern "C" fn ros_vibration_get_stamp_sec(view: *const ros_vibration_t) -> i
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_get_stamp_nanosec(view: *const ros_vibration_t) -> u32 {
+pub extern "C" fn edgefirst_msgs_vibration_get_stamp_nanosec(
+    view: *const edgefirst_msgs_vibration_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -6774,7 +7135,9 @@ pub extern "C" fn ros_vibration_get_stamp_nanosec(view: *const ros_vibration_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_get_frame_id(view: *const ros_vibration_t) -> *const c_char {
+pub extern "C" fn edgefirst_msgs_vibration_get_frame_id(
+    view: *const edgefirst_msgs_vibration_t,
+) -> *const c_char {
     if view.is_null() {
         return ptr::null();
     }
@@ -6782,7 +7145,9 @@ pub extern "C" fn ros_vibration_get_frame_id(view: *const ros_vibration_t) -> *c
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_get_measurement_type(view: *const ros_vibration_t) -> u8 {
+pub extern "C" fn edgefirst_msgs_vibration_get_measurement_type(
+    view: *const edgefirst_msgs_vibration_t,
+) -> u8 {
     if view.is_null() {
         return 0;
     }
@@ -6790,7 +7155,7 @@ pub extern "C" fn ros_vibration_get_measurement_type(view: *const ros_vibration_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_get_unit(view: *const ros_vibration_t) -> u8 {
+pub extern "C" fn edgefirst_msgs_vibration_get_unit(view: *const edgefirst_msgs_vibration_t) -> u8 {
     if view.is_null() {
         return 0;
     }
@@ -6798,7 +7163,9 @@ pub extern "C" fn ros_vibration_get_unit(view: *const ros_vibration_t) -> u8 {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_get_band_lower_hz(view: *const ros_vibration_t) -> f32 {
+pub extern "C" fn edgefirst_msgs_vibration_get_band_lower_hz(
+    view: *const edgefirst_msgs_vibration_t,
+) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -6806,7 +7173,9 @@ pub extern "C" fn ros_vibration_get_band_lower_hz(view: *const ros_vibration_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_get_band_upper_hz(view: *const ros_vibration_t) -> f32 {
+pub extern "C" fn edgefirst_msgs_vibration_get_band_upper_hz(
+    view: *const edgefirst_msgs_vibration_t,
+) -> f32 {
     if view.is_null() {
         return 0.0;
     }
@@ -6814,8 +7183,8 @@ pub extern "C" fn ros_vibration_get_band_upper_hz(view: *const ros_vibration_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_get_vibration(
-    view: *const ros_vibration_t,
+pub extern "C" fn edgefirst_msgs_vibration_get_vibration(
+    view: *const edgefirst_msgs_vibration_t,
     x: *mut f64,
     y: *mut f64,
     z: *mut f64,
@@ -6838,7 +7207,9 @@ pub extern "C" fn ros_vibration_get_vibration(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_get_clipping_len(view: *const ros_vibration_t) -> u32 {
+pub extern "C" fn edgefirst_msgs_vibration_get_clipping_len(
+    view: *const edgefirst_msgs_vibration_t,
+) -> u32 {
     if view.is_null() {
         return 0;
     }
@@ -6850,8 +7221,8 @@ pub extern "C" fn ros_vibration_get_clipping_len(view: *const ros_vibration_t) -
 /// Allocation-free: decodes directly from the backing CDR slice using the
 /// cached sequence offset.
 #[no_mangle]
-pub extern "C" fn ros_vibration_get_clipping(
-    view: *const ros_vibration_t,
+pub extern "C" fn edgefirst_msgs_vibration_get_clipping(
+    view: *const edgefirst_msgs_vibration_t,
     out: *mut u32,
     cap: usize,
 ) -> u32 {
@@ -6872,7 +7243,7 @@ pub extern "C" fn ros_vibration_get_clipping(
 // caller contract is that any borrowed data remains valid until the next
 // setter on that field, the next `build` / `encode_into`, or `free`.
 //
-// The legacy `ros_<type>_encode` one-shot functions remain in 3.2.0 for
+// The legacy `<package>_<type>_encode` one-shot functions remain in 3.2.0 for
 // compatibility but are deprecated and slated for removal in 4.0; new code
 // should prefer the builder API to avoid argument-list explosion as message
 // shapes grow.
@@ -6891,11 +7262,11 @@ struct HeaderBuilderOwned {
     frame_id: String,
 }
 
-pub struct ros_header_builder_t(HeaderBuilderOwned);
+pub struct std_msgs_header_builder_t(HeaderBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_header_builder_new() -> *mut ros_header_builder_t {
-    Box::into_raw(Box::new(ros_header_builder_t(HeaderBuilderOwned {
+pub extern "C" fn std_msgs_header_builder_new() -> *mut std_msgs_header_builder_t {
+    Box::into_raw(Box::new(std_msgs_header_builder_t(HeaderBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
         frame_id: String::new(),
@@ -6903,7 +7274,7 @@ pub extern "C" fn ros_header_builder_new() -> *mut ros_header_builder_t {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_header_builder_free(b: *mut ros_header_builder_t) {
+pub extern "C" fn std_msgs_header_builder_free(b: *mut std_msgs_header_builder_t) {
     if b.is_null() {
         return;
     }
@@ -6913,8 +7284,8 @@ pub extern "C" fn ros_header_builder_free(b: *mut ros_header_builder_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_header_builder_set_stamp(
-    b: *mut ros_header_builder_t,
+pub extern "C" fn std_msgs_header_builder_set_stamp(
+    b: *mut std_msgs_header_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -6927,8 +7298,8 @@ pub extern "C" fn ros_header_builder_set_stamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_header_builder_set_frame_id(
-    b: *mut ros_header_builder_t,
+pub extern "C" fn std_msgs_header_builder_set_frame_id(
+    b: *mut std_msgs_header_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -6946,8 +7317,8 @@ pub extern "C" fn ros_header_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_header_builder_build(
-    b: *mut ros_header_builder_t,
+pub extern "C" fn std_msgs_header_builder_build(
+    b: *mut std_msgs_header_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -6970,8 +7341,8 @@ pub extern "C" fn ros_header_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_header_builder_encode_into(
-    b: *mut ros_header_builder_t,
+pub extern "C" fn std_msgs_header_builder_encode_into(
+    b: *mut std_msgs_header_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -7019,11 +7390,11 @@ struct ImageBuilderOwned {
     data_len: usize,
 }
 
-pub struct ros_image_builder_t(ImageBuilderOwned);
+pub struct sensor_msgs_image_builder_t(ImageBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_image_builder_new() -> *mut ros_image_builder_t {
-    Box::into_raw(Box::new(ros_image_builder_t(ImageBuilderOwned {
+pub extern "C" fn sensor_msgs_image_builder_new() -> *mut sensor_msgs_image_builder_t {
+    Box::into_raw(Box::new(sensor_msgs_image_builder_t(ImageBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
         frame_id: String::new(),
@@ -7038,7 +7409,7 @@ pub extern "C" fn ros_image_builder_new() -> *mut ros_image_builder_t {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_image_builder_free(b: *mut ros_image_builder_t) {
+pub extern "C" fn sensor_msgs_image_builder_free(b: *mut sensor_msgs_image_builder_t) {
     if b.is_null() {
         return;
     }
@@ -7048,7 +7419,11 @@ pub extern "C" fn ros_image_builder_free(b: *mut ros_image_builder_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_image_builder_set_stamp(b: *mut ros_image_builder_t, sec: i32, nanosec: u32) {
+pub extern "C" fn sensor_msgs_image_builder_set_stamp(
+    b: *mut sensor_msgs_image_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
     if b.is_null() {
         return;
     }
@@ -7058,8 +7433,8 @@ pub extern "C" fn ros_image_builder_set_stamp(b: *mut ros_image_builder_t, sec: 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_image_builder_set_frame_id(
-    b: *mut ros_image_builder_t,
+pub extern "C" fn sensor_msgs_image_builder_set_frame_id(
+    b: *mut sensor_msgs_image_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -7077,7 +7452,10 @@ pub extern "C" fn ros_image_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_image_builder_set_height(b: *mut ros_image_builder_t, v: u32) {
+pub extern "C" fn sensor_msgs_image_builder_set_height(
+    b: *mut sensor_msgs_image_builder_t,
+    v: u32,
+) {
     if b.is_null() {
         return;
     }
@@ -7087,7 +7465,7 @@ pub extern "C" fn ros_image_builder_set_height(b: *mut ros_image_builder_t, v: u
 }
 
 #[no_mangle]
-pub extern "C" fn ros_image_builder_set_width(b: *mut ros_image_builder_t, v: u32) {
+pub extern "C" fn sensor_msgs_image_builder_set_width(b: *mut sensor_msgs_image_builder_t, v: u32) {
     if b.is_null() {
         return;
     }
@@ -7097,8 +7475,8 @@ pub extern "C" fn ros_image_builder_set_width(b: *mut ros_image_builder_t, v: u3
 }
 
 #[no_mangle]
-pub extern "C" fn ros_image_builder_set_encoding(
-    b: *mut ros_image_builder_t,
+pub extern "C" fn sensor_msgs_image_builder_set_encoding(
+    b: *mut sensor_msgs_image_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -7116,7 +7494,10 @@ pub extern "C" fn ros_image_builder_set_encoding(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_image_builder_set_is_bigendian(b: *mut ros_image_builder_t, v: u8) {
+pub extern "C" fn sensor_msgs_image_builder_set_is_bigendian(
+    b: *mut sensor_msgs_image_builder_t,
+    v: u8,
+) {
     if b.is_null() {
         return;
     }
@@ -7126,7 +7507,7 @@ pub extern "C" fn ros_image_builder_set_is_bigendian(b: *mut ros_image_builder_t
 }
 
 #[no_mangle]
-pub extern "C" fn ros_image_builder_set_step(b: *mut ros_image_builder_t, v: u32) {
+pub extern "C" fn sensor_msgs_image_builder_set_step(b: *mut sensor_msgs_image_builder_t, v: u32) {
     if b.is_null() {
         return;
     }
@@ -7136,8 +7517,8 @@ pub extern "C" fn ros_image_builder_set_step(b: *mut ros_image_builder_t, v: u32
 }
 
 #[no_mangle]
-pub extern "C" fn ros_image_builder_set_data(
-    b: *mut ros_image_builder_t,
+pub extern "C" fn sensor_msgs_image_builder_set_data(
+    b: *mut sensor_msgs_image_builder_t,
     data: *const u8,
     len: usize,
 ) -> i32 {
@@ -7156,7 +7537,7 @@ pub extern "C" fn ros_image_builder_set_data(
     0
 }
 
-fn ros_image_builder_data_slice(inner: &ImageBuilderOwned) -> &[u8] {
+fn sensor_msgs_image_builder_data_slice(inner: &ImageBuilderOwned) -> &[u8] {
     if inner.data.is_null() || inner.data_len == 0 {
         &[][..]
     } else {
@@ -7165,8 +7546,8 @@ fn ros_image_builder_data_slice(inner: &ImageBuilderOwned) -> &[u8] {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_image_builder_build(
-    b: *mut ros_image_builder_t,
+pub extern "C" fn sensor_msgs_image_builder_build(
+    b: *mut sensor_msgs_image_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -7175,7 +7556,7 @@ pub extern "C" fn ros_image_builder_build(
         return -1;
     }
     let inner = unsafe { &(*b).0 };
-    let data_slice = ros_image_builder_data_slice(inner);
+    let data_slice = sensor_msgs_image_builder_data_slice(inner);
     let r = sensor_msgs::Image::builder()
         .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
         .frame_id(inner.frame_id.as_str())
@@ -7196,8 +7577,8 @@ pub extern "C" fn ros_image_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_image_builder_encode_into(
-    b: *mut ros_image_builder_t,
+pub extern "C" fn sensor_msgs_image_builder_encode_into(
+    b: *mut sensor_msgs_image_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -7207,7 +7588,7 @@ pub extern "C" fn ros_image_builder_encode_into(
         return -1;
     }
     let inner = unsafe { &(*b).0 };
-    let data_slice = ros_image_builder_data_slice(inner);
+    let data_slice = sensor_msgs_image_builder_data_slice(inner);
     let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
     let r = sensor_msgs::Image::builder()
         .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
@@ -7247,11 +7628,12 @@ struct FluidPressureBuilderOwned {
     variance: f64,
 }
 
-pub struct ros_fluid_pressure_builder_t(FluidPressureBuilderOwned);
+pub struct sensor_msgs_fluid_pressure_builder_t(FluidPressureBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_fluid_pressure_builder_new() -> *mut ros_fluid_pressure_builder_t {
-    Box::into_raw(Box::new(ros_fluid_pressure_builder_t(
+pub extern "C" fn sensor_msgs_fluid_pressure_builder_new(
+) -> *mut sensor_msgs_fluid_pressure_builder_t {
+    Box::into_raw(Box::new(sensor_msgs_fluid_pressure_builder_t(
         FluidPressureBuilderOwned {
             stamp_sec: 0,
             stamp_nanosec: 0,
@@ -7263,7 +7645,9 @@ pub extern "C" fn ros_fluid_pressure_builder_new() -> *mut ros_fluid_pressure_bu
 }
 
 #[no_mangle]
-pub extern "C" fn ros_fluid_pressure_builder_free(b: *mut ros_fluid_pressure_builder_t) {
+pub extern "C" fn sensor_msgs_fluid_pressure_builder_free(
+    b: *mut sensor_msgs_fluid_pressure_builder_t,
+) {
     if b.is_null() {
         return;
     }
@@ -7273,8 +7657,8 @@ pub extern "C" fn ros_fluid_pressure_builder_free(b: *mut ros_fluid_pressure_bui
 }
 
 #[no_mangle]
-pub extern "C" fn ros_fluid_pressure_builder_set_stamp(
-    b: *mut ros_fluid_pressure_builder_t,
+pub extern "C" fn sensor_msgs_fluid_pressure_builder_set_stamp(
+    b: *mut sensor_msgs_fluid_pressure_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -7287,8 +7671,8 @@ pub extern "C" fn ros_fluid_pressure_builder_set_stamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_fluid_pressure_builder_set_frame_id(
-    b: *mut ros_fluid_pressure_builder_t,
+pub extern "C" fn sensor_msgs_fluid_pressure_builder_set_frame_id(
+    b: *mut sensor_msgs_fluid_pressure_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -7306,8 +7690,8 @@ pub extern "C" fn ros_fluid_pressure_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_fluid_pressure_builder_set_fluid_pressure(
-    b: *mut ros_fluid_pressure_builder_t,
+pub extern "C" fn sensor_msgs_fluid_pressure_builder_set_fluid_pressure(
+    b: *mut sensor_msgs_fluid_pressure_builder_t,
     v: f64,
 ) {
     if b.is_null() {
@@ -7319,8 +7703,8 @@ pub extern "C" fn ros_fluid_pressure_builder_set_fluid_pressure(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_fluid_pressure_builder_set_variance(
-    b: *mut ros_fluid_pressure_builder_t,
+pub extern "C" fn sensor_msgs_fluid_pressure_builder_set_variance(
+    b: *mut sensor_msgs_fluid_pressure_builder_t,
     v: f64,
 ) {
     if b.is_null() {
@@ -7332,8 +7716,8 @@ pub extern "C" fn ros_fluid_pressure_builder_set_variance(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_fluid_pressure_builder_build(
-    b: *mut ros_fluid_pressure_builder_t,
+pub extern "C" fn sensor_msgs_fluid_pressure_builder_build(
+    b: *mut sensor_msgs_fluid_pressure_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -7358,8 +7742,8 @@ pub extern "C" fn ros_fluid_pressure_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_fluid_pressure_builder_encode_into(
-    b: *mut ros_fluid_pressure_builder_t,
+pub extern "C" fn sensor_msgs_fluid_pressure_builder_encode_into(
+    b: *mut sensor_msgs_fluid_pressure_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -7405,11 +7789,12 @@ struct CompressedImageBuilderOwned {
     data_len: usize,
 }
 
-pub struct ros_compressed_image_builder_t(CompressedImageBuilderOwned);
+pub struct sensor_msgs_compressed_image_builder_t(CompressedImageBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_compressed_image_builder_new() -> *mut ros_compressed_image_builder_t {
-    Box::into_raw(Box::new(ros_compressed_image_builder_t(
+pub extern "C" fn sensor_msgs_compressed_image_builder_new(
+) -> *mut sensor_msgs_compressed_image_builder_t {
+    Box::into_raw(Box::new(sensor_msgs_compressed_image_builder_t(
         CompressedImageBuilderOwned {
             stamp_sec: 0,
             stamp_nanosec: 0,
@@ -7422,7 +7807,9 @@ pub extern "C" fn ros_compressed_image_builder_new() -> *mut ros_compressed_imag
 }
 
 #[no_mangle]
-pub extern "C" fn ros_compressed_image_builder_free(b: *mut ros_compressed_image_builder_t) {
+pub extern "C" fn sensor_msgs_compressed_image_builder_free(
+    b: *mut sensor_msgs_compressed_image_builder_t,
+) {
     if b.is_null() {
         return;
     }
@@ -7432,8 +7819,8 @@ pub extern "C" fn ros_compressed_image_builder_free(b: *mut ros_compressed_image
 }
 
 #[no_mangle]
-pub extern "C" fn ros_compressed_image_builder_set_stamp(
-    b: *mut ros_compressed_image_builder_t,
+pub extern "C" fn sensor_msgs_compressed_image_builder_set_stamp(
+    b: *mut sensor_msgs_compressed_image_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -7446,8 +7833,8 @@ pub extern "C" fn ros_compressed_image_builder_set_stamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_compressed_image_builder_set_frame_id(
-    b: *mut ros_compressed_image_builder_t,
+pub extern "C" fn sensor_msgs_compressed_image_builder_set_frame_id(
+    b: *mut sensor_msgs_compressed_image_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -7465,8 +7852,8 @@ pub extern "C" fn ros_compressed_image_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_compressed_image_builder_set_format(
-    b: *mut ros_compressed_image_builder_t,
+pub extern "C" fn sensor_msgs_compressed_image_builder_set_format(
+    b: *mut sensor_msgs_compressed_image_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -7484,8 +7871,8 @@ pub extern "C" fn ros_compressed_image_builder_set_format(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_compressed_image_builder_set_data(
-    b: *mut ros_compressed_image_builder_t,
+pub extern "C" fn sensor_msgs_compressed_image_builder_set_data(
+    b: *mut sensor_msgs_compressed_image_builder_t,
     data: *const u8,
     len: usize,
 ) -> i32 {
@@ -7504,7 +7891,7 @@ pub extern "C" fn ros_compressed_image_builder_set_data(
     0
 }
 
-fn ros_compressed_image_builder_data_slice(inner: &CompressedImageBuilderOwned) -> &[u8] {
+fn sensor_msgs_compressed_image_builder_data_slice(inner: &CompressedImageBuilderOwned) -> &[u8] {
     if inner.data.is_null() || inner.data_len == 0 {
         &[][..]
     } else {
@@ -7513,8 +7900,8 @@ fn ros_compressed_image_builder_data_slice(inner: &CompressedImageBuilderOwned) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_compressed_image_builder_build(
-    b: *mut ros_compressed_image_builder_t,
+pub extern "C" fn sensor_msgs_compressed_image_builder_build(
+    b: *mut sensor_msgs_compressed_image_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -7523,7 +7910,7 @@ pub extern "C" fn ros_compressed_image_builder_build(
         return -1;
     }
     let inner = unsafe { &(*b).0 };
-    let data_slice = ros_compressed_image_builder_data_slice(inner);
+    let data_slice = sensor_msgs_compressed_image_builder_data_slice(inner);
     let r = sensor_msgs::CompressedImage::builder()
         .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
         .frame_id(inner.frame_id.as_str())
@@ -7540,8 +7927,8 @@ pub extern "C" fn ros_compressed_image_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_compressed_image_builder_encode_into(
-    b: *mut ros_compressed_image_builder_t,
+pub extern "C" fn sensor_msgs_compressed_image_builder_encode_into(
+    b: *mut sensor_msgs_compressed_image_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -7551,7 +7938,7 @@ pub extern "C" fn ros_compressed_image_builder_encode_into(
         return -1;
     }
     let inner = unsafe { &(*b).0 };
-    let data_slice = ros_compressed_image_builder_data_slice(inner);
+    let data_slice = sensor_msgs_compressed_image_builder_data_slice(inner);
     let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
     let r = sensor_msgs::CompressedImage::builder()
         .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
@@ -7591,11 +7978,11 @@ struct ImuBuilderOwned {
     linear_acceleration_covariance: [f64; 9],
 }
 
-pub struct ros_imu_builder_t(ImuBuilderOwned);
+pub struct sensor_msgs_imu_builder_t(ImuBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_imu_builder_new() -> *mut ros_imu_builder_t {
-    Box::into_raw(Box::new(ros_imu_builder_t(ImuBuilderOwned {
+pub extern "C" fn sensor_msgs_imu_builder_new() -> *mut sensor_msgs_imu_builder_t {
+    Box::into_raw(Box::new(sensor_msgs_imu_builder_t(ImuBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
         frame_id: String::new(),
@@ -7622,7 +8009,7 @@ pub extern "C" fn ros_imu_builder_new() -> *mut ros_imu_builder_t {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_imu_builder_free(b: *mut ros_imu_builder_t) {
+pub extern "C" fn sensor_msgs_imu_builder_free(b: *mut sensor_msgs_imu_builder_t) {
     if b.is_null() {
         return;
     }
@@ -7632,7 +8019,11 @@ pub extern "C" fn ros_imu_builder_free(b: *mut ros_imu_builder_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_imu_builder_set_stamp(b: *mut ros_imu_builder_t, sec: i32, nanosec: u32) {
+pub extern "C" fn sensor_msgs_imu_builder_set_stamp(
+    b: *mut sensor_msgs_imu_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
     if b.is_null() {
         return;
     }
@@ -7642,7 +8033,10 @@ pub extern "C" fn ros_imu_builder_set_stamp(b: *mut ros_imu_builder_t, sec: i32,
 }
 
 #[no_mangle]
-pub extern "C" fn ros_imu_builder_set_frame_id(b: *mut ros_imu_builder_t, s: *const c_char) -> i32 {
+pub extern "C" fn sensor_msgs_imu_builder_set_frame_id(
+    b: *mut sensor_msgs_imu_builder_t,
+    s: *const c_char,
+) -> i32 {
     if b.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -7658,8 +8052,8 @@ pub extern "C" fn ros_imu_builder_set_frame_id(b: *mut ros_imu_builder_t, s: *co
 }
 
 #[no_mangle]
-pub extern "C" fn ros_imu_builder_set_orientation(
-    b: *mut ros_imu_builder_t,
+pub extern "C" fn sensor_msgs_imu_builder_set_orientation(
+    b: *mut sensor_msgs_imu_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -7676,8 +8070,8 @@ pub extern "C" fn ros_imu_builder_set_orientation(
 /// Copies 9 f64 elements from `cov` into the builder's orientation_covariance.
 /// Caller contract: `cov` must point to at least 9 valid f64 values.
 #[no_mangle]
-pub extern "C" fn ros_imu_builder_set_orientation_covariance(
-    b: *mut ros_imu_builder_t,
+pub extern "C" fn sensor_msgs_imu_builder_set_orientation_covariance(
+    b: *mut sensor_msgs_imu_builder_t,
     cov: *const f64,
 ) -> i32 {
     if b.is_null() || cov.is_null() {
@@ -7692,8 +8086,8 @@ pub extern "C" fn ros_imu_builder_set_orientation_covariance(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_imu_builder_set_angular_velocity(
-    b: *mut ros_imu_builder_t,
+pub extern "C" fn sensor_msgs_imu_builder_set_angular_velocity(
+    b: *mut sensor_msgs_imu_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -7707,8 +8101,8 @@ pub extern "C" fn ros_imu_builder_set_angular_velocity(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_imu_builder_set_angular_velocity_covariance(
-    b: *mut ros_imu_builder_t,
+pub extern "C" fn sensor_msgs_imu_builder_set_angular_velocity_covariance(
+    b: *mut sensor_msgs_imu_builder_t,
     cov: *const f64,
 ) -> i32 {
     if b.is_null() || cov.is_null() {
@@ -7723,8 +8117,8 @@ pub extern "C" fn ros_imu_builder_set_angular_velocity_covariance(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_imu_builder_set_linear_acceleration(
-    b: *mut ros_imu_builder_t,
+pub extern "C" fn sensor_msgs_imu_builder_set_linear_acceleration(
+    b: *mut sensor_msgs_imu_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -7738,8 +8132,8 @@ pub extern "C" fn ros_imu_builder_set_linear_acceleration(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_imu_builder_set_linear_acceleration_covariance(
-    b: *mut ros_imu_builder_t,
+pub extern "C" fn sensor_msgs_imu_builder_set_linear_acceleration_covariance(
+    b: *mut sensor_msgs_imu_builder_t,
     cov: *const f64,
 ) -> i32 {
     if b.is_null() || cov.is_null() {
@@ -7754,8 +8148,8 @@ pub extern "C" fn ros_imu_builder_set_linear_acceleration_covariance(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_imu_builder_build(
-    b: *mut ros_imu_builder_t,
+pub extern "C" fn sensor_msgs_imu_builder_build(
+    b: *mut sensor_msgs_imu_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -7784,8 +8178,8 @@ pub extern "C" fn ros_imu_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_imu_builder_encode_into(
-    b: *mut ros_imu_builder_t,
+pub extern "C" fn sensor_msgs_imu_builder_encode_into(
+    b: *mut sensor_msgs_imu_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -7838,28 +8232,30 @@ struct NavSatFixBuilderOwned {
     position_covariance_type: u8,
 }
 
-pub struct ros_nav_sat_fix_builder_t(NavSatFixBuilderOwned);
+pub struct sensor_msgs_nav_sat_fix_builder_t(NavSatFixBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_builder_new() -> *mut ros_nav_sat_fix_builder_t {
-    Box::into_raw(Box::new(ros_nav_sat_fix_builder_t(NavSatFixBuilderOwned {
-        stamp_sec: 0,
-        stamp_nanosec: 0,
-        frame_id: String::new(),
-        status: NavSatStatus {
-            status: 0,
-            service: 0,
+pub extern "C" fn sensor_msgs_nav_sat_fix_builder_new() -> *mut sensor_msgs_nav_sat_fix_builder_t {
+    Box::into_raw(Box::new(sensor_msgs_nav_sat_fix_builder_t(
+        NavSatFixBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            status: NavSatStatus {
+                status: 0,
+                service: 0,
+            },
+            latitude: 0.0,
+            longitude: 0.0,
+            altitude: 0.0,
+            position_covariance: [0.0; 9],
+            position_covariance_type: 0,
         },
-        latitude: 0.0,
-        longitude: 0.0,
-        altitude: 0.0,
-        position_covariance: [0.0; 9],
-        position_covariance_type: 0,
-    })))
+    )))
 }
 
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_builder_free(b: *mut ros_nav_sat_fix_builder_t) {
+pub extern "C" fn sensor_msgs_nav_sat_fix_builder_free(b: *mut sensor_msgs_nav_sat_fix_builder_t) {
     if b.is_null() {
         return;
     }
@@ -7869,8 +8265,8 @@ pub extern "C" fn ros_nav_sat_fix_builder_free(b: *mut ros_nav_sat_fix_builder_t
 }
 
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_builder_set_stamp(
-    b: *mut ros_nav_sat_fix_builder_t,
+pub extern "C" fn sensor_msgs_nav_sat_fix_builder_set_stamp(
+    b: *mut sensor_msgs_nav_sat_fix_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -7883,8 +8279,8 @@ pub extern "C" fn ros_nav_sat_fix_builder_set_stamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_builder_set_frame_id(
-    b: *mut ros_nav_sat_fix_builder_t,
+pub extern "C" fn sensor_msgs_nav_sat_fix_builder_set_frame_id(
+    b: *mut sensor_msgs_nav_sat_fix_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -7902,8 +8298,8 @@ pub extern "C" fn ros_nav_sat_fix_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_builder_set_status(
-    b: *mut ros_nav_sat_fix_builder_t,
+pub extern "C" fn sensor_msgs_nav_sat_fix_builder_set_status(
+    b: *mut sensor_msgs_nav_sat_fix_builder_t,
     status: i8,
     service: u16,
 ) {
@@ -7916,7 +8312,10 @@ pub extern "C" fn ros_nav_sat_fix_builder_set_status(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_builder_set_latitude(b: *mut ros_nav_sat_fix_builder_t, v: f64) {
+pub extern "C" fn sensor_msgs_nav_sat_fix_builder_set_latitude(
+    b: *mut sensor_msgs_nav_sat_fix_builder_t,
+    v: f64,
+) {
     if b.is_null() {
         return;
     }
@@ -7926,7 +8325,10 @@ pub extern "C" fn ros_nav_sat_fix_builder_set_latitude(b: *mut ros_nav_sat_fix_b
 }
 
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_builder_set_longitude(b: *mut ros_nav_sat_fix_builder_t, v: f64) {
+pub extern "C" fn sensor_msgs_nav_sat_fix_builder_set_longitude(
+    b: *mut sensor_msgs_nav_sat_fix_builder_t,
+    v: f64,
+) {
     if b.is_null() {
         return;
     }
@@ -7936,7 +8338,10 @@ pub extern "C" fn ros_nav_sat_fix_builder_set_longitude(b: *mut ros_nav_sat_fix_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_builder_set_altitude(b: *mut ros_nav_sat_fix_builder_t, v: f64) {
+pub extern "C" fn sensor_msgs_nav_sat_fix_builder_set_altitude(
+    b: *mut sensor_msgs_nav_sat_fix_builder_t,
+    v: f64,
+) {
     if b.is_null() {
         return;
     }
@@ -7946,8 +8351,8 @@ pub extern "C" fn ros_nav_sat_fix_builder_set_altitude(b: *mut ros_nav_sat_fix_b
 }
 
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_builder_set_position_covariance(
-    b: *mut ros_nav_sat_fix_builder_t,
+pub extern "C" fn sensor_msgs_nav_sat_fix_builder_set_position_covariance(
+    b: *mut sensor_msgs_nav_sat_fix_builder_t,
     cov: *const f64,
 ) -> i32 {
     if b.is_null() || cov.is_null() {
@@ -7962,8 +8367,8 @@ pub extern "C" fn ros_nav_sat_fix_builder_set_position_covariance(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_builder_set_position_covariance_type(
-    b: *mut ros_nav_sat_fix_builder_t,
+pub extern "C" fn sensor_msgs_nav_sat_fix_builder_set_position_covariance_type(
+    b: *mut sensor_msgs_nav_sat_fix_builder_t,
     v: u8,
 ) {
     if b.is_null() {
@@ -7975,8 +8380,8 @@ pub extern "C" fn ros_nav_sat_fix_builder_set_position_covariance_type(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_builder_build(
-    b: *mut ros_nav_sat_fix_builder_t,
+pub extern "C" fn sensor_msgs_nav_sat_fix_builder_build(
+    b: *mut sensor_msgs_nav_sat_fix_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -8005,8 +8410,8 @@ pub extern "C" fn ros_nav_sat_fix_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_builder_encode_into(
-    b: *mut ros_nav_sat_fix_builder_t,
+pub extern "C" fn sensor_msgs_nav_sat_fix_builder_encode_into(
+    b: *mut sensor_msgs_nav_sat_fix_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -8054,11 +8459,11 @@ struct PointFieldBuilderOwned {
     count: u32,
 }
 
-pub struct ros_point_field_builder_t(PointFieldBuilderOwned);
+pub struct sensor_msgs_point_field_builder_t(PointFieldBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_point_field_builder_new() -> *mut ros_point_field_builder_t {
-    Box::into_raw(Box::new(ros_point_field_builder_t(
+pub extern "C" fn sensor_msgs_point_field_builder_new() -> *mut sensor_msgs_point_field_builder_t {
+    Box::into_raw(Box::new(sensor_msgs_point_field_builder_t(
         PointFieldBuilderOwned {
             name: String::new(),
             offset: 0,
@@ -8069,7 +8474,7 @@ pub extern "C" fn ros_point_field_builder_new() -> *mut ros_point_field_builder_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_field_builder_free(b: *mut ros_point_field_builder_t) {
+pub extern "C" fn sensor_msgs_point_field_builder_free(b: *mut sensor_msgs_point_field_builder_t) {
     if b.is_null() {
         return;
     }
@@ -8079,8 +8484,8 @@ pub extern "C" fn ros_point_field_builder_free(b: *mut ros_point_field_builder_t
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_field_builder_set_name(
-    b: *mut ros_point_field_builder_t,
+pub extern "C" fn sensor_msgs_point_field_builder_set_name(
+    b: *mut sensor_msgs_point_field_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -8098,7 +8503,10 @@ pub extern "C" fn ros_point_field_builder_set_name(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_field_builder_set_offset(b: *mut ros_point_field_builder_t, v: u32) {
+pub extern "C" fn sensor_msgs_point_field_builder_set_offset(
+    b: *mut sensor_msgs_point_field_builder_t,
+    v: u32,
+) {
     if b.is_null() {
         return;
     }
@@ -8108,7 +8516,10 @@ pub extern "C" fn ros_point_field_builder_set_offset(b: *mut ros_point_field_bui
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_field_builder_set_datatype(b: *mut ros_point_field_builder_t, v: u8) {
+pub extern "C" fn sensor_msgs_point_field_builder_set_datatype(
+    b: *mut sensor_msgs_point_field_builder_t,
+    v: u8,
+) {
     if b.is_null() {
         return;
     }
@@ -8118,7 +8529,10 @@ pub extern "C" fn ros_point_field_builder_set_datatype(b: *mut ros_point_field_b
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_field_builder_set_count(b: *mut ros_point_field_builder_t, v: u32) {
+pub extern "C" fn sensor_msgs_point_field_builder_set_count(
+    b: *mut sensor_msgs_point_field_builder_t,
+    v: u32,
+) {
     if b.is_null() {
         return;
     }
@@ -8128,8 +8542,8 @@ pub extern "C" fn ros_point_field_builder_set_count(b: *mut ros_point_field_buil
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_field_builder_build(
-    b: *mut ros_point_field_builder_t,
+pub extern "C" fn sensor_msgs_point_field_builder_build(
+    b: *mut sensor_msgs_point_field_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -8154,8 +8568,8 @@ pub extern "C" fn ros_point_field_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_field_builder_encode_into(
-    b: *mut ros_point_field_builder_t,
+pub extern "C" fn sensor_msgs_point_field_builder_encode_into(
+    b: *mut sensor_msgs_point_field_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -8197,11 +8611,11 @@ pub extern "C" fn ros_point_field_builder_encode_into(
 // setter/build/encode_into/free.
 
 /// C-POD descriptor for a single PointField element used by
-/// `ros_point_cloud2_builder_set_fields`. The `name` pointer is borrowed:
+/// `sensor_msgs_point_cloud2_builder_set_fields`. The `name` pointer is borrowed:
 /// the caller must keep the backing string alive until the next setter on
 /// the fields slot or the builder is freed.
 #[repr(C)]
-pub struct ros_point_field_elem_t {
+pub struct sensor_msgs_point_field_elem_t {
     pub name: *const c_char,
     pub offset: u32,
     pub datatype: u8,
@@ -8214,7 +8628,7 @@ struct PointCloud2BuilderOwned {
     frame_id: String,
     height: u32,
     width: u32,
-    fields: *const ros_point_field_elem_t,
+    fields: *const sensor_msgs_point_field_elem_t,
     fields_count: usize,
     is_bigendian: bool,
     point_step: u32,
@@ -8224,11 +8638,12 @@ struct PointCloud2BuilderOwned {
     is_dense: bool,
 }
 
-pub struct ros_point_cloud2_builder_t(PointCloud2BuilderOwned);
+pub struct sensor_msgs_point_cloud2_builder_t(PointCloud2BuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_builder_new() -> *mut ros_point_cloud2_builder_t {
-    Box::into_raw(Box::new(ros_point_cloud2_builder_t(
+pub extern "C" fn sensor_msgs_point_cloud2_builder_new() -> *mut sensor_msgs_point_cloud2_builder_t
+{
+    Box::into_raw(Box::new(sensor_msgs_point_cloud2_builder_t(
         PointCloud2BuilderOwned {
             stamp_sec: 0,
             stamp_nanosec: 0,
@@ -8248,7 +8663,9 @@ pub extern "C" fn ros_point_cloud2_builder_new() -> *mut ros_point_cloud2_builde
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_builder_free(b: *mut ros_point_cloud2_builder_t) {
+pub extern "C" fn sensor_msgs_point_cloud2_builder_free(
+    b: *mut sensor_msgs_point_cloud2_builder_t,
+) {
     if b.is_null() {
         return;
     }
@@ -8258,8 +8675,8 @@ pub extern "C" fn ros_point_cloud2_builder_free(b: *mut ros_point_cloud2_builder
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_builder_set_stamp(
-    b: *mut ros_point_cloud2_builder_t,
+pub extern "C" fn sensor_msgs_point_cloud2_builder_set_stamp(
+    b: *mut sensor_msgs_point_cloud2_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -8272,8 +8689,8 @@ pub extern "C" fn ros_point_cloud2_builder_set_stamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_builder_set_frame_id(
-    b: *mut ros_point_cloud2_builder_t,
+pub extern "C" fn sensor_msgs_point_cloud2_builder_set_frame_id(
+    b: *mut sensor_msgs_point_cloud2_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -8291,7 +8708,10 @@ pub extern "C" fn ros_point_cloud2_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_builder_set_height(b: *mut ros_point_cloud2_builder_t, v: u32) {
+pub extern "C" fn sensor_msgs_point_cloud2_builder_set_height(
+    b: *mut sensor_msgs_point_cloud2_builder_t,
+    v: u32,
+) {
     if b.is_null() {
         return;
     }
@@ -8301,7 +8721,10 @@ pub extern "C" fn ros_point_cloud2_builder_set_height(b: *mut ros_point_cloud2_b
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_builder_set_width(b: *mut ros_point_cloud2_builder_t, v: u32) {
+pub extern "C" fn sensor_msgs_point_cloud2_builder_set_width(
+    b: *mut sensor_msgs_point_cloud2_builder_t,
+    v: u32,
+) {
     if b.is_null() {
         return;
     }
@@ -8314,9 +8737,9 @@ pub extern "C" fn ros_point_cloud2_builder_set_width(b: *mut ros_point_cloud2_bu
 /// pointer inside it must remain valid until the next setter on the fields
 /// slot, a subsequent build/encode_into, or free).
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_builder_set_fields(
-    b: *mut ros_point_cloud2_builder_t,
-    fields: *const ros_point_field_elem_t,
+pub extern "C" fn sensor_msgs_point_cloud2_builder_set_fields(
+    b: *mut sensor_msgs_point_cloud2_builder_t,
+    fields: *const sensor_msgs_point_field_elem_t,
     count: usize,
 ) -> i32 {
     if b.is_null() {
@@ -8335,8 +8758,8 @@ pub extern "C" fn ros_point_cloud2_builder_set_fields(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_builder_set_is_bigendian(
-    b: *mut ros_point_cloud2_builder_t,
+pub extern "C" fn sensor_msgs_point_cloud2_builder_set_is_bigendian(
+    b: *mut sensor_msgs_point_cloud2_builder_t,
     v: bool,
 ) {
     if b.is_null() {
@@ -8348,8 +8771,8 @@ pub extern "C" fn ros_point_cloud2_builder_set_is_bigendian(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_builder_set_point_step(
-    b: *mut ros_point_cloud2_builder_t,
+pub extern "C" fn sensor_msgs_point_cloud2_builder_set_point_step(
+    b: *mut sensor_msgs_point_cloud2_builder_t,
     v: u32,
 ) {
     if b.is_null() {
@@ -8361,8 +8784,8 @@ pub extern "C" fn ros_point_cloud2_builder_set_point_step(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_builder_set_row_step(
-    b: *mut ros_point_cloud2_builder_t,
+pub extern "C" fn sensor_msgs_point_cloud2_builder_set_row_step(
+    b: *mut sensor_msgs_point_cloud2_builder_t,
     v: u32,
 ) {
     if b.is_null() {
@@ -8374,8 +8797,8 @@ pub extern "C" fn ros_point_cloud2_builder_set_row_step(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_builder_set_data(
-    b: *mut ros_point_cloud2_builder_t,
+pub extern "C" fn sensor_msgs_point_cloud2_builder_set_data(
+    b: *mut sensor_msgs_point_cloud2_builder_t,
     data: *const u8,
     len: usize,
 ) -> i32 {
@@ -8395,8 +8818,8 @@ pub extern "C" fn ros_point_cloud2_builder_set_data(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_builder_set_is_dense(
-    b: *mut ros_point_cloud2_builder_t,
+pub extern "C" fn sensor_msgs_point_cloud2_builder_set_is_dense(
+    b: *mut sensor_msgs_point_cloud2_builder_t,
     v: bool,
 ) {
     if b.is_null() {
@@ -8407,7 +8830,7 @@ pub extern "C" fn ros_point_cloud2_builder_set_is_dense(
     }
 }
 
-fn ros_point_cloud2_builder_data_slice(inner: &PointCloud2BuilderOwned) -> &[u8] {
+fn sensor_msgs_point_cloud2_builder_data_slice(inner: &PointCloud2BuilderOwned) -> &[u8] {
     if inner.data.is_null() || inner.data_len == 0 {
         &[][..]
     } else {
@@ -8442,8 +8865,8 @@ unsafe fn point_cloud2_fields_to_views(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_builder_build(
-    b: *mut ros_point_cloud2_builder_t,
+pub extern "C" fn sensor_msgs_point_cloud2_builder_build(
+    b: *mut sensor_msgs_point_cloud2_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -8452,7 +8875,7 @@ pub extern "C" fn ros_point_cloud2_builder_build(
         return -1;
     }
     let inner = unsafe { &(*b).0 };
-    let data_slice = ros_point_cloud2_builder_data_slice(inner);
+    let data_slice = sensor_msgs_point_cloud2_builder_data_slice(inner);
     let fields = match unsafe { point_cloud2_fields_to_views(inner) } {
         Ok(v) => v,
         Err(_) => return -1,
@@ -8479,8 +8902,8 @@ pub extern "C" fn ros_point_cloud2_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_builder_encode_into(
-    b: *mut ros_point_cloud2_builder_t,
+pub extern "C" fn sensor_msgs_point_cloud2_builder_encode_into(
+    b: *mut sensor_msgs_point_cloud2_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -8490,7 +8913,7 @@ pub extern "C" fn ros_point_cloud2_builder_encode_into(
         return -1;
     }
     let inner = unsafe { &(*b).0 };
-    let data_slice = ros_point_cloud2_builder_data_slice(inner);
+    let data_slice = sensor_msgs_point_cloud2_builder_data_slice(inner);
     let fields = match unsafe { point_cloud2_fields_to_views(inner) } {
         Ok(v) => v,
         Err(_) => return -1,
@@ -8545,11 +8968,11 @@ struct CameraInfoBuilderOwned {
     roi: RegionOfInterest,
 }
 
-pub struct ros_camera_info_builder_t(CameraInfoBuilderOwned);
+pub struct sensor_msgs_camera_info_builder_t(CameraInfoBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_builder_new() -> *mut ros_camera_info_builder_t {
-    Box::into_raw(Box::new(ros_camera_info_builder_t(
+pub extern "C" fn sensor_msgs_camera_info_builder_new() -> *mut sensor_msgs_camera_info_builder_t {
+    Box::into_raw(Box::new(sensor_msgs_camera_info_builder_t(
         CameraInfoBuilderOwned {
             stamp_sec: 0,
             stamp_nanosec: 0,
@@ -8576,7 +8999,7 @@ pub extern "C" fn ros_camera_info_builder_new() -> *mut ros_camera_info_builder_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_builder_free(b: *mut ros_camera_info_builder_t) {
+pub extern "C" fn sensor_msgs_camera_info_builder_free(b: *mut sensor_msgs_camera_info_builder_t) {
     if b.is_null() {
         return;
     }
@@ -8586,8 +9009,8 @@ pub extern "C" fn ros_camera_info_builder_free(b: *mut ros_camera_info_builder_t
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_builder_set_stamp(
-    b: *mut ros_camera_info_builder_t,
+pub extern "C" fn sensor_msgs_camera_info_builder_set_stamp(
+    b: *mut sensor_msgs_camera_info_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -8600,8 +9023,8 @@ pub extern "C" fn ros_camera_info_builder_set_stamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_builder_set_frame_id(
-    b: *mut ros_camera_info_builder_t,
+pub extern "C" fn sensor_msgs_camera_info_builder_set_frame_id(
+    b: *mut sensor_msgs_camera_info_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -8619,7 +9042,10 @@ pub extern "C" fn ros_camera_info_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_builder_set_height(b: *mut ros_camera_info_builder_t, v: u32) {
+pub extern "C" fn sensor_msgs_camera_info_builder_set_height(
+    b: *mut sensor_msgs_camera_info_builder_t,
+    v: u32,
+) {
     if b.is_null() {
         return;
     }
@@ -8629,7 +9055,10 @@ pub extern "C" fn ros_camera_info_builder_set_height(b: *mut ros_camera_info_bui
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_builder_set_width(b: *mut ros_camera_info_builder_t, v: u32) {
+pub extern "C" fn sensor_msgs_camera_info_builder_set_width(
+    b: *mut sensor_msgs_camera_info_builder_t,
+    v: u32,
+) {
     if b.is_null() {
         return;
     }
@@ -8639,8 +9068,8 @@ pub extern "C" fn ros_camera_info_builder_set_width(b: *mut ros_camera_info_buil
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_builder_set_distortion_model(
-    b: *mut ros_camera_info_builder_t,
+pub extern "C" fn sensor_msgs_camera_info_builder_set_distortion_model(
+    b: *mut sensor_msgs_camera_info_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -8661,8 +9090,8 @@ pub extern "C" fn ros_camera_info_builder_set_distortion_model(
 /// the pointer must remain valid until the next setter on this slot,
 /// a subsequent build/encode_into, or free).
 #[no_mangle]
-pub extern "C" fn ros_camera_info_builder_set_d(
-    b: *mut ros_camera_info_builder_t,
+pub extern "C" fn sensor_msgs_camera_info_builder_set_d(
+    b: *mut sensor_msgs_camera_info_builder_t,
     data: *const f64,
     len: usize,
 ) -> i32 {
@@ -8683,8 +9112,8 @@ pub extern "C" fn ros_camera_info_builder_set_d(
 
 /// Copy 9 f64 elements from `k` into the intrinsics matrix (row-major 3x3).
 #[no_mangle]
-pub extern "C" fn ros_camera_info_builder_set_k(
-    b: *mut ros_camera_info_builder_t,
+pub extern "C" fn sensor_msgs_camera_info_builder_set_k(
+    b: *mut sensor_msgs_camera_info_builder_t,
     k: *const f64,
 ) -> i32 {
     if b.is_null() || k.is_null() {
@@ -8700,8 +9129,8 @@ pub extern "C" fn ros_camera_info_builder_set_k(
 
 /// Copy 9 f64 elements from `r` into the rectification matrix (row-major 3x3).
 #[no_mangle]
-pub extern "C" fn ros_camera_info_builder_set_r(
-    b: *mut ros_camera_info_builder_t,
+pub extern "C" fn sensor_msgs_camera_info_builder_set_r(
+    b: *mut sensor_msgs_camera_info_builder_t,
     r: *const f64,
 ) -> i32 {
     if b.is_null() || r.is_null() {
@@ -8717,8 +9146,8 @@ pub extern "C" fn ros_camera_info_builder_set_r(
 
 /// Copy 12 f64 elements from `p` into the projection matrix (row-major 3x4).
 #[no_mangle]
-pub extern "C" fn ros_camera_info_builder_set_p(
-    b: *mut ros_camera_info_builder_t,
+pub extern "C" fn sensor_msgs_camera_info_builder_set_p(
+    b: *mut sensor_msgs_camera_info_builder_t,
     p: *const f64,
 ) -> i32 {
     if b.is_null() || p.is_null() {
@@ -8733,7 +9162,10 @@ pub extern "C" fn ros_camera_info_builder_set_p(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_builder_set_binning_x(b: *mut ros_camera_info_builder_t, v: u32) {
+pub extern "C" fn sensor_msgs_camera_info_builder_set_binning_x(
+    b: *mut sensor_msgs_camera_info_builder_t,
+    v: u32,
+) {
     if b.is_null() {
         return;
     }
@@ -8743,7 +9175,10 @@ pub extern "C" fn ros_camera_info_builder_set_binning_x(b: *mut ros_camera_info_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_builder_set_binning_y(b: *mut ros_camera_info_builder_t, v: u32) {
+pub extern "C" fn sensor_msgs_camera_info_builder_set_binning_y(
+    b: *mut sensor_msgs_camera_info_builder_t,
+    v: u32,
+) {
     if b.is_null() {
         return;
     }
@@ -8753,8 +9188,8 @@ pub extern "C" fn ros_camera_info_builder_set_binning_y(b: *mut ros_camera_info_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_builder_set_roi(
-    b: *mut ros_camera_info_builder_t,
+pub extern "C" fn sensor_msgs_camera_info_builder_set_roi(
+    b: *mut sensor_msgs_camera_info_builder_t,
     x_offset: u32,
     y_offset: u32,
     height: u32,
@@ -8775,7 +9210,7 @@ pub extern "C" fn ros_camera_info_builder_set_roi(
     }
 }
 
-fn ros_camera_info_builder_d_slice(inner: &CameraInfoBuilderOwned) -> &[f64] {
+fn sensor_msgs_camera_info_builder_d_slice(inner: &CameraInfoBuilderOwned) -> &[f64] {
     if inner.d.is_null() || inner.d_len == 0 {
         &[][..]
     } else {
@@ -8784,8 +9219,8 @@ fn ros_camera_info_builder_d_slice(inner: &CameraInfoBuilderOwned) -> &[f64] {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_builder_build(
-    b: *mut ros_camera_info_builder_t,
+pub extern "C" fn sensor_msgs_camera_info_builder_build(
+    b: *mut sensor_msgs_camera_info_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -8794,7 +9229,7 @@ pub extern "C" fn ros_camera_info_builder_build(
         return -1;
     }
     let inner = unsafe { &(*b).0 };
-    let d_slice = ros_camera_info_builder_d_slice(inner);
+    let d_slice = sensor_msgs_camera_info_builder_d_slice(inner);
     let r = sensor_msgs::CameraInfo::builder()
         .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
         .frame_id(inner.frame_id.as_str())
@@ -8819,8 +9254,8 @@ pub extern "C" fn ros_camera_info_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_camera_info_builder_encode_into(
-    b: *mut ros_camera_info_builder_t,
+pub extern "C" fn sensor_msgs_camera_info_builder_encode_into(
+    b: *mut sensor_msgs_camera_info_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -8830,7 +9265,7 @@ pub extern "C" fn ros_camera_info_builder_encode_into(
         return -1;
     }
     let inner = unsafe { &(*b).0 };
-    let d_slice = ros_camera_info_builder_d_slice(inner);
+    let d_slice = sensor_msgs_camera_info_builder_d_slice(inner);
     let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
     let r = sensor_msgs::CameraInfo::builder()
         .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
@@ -8874,11 +9309,12 @@ struct MagneticFieldBuilderOwned {
     magnetic_field_covariance: [f64; 9],
 }
 
-pub struct ros_magnetic_field_builder_t(MagneticFieldBuilderOwned);
+pub struct sensor_msgs_magnetic_field_builder_t(MagneticFieldBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_magnetic_field_builder_new() -> *mut ros_magnetic_field_builder_t {
-    Box::into_raw(Box::new(ros_magnetic_field_builder_t(
+pub extern "C" fn sensor_msgs_magnetic_field_builder_new(
+) -> *mut sensor_msgs_magnetic_field_builder_t {
+    Box::into_raw(Box::new(sensor_msgs_magnetic_field_builder_t(
         MagneticFieldBuilderOwned {
             stamp_sec: 0,
             stamp_nanosec: 0,
@@ -8894,7 +9330,9 @@ pub extern "C" fn ros_magnetic_field_builder_new() -> *mut ros_magnetic_field_bu
 }
 
 #[no_mangle]
-pub extern "C" fn ros_magnetic_field_builder_free(b: *mut ros_magnetic_field_builder_t) {
+pub extern "C" fn sensor_msgs_magnetic_field_builder_free(
+    b: *mut sensor_msgs_magnetic_field_builder_t,
+) {
     if b.is_null() {
         return;
     }
@@ -8904,8 +9342,8 @@ pub extern "C" fn ros_magnetic_field_builder_free(b: *mut ros_magnetic_field_bui
 }
 
 #[no_mangle]
-pub extern "C" fn ros_magnetic_field_builder_set_stamp(
-    b: *mut ros_magnetic_field_builder_t,
+pub extern "C" fn sensor_msgs_magnetic_field_builder_set_stamp(
+    b: *mut sensor_msgs_magnetic_field_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -8918,8 +9356,8 @@ pub extern "C" fn ros_magnetic_field_builder_set_stamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_magnetic_field_builder_set_frame_id(
-    b: *mut ros_magnetic_field_builder_t,
+pub extern "C" fn sensor_msgs_magnetic_field_builder_set_frame_id(
+    b: *mut sensor_msgs_magnetic_field_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -8937,8 +9375,8 @@ pub extern "C" fn ros_magnetic_field_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_magnetic_field_builder_set_magnetic_field(
-    b: *mut ros_magnetic_field_builder_t,
+pub extern "C" fn sensor_msgs_magnetic_field_builder_set_magnetic_field(
+    b: *mut sensor_msgs_magnetic_field_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -8952,8 +9390,8 @@ pub extern "C" fn ros_magnetic_field_builder_set_magnetic_field(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_magnetic_field_builder_set_magnetic_field_covariance(
-    b: *mut ros_magnetic_field_builder_t,
+pub extern "C" fn sensor_msgs_magnetic_field_builder_set_magnetic_field_covariance(
+    b: *mut sensor_msgs_magnetic_field_builder_t,
     cov: *const f64,
 ) -> i32 {
     if b.is_null() || cov.is_null() {
@@ -8968,8 +9406,8 @@ pub extern "C" fn ros_magnetic_field_builder_set_magnetic_field_covariance(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_magnetic_field_builder_build(
-    b: *mut ros_magnetic_field_builder_t,
+pub extern "C" fn sensor_msgs_magnetic_field_builder_build(
+    b: *mut sensor_msgs_magnetic_field_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -8994,8 +9432,8 @@ pub extern "C" fn ros_magnetic_field_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_magnetic_field_builder_encode_into(
-    b: *mut ros_magnetic_field_builder_t,
+pub extern "C" fn sensor_msgs_magnetic_field_builder_encode_into(
+    b: *mut sensor_msgs_magnetic_field_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -9056,11 +9494,12 @@ struct BatteryStateBuilderOwned {
     serial_number: String,
 }
 
-pub struct ros_battery_state_builder_t(BatteryStateBuilderOwned);
+pub struct sensor_msgs_battery_state_builder_t(BatteryStateBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_builder_new() -> *mut ros_battery_state_builder_t {
-    Box::into_raw(Box::new(ros_battery_state_builder_t(
+pub extern "C" fn sensor_msgs_battery_state_builder_new() -> *mut sensor_msgs_battery_state_builder_t
+{
+    Box::into_raw(Box::new(sensor_msgs_battery_state_builder_t(
         BatteryStateBuilderOwned {
             stamp_sec: 0,
             stamp_nanosec: 0,
@@ -9087,7 +9526,9 @@ pub extern "C" fn ros_battery_state_builder_new() -> *mut ros_battery_state_buil
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_builder_free(b: *mut ros_battery_state_builder_t) {
+pub extern "C" fn sensor_msgs_battery_state_builder_free(
+    b: *mut sensor_msgs_battery_state_builder_t,
+) {
     if b.is_null() {
         return;
     }
@@ -9097,8 +9538,8 @@ pub extern "C" fn ros_battery_state_builder_free(b: *mut ros_battery_state_build
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_builder_set_stamp(
-    b: *mut ros_battery_state_builder_t,
+pub extern "C" fn sensor_msgs_battery_state_builder_set_stamp(
+    b: *mut sensor_msgs_battery_state_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -9111,8 +9552,8 @@ pub extern "C" fn ros_battery_state_builder_set_stamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_builder_set_frame_id(
-    b: *mut ros_battery_state_builder_t,
+pub extern "C" fn sensor_msgs_battery_state_builder_set_frame_id(
+    b: *mut sensor_msgs_battery_state_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -9130,8 +9571,8 @@ pub extern "C" fn ros_battery_state_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_builder_set_voltage(
-    b: *mut ros_battery_state_builder_t,
+pub extern "C" fn sensor_msgs_battery_state_builder_set_voltage(
+    b: *mut sensor_msgs_battery_state_builder_t,
     v: f32,
 ) {
     if b.is_null() {
@@ -9143,8 +9584,8 @@ pub extern "C" fn ros_battery_state_builder_set_voltage(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_builder_set_temperature(
-    b: *mut ros_battery_state_builder_t,
+pub extern "C" fn sensor_msgs_battery_state_builder_set_temperature(
+    b: *mut sensor_msgs_battery_state_builder_t,
     v: f32,
 ) {
     if b.is_null() {
@@ -9156,8 +9597,8 @@ pub extern "C" fn ros_battery_state_builder_set_temperature(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_builder_set_current(
-    b: *mut ros_battery_state_builder_t,
+pub extern "C" fn sensor_msgs_battery_state_builder_set_current(
+    b: *mut sensor_msgs_battery_state_builder_t,
     v: f32,
 ) {
     if b.is_null() {
@@ -9169,8 +9610,8 @@ pub extern "C" fn ros_battery_state_builder_set_current(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_builder_set_charge(
-    b: *mut ros_battery_state_builder_t,
+pub extern "C" fn sensor_msgs_battery_state_builder_set_charge(
+    b: *mut sensor_msgs_battery_state_builder_t,
     v: f32,
 ) {
     if b.is_null() {
@@ -9182,8 +9623,8 @@ pub extern "C" fn ros_battery_state_builder_set_charge(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_builder_set_capacity(
-    b: *mut ros_battery_state_builder_t,
+pub extern "C" fn sensor_msgs_battery_state_builder_set_capacity(
+    b: *mut sensor_msgs_battery_state_builder_t,
     v: f32,
 ) {
     if b.is_null() {
@@ -9195,8 +9636,8 @@ pub extern "C" fn ros_battery_state_builder_set_capacity(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_builder_set_design_capacity(
-    b: *mut ros_battery_state_builder_t,
+pub extern "C" fn sensor_msgs_battery_state_builder_set_design_capacity(
+    b: *mut sensor_msgs_battery_state_builder_t,
     v: f32,
 ) {
     if b.is_null() {
@@ -9208,8 +9649,8 @@ pub extern "C" fn ros_battery_state_builder_set_design_capacity(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_builder_set_percentage(
-    b: *mut ros_battery_state_builder_t,
+pub extern "C" fn sensor_msgs_battery_state_builder_set_percentage(
+    b: *mut sensor_msgs_battery_state_builder_t,
     v: f32,
 ) {
     if b.is_null() {
@@ -9221,8 +9662,8 @@ pub extern "C" fn ros_battery_state_builder_set_percentage(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_builder_set_power_supply_status(
-    b: *mut ros_battery_state_builder_t,
+pub extern "C" fn sensor_msgs_battery_state_builder_set_power_supply_status(
+    b: *mut sensor_msgs_battery_state_builder_t,
     v: u8,
 ) {
     if b.is_null() {
@@ -9234,8 +9675,8 @@ pub extern "C" fn ros_battery_state_builder_set_power_supply_status(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_builder_set_power_supply_health(
-    b: *mut ros_battery_state_builder_t,
+pub extern "C" fn sensor_msgs_battery_state_builder_set_power_supply_health(
+    b: *mut sensor_msgs_battery_state_builder_t,
     v: u8,
 ) {
     if b.is_null() {
@@ -9247,8 +9688,8 @@ pub extern "C" fn ros_battery_state_builder_set_power_supply_health(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_builder_set_power_supply_technology(
-    b: *mut ros_battery_state_builder_t,
+pub extern "C" fn sensor_msgs_battery_state_builder_set_power_supply_technology(
+    b: *mut sensor_msgs_battery_state_builder_t,
     v: u8,
 ) {
     if b.is_null() {
@@ -9260,8 +9701,8 @@ pub extern "C" fn ros_battery_state_builder_set_power_supply_technology(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_builder_set_present(
-    b: *mut ros_battery_state_builder_t,
+pub extern "C" fn sensor_msgs_battery_state_builder_set_present(
+    b: *mut sensor_msgs_battery_state_builder_t,
     v: bool,
 ) {
     if b.is_null() {
@@ -9276,8 +9717,8 @@ pub extern "C" fn ros_battery_state_builder_set_present(
 /// remain valid until the next setter on this slot, a subsequent
 /// build/encode_into, or free).
 #[no_mangle]
-pub extern "C" fn ros_battery_state_builder_set_cell_voltage(
-    b: *mut ros_battery_state_builder_t,
+pub extern "C" fn sensor_msgs_battery_state_builder_set_cell_voltage(
+    b: *mut sensor_msgs_battery_state_builder_t,
     data: *const f32,
     len: usize,
 ) -> i32 {
@@ -9300,8 +9741,8 @@ pub extern "C" fn ros_battery_state_builder_set_cell_voltage(
 /// remain valid until the next setter on this slot, a subsequent
 /// build/encode_into, or free).
 #[no_mangle]
-pub extern "C" fn ros_battery_state_builder_set_cell_temperature(
-    b: *mut ros_battery_state_builder_t,
+pub extern "C" fn sensor_msgs_battery_state_builder_set_cell_temperature(
+    b: *mut sensor_msgs_battery_state_builder_t,
     data: *const f32,
     len: usize,
 ) -> i32 {
@@ -9321,8 +9762,8 @@ pub extern "C" fn ros_battery_state_builder_set_cell_temperature(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_builder_set_location(
-    b: *mut ros_battery_state_builder_t,
+pub extern "C" fn sensor_msgs_battery_state_builder_set_location(
+    b: *mut sensor_msgs_battery_state_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -9340,8 +9781,8 @@ pub extern "C" fn ros_battery_state_builder_set_location(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_builder_set_serial_number(
-    b: *mut ros_battery_state_builder_t,
+pub extern "C" fn sensor_msgs_battery_state_builder_set_serial_number(
+    b: *mut sensor_msgs_battery_state_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -9358,7 +9799,7 @@ pub extern "C" fn ros_battery_state_builder_set_serial_number(
     0
 }
 
-fn ros_battery_state_cell_voltage_slice(inner: &BatteryStateBuilderOwned) -> &[f32] {
+fn sensor_msgs_battery_state_cell_voltage_slice(inner: &BatteryStateBuilderOwned) -> &[f32] {
     if inner.cell_voltage.is_null() || inner.cell_voltage_len == 0 {
         &[][..]
     } else {
@@ -9366,7 +9807,7 @@ fn ros_battery_state_cell_voltage_slice(inner: &BatteryStateBuilderOwned) -> &[f
     }
 }
 
-fn ros_battery_state_cell_temperature_slice(inner: &BatteryStateBuilderOwned) -> &[f32] {
+fn sensor_msgs_battery_state_cell_temperature_slice(inner: &BatteryStateBuilderOwned) -> &[f32] {
     if inner.cell_temperature.is_null() || inner.cell_temperature_len == 0 {
         &[][..]
     } else {
@@ -9375,8 +9816,8 @@ fn ros_battery_state_cell_temperature_slice(inner: &BatteryStateBuilderOwned) ->
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_builder_build(
-    b: *mut ros_battery_state_builder_t,
+pub extern "C" fn sensor_msgs_battery_state_builder_build(
+    b: *mut sensor_msgs_battery_state_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -9385,8 +9826,8 @@ pub extern "C" fn ros_battery_state_builder_build(
         return -1;
     }
     let inner = unsafe { &(*b).0 };
-    let cv = ros_battery_state_cell_voltage_slice(inner);
-    let ct = ros_battery_state_cell_temperature_slice(inner);
+    let cv = sensor_msgs_battery_state_cell_voltage_slice(inner);
+    let ct = sensor_msgs_battery_state_cell_temperature_slice(inner);
     let r = sensor_msgs::BatteryState::builder()
         .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
         .frame_id(inner.frame_id.as_str())
@@ -9416,8 +9857,8 @@ pub extern "C" fn ros_battery_state_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_battery_state_builder_encode_into(
-    b: *mut ros_battery_state_builder_t,
+pub extern "C" fn sensor_msgs_battery_state_builder_encode_into(
+    b: *mut sensor_msgs_battery_state_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -9427,8 +9868,8 @@ pub extern "C" fn ros_battery_state_builder_encode_into(
         return -1;
     }
     let inner = unsafe { &(*b).0 };
-    let cv = ros_battery_state_cell_voltage_slice(inner);
-    let ct = ros_battery_state_cell_temperature_slice(inner);
+    let cv = sensor_msgs_battery_state_cell_voltage_slice(inner);
+    let ct = sensor_msgs_battery_state_cell_temperature_slice(inner);
     let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
     let r = sensor_msgs::BatteryState::builder()
         .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
@@ -9477,11 +9918,11 @@ struct TemperatureBuilderOwned {
     variance: f64,
 }
 
-pub struct ros_temperature_builder_t(TemperatureBuilderOwned);
+pub struct sensor_msgs_temperature_builder_t(TemperatureBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_temperature_builder_new() -> *mut ros_temperature_builder_t {
-    Box::into_raw(Box::new(ros_temperature_builder_t(
+pub extern "C" fn sensor_msgs_temperature_builder_new() -> *mut sensor_msgs_temperature_builder_t {
+    Box::into_raw(Box::new(sensor_msgs_temperature_builder_t(
         TemperatureBuilderOwned {
             stamp_sec: 0,
             stamp_nanosec: 0,
@@ -9493,7 +9934,7 @@ pub extern "C" fn ros_temperature_builder_new() -> *mut ros_temperature_builder_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_temperature_builder_free(b: *mut ros_temperature_builder_t) {
+pub extern "C" fn sensor_msgs_temperature_builder_free(b: *mut sensor_msgs_temperature_builder_t) {
     if b.is_null() {
         return;
     }
@@ -9503,8 +9944,8 @@ pub extern "C" fn ros_temperature_builder_free(b: *mut ros_temperature_builder_t
 }
 
 #[no_mangle]
-pub extern "C" fn ros_temperature_builder_set_stamp(
-    b: *mut ros_temperature_builder_t,
+pub extern "C" fn sensor_msgs_temperature_builder_set_stamp(
+    b: *mut sensor_msgs_temperature_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -9517,8 +9958,8 @@ pub extern "C" fn ros_temperature_builder_set_stamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_temperature_builder_set_frame_id(
-    b: *mut ros_temperature_builder_t,
+pub extern "C" fn sensor_msgs_temperature_builder_set_frame_id(
+    b: *mut sensor_msgs_temperature_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -9536,8 +9977,8 @@ pub extern "C" fn ros_temperature_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_temperature_builder_set_temperature(
-    b: *mut ros_temperature_builder_t,
+pub extern "C" fn sensor_msgs_temperature_builder_set_temperature(
+    b: *mut sensor_msgs_temperature_builder_t,
     v: f64,
 ) {
     if b.is_null() {
@@ -9549,7 +9990,10 @@ pub extern "C" fn ros_temperature_builder_set_temperature(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_temperature_builder_set_variance(b: *mut ros_temperature_builder_t, v: f64) {
+pub extern "C" fn sensor_msgs_temperature_builder_set_variance(
+    b: *mut sensor_msgs_temperature_builder_t,
+    v: f64,
+) {
     if b.is_null() {
         return;
     }
@@ -9559,8 +10003,8 @@ pub extern "C" fn ros_temperature_builder_set_variance(b: *mut ros_temperature_b
 }
 
 #[no_mangle]
-pub extern "C" fn ros_temperature_builder_build(
-    b: *mut ros_temperature_builder_t,
+pub extern "C" fn sensor_msgs_temperature_builder_build(
+    b: *mut sensor_msgs_temperature_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -9585,8 +10029,8 @@ pub extern "C" fn ros_temperature_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_temperature_builder_encode_into(
-    b: *mut ros_temperature_builder_t,
+pub extern "C" fn sensor_msgs_temperature_builder_encode_into(
+    b: *mut sensor_msgs_temperature_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -9628,18 +10072,18 @@ pub extern "C" fn ros_temperature_builder_encode_into(
 // Base view fns from the shared `impl_simple_stamped!` macro; the
 // type-specific getters (relative_humidity, variance) stay hand-written below.
 impl_simple_stamped!(
-    ros_relative_humidity_t,
+    sensor_msgs_relative_humidity_t,
     sensor_msgs::RelativeHumidity<&'static [u8]>,
-    ros_relative_humidity_from_cdr,
-    ros_relative_humidity_free,
-    ros_relative_humidity_get_stamp_sec,
-    ros_relative_humidity_get_stamp_nanosec,
-    ros_relative_humidity_get_frame_id
+    sensor_msgs_relative_humidity_from_cdr,
+    sensor_msgs_relative_humidity_free,
+    sensor_msgs_relative_humidity_get_stamp_sec,
+    sensor_msgs_relative_humidity_get_stamp_nanosec,
+    sensor_msgs_relative_humidity_get_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_relative_humidity_get_relative_humidity(
-    view: *const ros_relative_humidity_t,
+pub extern "C" fn sensor_msgs_relative_humidity_get_relative_humidity(
+    view: *const sensor_msgs_relative_humidity_t,
 ) -> f64 {
     if view.is_null() {
         return 0.0;
@@ -9648,7 +10092,9 @@ pub extern "C" fn ros_relative_humidity_get_relative_humidity(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_relative_humidity_get_variance(view: *const ros_relative_humidity_t) -> f64 {
+pub extern "C" fn sensor_msgs_relative_humidity_get_variance(
+    view: *const sensor_msgs_relative_humidity_t,
+) -> f64 {
     if view.is_null() {
         return 0.0;
     }
@@ -9665,11 +10111,12 @@ struct RelativeHumidityBuilderOwned {
     variance: f64,
 }
 
-pub struct ros_relative_humidity_builder_t(RelativeHumidityBuilderOwned);
+pub struct sensor_msgs_relative_humidity_builder_t(RelativeHumidityBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_relative_humidity_builder_new() -> *mut ros_relative_humidity_builder_t {
-    Box::into_raw(Box::new(ros_relative_humidity_builder_t(
+pub extern "C" fn sensor_msgs_relative_humidity_builder_new(
+) -> *mut sensor_msgs_relative_humidity_builder_t {
+    Box::into_raw(Box::new(sensor_msgs_relative_humidity_builder_t(
         RelativeHumidityBuilderOwned {
             stamp_sec: 0,
             stamp_nanosec: 0,
@@ -9681,7 +10128,9 @@ pub extern "C" fn ros_relative_humidity_builder_new() -> *mut ros_relative_humid
 }
 
 #[no_mangle]
-pub extern "C" fn ros_relative_humidity_builder_free(b: *mut ros_relative_humidity_builder_t) {
+pub extern "C" fn sensor_msgs_relative_humidity_builder_free(
+    b: *mut sensor_msgs_relative_humidity_builder_t,
+) {
     if b.is_null() {
         return;
     }
@@ -9691,8 +10140,8 @@ pub extern "C" fn ros_relative_humidity_builder_free(b: *mut ros_relative_humidi
 }
 
 #[no_mangle]
-pub extern "C" fn ros_relative_humidity_builder_set_stamp(
-    b: *mut ros_relative_humidity_builder_t,
+pub extern "C" fn sensor_msgs_relative_humidity_builder_set_stamp(
+    b: *mut sensor_msgs_relative_humidity_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -9705,8 +10154,8 @@ pub extern "C" fn ros_relative_humidity_builder_set_stamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_relative_humidity_builder_set_frame_id(
-    b: *mut ros_relative_humidity_builder_t,
+pub extern "C" fn sensor_msgs_relative_humidity_builder_set_frame_id(
+    b: *mut sensor_msgs_relative_humidity_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -9724,8 +10173,8 @@ pub extern "C" fn ros_relative_humidity_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_relative_humidity_builder_set_relative_humidity(
-    b: *mut ros_relative_humidity_builder_t,
+pub extern "C" fn sensor_msgs_relative_humidity_builder_set_relative_humidity(
+    b: *mut sensor_msgs_relative_humidity_builder_t,
     v: f64,
 ) {
     if b.is_null() {
@@ -9737,8 +10186,8 @@ pub extern "C" fn ros_relative_humidity_builder_set_relative_humidity(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_relative_humidity_builder_set_variance(
-    b: *mut ros_relative_humidity_builder_t,
+pub extern "C" fn sensor_msgs_relative_humidity_builder_set_variance(
+    b: *mut sensor_msgs_relative_humidity_builder_t,
     v: f64,
 ) {
     if b.is_null() {
@@ -9750,8 +10199,8 @@ pub extern "C" fn ros_relative_humidity_builder_set_variance(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_relative_humidity_builder_build(
-    b: *mut ros_relative_humidity_builder_t,
+pub extern "C" fn sensor_msgs_relative_humidity_builder_build(
+    b: *mut sensor_msgs_relative_humidity_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -9776,8 +10225,8 @@ pub extern "C" fn ros_relative_humidity_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_relative_humidity_builder_encode_into(
-    b: *mut ros_relative_humidity_builder_t,
+pub extern "C" fn sensor_msgs_relative_humidity_builder_encode_into(
+    b: *mut sensor_msgs_relative_humidity_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -9819,17 +10268,19 @@ pub extern "C" fn ros_relative_humidity_builder_encode_into(
 // Base view fns from the shared `impl_simple_stamped!` macro; the
 // type-specific getters (time_ref sec/nanosec, source) stay hand-written below.
 impl_simple_stamped!(
-    ros_time_reference_t,
+    sensor_msgs_time_reference_t,
     sensor_msgs::TimeReference<&'static [u8]>,
-    ros_time_reference_from_cdr,
-    ros_time_reference_free,
-    ros_time_reference_get_stamp_sec,
-    ros_time_reference_get_stamp_nanosec,
-    ros_time_reference_get_frame_id
+    sensor_msgs_time_reference_from_cdr,
+    sensor_msgs_time_reference_free,
+    sensor_msgs_time_reference_get_stamp_sec,
+    sensor_msgs_time_reference_get_stamp_nanosec,
+    sensor_msgs_time_reference_get_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_time_reference_get_time_ref_sec(view: *const ros_time_reference_t) -> i32 {
+pub extern "C" fn sensor_msgs_time_reference_get_time_ref_sec(
+    view: *const sensor_msgs_time_reference_t,
+) -> i32 {
     if view.is_null() {
         return 0;
     }
@@ -9837,8 +10288,8 @@ pub extern "C" fn ros_time_reference_get_time_ref_sec(view: *const ros_time_refe
 }
 
 #[no_mangle]
-pub extern "C" fn ros_time_reference_get_time_ref_nanosec(
-    view: *const ros_time_reference_t,
+pub extern "C" fn sensor_msgs_time_reference_get_time_ref_nanosec(
+    view: *const sensor_msgs_time_reference_t,
 ) -> u32 {
     if view.is_null() {
         return 0;
@@ -9847,8 +10298,8 @@ pub extern "C" fn ros_time_reference_get_time_ref_nanosec(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_time_reference_get_source(
-    view: *const ros_time_reference_t,
+pub extern "C" fn sensor_msgs_time_reference_get_source(
+    view: *const sensor_msgs_time_reference_t,
 ) -> *const c_char {
     if view.is_null() {
         return ptr::null();
@@ -9867,11 +10318,12 @@ struct TimeReferenceBuilderOwned {
     source: String,
 }
 
-pub struct ros_time_reference_builder_t(TimeReferenceBuilderOwned);
+pub struct sensor_msgs_time_reference_builder_t(TimeReferenceBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_time_reference_builder_new() -> *mut ros_time_reference_builder_t {
-    Box::into_raw(Box::new(ros_time_reference_builder_t(
+pub extern "C" fn sensor_msgs_time_reference_builder_new(
+) -> *mut sensor_msgs_time_reference_builder_t {
+    Box::into_raw(Box::new(sensor_msgs_time_reference_builder_t(
         TimeReferenceBuilderOwned {
             stamp_sec: 0,
             stamp_nanosec: 0,
@@ -9884,7 +10336,9 @@ pub extern "C" fn ros_time_reference_builder_new() -> *mut ros_time_reference_bu
 }
 
 #[no_mangle]
-pub extern "C" fn ros_time_reference_builder_free(b: *mut ros_time_reference_builder_t) {
+pub extern "C" fn sensor_msgs_time_reference_builder_free(
+    b: *mut sensor_msgs_time_reference_builder_t,
+) {
     if b.is_null() {
         return;
     }
@@ -9894,8 +10348,8 @@ pub extern "C" fn ros_time_reference_builder_free(b: *mut ros_time_reference_bui
 }
 
 #[no_mangle]
-pub extern "C" fn ros_time_reference_builder_set_stamp(
-    b: *mut ros_time_reference_builder_t,
+pub extern "C" fn sensor_msgs_time_reference_builder_set_stamp(
+    b: *mut sensor_msgs_time_reference_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -9908,8 +10362,8 @@ pub extern "C" fn ros_time_reference_builder_set_stamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_time_reference_builder_set_frame_id(
-    b: *mut ros_time_reference_builder_t,
+pub extern "C" fn sensor_msgs_time_reference_builder_set_frame_id(
+    b: *mut sensor_msgs_time_reference_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -9927,8 +10381,8 @@ pub extern "C" fn ros_time_reference_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_time_reference_builder_set_time_ref(
-    b: *mut ros_time_reference_builder_t,
+pub extern "C" fn sensor_msgs_time_reference_builder_set_time_ref(
+    b: *mut sensor_msgs_time_reference_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -9941,8 +10395,8 @@ pub extern "C" fn ros_time_reference_builder_set_time_ref(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_time_reference_builder_set_source(
-    b: *mut ros_time_reference_builder_t,
+pub extern "C" fn sensor_msgs_time_reference_builder_set_source(
+    b: *mut sensor_msgs_time_reference_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -9960,8 +10414,8 @@ pub extern "C" fn ros_time_reference_builder_set_source(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_time_reference_builder_build(
-    b: *mut ros_time_reference_builder_t,
+pub extern "C" fn sensor_msgs_time_reference_builder_build(
+    b: *mut sensor_msgs_time_reference_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -9986,8 +10440,8 @@ pub extern "C" fn ros_time_reference_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_time_reference_builder_encode_into(
-    b: *mut ros_time_reference_builder_t,
+pub extern "C" fn sensor_msgs_time_reference_builder_encode_into(
+    b: *mut sensor_msgs_time_reference_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -10034,11 +10488,11 @@ struct MaskBuilderOwned {
     boxed: bool,
 }
 
-pub struct ros_mask_builder_t(MaskBuilderOwned);
+pub struct edgefirst_msgs_mask_builder_t(MaskBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_mask_builder_new() -> *mut ros_mask_builder_t {
-    Box::into_raw(Box::new(ros_mask_builder_t(MaskBuilderOwned {
+pub extern "C" fn edgefirst_msgs_mask_builder_new() -> *mut edgefirst_msgs_mask_builder_t {
+    Box::into_raw(Box::new(edgefirst_msgs_mask_builder_t(MaskBuilderOwned {
         height: 0,
         width: 0,
         length: 0,
@@ -10050,7 +10504,7 @@ pub extern "C" fn ros_mask_builder_new() -> *mut ros_mask_builder_t {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mask_builder_free(b: *mut ros_mask_builder_t) {
+pub extern "C" fn edgefirst_msgs_mask_builder_free(b: *mut edgefirst_msgs_mask_builder_t) {
     if b.is_null() {
         return;
     }
@@ -10060,7 +10514,10 @@ pub extern "C" fn ros_mask_builder_free(b: *mut ros_mask_builder_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mask_builder_set_height(b: *mut ros_mask_builder_t, v: u32) {
+pub extern "C" fn edgefirst_msgs_mask_builder_set_height(
+    b: *mut edgefirst_msgs_mask_builder_t,
+    v: u32,
+) {
     if b.is_null() {
         return;
     }
@@ -10070,7 +10527,10 @@ pub extern "C" fn ros_mask_builder_set_height(b: *mut ros_mask_builder_t, v: u32
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mask_builder_set_width(b: *mut ros_mask_builder_t, v: u32) {
+pub extern "C" fn edgefirst_msgs_mask_builder_set_width(
+    b: *mut edgefirst_msgs_mask_builder_t,
+    v: u32,
+) {
     if b.is_null() {
         return;
     }
@@ -10080,7 +10540,10 @@ pub extern "C" fn ros_mask_builder_set_width(b: *mut ros_mask_builder_t, v: u32)
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mask_builder_set_length(b: *mut ros_mask_builder_t, v: u32) {
+pub extern "C" fn edgefirst_msgs_mask_builder_set_length(
+    b: *mut edgefirst_msgs_mask_builder_t,
+    v: u32,
+) {
     if b.is_null() {
         return;
     }
@@ -10090,8 +10553,8 @@ pub extern "C" fn ros_mask_builder_set_length(b: *mut ros_mask_builder_t, v: u32
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mask_builder_set_encoding(
-    b: *mut ros_mask_builder_t,
+pub extern "C" fn edgefirst_msgs_mask_builder_set_encoding(
+    b: *mut edgefirst_msgs_mask_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -10109,8 +10572,8 @@ pub extern "C" fn ros_mask_builder_set_encoding(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mask_builder_set_mask(
-    b: *mut ros_mask_builder_t,
+pub extern "C" fn edgefirst_msgs_mask_builder_set_mask(
+    b: *mut edgefirst_msgs_mask_builder_t,
     data: *const u8,
     len: usize,
 ) -> i32 {
@@ -10130,7 +10593,10 @@ pub extern "C" fn ros_mask_builder_set_mask(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mask_builder_set_boxed(b: *mut ros_mask_builder_t, v: bool) {
+pub extern "C" fn edgefirst_msgs_mask_builder_set_boxed(
+    b: *mut edgefirst_msgs_mask_builder_t,
+    v: bool,
+) {
     if b.is_null() {
         return;
     }
@@ -10139,7 +10605,7 @@ pub extern "C" fn ros_mask_builder_set_boxed(b: *mut ros_mask_builder_t, v: bool
     }
 }
 
-fn ros_mask_builder_mask_slice(inner: &MaskBuilderOwned) -> &[u8] {
+fn edgefirst_msgs_mask_builder_mask_slice(inner: &MaskBuilderOwned) -> &[u8] {
     if inner.mask.is_null() || inner.mask_len == 0 {
         &[][..]
     } else {
@@ -10148,8 +10614,8 @@ fn ros_mask_builder_mask_slice(inner: &MaskBuilderOwned) -> &[u8] {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mask_builder_build(
-    b: *mut ros_mask_builder_t,
+pub extern "C" fn edgefirst_msgs_mask_builder_build(
+    b: *mut edgefirst_msgs_mask_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -10158,7 +10624,7 @@ pub extern "C" fn ros_mask_builder_build(
         return -1;
     }
     let inner = unsafe { &(*b).0 };
-    let mask_slice = ros_mask_builder_mask_slice(inner);
+    let mask_slice = edgefirst_msgs_mask_builder_mask_slice(inner);
     let r = edgefirst_msgs::Mask::builder()
         .height(inner.height)
         .width(inner.width)
@@ -10177,8 +10643,8 @@ pub extern "C" fn ros_mask_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mask_builder_encode_into(
-    b: *mut ros_mask_builder_t,
+pub extern "C" fn edgefirst_msgs_mask_builder_encode_into(
+    b: *mut edgefirst_msgs_mask_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -10188,7 +10654,7 @@ pub extern "C" fn ros_mask_builder_encode_into(
         return -1;
     }
     let inner = unsafe { &(*b).0 };
-    let mask_slice = ros_mask_builder_mask_slice(inner);
+    let mask_slice = edgefirst_msgs_mask_builder_mask_slice(inner);
     let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
     let r = edgefirst_msgs::Mask::builder()
         .height(inner.height)
@@ -10230,25 +10696,30 @@ struct LocalTimeBuilderOwned {
     timezone: i16,
 }
 
-pub struct ros_local_time_builder_t(LocalTimeBuilderOwned);
+pub struct edgefirst_msgs_local_time_builder_t(LocalTimeBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_local_time_builder_new() -> *mut ros_local_time_builder_t {
-    Box::into_raw(Box::new(ros_local_time_builder_t(LocalTimeBuilderOwned {
-        stamp_sec: 0,
-        stamp_nanosec: 0,
-        frame_id: String::new(),
-        date_year: 0,
-        date_month: 0,
-        date_day: 0,
-        time_sec: 0,
-        time_nanosec: 0,
-        timezone: 0,
-    })))
+pub extern "C" fn edgefirst_msgs_local_time_builder_new() -> *mut edgefirst_msgs_local_time_builder_t
+{
+    Box::into_raw(Box::new(edgefirst_msgs_local_time_builder_t(
+        LocalTimeBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            date_year: 0,
+            date_month: 0,
+            date_day: 0,
+            time_sec: 0,
+            time_nanosec: 0,
+            timezone: 0,
+        },
+    )))
 }
 
 #[no_mangle]
-pub extern "C" fn ros_local_time_builder_free(b: *mut ros_local_time_builder_t) {
+pub extern "C" fn edgefirst_msgs_local_time_builder_free(
+    b: *mut edgefirst_msgs_local_time_builder_t,
+) {
     if b.is_null() {
         return;
     }
@@ -10258,8 +10729,8 @@ pub extern "C" fn ros_local_time_builder_free(b: *mut ros_local_time_builder_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_local_time_builder_set_stamp(
-    b: *mut ros_local_time_builder_t,
+pub extern "C" fn edgefirst_msgs_local_time_builder_set_stamp(
+    b: *mut edgefirst_msgs_local_time_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -10272,8 +10743,8 @@ pub extern "C" fn ros_local_time_builder_set_stamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_local_time_builder_set_frame_id(
-    b: *mut ros_local_time_builder_t,
+pub extern "C" fn edgefirst_msgs_local_time_builder_set_frame_id(
+    b: *mut edgefirst_msgs_local_time_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -10291,8 +10762,8 @@ pub extern "C" fn ros_local_time_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_local_time_builder_set_date(
-    b: *mut ros_local_time_builder_t,
+pub extern "C" fn edgefirst_msgs_local_time_builder_set_date(
+    b: *mut edgefirst_msgs_local_time_builder_t,
     year: u16,
     month: u8,
     day: u8,
@@ -10307,8 +10778,8 @@ pub extern "C" fn ros_local_time_builder_set_date(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_local_time_builder_set_time(
-    b: *mut ros_local_time_builder_t,
+pub extern "C" fn edgefirst_msgs_local_time_builder_set_time(
+    b: *mut edgefirst_msgs_local_time_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -10321,7 +10792,10 @@ pub extern "C" fn ros_local_time_builder_set_time(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_local_time_builder_set_timezone(b: *mut ros_local_time_builder_t, v: i16) {
+pub extern "C" fn edgefirst_msgs_local_time_builder_set_timezone(
+    b: *mut edgefirst_msgs_local_time_builder_t,
+    v: i16,
+) {
     if b.is_null() {
         return;
     }
@@ -10331,8 +10805,8 @@ pub extern "C" fn ros_local_time_builder_set_timezone(b: *mut ros_local_time_bui
 }
 
 #[no_mangle]
-pub extern "C" fn ros_local_time_builder_build(
-    b: *mut ros_local_time_builder_t,
+pub extern "C" fn edgefirst_msgs_local_time_builder_build(
+    b: *mut edgefirst_msgs_local_time_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -10362,8 +10836,8 @@ pub extern "C" fn ros_local_time_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_local_time_builder_encode_into(
-    b: *mut ros_local_time_builder_t,
+pub extern "C" fn edgefirst_msgs_local_time_builder_encode_into(
+    b: *mut edgefirst_msgs_local_time_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -10421,29 +10895,34 @@ struct RadarCubeBuilderOwned {
     is_complex: bool,
 }
 
-pub struct ros_radar_cube_builder_t(RadarCubeBuilderOwned);
+pub struct edgefirst_msgs_radar_cube_builder_t(RadarCubeBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_builder_new() -> *mut ros_radar_cube_builder_t {
-    Box::into_raw(Box::new(ros_radar_cube_builder_t(RadarCubeBuilderOwned {
-        stamp_sec: 0,
-        stamp_nanosec: 0,
-        frame_id: String::new(),
-        timestamp: 0,
-        layout: ptr::null(),
-        layout_len: 0,
-        shape: ptr::null(),
-        shape_len: 0,
-        scales: ptr::null(),
-        scales_len: 0,
-        cube: ptr::null(),
-        cube_len: 0,
-        is_complex: false,
-    })))
+pub extern "C" fn edgefirst_msgs_radar_cube_builder_new() -> *mut edgefirst_msgs_radar_cube_builder_t
+{
+    Box::into_raw(Box::new(edgefirst_msgs_radar_cube_builder_t(
+        RadarCubeBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            timestamp: 0,
+            layout: ptr::null(),
+            layout_len: 0,
+            shape: ptr::null(),
+            shape_len: 0,
+            scales: ptr::null(),
+            scales_len: 0,
+            cube: ptr::null(),
+            cube_len: 0,
+            is_complex: false,
+        },
+    )))
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_builder_free(b: *mut ros_radar_cube_builder_t) {
+pub extern "C" fn edgefirst_msgs_radar_cube_builder_free(
+    b: *mut edgefirst_msgs_radar_cube_builder_t,
+) {
     if b.is_null() {
         return;
     }
@@ -10453,8 +10932,8 @@ pub extern "C" fn ros_radar_cube_builder_free(b: *mut ros_radar_cube_builder_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_builder_set_stamp(
-    b: *mut ros_radar_cube_builder_t,
+pub extern "C" fn edgefirst_msgs_radar_cube_builder_set_stamp(
+    b: *mut edgefirst_msgs_radar_cube_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -10467,8 +10946,8 @@ pub extern "C" fn ros_radar_cube_builder_set_stamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_builder_set_frame_id(
-    b: *mut ros_radar_cube_builder_t,
+pub extern "C" fn edgefirst_msgs_radar_cube_builder_set_frame_id(
+    b: *mut edgefirst_msgs_radar_cube_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -10486,7 +10965,10 @@ pub extern "C" fn ros_radar_cube_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_builder_set_timestamp(b: *mut ros_radar_cube_builder_t, v: u64) {
+pub extern "C" fn edgefirst_msgs_radar_cube_builder_set_timestamp(
+    b: *mut edgefirst_msgs_radar_cube_builder_t,
+    v: u64,
+) {
     if b.is_null() {
         return;
     }
@@ -10496,8 +10978,8 @@ pub extern "C" fn ros_radar_cube_builder_set_timestamp(b: *mut ros_radar_cube_bu
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_builder_set_layout(
-    b: *mut ros_radar_cube_builder_t,
+pub extern "C" fn edgefirst_msgs_radar_cube_builder_set_layout(
+    b: *mut edgefirst_msgs_radar_cube_builder_t,
     data: *const u8,
     len: usize,
 ) -> i32 {
@@ -10517,8 +10999,8 @@ pub extern "C" fn ros_radar_cube_builder_set_layout(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_builder_set_shape(
-    b: *mut ros_radar_cube_builder_t,
+pub extern "C" fn edgefirst_msgs_radar_cube_builder_set_shape(
+    b: *mut edgefirst_msgs_radar_cube_builder_t,
     data: *const u16,
     len: usize,
 ) -> i32 {
@@ -10538,8 +11020,8 @@ pub extern "C" fn ros_radar_cube_builder_set_shape(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_builder_set_scales(
-    b: *mut ros_radar_cube_builder_t,
+pub extern "C" fn edgefirst_msgs_radar_cube_builder_set_scales(
+    b: *mut edgefirst_msgs_radar_cube_builder_t,
     data: *const f32,
     len: usize,
 ) -> i32 {
@@ -10559,8 +11041,8 @@ pub extern "C" fn ros_radar_cube_builder_set_scales(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_builder_set_cube(
-    b: *mut ros_radar_cube_builder_t,
+pub extern "C" fn edgefirst_msgs_radar_cube_builder_set_cube(
+    b: *mut edgefirst_msgs_radar_cube_builder_t,
     data: *const i16,
     len: usize,
 ) -> i32 {
@@ -10580,7 +11062,10 @@ pub extern "C" fn ros_radar_cube_builder_set_cube(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_builder_set_is_complex(b: *mut ros_radar_cube_builder_t, v: bool) {
+pub extern "C" fn edgefirst_msgs_radar_cube_builder_set_is_complex(
+    b: *mut edgefirst_msgs_radar_cube_builder_t,
+    v: bool,
+) {
     if b.is_null() {
         return;
     }
@@ -10619,8 +11104,8 @@ fn radar_cube_cube_slice(inner: &RadarCubeBuilderOwned) -> &[i16] {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_builder_build(
-    b: *mut ros_radar_cube_builder_t,
+pub extern "C" fn edgefirst_msgs_radar_cube_builder_build(
+    b: *mut edgefirst_msgs_radar_cube_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -10649,8 +11134,8 @@ pub extern "C" fn ros_radar_cube_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_builder_encode_into(
-    b: *mut ros_radar_cube_builder_t,
+pub extern "C" fn edgefirst_msgs_radar_cube_builder_encode_into(
+    b: *mut edgefirst_msgs_radar_cube_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -10702,24 +11187,29 @@ struct RadarInfoBuilderOwned {
     cube: bool,
 }
 
-pub struct ros_radar_info_builder_t(RadarInfoBuilderOwned);
+pub struct edgefirst_msgs_radar_info_builder_t(RadarInfoBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_radar_info_builder_new() -> *mut ros_radar_info_builder_t {
-    Box::into_raw(Box::new(ros_radar_info_builder_t(RadarInfoBuilderOwned {
-        stamp_sec: 0,
-        stamp_nanosec: 0,
-        frame_id: String::new(),
-        center_frequency: String::new(),
-        frequency_sweep: String::new(),
-        range_toggle: String::new(),
-        detection_sensitivity: String::new(),
-        cube: false,
-    })))
+pub extern "C" fn edgefirst_msgs_radar_info_builder_new() -> *mut edgefirst_msgs_radar_info_builder_t
+{
+    Box::into_raw(Box::new(edgefirst_msgs_radar_info_builder_t(
+        RadarInfoBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            center_frequency: String::new(),
+            frequency_sweep: String::new(),
+            range_toggle: String::new(),
+            detection_sensitivity: String::new(),
+            cube: false,
+        },
+    )))
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_info_builder_free(b: *mut ros_radar_info_builder_t) {
+pub extern "C" fn edgefirst_msgs_radar_info_builder_free(
+    b: *mut edgefirst_msgs_radar_info_builder_t,
+) {
     if b.is_null() {
         return;
     }
@@ -10729,8 +11219,8 @@ pub extern "C" fn ros_radar_info_builder_free(b: *mut ros_radar_info_builder_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_info_builder_set_stamp(
-    b: *mut ros_radar_info_builder_t,
+pub extern "C" fn edgefirst_msgs_radar_info_builder_set_stamp(
+    b: *mut edgefirst_msgs_radar_info_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -10743,8 +11233,8 @@ pub extern "C" fn ros_radar_info_builder_set_stamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_info_builder_set_frame_id(
-    b: *mut ros_radar_info_builder_t,
+pub extern "C" fn edgefirst_msgs_radar_info_builder_set_frame_id(
+    b: *mut edgefirst_msgs_radar_info_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -10762,8 +11252,8 @@ pub extern "C" fn ros_radar_info_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_info_builder_set_center_frequency(
-    b: *mut ros_radar_info_builder_t,
+pub extern "C" fn edgefirst_msgs_radar_info_builder_set_center_frequency(
+    b: *mut edgefirst_msgs_radar_info_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -10781,8 +11271,8 @@ pub extern "C" fn ros_radar_info_builder_set_center_frequency(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_info_builder_set_frequency_sweep(
-    b: *mut ros_radar_info_builder_t,
+pub extern "C" fn edgefirst_msgs_radar_info_builder_set_frequency_sweep(
+    b: *mut edgefirst_msgs_radar_info_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -10800,8 +11290,8 @@ pub extern "C" fn ros_radar_info_builder_set_frequency_sweep(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_info_builder_set_range_toggle(
-    b: *mut ros_radar_info_builder_t,
+pub extern "C" fn edgefirst_msgs_radar_info_builder_set_range_toggle(
+    b: *mut edgefirst_msgs_radar_info_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -10819,8 +11309,8 @@ pub extern "C" fn ros_radar_info_builder_set_range_toggle(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_info_builder_set_detection_sensitivity(
-    b: *mut ros_radar_info_builder_t,
+pub extern "C" fn edgefirst_msgs_radar_info_builder_set_detection_sensitivity(
+    b: *mut edgefirst_msgs_radar_info_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -10838,7 +11328,10 @@ pub extern "C" fn ros_radar_info_builder_set_detection_sensitivity(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_info_builder_set_cube(b: *mut ros_radar_info_builder_t, v: bool) {
+pub extern "C" fn edgefirst_msgs_radar_info_builder_set_cube(
+    b: *mut edgefirst_msgs_radar_info_builder_t,
+    v: bool,
+) {
     if b.is_null() {
         return;
     }
@@ -10848,8 +11341,8 @@ pub extern "C" fn ros_radar_info_builder_set_cube(b: *mut ros_radar_info_builder
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_info_builder_build(
-    b: *mut ros_radar_info_builder_t,
+pub extern "C" fn edgefirst_msgs_radar_info_builder_build(
+    b: *mut edgefirst_msgs_radar_info_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -10877,8 +11370,8 @@ pub extern "C" fn ros_radar_info_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_radar_info_builder_encode_into(
-    b: *mut ros_radar_info_builder_t,
+pub extern "C" fn edgefirst_msgs_radar_info_builder_encode_into(
+    b: *mut edgefirst_msgs_radar_info_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -10925,20 +11418,22 @@ struct TrackBuilderOwned {
     created_nanosec: u32,
 }
 
-pub struct ros_track_builder_t(TrackBuilderOwned);
+pub struct edgefirst_msgs_track_builder_t(TrackBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_track_builder_new() -> *mut ros_track_builder_t {
-    Box::into_raw(Box::new(ros_track_builder_t(TrackBuilderOwned {
-        id: String::new(),
-        lifetime: 0,
-        created_sec: 0,
-        created_nanosec: 0,
-    })))
+pub extern "C" fn edgefirst_msgs_track_builder_new() -> *mut edgefirst_msgs_track_builder_t {
+    Box::into_raw(Box::new(edgefirst_msgs_track_builder_t(
+        TrackBuilderOwned {
+            id: String::new(),
+            lifetime: 0,
+            created_sec: 0,
+            created_nanosec: 0,
+        },
+    )))
 }
 
 #[no_mangle]
-pub extern "C" fn ros_track_builder_free(b: *mut ros_track_builder_t) {
+pub extern "C" fn edgefirst_msgs_track_builder_free(b: *mut edgefirst_msgs_track_builder_t) {
     if b.is_null() {
         return;
     }
@@ -10948,7 +11443,10 @@ pub extern "C" fn ros_track_builder_free(b: *mut ros_track_builder_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_track_builder_set_id(b: *mut ros_track_builder_t, s: *const c_char) -> i32 {
+pub extern "C" fn edgefirst_msgs_track_builder_set_id(
+    b: *mut edgefirst_msgs_track_builder_t,
+    s: *const c_char,
+) -> i32 {
     if b.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -10964,7 +11462,10 @@ pub extern "C" fn ros_track_builder_set_id(b: *mut ros_track_builder_t, s: *cons
 }
 
 #[no_mangle]
-pub extern "C" fn ros_track_builder_set_lifetime(b: *mut ros_track_builder_t, v: i32) {
+pub extern "C" fn edgefirst_msgs_track_builder_set_lifetime(
+    b: *mut edgefirst_msgs_track_builder_t,
+    v: i32,
+) {
     if b.is_null() {
         return;
     }
@@ -10974,8 +11475,8 @@ pub extern "C" fn ros_track_builder_set_lifetime(b: *mut ros_track_builder_t, v:
 }
 
 #[no_mangle]
-pub extern "C" fn ros_track_builder_set_created(
-    b: *mut ros_track_builder_t,
+pub extern "C" fn edgefirst_msgs_track_builder_set_created(
+    b: *mut edgefirst_msgs_track_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -10988,8 +11489,8 @@ pub extern "C" fn ros_track_builder_set_created(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_track_builder_build(
-    b: *mut ros_track_builder_t,
+pub extern "C" fn edgefirst_msgs_track_builder_build(
+    b: *mut edgefirst_msgs_track_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -11013,8 +11514,8 @@ pub extern "C" fn ros_track_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_track_builder_encode_into(
-    b: *mut ros_track_builder_t,
+pub extern "C" fn edgefirst_msgs_track_builder_encode_into(
+    b: *mut edgefirst_msgs_track_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -11050,7 +11551,7 @@ pub extern "C" fn ros_track_builder_encode_into(
 
 // ── edgefirst_msgs::DetectBox / Detect / Model shared element ───────
 //
-// `ros_detect_box_elem_t` is the C-POD descriptor used both as the standalone
+// `edgefirst_msgs_detect_box_elem_t` is the C-POD descriptor used both as the standalone
 // DetectBox builder's input shape and as the element type for the `boxes`
 // nested sequence in Detect and Model. The `label` and `track_id` pointers
 // are borrowed: they must outlive the next setter call on the field that
@@ -11060,7 +11561,7 @@ pub extern "C" fn ros_track_builder_encode_into(
 /// are borrowed C strings; both must remain valid until the consuming
 /// builder is finalised (build/encode_into) or freed.
 #[repr(C)]
-pub struct ros_detect_box_elem_t {
+pub struct edgefirst_msgs_detect_box_elem_t {
     pub center_x: f32,
     pub center_y: f32,
     pub width: f32,
@@ -11082,7 +11583,7 @@ pub struct ros_detect_box_elem_t {
 /// string (or NULL, treated as "") whose backing storage outlives the
 /// returned Vec.
 unsafe fn detect_box_descs_to_views(
-    descs: *const ros_detect_box_elem_t,
+    descs: *const edgefirst_msgs_detect_box_elem_t,
     count: usize,
 ) -> Result<Vec<edgefirst_msgs::DetectBoxView<'static>>, ()> {
     if descs.is_null() || count == 0 {
@@ -11128,28 +11629,33 @@ struct DetectBoxBuilderOwned {
     track_created_nanosec: u32,
 }
 
-pub struct ros_detect_box_builder_t(DetectBoxBuilderOwned);
+pub struct edgefirst_msgs_detect_box_builder_t(DetectBoxBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_detect_box_builder_new() -> *mut ros_detect_box_builder_t {
-    Box::into_raw(Box::new(ros_detect_box_builder_t(DetectBoxBuilderOwned {
-        center_x: 0.0,
-        center_y: 0.0,
-        width: 0.0,
-        height: 0.0,
-        label: String::new(),
-        score: 0.0,
-        distance: 0.0,
-        speed: 0.0,
-        track_id: String::new(),
-        track_lifetime: 0,
-        track_created_sec: 0,
-        track_created_nanosec: 0,
-    })))
+pub extern "C" fn edgefirst_msgs_detect_box_builder_new() -> *mut edgefirst_msgs_detect_box_builder_t
+{
+    Box::into_raw(Box::new(edgefirst_msgs_detect_box_builder_t(
+        DetectBoxBuilderOwned {
+            center_x: 0.0,
+            center_y: 0.0,
+            width: 0.0,
+            height: 0.0,
+            label: String::new(),
+            score: 0.0,
+            distance: 0.0,
+            speed: 0.0,
+            track_id: String::new(),
+            track_lifetime: 0,
+            track_created_sec: 0,
+            track_created_nanosec: 0,
+        },
+    )))
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_box_builder_free(b: *mut ros_detect_box_builder_t) {
+pub extern "C" fn edgefirst_msgs_detect_box_builder_free(
+    b: *mut edgefirst_msgs_detect_box_builder_t,
+) {
     if b.is_null() {
         return;
     }
@@ -11159,7 +11665,10 @@ pub extern "C" fn ros_detect_box_builder_free(b: *mut ros_detect_box_builder_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_box_builder_set_center_x(b: *mut ros_detect_box_builder_t, v: f32) {
+pub extern "C" fn edgefirst_msgs_detect_box_builder_set_center_x(
+    b: *mut edgefirst_msgs_detect_box_builder_t,
+    v: f32,
+) {
     if b.is_null() {
         return;
     }
@@ -11169,7 +11678,10 @@ pub extern "C" fn ros_detect_box_builder_set_center_x(b: *mut ros_detect_box_bui
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_box_builder_set_center_y(b: *mut ros_detect_box_builder_t, v: f32) {
+pub extern "C" fn edgefirst_msgs_detect_box_builder_set_center_y(
+    b: *mut edgefirst_msgs_detect_box_builder_t,
+    v: f32,
+) {
     if b.is_null() {
         return;
     }
@@ -11179,7 +11691,10 @@ pub extern "C" fn ros_detect_box_builder_set_center_y(b: *mut ros_detect_box_bui
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_box_builder_set_width(b: *mut ros_detect_box_builder_t, v: f32) {
+pub extern "C" fn edgefirst_msgs_detect_box_builder_set_width(
+    b: *mut edgefirst_msgs_detect_box_builder_t,
+    v: f32,
+) {
     if b.is_null() {
         return;
     }
@@ -11189,7 +11704,10 @@ pub extern "C" fn ros_detect_box_builder_set_width(b: *mut ros_detect_box_builde
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_box_builder_set_height(b: *mut ros_detect_box_builder_t, v: f32) {
+pub extern "C" fn edgefirst_msgs_detect_box_builder_set_height(
+    b: *mut edgefirst_msgs_detect_box_builder_t,
+    v: f32,
+) {
     if b.is_null() {
         return;
     }
@@ -11199,8 +11717,8 @@ pub extern "C" fn ros_detect_box_builder_set_height(b: *mut ros_detect_box_build
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_box_builder_set_label(
-    b: *mut ros_detect_box_builder_t,
+pub extern "C" fn edgefirst_msgs_detect_box_builder_set_label(
+    b: *mut edgefirst_msgs_detect_box_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -11218,7 +11736,10 @@ pub extern "C" fn ros_detect_box_builder_set_label(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_box_builder_set_score(b: *mut ros_detect_box_builder_t, v: f32) {
+pub extern "C" fn edgefirst_msgs_detect_box_builder_set_score(
+    b: *mut edgefirst_msgs_detect_box_builder_t,
+    v: f32,
+) {
     if b.is_null() {
         return;
     }
@@ -11228,7 +11749,10 @@ pub extern "C" fn ros_detect_box_builder_set_score(b: *mut ros_detect_box_builde
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_box_builder_set_distance(b: *mut ros_detect_box_builder_t, v: f32) {
+pub extern "C" fn edgefirst_msgs_detect_box_builder_set_distance(
+    b: *mut edgefirst_msgs_detect_box_builder_t,
+    v: f32,
+) {
     if b.is_null() {
         return;
     }
@@ -11238,7 +11762,10 @@ pub extern "C" fn ros_detect_box_builder_set_distance(b: *mut ros_detect_box_bui
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_box_builder_set_speed(b: *mut ros_detect_box_builder_t, v: f32) {
+pub extern "C" fn edgefirst_msgs_detect_box_builder_set_speed(
+    b: *mut edgefirst_msgs_detect_box_builder_t,
+    v: f32,
+) {
     if b.is_null() {
         return;
     }
@@ -11248,8 +11775,8 @@ pub extern "C" fn ros_detect_box_builder_set_speed(b: *mut ros_detect_box_builde
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_box_builder_set_track_id(
-    b: *mut ros_detect_box_builder_t,
+pub extern "C" fn edgefirst_msgs_detect_box_builder_set_track_id(
+    b: *mut edgefirst_msgs_detect_box_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -11267,8 +11794,8 @@ pub extern "C" fn ros_detect_box_builder_set_track_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_box_builder_set_track_lifetime(
-    b: *mut ros_detect_box_builder_t,
+pub extern "C" fn edgefirst_msgs_detect_box_builder_set_track_lifetime(
+    b: *mut edgefirst_msgs_detect_box_builder_t,
     v: i32,
 ) {
     if b.is_null() {
@@ -11280,8 +11807,8 @@ pub extern "C" fn ros_detect_box_builder_set_track_lifetime(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_box_builder_set_track_created(
-    b: *mut ros_detect_box_builder_t,
+pub extern "C" fn edgefirst_msgs_detect_box_builder_set_track_created(
+    b: *mut edgefirst_msgs_detect_box_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -11294,8 +11821,8 @@ pub extern "C" fn ros_detect_box_builder_set_track_created(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_box_builder_build(
-    b: *mut ros_detect_box_builder_t,
+pub extern "C" fn edgefirst_msgs_detect_box_builder_build(
+    b: *mut edgefirst_msgs_detect_box_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -11330,8 +11857,8 @@ pub extern "C" fn ros_detect_box_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_box_builder_encode_into(
-    b: *mut ros_detect_box_builder_t,
+pub extern "C" fn edgefirst_msgs_detect_box_builder_encode_into(
+    b: *mut edgefirst_msgs_detect_box_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -11388,31 +11915,33 @@ struct DetectBuilderOwned {
     model_nanosec: u32,
     output_sec: i32,
     output_nanosec: u32,
-    boxes: *const ros_detect_box_elem_t,
+    boxes: *const edgefirst_msgs_detect_box_elem_t,
     boxes_count: usize,
 }
 
-pub struct ros_detect_builder_t(DetectBuilderOwned);
+pub struct edgefirst_msgs_detect_builder_t(DetectBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_detect_builder_new() -> *mut ros_detect_builder_t {
-    Box::into_raw(Box::new(ros_detect_builder_t(DetectBuilderOwned {
-        stamp_sec: 0,
-        stamp_nanosec: 0,
-        frame_id: String::new(),
-        input_sec: 0,
-        input_nanosec: 0,
-        model_sec: 0,
-        model_nanosec: 0,
-        output_sec: 0,
-        output_nanosec: 0,
-        boxes: ptr::null(),
-        boxes_count: 0,
-    })))
+pub extern "C" fn edgefirst_msgs_detect_builder_new() -> *mut edgefirst_msgs_detect_builder_t {
+    Box::into_raw(Box::new(edgefirst_msgs_detect_builder_t(
+        DetectBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            input_sec: 0,
+            input_nanosec: 0,
+            model_sec: 0,
+            model_nanosec: 0,
+            output_sec: 0,
+            output_nanosec: 0,
+            boxes: ptr::null(),
+            boxes_count: 0,
+        },
+    )))
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_builder_free(b: *mut ros_detect_builder_t) {
+pub extern "C" fn edgefirst_msgs_detect_builder_free(b: *mut edgefirst_msgs_detect_builder_t) {
     if b.is_null() {
         return;
     }
@@ -11422,8 +11951,8 @@ pub extern "C" fn ros_detect_builder_free(b: *mut ros_detect_builder_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_builder_set_stamp(
-    b: *mut ros_detect_builder_t,
+pub extern "C" fn edgefirst_msgs_detect_builder_set_stamp(
+    b: *mut edgefirst_msgs_detect_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -11436,8 +11965,8 @@ pub extern "C" fn ros_detect_builder_set_stamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_builder_set_frame_id(
-    b: *mut ros_detect_builder_t,
+pub extern "C" fn edgefirst_msgs_detect_builder_set_frame_id(
+    b: *mut edgefirst_msgs_detect_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -11455,8 +11984,8 @@ pub extern "C" fn ros_detect_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_builder_set_input_timestamp(
-    b: *mut ros_detect_builder_t,
+pub extern "C" fn edgefirst_msgs_detect_builder_set_input_timestamp(
+    b: *mut edgefirst_msgs_detect_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -11469,8 +11998,8 @@ pub extern "C" fn ros_detect_builder_set_input_timestamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_builder_set_model_time(
-    b: *mut ros_detect_builder_t,
+pub extern "C" fn edgefirst_msgs_detect_builder_set_model_time(
+    b: *mut edgefirst_msgs_detect_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -11483,8 +12012,8 @@ pub extern "C" fn ros_detect_builder_set_model_time(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_builder_set_output_time(
-    b: *mut ros_detect_builder_t,
+pub extern "C" fn edgefirst_msgs_detect_builder_set_output_time(
+    b: *mut edgefirst_msgs_detect_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -11500,9 +12029,9 @@ pub extern "C" fn ros_detect_builder_set_output_time(
 /// `label`/`track_id` pointer inside it must remain valid until the next
 /// setter on the boxes slot, a subsequent build/encode_into, or free).
 #[no_mangle]
-pub extern "C" fn ros_detect_builder_set_boxes(
-    b: *mut ros_detect_builder_t,
-    boxes: *const ros_detect_box_elem_t,
+pub extern "C" fn edgefirst_msgs_detect_builder_set_boxes(
+    b: *mut edgefirst_msgs_detect_builder_t,
+    boxes: *const edgefirst_msgs_detect_box_elem_t,
     count: usize,
 ) -> i32 {
     if b.is_null() {
@@ -11521,8 +12050,8 @@ pub extern "C" fn ros_detect_builder_set_boxes(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_builder_build(
-    b: *mut ros_detect_builder_t,
+pub extern "C" fn edgefirst_msgs_detect_builder_build(
+    b: *mut edgefirst_msgs_detect_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -11553,8 +12082,8 @@ pub extern "C" fn ros_detect_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_detect_builder_encode_into(
-    b: *mut ros_detect_builder_t,
+pub extern "C" fn edgefirst_msgs_detect_builder_encode_into(
+    b: *mut edgefirst_msgs_detect_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -11597,14 +12126,14 @@ pub extern "C" fn ros_detect_builder_encode_into(
 
 // ── edgefirst_msgs::Model ───────────────────────────────────────────
 //
-// Shares `ros_detect_box_elem_t` for boxes; uses `ros_mask_elem_t` for masks.
+// Shares `edgefirst_msgs_detect_box_elem_t` for boxes; uses `edgefirst_msgs_mask_elem_t` for masks.
 // The mask descriptor mirrors `MaskView` exactly.
 
 /// C-POD descriptor for a single Mask element. `encoding` is a borrowed C
 /// string and `mask` is a borrowed byte slice; both must remain valid until
 /// the consuming builder is finalised (build/encode_into) or freed.
 #[repr(C)]
-pub struct ros_mask_elem_t {
+pub struct edgefirst_msgs_mask_elem_t {
     pub height: u32,
     pub width: u32,
     pub length: u32,
@@ -11621,7 +12150,7 @@ pub struct ros_mask_elem_t {
 /// NULL → "") and `mask` must be valid for `mask_len` bytes (or NULL when
 /// `mask_len == 0`); backing storage outlives the returned Vec.
 unsafe fn mask_descs_to_views(
-    descs: *const ros_mask_elem_t,
+    descs: *const edgefirst_msgs_mask_elem_t,
     count: usize,
 ) -> Result<Vec<edgefirst_msgs::MaskView<'static>>, ()> {
     if descs.is_null() || count == 0 {
@@ -11665,37 +12194,39 @@ struct ModelBuilderOwned {
     output_nanosec: u32,
     decode_sec: i32,
     decode_nanosec: u32,
-    boxes: *const ros_detect_box_elem_t,
+    boxes: *const edgefirst_msgs_detect_box_elem_t,
     boxes_count: usize,
-    masks: *const ros_mask_elem_t,
+    masks: *const edgefirst_msgs_mask_elem_t,
     masks_count: usize,
 }
 
-pub struct ros_model_builder_t(ModelBuilderOwned);
+pub struct edgefirst_msgs_model_builder_t(ModelBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_model_builder_new() -> *mut ros_model_builder_t {
-    Box::into_raw(Box::new(ros_model_builder_t(ModelBuilderOwned {
-        stamp_sec: 0,
-        stamp_nanosec: 0,
-        frame_id: String::new(),
-        input_sec: 0,
-        input_nanosec: 0,
-        model_sec: 0,
-        model_nanosec: 0,
-        output_sec: 0,
-        output_nanosec: 0,
-        decode_sec: 0,
-        decode_nanosec: 0,
-        boxes: ptr::null(),
-        boxes_count: 0,
-        masks: ptr::null(),
-        masks_count: 0,
-    })))
+pub extern "C" fn edgefirst_msgs_model_builder_new() -> *mut edgefirst_msgs_model_builder_t {
+    Box::into_raw(Box::new(edgefirst_msgs_model_builder_t(
+        ModelBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            input_sec: 0,
+            input_nanosec: 0,
+            model_sec: 0,
+            model_nanosec: 0,
+            output_sec: 0,
+            output_nanosec: 0,
+            decode_sec: 0,
+            decode_nanosec: 0,
+            boxes: ptr::null(),
+            boxes_count: 0,
+            masks: ptr::null(),
+            masks_count: 0,
+        },
+    )))
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_builder_free(b: *mut ros_model_builder_t) {
+pub extern "C" fn edgefirst_msgs_model_builder_free(b: *mut edgefirst_msgs_model_builder_t) {
     if b.is_null() {
         return;
     }
@@ -11705,7 +12236,11 @@ pub extern "C" fn ros_model_builder_free(b: *mut ros_model_builder_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_builder_set_stamp(b: *mut ros_model_builder_t, sec: i32, nanosec: u32) {
+pub extern "C" fn edgefirst_msgs_model_builder_set_stamp(
+    b: *mut edgefirst_msgs_model_builder_t,
+    sec: i32,
+    nanosec: u32,
+) {
     if b.is_null() {
         return;
     }
@@ -11715,8 +12250,8 @@ pub extern "C" fn ros_model_builder_set_stamp(b: *mut ros_model_builder_t, sec: 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_builder_set_frame_id(
-    b: *mut ros_model_builder_t,
+pub extern "C" fn edgefirst_msgs_model_builder_set_frame_id(
+    b: *mut edgefirst_msgs_model_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -11734,8 +12269,8 @@ pub extern "C" fn ros_model_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_builder_set_input_time(
-    b: *mut ros_model_builder_t,
+pub extern "C" fn edgefirst_msgs_model_builder_set_input_time(
+    b: *mut edgefirst_msgs_model_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -11748,8 +12283,8 @@ pub extern "C" fn ros_model_builder_set_input_time(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_builder_set_model_time(
-    b: *mut ros_model_builder_t,
+pub extern "C" fn edgefirst_msgs_model_builder_set_model_time(
+    b: *mut edgefirst_msgs_model_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -11762,8 +12297,8 @@ pub extern "C" fn ros_model_builder_set_model_time(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_builder_set_output_time(
-    b: *mut ros_model_builder_t,
+pub extern "C" fn edgefirst_msgs_model_builder_set_output_time(
+    b: *mut edgefirst_msgs_model_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -11776,8 +12311,8 @@ pub extern "C" fn ros_model_builder_set_output_time(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_builder_set_decode_time(
-    b: *mut ros_model_builder_t,
+pub extern "C" fn edgefirst_msgs_model_builder_set_decode_time(
+    b: *mut edgefirst_msgs_model_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -11790,11 +12325,11 @@ pub extern "C" fn ros_model_builder_set_decode_time(
 }
 
 /// Set the boxes descriptor sequence (BORROWED — see
-/// `ros_detect_builder_set_boxes`).
+/// `edgefirst_msgs_detect_builder_set_boxes`).
 #[no_mangle]
-pub extern "C" fn ros_model_builder_set_boxes(
-    b: *mut ros_model_builder_t,
-    boxes: *const ros_detect_box_elem_t,
+pub extern "C" fn edgefirst_msgs_model_builder_set_boxes(
+    b: *mut edgefirst_msgs_model_builder_t,
+    boxes: *const edgefirst_msgs_detect_box_elem_t,
     count: usize,
 ) -> i32 {
     if b.is_null() {
@@ -11816,9 +12351,9 @@ pub extern "C" fn ros_model_builder_set_boxes(
 /// `encoding`/`mask` pointer inside it must remain valid until the next
 /// setter on the masks slot, a subsequent build/encode_into, or free).
 #[no_mangle]
-pub extern "C" fn ros_model_builder_set_masks(
-    b: *mut ros_model_builder_t,
-    masks: *const ros_mask_elem_t,
+pub extern "C" fn edgefirst_msgs_model_builder_set_masks(
+    b: *mut edgefirst_msgs_model_builder_t,
+    masks: *const edgefirst_msgs_mask_elem_t,
     count: usize,
 ) -> i32 {
     if b.is_null() {
@@ -11837,8 +12372,8 @@ pub extern "C" fn ros_model_builder_set_masks(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_builder_build(
-    b: *mut ros_model_builder_t,
+pub extern "C" fn edgefirst_msgs_model_builder_build(
+    b: *mut edgefirst_msgs_model_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -11887,8 +12422,8 @@ pub extern "C" fn ros_model_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_builder_encode_into(
-    b: *mut ros_model_builder_t,
+pub extern "C" fn edgefirst_msgs_model_builder_encode_into(
+    b: *mut edgefirst_msgs_model_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -11968,29 +12503,34 @@ struct ModelInfoBuilderOwned {
     model_name: String,
 }
 
-pub struct ros_model_info_builder_t(ModelInfoBuilderOwned);
+pub struct edgefirst_msgs_model_info_builder_t(ModelInfoBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_builder_new() -> *mut ros_model_info_builder_t {
-    Box::into_raw(Box::new(ros_model_info_builder_t(ModelInfoBuilderOwned {
-        stamp_sec: 0,
-        stamp_nanosec: 0,
-        frame_id: String::new(),
-        input_shape: ptr::null(),
-        input_shape_len: 0,
-        input_type: 0,
-        output_shape: ptr::null(),
-        output_shape_len: 0,
-        output_type: 0,
-        labels: Vec::new(),
-        model_type: String::new(),
-        model_format: String::new(),
-        model_name: String::new(),
-    })))
+pub extern "C" fn edgefirst_msgs_model_info_builder_new() -> *mut edgefirst_msgs_model_info_builder_t
+{
+    Box::into_raw(Box::new(edgefirst_msgs_model_info_builder_t(
+        ModelInfoBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            input_shape: ptr::null(),
+            input_shape_len: 0,
+            input_type: 0,
+            output_shape: ptr::null(),
+            output_shape_len: 0,
+            output_type: 0,
+            labels: Vec::new(),
+            model_type: String::new(),
+            model_format: String::new(),
+            model_name: String::new(),
+        },
+    )))
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_builder_free(b: *mut ros_model_info_builder_t) {
+pub extern "C" fn edgefirst_msgs_model_info_builder_free(
+    b: *mut edgefirst_msgs_model_info_builder_t,
+) {
     if b.is_null() {
         return;
     }
@@ -12000,8 +12540,8 @@ pub extern "C" fn ros_model_info_builder_free(b: *mut ros_model_info_builder_t) 
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_builder_set_stamp(
-    b: *mut ros_model_info_builder_t,
+pub extern "C" fn edgefirst_msgs_model_info_builder_set_stamp(
+    b: *mut edgefirst_msgs_model_info_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -12014,8 +12554,8 @@ pub extern "C" fn ros_model_info_builder_set_stamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_builder_set_frame_id(
-    b: *mut ros_model_info_builder_t,
+pub extern "C" fn edgefirst_msgs_model_info_builder_set_frame_id(
+    b: *mut edgefirst_msgs_model_info_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -12033,8 +12573,8 @@ pub extern "C" fn ros_model_info_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_builder_set_input_shape(
-    b: *mut ros_model_info_builder_t,
+pub extern "C" fn edgefirst_msgs_model_info_builder_set_input_shape(
+    b: *mut edgefirst_msgs_model_info_builder_t,
     data: *const u32,
     len: usize,
 ) -> i32 {
@@ -12054,7 +12594,10 @@ pub extern "C" fn ros_model_info_builder_set_input_shape(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_builder_set_input_type(b: *mut ros_model_info_builder_t, v: u8) {
+pub extern "C" fn edgefirst_msgs_model_info_builder_set_input_type(
+    b: *mut edgefirst_msgs_model_info_builder_t,
+    v: u8,
+) {
     if b.is_null() {
         return;
     }
@@ -12064,8 +12607,8 @@ pub extern "C" fn ros_model_info_builder_set_input_type(b: *mut ros_model_info_b
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_builder_set_output_shape(
-    b: *mut ros_model_info_builder_t,
+pub extern "C" fn edgefirst_msgs_model_info_builder_set_output_shape(
+    b: *mut edgefirst_msgs_model_info_builder_t,
     data: *const u32,
     len: usize,
 ) -> i32 {
@@ -12085,7 +12628,10 @@ pub extern "C" fn ros_model_info_builder_set_output_shape(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_builder_set_output_type(b: *mut ros_model_info_builder_t, v: u8) {
+pub extern "C" fn edgefirst_msgs_model_info_builder_set_output_type(
+    b: *mut edgefirst_msgs_model_info_builder_t,
+    v: u8,
+) {
     if b.is_null() {
         return;
     }
@@ -12098,8 +12644,8 @@ pub extern "C" fn ros_model_info_builder_set_output_type(b: *mut ros_model_info_
 /// on success, -1 on error (errno: EINVAL for NULL handle or NULL element
 /// pointer when count > 0).
 #[no_mangle]
-pub extern "C" fn ros_model_info_builder_set_labels(
-    b: *mut ros_model_info_builder_t,
+pub extern "C" fn edgefirst_msgs_model_info_builder_set_labels(
+    b: *mut edgefirst_msgs_model_info_builder_t,
     labels: *const *const c_char,
     count: usize,
 ) -> i32 {
@@ -12129,8 +12675,8 @@ pub extern "C" fn ros_model_info_builder_set_labels(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_builder_set_model_type(
-    b: *mut ros_model_info_builder_t,
+pub extern "C" fn edgefirst_msgs_model_info_builder_set_model_type(
+    b: *mut edgefirst_msgs_model_info_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -12148,8 +12694,8 @@ pub extern "C" fn ros_model_info_builder_set_model_type(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_builder_set_model_format(
-    b: *mut ros_model_info_builder_t,
+pub extern "C" fn edgefirst_msgs_model_info_builder_set_model_format(
+    b: *mut edgefirst_msgs_model_info_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -12167,8 +12713,8 @@ pub extern "C" fn ros_model_info_builder_set_model_format(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_builder_set_model_name(
-    b: *mut ros_model_info_builder_t,
+pub extern "C" fn edgefirst_msgs_model_info_builder_set_model_name(
+    b: *mut edgefirst_msgs_model_info_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -12201,8 +12747,8 @@ fn model_info_output_shape(inner: &ModelInfoBuilderOwned) -> &[u32] {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_builder_build(
-    b: *mut ros_model_info_builder_t,
+pub extern "C" fn edgefirst_msgs_model_info_builder_build(
+    b: *mut edgefirst_msgs_model_info_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -12234,8 +12780,8 @@ pub extern "C" fn ros_model_info_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_model_info_builder_encode_into(
-    b: *mut ros_model_info_builder_t,
+pub extern "C" fn edgefirst_msgs_model_info_builder_encode_into(
+    b: *mut edgefirst_msgs_model_info_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -12294,28 +12840,33 @@ struct VibrationBuilderOwned {
     clipping_len: usize,
 }
 
-pub struct ros_vibration_builder_t(VibrationBuilderOwned);
+pub struct edgefirst_msgs_vibration_builder_t(VibrationBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_builder_new() -> *mut ros_vibration_builder_t {
-    Box::into_raw(Box::new(ros_vibration_builder_t(VibrationBuilderOwned {
-        stamp_sec: 0,
-        stamp_nanosec: 0,
-        frame_id: String::new(),
-        vib_x: 0.0,
-        vib_y: 0.0,
-        vib_z: 0.0,
-        band_lower_hz: 0.0,
-        band_upper_hz: 0.0,
-        measurement_type: 0,
-        unit: 0,
-        clipping: ptr::null(),
-        clipping_len: 0,
-    })))
+pub extern "C" fn edgefirst_msgs_vibration_builder_new() -> *mut edgefirst_msgs_vibration_builder_t
+{
+    Box::into_raw(Box::new(edgefirst_msgs_vibration_builder_t(
+        VibrationBuilderOwned {
+            stamp_sec: 0,
+            stamp_nanosec: 0,
+            frame_id: String::new(),
+            vib_x: 0.0,
+            vib_y: 0.0,
+            vib_z: 0.0,
+            band_lower_hz: 0.0,
+            band_upper_hz: 0.0,
+            measurement_type: 0,
+            unit: 0,
+            clipping: ptr::null(),
+            clipping_len: 0,
+        },
+    )))
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_builder_free(b: *mut ros_vibration_builder_t) {
+pub extern "C" fn edgefirst_msgs_vibration_builder_free(
+    b: *mut edgefirst_msgs_vibration_builder_t,
+) {
     if b.is_null() {
         return;
     }
@@ -12325,8 +12876,8 @@ pub extern "C" fn ros_vibration_builder_free(b: *mut ros_vibration_builder_t) {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_builder_set_stamp(
-    b: *mut ros_vibration_builder_t,
+pub extern "C" fn edgefirst_msgs_vibration_builder_set_stamp(
+    b: *mut edgefirst_msgs_vibration_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -12339,8 +12890,8 @@ pub extern "C" fn ros_vibration_builder_set_stamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_builder_set_frame_id(
-    b: *mut ros_vibration_builder_t,
+pub extern "C" fn edgefirst_msgs_vibration_builder_set_frame_id(
+    b: *mut edgefirst_msgs_vibration_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -12358,8 +12909,8 @@ pub extern "C" fn ros_vibration_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_builder_set_vibration(
-    b: *mut ros_vibration_builder_t,
+pub extern "C" fn edgefirst_msgs_vibration_builder_set_vibration(
+    b: *mut edgefirst_msgs_vibration_builder_t,
     x: f64,
     y: f64,
     z: f64,
@@ -12374,7 +12925,10 @@ pub extern "C" fn ros_vibration_builder_set_vibration(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_builder_set_band_lower_hz(b: *mut ros_vibration_builder_t, v: f32) {
+pub extern "C" fn edgefirst_msgs_vibration_builder_set_band_lower_hz(
+    b: *mut edgefirst_msgs_vibration_builder_t,
+    v: f32,
+) {
     if b.is_null() {
         return;
     }
@@ -12384,7 +12938,10 @@ pub extern "C" fn ros_vibration_builder_set_band_lower_hz(b: *mut ros_vibration_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_builder_set_band_upper_hz(b: *mut ros_vibration_builder_t, v: f32) {
+pub extern "C" fn edgefirst_msgs_vibration_builder_set_band_upper_hz(
+    b: *mut edgefirst_msgs_vibration_builder_t,
+    v: f32,
+) {
     if b.is_null() {
         return;
     }
@@ -12394,8 +12951,8 @@ pub extern "C" fn ros_vibration_builder_set_band_upper_hz(b: *mut ros_vibration_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_builder_set_measurement_type(
-    b: *mut ros_vibration_builder_t,
+pub extern "C" fn edgefirst_msgs_vibration_builder_set_measurement_type(
+    b: *mut edgefirst_msgs_vibration_builder_t,
     v: u8,
 ) {
     if b.is_null() {
@@ -12407,7 +12964,10 @@ pub extern "C" fn ros_vibration_builder_set_measurement_type(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_builder_set_unit(b: *mut ros_vibration_builder_t, v: u8) {
+pub extern "C" fn edgefirst_msgs_vibration_builder_set_unit(
+    b: *mut edgefirst_msgs_vibration_builder_t,
+    v: u8,
+) {
     if b.is_null() {
         return;
     }
@@ -12417,8 +12977,8 @@ pub extern "C" fn ros_vibration_builder_set_unit(b: *mut ros_vibration_builder_t
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_builder_set_clipping(
-    b: *mut ros_vibration_builder_t,
+pub extern "C" fn edgefirst_msgs_vibration_builder_set_clipping(
+    b: *mut edgefirst_msgs_vibration_builder_t,
     data: *const u32,
     len: usize,
 ) -> i32 {
@@ -12446,8 +13006,8 @@ fn vibration_clipping_slice(inner: &VibrationBuilderOwned) -> &[u32] {
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_builder_build(
-    b: *mut ros_vibration_builder_t,
+pub extern "C" fn edgefirst_msgs_vibration_builder_build(
+    b: *mut edgefirst_msgs_vibration_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -12480,8 +13040,8 @@ pub extern "C" fn ros_vibration_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_vibration_builder_encode_into(
-    b: *mut ros_vibration_builder_t,
+pub extern "C" fn edgefirst_msgs_vibration_builder_encode_into(
+    b: *mut edgefirst_msgs_vibration_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -12535,12 +13095,12 @@ struct FoxgloveCompressedVideoBuilderOwned {
     format: String,
 }
 
-pub struct ros_foxglove_compressed_video_builder_t(FoxgloveCompressedVideoBuilderOwned);
+pub struct foxglove_msgs_compressed_video_builder_t(FoxgloveCompressedVideoBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_video_builder_new(
-) -> *mut ros_foxglove_compressed_video_builder_t {
-    Box::into_raw(Box::new(ros_foxglove_compressed_video_builder_t(
+pub extern "C" fn foxglove_msgs_compressed_video_builder_new(
+) -> *mut foxglove_msgs_compressed_video_builder_t {
+    Box::into_raw(Box::new(foxglove_msgs_compressed_video_builder_t(
         FoxgloveCompressedVideoBuilderOwned {
             stamp_sec: 0,
             stamp_nanosec: 0,
@@ -12553,8 +13113,8 @@ pub extern "C" fn ros_foxglove_compressed_video_builder_new(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_video_builder_free(
-    b: *mut ros_foxglove_compressed_video_builder_t,
+pub extern "C" fn foxglove_msgs_compressed_video_builder_free(
+    b: *mut foxglove_msgs_compressed_video_builder_t,
 ) {
     if b.is_null() {
         return;
@@ -12565,8 +13125,8 @@ pub extern "C" fn ros_foxglove_compressed_video_builder_free(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_video_builder_set_stamp(
-    b: *mut ros_foxglove_compressed_video_builder_t,
+pub extern "C" fn foxglove_msgs_compressed_video_builder_set_stamp(
+    b: *mut foxglove_msgs_compressed_video_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -12578,19 +13138,19 @@ pub extern "C" fn ros_foxglove_compressed_video_builder_set_stamp(
     inner.stamp_nanosec = nanosec;
 }
 
-/// Alias for `ros_foxglove_compressed_video_builder_set_stamp`; matches the Foxglove schema field name.
+/// Alias for `foxglove_msgs_compressed_video_builder_set_stamp`; matches the Foxglove schema field name.
 #[no_mangle]
-pub unsafe extern "C" fn ros_foxglove_compressed_video_builder_set_timestamp(
-    b: *mut ros_foxglove_compressed_video_builder_t,
+pub unsafe extern "C" fn foxglove_msgs_compressed_video_builder_set_timestamp(
+    b: *mut foxglove_msgs_compressed_video_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
-    ros_foxglove_compressed_video_builder_set_stamp(b, sec, nanosec)
+    foxglove_msgs_compressed_video_builder_set_stamp(b, sec, nanosec)
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_video_builder_set_frame_id(
-    b: *mut ros_foxglove_compressed_video_builder_t,
+pub extern "C" fn foxglove_msgs_compressed_video_builder_set_frame_id(
+    b: *mut foxglove_msgs_compressed_video_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -12608,8 +13168,8 @@ pub extern "C" fn ros_foxglove_compressed_video_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_video_builder_set_data(
-    b: *mut ros_foxglove_compressed_video_builder_t,
+pub extern "C" fn foxglove_msgs_compressed_video_builder_set_data(
+    b: *mut foxglove_msgs_compressed_video_builder_t,
     data: *const u8,
     len: usize,
 ) -> i32 {
@@ -12629,8 +13189,8 @@ pub extern "C" fn ros_foxglove_compressed_video_builder_set_data(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_video_builder_set_format(
-    b: *mut ros_foxglove_compressed_video_builder_t,
+pub extern "C" fn foxglove_msgs_compressed_video_builder_set_format(
+    b: *mut foxglove_msgs_compressed_video_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -12656,8 +13216,8 @@ fn foxglove_compressed_video_data_slice(inner: &FoxgloveCompressedVideoBuilderOw
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_video_builder_build(
-    b: *mut ros_foxglove_compressed_video_builder_t,
+pub extern "C" fn foxglove_msgs_compressed_video_builder_build(
+    b: *mut foxglove_msgs_compressed_video_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -12682,8 +13242,8 @@ pub extern "C" fn ros_foxglove_compressed_video_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_video_builder_encode_into(
-    b: *mut ros_foxglove_compressed_video_builder_t,
+pub extern "C" fn foxglove_msgs_compressed_video_builder_encode_into(
+    b: *mut foxglove_msgs_compressed_video_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -12729,12 +13289,12 @@ struct FoxgloveCompressedImageBuilderOwned {
     format: String,
 }
 
-pub struct ros_foxglove_compressed_image_builder_t(FoxgloveCompressedImageBuilderOwned);
+pub struct foxglove_msgs_compressed_image_builder_t(FoxgloveCompressedImageBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_image_builder_new(
-) -> *mut ros_foxglove_compressed_image_builder_t {
-    Box::into_raw(Box::new(ros_foxglove_compressed_image_builder_t(
+pub extern "C" fn foxglove_msgs_compressed_image_builder_new(
+) -> *mut foxglove_msgs_compressed_image_builder_t {
+    Box::into_raw(Box::new(foxglove_msgs_compressed_image_builder_t(
         FoxgloveCompressedImageBuilderOwned {
             stamp_sec: 0,
             stamp_nanosec: 0,
@@ -12747,8 +13307,8 @@ pub extern "C" fn ros_foxglove_compressed_image_builder_new(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_image_builder_free(
-    b: *mut ros_foxglove_compressed_image_builder_t,
+pub extern "C" fn foxglove_msgs_compressed_image_builder_free(
+    b: *mut foxglove_msgs_compressed_image_builder_t,
 ) {
     if b.is_null() {
         return;
@@ -12759,8 +13319,8 @@ pub extern "C" fn ros_foxglove_compressed_image_builder_free(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_image_builder_set_stamp(
-    b: *mut ros_foxglove_compressed_image_builder_t,
+pub extern "C" fn foxglove_msgs_compressed_image_builder_set_stamp(
+    b: *mut foxglove_msgs_compressed_image_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -12772,19 +13332,19 @@ pub extern "C" fn ros_foxglove_compressed_image_builder_set_stamp(
     inner.stamp_nanosec = nanosec;
 }
 
-/// Alias for `ros_foxglove_compressed_image_builder_set_stamp`; matches the Foxglove schema field name.
+/// Alias for `foxglove_msgs_compressed_image_builder_set_stamp`; matches the Foxglove schema field name.
 #[no_mangle]
-pub unsafe extern "C" fn ros_foxglove_compressed_image_builder_set_timestamp(
-    b: *mut ros_foxglove_compressed_image_builder_t,
+pub unsafe extern "C" fn foxglove_msgs_compressed_image_builder_set_timestamp(
+    b: *mut foxglove_msgs_compressed_image_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
-    ros_foxglove_compressed_image_builder_set_stamp(b, sec, nanosec)
+    foxglove_msgs_compressed_image_builder_set_stamp(b, sec, nanosec)
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_image_builder_set_frame_id(
-    b: *mut ros_foxglove_compressed_image_builder_t,
+pub extern "C" fn foxglove_msgs_compressed_image_builder_set_frame_id(
+    b: *mut foxglove_msgs_compressed_image_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -12802,8 +13362,8 @@ pub extern "C" fn ros_foxglove_compressed_image_builder_set_frame_id(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_image_builder_set_data(
-    b: *mut ros_foxglove_compressed_image_builder_t,
+pub extern "C" fn foxglove_msgs_compressed_image_builder_set_data(
+    b: *mut foxglove_msgs_compressed_image_builder_t,
     data: *const u8,
     len: usize,
 ) -> i32 {
@@ -12823,8 +13383,8 @@ pub extern "C" fn ros_foxglove_compressed_image_builder_set_data(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_image_builder_set_format(
-    b: *mut ros_foxglove_compressed_image_builder_t,
+pub extern "C" fn foxglove_msgs_compressed_image_builder_set_format(
+    b: *mut foxglove_msgs_compressed_image_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -12850,8 +13410,8 @@ fn foxglove_compressed_image_data_slice(inner: &FoxgloveCompressedImageBuilderOw
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_image_builder_build(
-    b: *mut ros_foxglove_compressed_image_builder_t,
+pub extern "C" fn foxglove_msgs_compressed_image_builder_build(
+    b: *mut foxglove_msgs_compressed_image_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -12876,8 +13436,8 @@ pub extern "C" fn ros_foxglove_compressed_image_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_image_builder_encode_into(
-    b: *mut ros_foxglove_compressed_image_builder_t,
+pub extern "C" fn foxglove_msgs_compressed_image_builder_encode_into(
+    b: *mut foxglove_msgs_compressed_image_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -12931,12 +13491,12 @@ struct FoxgloveTextAnnotationBuilderOwned {
     bg_color_a: f64,
 }
 
-pub struct ros_foxglove_text_annotation_builder_t(FoxgloveTextAnnotationBuilderOwned);
+pub struct foxglove_msgs_text_annotation_builder_t(FoxgloveTextAnnotationBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_text_annotation_builder_new(
-) -> *mut ros_foxglove_text_annotation_builder_t {
-    Box::into_raw(Box::new(ros_foxglove_text_annotation_builder_t(
+pub extern "C" fn foxglove_msgs_text_annotation_builder_new(
+) -> *mut foxglove_msgs_text_annotation_builder_t {
+    Box::into_raw(Box::new(foxglove_msgs_text_annotation_builder_t(
         FoxgloveTextAnnotationBuilderOwned {
             timestamp_sec: 0,
             timestamp_nanosec: 0,
@@ -12957,8 +13517,8 @@ pub extern "C" fn ros_foxglove_text_annotation_builder_new(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_text_annotation_builder_free(
-    b: *mut ros_foxglove_text_annotation_builder_t,
+pub extern "C" fn foxglove_msgs_text_annotation_builder_free(
+    b: *mut foxglove_msgs_text_annotation_builder_t,
 ) {
     if b.is_null() {
         return;
@@ -12969,8 +13529,8 @@ pub extern "C" fn ros_foxglove_text_annotation_builder_free(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_text_annotation_builder_set_timestamp(
-    b: *mut ros_foxglove_text_annotation_builder_t,
+pub extern "C" fn foxglove_msgs_text_annotation_builder_set_timestamp(
+    b: *mut foxglove_msgs_text_annotation_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -12983,8 +13543,8 @@ pub extern "C" fn ros_foxglove_text_annotation_builder_set_timestamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_text_annotation_builder_set_position(
-    b: *mut ros_foxglove_text_annotation_builder_t,
+pub extern "C" fn foxglove_msgs_text_annotation_builder_set_position(
+    b: *mut foxglove_msgs_text_annotation_builder_t,
     x: f64,
     y: f64,
 ) {
@@ -12997,8 +13557,8 @@ pub extern "C" fn ros_foxglove_text_annotation_builder_set_position(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_text_annotation_builder_set_text(
-    b: *mut ros_foxglove_text_annotation_builder_t,
+pub extern "C" fn foxglove_msgs_text_annotation_builder_set_text(
+    b: *mut foxglove_msgs_text_annotation_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -13016,8 +13576,8 @@ pub extern "C" fn ros_foxglove_text_annotation_builder_set_text(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_text_annotation_builder_set_font_size(
-    b: *mut ros_foxglove_text_annotation_builder_t,
+pub extern "C" fn foxglove_msgs_text_annotation_builder_set_font_size(
+    b: *mut foxglove_msgs_text_annotation_builder_t,
     v: f64,
 ) {
     if b.is_null() {
@@ -13029,8 +13589,8 @@ pub extern "C" fn ros_foxglove_text_annotation_builder_set_font_size(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_text_annotation_builder_set_text_color(
-    b: *mut ros_foxglove_text_annotation_builder_t,
+pub extern "C" fn foxglove_msgs_text_annotation_builder_set_text_color(
+    b: *mut foxglove_msgs_text_annotation_builder_t,
     r: f64,
     g: f64,
     bc: f64,
@@ -13047,8 +13607,8 @@ pub extern "C" fn ros_foxglove_text_annotation_builder_set_text_color(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_text_annotation_builder_set_background_color(
-    b: *mut ros_foxglove_text_annotation_builder_t,
+pub extern "C" fn foxglove_msgs_text_annotation_builder_set_background_color(
+    b: *mut foxglove_msgs_text_annotation_builder_t,
     r: f64,
     g: f64,
     bc: f64,
@@ -13065,8 +13625,8 @@ pub extern "C" fn ros_foxglove_text_annotation_builder_set_background_color(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_text_annotation_builder_build(
-    b: *mut ros_foxglove_text_annotation_builder_t,
+pub extern "C" fn foxglove_msgs_text_annotation_builder_build(
+    b: *mut foxglove_msgs_text_annotation_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -13106,8 +13666,8 @@ pub extern "C" fn ros_foxglove_text_annotation_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_text_annotation_builder_encode_into(
-    b: *mut ros_foxglove_text_annotation_builder_t,
+pub extern "C" fn foxglove_msgs_text_annotation_builder_encode_into(
+    b: *mut foxglove_msgs_text_annotation_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -13159,14 +13719,14 @@ pub extern "C" fn ros_foxglove_text_annotation_builder_encode_into(
 
 // ── foxglove_msgs::FoxglovePointAnnotation ──────────────────────────
 //
-// `points` is a borrowed array of `ros_foxglove_point2_elem_t` descriptors
+// `points` is a borrowed array of `foxglove_msgs_point2_elem_t` descriptors
 // (plain f64 pairs, no inner borrow). The builder also exposes optional
 // `outline_colors` (per-point color overrides); both arrays are borrowed.
 
 /// C-POD descriptor for a single FoxglovePoint2 element.
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct ros_foxglove_point2_elem_t {
+pub struct foxglove_msgs_point2_elem_t {
     pub x: f64,
     pub y: f64,
 }
@@ -13174,7 +13734,7 @@ pub struct ros_foxglove_point2_elem_t {
 /// C-POD descriptor for a single FoxgloveColor element.
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct ros_foxglove_color_elem_t {
+pub struct foxglove_msgs_color_elem_t {
     pub r: f64,
     pub g: f64,
     pub b: f64,
@@ -13182,7 +13742,7 @@ pub struct ros_foxglove_color_elem_t {
 }
 
 unsafe fn foxglove_point2_descs_to_vec(
-    descs: *const ros_foxglove_point2_elem_t,
+    descs: *const foxglove_msgs_point2_elem_t,
     count: usize,
 ) -> Vec<foxglove_msgs::FoxglovePoint2> {
     if descs.is_null() || count == 0 {
@@ -13196,7 +13756,7 @@ unsafe fn foxglove_point2_descs_to_vec(
 }
 
 unsafe fn foxglove_color_descs_to_vec(
-    descs: *const ros_foxglove_color_elem_t,
+    descs: *const foxglove_msgs_color_elem_t,
     count: usize,
 ) -> Vec<foxglove_msgs::FoxgloveColor> {
     if descs.is_null() || count == 0 {
@@ -13218,13 +13778,13 @@ struct FoxglovePointAnnotationBuilderOwned {
     timestamp_sec: i32,
     timestamp_nanosec: u32,
     type_: u8,
-    points: *const ros_foxglove_point2_elem_t,
+    points: *const foxglove_msgs_point2_elem_t,
     points_count: usize,
     outline_color_r: f64,
     outline_color_g: f64,
     outline_color_b: f64,
     outline_color_a: f64,
-    outline_colors: *const ros_foxglove_color_elem_t,
+    outline_colors: *const foxglove_msgs_color_elem_t,
     outline_colors_count: usize,
     fill_color_r: f64,
     fill_color_g: f64,
@@ -13233,12 +13793,12 @@ struct FoxglovePointAnnotationBuilderOwned {
     thickness: f64,
 }
 
-pub struct ros_foxglove_point_annotation_builder_t(FoxglovePointAnnotationBuilderOwned);
+pub struct foxglove_msgs_point_annotation_builder_t(FoxglovePointAnnotationBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_point_annotation_builder_new(
-) -> *mut ros_foxglove_point_annotation_builder_t {
-    Box::into_raw(Box::new(ros_foxglove_point_annotation_builder_t(
+pub extern "C" fn foxglove_msgs_point_annotation_builder_new(
+) -> *mut foxglove_msgs_point_annotation_builder_t {
+    Box::into_raw(Box::new(foxglove_msgs_point_annotation_builder_t(
         FoxglovePointAnnotationBuilderOwned {
             timestamp_sec: 0,
             timestamp_nanosec: 0,
@@ -13261,8 +13821,8 @@ pub extern "C" fn ros_foxglove_point_annotation_builder_new(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_point_annotation_builder_free(
-    b: *mut ros_foxglove_point_annotation_builder_t,
+pub extern "C" fn foxglove_msgs_point_annotation_builder_free(
+    b: *mut foxglove_msgs_point_annotation_builder_t,
 ) {
     if b.is_null() {
         return;
@@ -13273,8 +13833,8 @@ pub extern "C" fn ros_foxglove_point_annotation_builder_free(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_point_annotation_builder_set_timestamp(
-    b: *mut ros_foxglove_point_annotation_builder_t,
+pub extern "C" fn foxglove_msgs_point_annotation_builder_set_timestamp(
+    b: *mut foxglove_msgs_point_annotation_builder_t,
     sec: i32,
     nanosec: u32,
 ) {
@@ -13287,8 +13847,8 @@ pub extern "C" fn ros_foxglove_point_annotation_builder_set_timestamp(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_point_annotation_builder_set_type(
-    b: *mut ros_foxglove_point_annotation_builder_t,
+pub extern "C" fn foxglove_msgs_point_annotation_builder_set_type(
+    b: *mut foxglove_msgs_point_annotation_builder_t,
     v: u8,
 ) {
     if b.is_null() {
@@ -13301,9 +13861,9 @@ pub extern "C" fn ros_foxglove_point_annotation_builder_set_type(
 
 /// Set the points descriptor sequence (BORROWED).
 #[no_mangle]
-pub extern "C" fn ros_foxglove_point_annotation_builder_set_points(
-    b: *mut ros_foxglove_point_annotation_builder_t,
-    points: *const ros_foxglove_point2_elem_t,
+pub extern "C" fn foxglove_msgs_point_annotation_builder_set_points(
+    b: *mut foxglove_msgs_point_annotation_builder_t,
+    points: *const foxglove_msgs_point2_elem_t,
     count: usize,
 ) -> i32 {
     if b.is_null() {
@@ -13322,8 +13882,8 @@ pub extern "C" fn ros_foxglove_point_annotation_builder_set_points(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_point_annotation_builder_set_outline_color(
-    b: *mut ros_foxglove_point_annotation_builder_t,
+pub extern "C" fn foxglove_msgs_point_annotation_builder_set_outline_color(
+    b: *mut foxglove_msgs_point_annotation_builder_t,
     r: f64,
     g: f64,
     bc: f64,
@@ -13341,9 +13901,9 @@ pub extern "C" fn ros_foxglove_point_annotation_builder_set_outline_color(
 
 /// Set the outline_colors descriptor sequence (BORROWED).
 #[no_mangle]
-pub extern "C" fn ros_foxglove_point_annotation_builder_set_outline_colors(
-    b: *mut ros_foxglove_point_annotation_builder_t,
-    colors: *const ros_foxglove_color_elem_t,
+pub extern "C" fn foxglove_msgs_point_annotation_builder_set_outline_colors(
+    b: *mut foxglove_msgs_point_annotation_builder_t,
+    colors: *const foxglove_msgs_color_elem_t,
     count: usize,
 ) -> i32 {
     if b.is_null() {
@@ -13362,8 +13922,8 @@ pub extern "C" fn ros_foxglove_point_annotation_builder_set_outline_colors(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_point_annotation_builder_set_fill_color(
-    b: *mut ros_foxglove_point_annotation_builder_t,
+pub extern "C" fn foxglove_msgs_point_annotation_builder_set_fill_color(
+    b: *mut foxglove_msgs_point_annotation_builder_t,
     r: f64,
     g: f64,
     bc: f64,
@@ -13380,8 +13940,8 @@ pub extern "C" fn ros_foxglove_point_annotation_builder_set_fill_color(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_point_annotation_builder_set_thickness(
-    b: *mut ros_foxglove_point_annotation_builder_t,
+pub extern "C" fn foxglove_msgs_point_annotation_builder_set_thickness(
+    b: *mut foxglove_msgs_point_annotation_builder_t,
     v: f64,
 ) {
     if b.is_null() {
@@ -13393,8 +13953,8 @@ pub extern "C" fn ros_foxglove_point_annotation_builder_set_thickness(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_point_annotation_builder_build(
-    b: *mut ros_foxglove_point_annotation_builder_t,
+pub extern "C" fn foxglove_msgs_point_annotation_builder_build(
+    b: *mut foxglove_msgs_point_annotation_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -13435,8 +13995,8 @@ pub extern "C" fn ros_foxglove_point_annotation_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_point_annotation_builder_encode_into(
-    b: *mut ros_foxglove_point_annotation_builder_t,
+pub extern "C" fn foxglove_msgs_point_annotation_builder_encode_into(
+    b: *mut foxglove_msgs_point_annotation_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -13497,7 +14057,7 @@ pub extern "C" fn ros_foxglove_point_annotation_builder_encode_into(
 /// are plain values; nothing is borrowed.
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct ros_foxglove_circle_annotation_elem_t {
+pub struct foxglove_msgs_circle_annotation_elem_t {
     pub timestamp_sec: i32,
     pub timestamp_nanosec: u32,
     pub position_x: f64,
@@ -13518,17 +14078,17 @@ pub struct ros_foxglove_circle_annotation_elem_t {
 /// and `outline_colors` arrays are borrowed and must outlive the build/
 /// encode_into call. Each individual element is a plain f64 record.
 #[repr(C)]
-pub struct ros_foxglove_point_annotation_elem_t {
+pub struct foxglove_msgs_point_annotation_elem_t {
     pub timestamp_sec: i32,
     pub timestamp_nanosec: u32,
     pub type_: u8,
-    pub points: *const ros_foxglove_point2_elem_t,
+    pub points: *const foxglove_msgs_point2_elem_t,
     pub points_count: usize,
     pub outline_color_r: f64,
     pub outline_color_g: f64,
     pub outline_color_b: f64,
     pub outline_color_a: f64,
-    pub outline_colors: *const ros_foxglove_color_elem_t,
+    pub outline_colors: *const foxglove_msgs_color_elem_t,
     pub outline_colors_count: usize,
     pub fill_color_r: f64,
     pub fill_color_g: f64,
@@ -13540,7 +14100,7 @@ pub struct ros_foxglove_point_annotation_elem_t {
 /// C-POD descriptor for a FoxgloveTextAnnotation element. `text` is a
 /// borrowed C string and must outlive the build/encode_into call.
 #[repr(C)]
-pub struct ros_foxglove_text_annotation_elem_t {
+pub struct foxglove_msgs_text_annotation_elem_t {
     pub timestamp_sec: i32,
     pub timestamp_nanosec: u32,
     pub position_x: f64,
@@ -13558,7 +14118,7 @@ pub struct ros_foxglove_text_annotation_elem_t {
 }
 
 unsafe fn circle_descs_to_vec(
-    descs: *const ros_foxglove_circle_annotation_elem_t,
+    descs: *const foxglove_msgs_circle_annotation_elem_t,
     count: usize,
 ) -> Vec<foxglove_msgs::FoxgloveCircleAnnotations> {
     if descs.is_null() || count == 0 {
@@ -13592,7 +14152,7 @@ unsafe fn circle_descs_to_vec(
 }
 
 unsafe fn point_annotation_descs_to_vec(
-    descs: *const ros_foxglove_point_annotation_elem_t,
+    descs: *const foxglove_msgs_point_annotation_elem_t,
     count: usize,
 ) -> Vec<foxglove_msgs::FoxglovePointAnnotationView> {
     if descs.is_null() || count == 0 {
@@ -13624,7 +14184,7 @@ unsafe fn point_annotation_descs_to_vec(
 }
 
 unsafe fn text_annotation_descs_to_vec(
-    descs: *const ros_foxglove_text_annotation_elem_t,
+    descs: *const foxglove_msgs_text_annotation_elem_t,
     count: usize,
 ) -> Result<Vec<foxglove_msgs::FoxgloveTextAnnotationView<'static>>, ()> {
     if descs.is_null() || count == 0 {
@@ -13661,20 +14221,20 @@ unsafe fn text_annotation_descs_to_vec(
 }
 
 struct FoxgloveImageAnnotationBuilderOwned {
-    circles: *const ros_foxglove_circle_annotation_elem_t,
+    circles: *const foxglove_msgs_circle_annotation_elem_t,
     circles_count: usize,
-    points: *const ros_foxglove_point_annotation_elem_t,
+    points: *const foxglove_msgs_point_annotation_elem_t,
     points_count: usize,
-    texts: *const ros_foxglove_text_annotation_elem_t,
+    texts: *const foxglove_msgs_text_annotation_elem_t,
     texts_count: usize,
 }
 
-pub struct ros_foxglove_image_annotation_builder_t(FoxgloveImageAnnotationBuilderOwned);
+pub struct foxglove_msgs_image_annotation_builder_t(FoxgloveImageAnnotationBuilderOwned);
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_image_annotation_builder_new(
-) -> *mut ros_foxglove_image_annotation_builder_t {
-    Box::into_raw(Box::new(ros_foxglove_image_annotation_builder_t(
+pub extern "C" fn foxglove_msgs_image_annotation_builder_new(
+) -> *mut foxglove_msgs_image_annotation_builder_t {
+    Box::into_raw(Box::new(foxglove_msgs_image_annotation_builder_t(
         FoxgloveImageAnnotationBuilderOwned {
             circles: ptr::null(),
             circles_count: 0,
@@ -13687,8 +14247,8 @@ pub extern "C" fn ros_foxglove_image_annotation_builder_new(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_image_annotation_builder_free(
-    b: *mut ros_foxglove_image_annotation_builder_t,
+pub extern "C" fn foxglove_msgs_image_annotation_builder_free(
+    b: *mut foxglove_msgs_image_annotation_builder_t,
 ) {
     if b.is_null() {
         return;
@@ -13700,9 +14260,9 @@ pub extern "C" fn ros_foxglove_image_annotation_builder_free(
 
 /// Set the circles descriptor sequence (BORROWED).
 #[no_mangle]
-pub extern "C" fn ros_foxglove_image_annotation_builder_set_circles(
-    b: *mut ros_foxglove_image_annotation_builder_t,
-    circles: *const ros_foxglove_circle_annotation_elem_t,
+pub extern "C" fn foxglove_msgs_image_annotation_builder_set_circles(
+    b: *mut foxglove_msgs_image_annotation_builder_t,
+    circles: *const foxglove_msgs_circle_annotation_elem_t,
     count: usize,
 ) -> i32 {
     if b.is_null() {
@@ -13723,9 +14283,9 @@ pub extern "C" fn ros_foxglove_image_annotation_builder_set_circles(
 /// Set the points descriptor sequence (BORROWED — including each
 /// element's inner `points`/`outline_colors` arrays).
 #[no_mangle]
-pub extern "C" fn ros_foxglove_image_annotation_builder_set_points(
-    b: *mut ros_foxglove_image_annotation_builder_t,
-    points: *const ros_foxglove_point_annotation_elem_t,
+pub extern "C" fn foxglove_msgs_image_annotation_builder_set_points(
+    b: *mut foxglove_msgs_image_annotation_builder_t,
+    points: *const foxglove_msgs_point_annotation_elem_t,
     count: usize,
 ) -> i32 {
     if b.is_null() {
@@ -13746,9 +14306,9 @@ pub extern "C" fn ros_foxglove_image_annotation_builder_set_points(
 /// Set the texts descriptor sequence (BORROWED — including each
 /// element's `text` C string).
 #[no_mangle]
-pub extern "C" fn ros_foxglove_image_annotation_builder_set_texts(
-    b: *mut ros_foxglove_image_annotation_builder_t,
-    texts: *const ros_foxglove_text_annotation_elem_t,
+pub extern "C" fn foxglove_msgs_image_annotation_builder_set_texts(
+    b: *mut foxglove_msgs_image_annotation_builder_t,
+    texts: *const foxglove_msgs_text_annotation_elem_t,
     count: usize,
 ) -> i32 {
     if b.is_null() {
@@ -13767,8 +14327,8 @@ pub extern "C" fn ros_foxglove_image_annotation_builder_set_texts(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_image_annotation_builder_build(
-    b: *mut ros_foxglove_image_annotation_builder_t,
+pub extern "C" fn foxglove_msgs_image_annotation_builder_build(
+    b: *mut foxglove_msgs_image_annotation_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -13798,8 +14358,8 @@ pub extern "C" fn ros_foxglove_image_annotation_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_foxglove_image_annotation_builder_encode_into(
-    b: *mut ros_foxglove_image_annotation_builder_t,
+pub extern "C" fn foxglove_msgs_image_annotation_builder_encode_into(
+    b: *mut foxglove_msgs_image_annotation_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -13847,7 +14407,7 @@ pub extern "C" fn ros_foxglove_image_annotation_builder_encode_into(
 // Only fixed-size fields are exposed — variable-length fields (strings, bulk
 // data, nested sequences) require the builder API.
 //
-// Signature: ros_<type>_set_<field>(buf, len, value...) -> i32
+// Signature: <package>_<type>_set_<field>(buf, len, value...) -> i32
 //   buf:  *mut u8  — CDR buffer to mutate
 //   len:  usize    — buffer length (must match the encoded CDR length)
 //   ...:  primitive field args
@@ -13862,7 +14422,7 @@ pub extern "C" fn ros_foxglove_image_annotation_builder_encode_into(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_header_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+pub extern "C" fn std_msgs_header_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -13889,7 +14449,12 @@ pub extern "C" fn ros_header_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec:
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_image_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+pub extern "C" fn sensor_msgs_image_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -13916,7 +14481,7 @@ pub extern "C" fn ros_image_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: 
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_image_set_height(buf: *mut u8, len: usize, v: u32) -> i32 {
+pub extern "C" fn sensor_msgs_image_set_height(buf: *mut u8, len: usize, v: u32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -13943,7 +14508,7 @@ pub extern "C" fn ros_image_set_height(buf: *mut u8, len: usize, v: u32) -> i32 
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_image_set_width(buf: *mut u8, len: usize, v: u32) -> i32 {
+pub extern "C" fn sensor_msgs_image_set_width(buf: *mut u8, len: usize, v: u32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -13970,7 +14535,7 @@ pub extern "C" fn ros_image_set_width(buf: *mut u8, len: usize, v: u32) -> i32 {
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_image_set_is_bigendian(buf: *mut u8, len: usize, v: u8) -> i32 {
+pub extern "C" fn sensor_msgs_image_set_is_bigendian(buf: *mut u8, len: usize, v: u8) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -13997,7 +14562,7 @@ pub extern "C" fn ros_image_set_is_bigendian(buf: *mut u8, len: usize, v: u8) ->
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_image_set_step(buf: *mut u8, len: usize, v: u32) -> i32 {
+pub extern "C" fn sensor_msgs_image_set_step(buf: *mut u8, len: usize, v: u32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -14024,7 +14589,7 @@ pub extern "C" fn ros_image_set_step(buf: *mut u8, len: usize, v: u32) -> i32 {
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_compressed_image_set_stamp(
+pub extern "C" fn sensor_msgs_compressed_image_set_stamp(
     buf: *mut u8,
     len: usize,
     sec: i32,
@@ -14057,7 +14622,7 @@ pub extern "C" fn ros_compressed_image_set_stamp(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_imu_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+pub extern "C" fn sensor_msgs_imu_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -14084,7 +14649,7 @@ pub extern "C" fn ros_imu_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u3
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_imu_set_orientation(
+pub extern "C" fn sensor_msgs_imu_set_orientation(
     buf: *mut u8,
     len: usize,
     x: f64,
@@ -14118,7 +14683,7 @@ pub extern "C" fn ros_imu_set_orientation(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_imu_set_orientation_covariance(
+pub extern "C" fn sensor_msgs_imu_set_orientation_covariance(
     buf: *mut u8,
     len: usize,
     c: *const f64,
@@ -14157,7 +14722,7 @@ pub extern "C" fn ros_imu_set_orientation_covariance(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_imu_set_angular_velocity(
+pub extern "C" fn sensor_msgs_imu_set_angular_velocity(
     buf: *mut u8,
     len: usize,
     x: f64,
@@ -14190,7 +14755,7 @@ pub extern "C" fn ros_imu_set_angular_velocity(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_imu_set_angular_velocity_covariance(
+pub extern "C" fn sensor_msgs_imu_set_angular_velocity_covariance(
     buf: *mut u8,
     len: usize,
     c: *const f64,
@@ -14229,7 +14794,7 @@ pub extern "C" fn ros_imu_set_angular_velocity_covariance(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_imu_set_linear_acceleration(
+pub extern "C" fn sensor_msgs_imu_set_linear_acceleration(
     buf: *mut u8,
     len: usize,
     x: f64,
@@ -14262,7 +14827,7 @@ pub extern "C" fn ros_imu_set_linear_acceleration(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_imu_set_linear_acceleration_covariance(
+pub extern "C" fn sensor_msgs_imu_set_linear_acceleration_covariance(
     buf: *mut u8,
     len: usize,
     c: *const f64,
@@ -14301,7 +14866,12 @@ pub extern "C" fn ros_imu_set_linear_acceleration_covariance(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+pub extern "C" fn sensor_msgs_nav_sat_fix_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -14328,7 +14898,7 @@ pub extern "C" fn ros_nav_sat_fix_set_stamp(buf: *mut u8, len: usize, sec: i32, 
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_set_status(
+pub extern "C" fn sensor_msgs_nav_sat_fix_set_status(
     buf: *mut u8,
     len: usize,
     status: i8,
@@ -14360,7 +14930,7 @@ pub extern "C" fn ros_nav_sat_fix_set_status(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_set_latitude(buf: *mut u8, len: usize, v: f64) -> i32 {
+pub extern "C" fn sensor_msgs_nav_sat_fix_set_latitude(buf: *mut u8, len: usize, v: f64) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -14387,7 +14957,7 @@ pub extern "C" fn ros_nav_sat_fix_set_latitude(buf: *mut u8, len: usize, v: f64)
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_set_longitude(buf: *mut u8, len: usize, v: f64) -> i32 {
+pub extern "C" fn sensor_msgs_nav_sat_fix_set_longitude(buf: *mut u8, len: usize, v: f64) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -14414,7 +14984,7 @@ pub extern "C" fn ros_nav_sat_fix_set_longitude(buf: *mut u8, len: usize, v: f64
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_set_altitude(buf: *mut u8, len: usize, v: f64) -> i32 {
+pub extern "C" fn sensor_msgs_nav_sat_fix_set_altitude(buf: *mut u8, len: usize, v: f64) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -14441,7 +15011,7 @@ pub extern "C" fn ros_nav_sat_fix_set_altitude(buf: *mut u8, len: usize, v: f64)
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_set_position_covariance(
+pub extern "C" fn sensor_msgs_nav_sat_fix_set_position_covariance(
     buf: *mut u8,
     len: usize,
     c: *const f64,
@@ -14480,7 +15050,7 @@ pub extern "C" fn ros_nav_sat_fix_set_position_covariance(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_nav_sat_fix_set_position_covariance_type(
+pub extern "C" fn sensor_msgs_nav_sat_fix_set_position_covariance_type(
     buf: *mut u8,
     len: usize,
     v: u8,
@@ -14511,7 +15081,7 @@ pub extern "C" fn ros_nav_sat_fix_set_position_covariance_type(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_point_field_set_offset(buf: *mut u8, len: usize, v: u32) -> i32 {
+pub extern "C" fn sensor_msgs_point_field_set_offset(buf: *mut u8, len: usize, v: u32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -14538,7 +15108,7 @@ pub extern "C" fn ros_point_field_set_offset(buf: *mut u8, len: usize, v: u32) -
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_point_field_set_datatype(buf: *mut u8, len: usize, v: u8) -> i32 {
+pub extern "C" fn sensor_msgs_point_field_set_datatype(buf: *mut u8, len: usize, v: u8) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -14565,7 +15135,7 @@ pub extern "C" fn ros_point_field_set_datatype(buf: *mut u8, len: usize, v: u8) 
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_point_field_set_count(buf: *mut u8, len: usize, v: u32) -> i32 {
+pub extern "C" fn sensor_msgs_point_field_set_count(buf: *mut u8, len: usize, v: u32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -14592,7 +15162,12 @@ pub extern "C" fn ros_point_field_set_count(buf: *mut u8, len: usize, v: u32) ->
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+pub extern "C" fn sensor_msgs_point_cloud2_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -14620,7 +15195,7 @@ pub extern "C" fn ros_point_cloud2_set_stamp(buf: *mut u8, len: usize, sec: i32,
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_set_height(buf: *mut u8, len: usize, v: u32) -> i32 {
+pub extern "C" fn sensor_msgs_point_cloud2_set_height(buf: *mut u8, len: usize, v: u32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -14648,7 +15223,7 @@ pub extern "C" fn ros_point_cloud2_set_height(buf: *mut u8, len: usize, v: u32) 
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_set_width(buf: *mut u8, len: usize, v: u32) -> i32 {
+pub extern "C" fn sensor_msgs_point_cloud2_set_width(buf: *mut u8, len: usize, v: u32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -14676,7 +15251,11 @@ pub extern "C" fn ros_point_cloud2_set_width(buf: *mut u8, len: usize, v: u32) -
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_set_is_bigendian(buf: *mut u8, len: usize, v: u8) -> i32 {
+pub extern "C" fn sensor_msgs_point_cloud2_set_is_bigendian(
+    buf: *mut u8,
+    len: usize,
+    v: u8,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -14704,7 +15283,7 @@ pub extern "C" fn ros_point_cloud2_set_is_bigendian(buf: *mut u8, len: usize, v:
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_set_point_step(buf: *mut u8, len: usize, v: u32) -> i32 {
+pub extern "C" fn sensor_msgs_point_cloud2_set_point_step(buf: *mut u8, len: usize, v: u32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -14732,7 +15311,7 @@ pub extern "C" fn ros_point_cloud2_set_point_step(buf: *mut u8, len: usize, v: u
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_set_row_step(buf: *mut u8, len: usize, v: u32) -> i32 {
+pub extern "C" fn sensor_msgs_point_cloud2_set_row_step(buf: *mut u8, len: usize, v: u32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -14760,7 +15339,7 @@ pub extern "C" fn ros_point_cloud2_set_row_step(buf: *mut u8, len: usize, v: u32
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_point_cloud2_set_is_dense(buf: *mut u8, len: usize, v: u8) -> i32 {
+pub extern "C" fn sensor_msgs_point_cloud2_set_is_dense(buf: *mut u8, len: usize, v: u8) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -14788,7 +15367,12 @@ pub extern "C" fn ros_point_cloud2_set_is_dense(buf: *mut u8, len: usize, v: u8)
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_camera_info_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+pub extern "C" fn sensor_msgs_camera_info_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -14815,7 +15399,7 @@ pub extern "C" fn ros_camera_info_set_stamp(buf: *mut u8, len: usize, sec: i32, 
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_camera_info_set_height(buf: *mut u8, len: usize, v: u32) -> i32 {
+pub extern "C" fn sensor_msgs_camera_info_set_height(buf: *mut u8, len: usize, v: u32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -14842,7 +15426,7 @@ pub extern "C" fn ros_camera_info_set_height(buf: *mut u8, len: usize, v: u32) -
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_camera_info_set_width(buf: *mut u8, len: usize, v: u32) -> i32 {
+pub extern "C" fn sensor_msgs_camera_info_set_width(buf: *mut u8, len: usize, v: u32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -14869,7 +15453,7 @@ pub extern "C" fn ros_camera_info_set_width(buf: *mut u8, len: usize, v: u32) ->
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_camera_info_set_k(buf: *mut u8, len: usize, k: *const f64) -> i32 {
+pub extern "C" fn sensor_msgs_camera_info_set_k(buf: *mut u8, len: usize, k: *const f64) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -14904,7 +15488,7 @@ pub extern "C" fn ros_camera_info_set_k(buf: *mut u8, len: usize, k: *const f64)
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_camera_info_set_r(buf: *mut u8, len: usize, r: *const f64) -> i32 {
+pub extern "C" fn sensor_msgs_camera_info_set_r(buf: *mut u8, len: usize, r: *const f64) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -14939,7 +15523,7 @@ pub extern "C" fn ros_camera_info_set_r(buf: *mut u8, len: usize, r: *const f64)
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_camera_info_set_p(buf: *mut u8, len: usize, p: *const f64) -> i32 {
+pub extern "C" fn sensor_msgs_camera_info_set_p(buf: *mut u8, len: usize, p: *const f64) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -14974,7 +15558,7 @@ pub extern "C" fn ros_camera_info_set_p(buf: *mut u8, len: usize, p: *const f64)
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_camera_info_set_binning_x(buf: *mut u8, len: usize, v: u32) -> i32 {
+pub extern "C" fn sensor_msgs_camera_info_set_binning_x(buf: *mut u8, len: usize, v: u32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15001,7 +15585,7 @@ pub extern "C" fn ros_camera_info_set_binning_x(buf: *mut u8, len: usize, v: u32
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_camera_info_set_binning_y(buf: *mut u8, len: usize, v: u32) -> i32 {
+pub extern "C" fn sensor_msgs_camera_info_set_binning_y(buf: *mut u8, len: usize, v: u32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15028,7 +15612,7 @@ pub extern "C" fn ros_camera_info_set_binning_y(buf: *mut u8, len: usize, v: u32
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_camera_info_set_roi(
+pub extern "C" fn sensor_msgs_camera_info_set_roi(
     buf: *mut u8,
     len: usize,
     x_offset: u32,
@@ -15069,7 +15653,7 @@ pub extern "C" fn ros_camera_info_set_roi(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_magnetic_field_set_stamp(
+pub extern "C" fn sensor_msgs_magnetic_field_set_stamp(
     buf: *mut u8,
     len: usize,
     sec: i32,
@@ -15102,7 +15686,7 @@ pub extern "C" fn ros_magnetic_field_set_stamp(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_magnetic_field_set_magnetic_field(
+pub extern "C" fn sensor_msgs_magnetic_field_set_magnetic_field(
     buf: *mut u8,
     len: usize,
     x: f64,
@@ -15136,7 +15720,7 @@ pub extern "C" fn ros_magnetic_field_set_magnetic_field(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_magnetic_field_set_magnetic_field_covariance(
+pub extern "C" fn sensor_msgs_magnetic_field_set_magnetic_field_covariance(
     buf: *mut u8,
     len: usize,
     c: *const f64,
@@ -15176,7 +15760,7 @@ pub extern "C" fn ros_magnetic_field_set_magnetic_field_covariance(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_fluid_pressure_set_stamp(
+pub extern "C" fn sensor_msgs_fluid_pressure_set_stamp(
     buf: *mut u8,
     len: usize,
     sec: i32,
@@ -15209,7 +15793,11 @@ pub extern "C" fn ros_fluid_pressure_set_stamp(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_fluid_pressure_set_fluid_pressure(buf: *mut u8, len: usize, v: f64) -> i32 {
+pub extern "C" fn sensor_msgs_fluid_pressure_set_fluid_pressure(
+    buf: *mut u8,
+    len: usize,
+    v: f64,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15237,7 +15825,7 @@ pub extern "C" fn ros_fluid_pressure_set_fluid_pressure(buf: *mut u8, len: usize
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_fluid_pressure_set_variance(buf: *mut u8, len: usize, v: f64) -> i32 {
+pub extern "C" fn sensor_msgs_fluid_pressure_set_variance(buf: *mut u8, len: usize, v: f64) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15265,7 +15853,12 @@ pub extern "C" fn ros_fluid_pressure_set_variance(buf: *mut u8, len: usize, v: f
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_temperature_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+pub extern "C" fn sensor_msgs_temperature_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15293,7 +15886,7 @@ pub extern "C" fn ros_temperature_set_stamp(buf: *mut u8, len: usize, sec: i32, 
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_temperature_set_temperature(buf: *mut u8, len: usize, v: f64) -> i32 {
+pub extern "C" fn sensor_msgs_temperature_set_temperature(buf: *mut u8, len: usize, v: f64) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15321,7 +15914,7 @@ pub extern "C" fn ros_temperature_set_temperature(buf: *mut u8, len: usize, v: f
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_temperature_set_variance(buf: *mut u8, len: usize, v: f64) -> i32 {
+pub extern "C" fn sensor_msgs_temperature_set_variance(buf: *mut u8, len: usize, v: f64) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15349,7 +15942,7 @@ pub extern "C" fn ros_temperature_set_variance(buf: *mut u8, len: usize, v: f64)
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_battery_state_set_stamp(
+pub extern "C" fn sensor_msgs_battery_state_set_stamp(
     buf: *mut u8,
     len: usize,
     sec: i32,
@@ -15382,7 +15975,7 @@ pub extern "C" fn ros_battery_state_set_stamp(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_battery_state_set_voltage(buf: *mut u8, len: usize, v: f32) -> i32 {
+pub extern "C" fn sensor_msgs_battery_state_set_voltage(buf: *mut u8, len: usize, v: f32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15410,7 +16003,11 @@ pub extern "C" fn ros_battery_state_set_voltage(buf: *mut u8, len: usize, v: f32
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_battery_state_set_temperature(buf: *mut u8, len: usize, v: f32) -> i32 {
+pub extern "C" fn sensor_msgs_battery_state_set_temperature(
+    buf: *mut u8,
+    len: usize,
+    v: f32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15438,7 +16035,7 @@ pub extern "C" fn ros_battery_state_set_temperature(buf: *mut u8, len: usize, v:
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_battery_state_set_current(buf: *mut u8, len: usize, v: f32) -> i32 {
+pub extern "C" fn sensor_msgs_battery_state_set_current(buf: *mut u8, len: usize, v: f32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15466,7 +16063,7 @@ pub extern "C" fn ros_battery_state_set_current(buf: *mut u8, len: usize, v: f32
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_battery_state_set_charge(buf: *mut u8, len: usize, v: f32) -> i32 {
+pub extern "C" fn sensor_msgs_battery_state_set_charge(buf: *mut u8, len: usize, v: f32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15494,7 +16091,7 @@ pub extern "C" fn ros_battery_state_set_charge(buf: *mut u8, len: usize, v: f32)
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_battery_state_set_capacity(buf: *mut u8, len: usize, v: f32) -> i32 {
+pub extern "C" fn sensor_msgs_battery_state_set_capacity(buf: *mut u8, len: usize, v: f32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15522,7 +16119,11 @@ pub extern "C" fn ros_battery_state_set_capacity(buf: *mut u8, len: usize, v: f3
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_battery_state_set_design_capacity(buf: *mut u8, len: usize, v: f32) -> i32 {
+pub extern "C" fn sensor_msgs_battery_state_set_design_capacity(
+    buf: *mut u8,
+    len: usize,
+    v: f32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15550,7 +16151,11 @@ pub extern "C" fn ros_battery_state_set_design_capacity(buf: *mut u8, len: usize
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_battery_state_set_percentage(buf: *mut u8, len: usize, v: f32) -> i32 {
+pub extern "C" fn sensor_msgs_battery_state_set_percentage(
+    buf: *mut u8,
+    len: usize,
+    v: f32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15578,7 +16183,7 @@ pub extern "C" fn ros_battery_state_set_percentage(buf: *mut u8, len: usize, v: 
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_battery_state_set_power_supply_status(
+pub extern "C" fn sensor_msgs_battery_state_set_power_supply_status(
     buf: *mut u8,
     len: usize,
     v: u8,
@@ -15610,7 +16215,7 @@ pub extern "C" fn ros_battery_state_set_power_supply_status(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_battery_state_set_power_supply_health(
+pub extern "C" fn sensor_msgs_battery_state_set_power_supply_health(
     buf: *mut u8,
     len: usize,
     v: u8,
@@ -15642,7 +16247,7 @@ pub extern "C" fn ros_battery_state_set_power_supply_health(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_battery_state_set_power_supply_technology(
+pub extern "C" fn sensor_msgs_battery_state_set_power_supply_technology(
     buf: *mut u8,
     len: usize,
     v: u8,
@@ -15674,7 +16279,7 @@ pub extern "C" fn ros_battery_state_set_power_supply_technology(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_battery_state_set_present(buf: *mut u8, len: usize, v: u8) -> i32 {
+pub extern "C" fn sensor_msgs_battery_state_set_present(buf: *mut u8, len: usize, v: u8) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15702,7 +16307,7 @@ pub extern "C" fn ros_battery_state_set_present(buf: *mut u8, len: usize, v: u8)
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_mask_set_height(buf: *mut u8, len: usize, v: u32) -> i32 {
+pub extern "C" fn edgefirst_msgs_mask_set_height(buf: *mut u8, len: usize, v: u32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15729,7 +16334,7 @@ pub extern "C" fn ros_mask_set_height(buf: *mut u8, len: usize, v: u32) -> i32 {
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_mask_set_width(buf: *mut u8, len: usize, v: u32) -> i32 {
+pub extern "C" fn edgefirst_msgs_mask_set_width(buf: *mut u8, len: usize, v: u32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15756,7 +16361,7 @@ pub extern "C" fn ros_mask_set_width(buf: *mut u8, len: usize, v: u32) -> i32 {
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_mask_set_length(buf: *mut u8, len: usize, v: u32) -> i32 {
+pub extern "C" fn edgefirst_msgs_mask_set_length(buf: *mut u8, len: usize, v: u32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15783,7 +16388,7 @@ pub extern "C" fn ros_mask_set_length(buf: *mut u8, len: usize, v: u32) -> i32 {
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_mask_set_boxed(buf: *mut u8, len: usize, v: u8) -> i32 {
+pub extern "C" fn edgefirst_msgs_mask_set_boxed(buf: *mut u8, len: usize, v: u8) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15810,7 +16415,12 @@ pub extern "C" fn ros_mask_set_boxed(buf: *mut u8, len: usize, v: u8) -> i32 {
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_local_time_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+pub extern "C" fn edgefirst_msgs_local_time_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15838,7 +16448,7 @@ pub extern "C" fn ros_local_time_set_stamp(buf: *mut u8, len: usize, sec: i32, n
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_local_time_set_date(
+pub extern "C" fn edgefirst_msgs_local_time_set_date(
     buf: *mut u8,
     len: usize,
     year: u16,
@@ -15872,7 +16482,12 @@ pub extern "C" fn ros_local_time_set_date(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_local_time_set_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+pub extern "C" fn edgefirst_msgs_local_time_set_time(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15900,7 +16515,7 @@ pub extern "C" fn ros_local_time_set_time(buf: *mut u8, len: usize, sec: i32, ns
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_local_time_set_timezone(buf: *mut u8, len: usize, v: i16) -> i32 {
+pub extern "C" fn edgefirst_msgs_local_time_set_timezone(buf: *mut u8, len: usize, v: i16) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15928,7 +16543,12 @@ pub extern "C" fn ros_local_time_set_timezone(buf: *mut u8, len: usize, v: i16) 
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+pub extern "C" fn edgefirst_msgs_radar_cube_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15956,7 +16576,7 @@ pub extern "C" fn ros_radar_cube_set_stamp(buf: *mut u8, len: usize, sec: i32, n
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_set_timestamp(buf: *mut u8, len: usize, v: u64) -> i32 {
+pub extern "C" fn edgefirst_msgs_radar_cube_set_timestamp(buf: *mut u8, len: usize, v: u64) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -15984,7 +16604,7 @@ pub extern "C" fn ros_radar_cube_set_timestamp(buf: *mut u8, len: usize, v: u64)
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_radar_cube_set_is_complex(buf: *mut u8, len: usize, v: u8) -> i32 {
+pub extern "C" fn edgefirst_msgs_radar_cube_set_is_complex(buf: *mut u8, len: usize, v: u8) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16012,7 +16632,12 @@ pub extern "C" fn ros_radar_cube_set_is_complex(buf: *mut u8, len: usize, v: u8)
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_radar_info_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+pub extern "C" fn edgefirst_msgs_radar_info_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16040,7 +16665,7 @@ pub extern "C" fn ros_radar_info_set_stamp(buf: *mut u8, len: usize, sec: i32, n
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_radar_info_set_cube(buf: *mut u8, len: usize, v: u8) -> i32 {
+pub extern "C" fn edgefirst_msgs_radar_info_set_cube(buf: *mut u8, len: usize, v: u8) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16068,7 +16693,7 @@ pub extern "C" fn ros_radar_info_set_cube(buf: *mut u8, len: usize, v: u8) -> i3
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_track_set_lifetime(buf: *mut u8, len: usize, v: i32) -> i32 {
+pub extern "C" fn edgefirst_msgs_track_set_lifetime(buf: *mut u8, len: usize, v: i32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16095,7 +16720,12 @@ pub extern "C" fn ros_track_set_lifetime(buf: *mut u8, len: usize, v: i32) -> i3
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_track_set_created(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+pub extern "C" fn edgefirst_msgs_track_set_created(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16122,7 +16752,7 @@ pub extern "C" fn ros_track_set_created(buf: *mut u8, len: usize, sec: i32, nsec
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_detect_box_set_center_x(buf: *mut u8, len: usize, v: f32) -> i32 {
+pub extern "C" fn edgefirst_msgs_detect_box_set_center_x(buf: *mut u8, len: usize, v: f32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16150,7 +16780,7 @@ pub extern "C" fn ros_detect_box_set_center_x(buf: *mut u8, len: usize, v: f32) 
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_detect_box_set_center_y(buf: *mut u8, len: usize, v: f32) -> i32 {
+pub extern "C" fn edgefirst_msgs_detect_box_set_center_y(buf: *mut u8, len: usize, v: f32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16178,7 +16808,7 @@ pub extern "C" fn ros_detect_box_set_center_y(buf: *mut u8, len: usize, v: f32) 
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_detect_box_set_width(buf: *mut u8, len: usize, v: f32) -> i32 {
+pub extern "C" fn edgefirst_msgs_detect_box_set_width(buf: *mut u8, len: usize, v: f32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16206,7 +16836,7 @@ pub extern "C" fn ros_detect_box_set_width(buf: *mut u8, len: usize, v: f32) -> 
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_detect_box_set_height(buf: *mut u8, len: usize, v: f32) -> i32 {
+pub extern "C" fn edgefirst_msgs_detect_box_set_height(buf: *mut u8, len: usize, v: f32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16234,7 +16864,7 @@ pub extern "C" fn ros_detect_box_set_height(buf: *mut u8, len: usize, v: f32) ->
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_detect_box_set_score(buf: *mut u8, len: usize, v: f32) -> i32 {
+pub extern "C" fn edgefirst_msgs_detect_box_set_score(buf: *mut u8, len: usize, v: f32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16262,7 +16892,7 @@ pub extern "C" fn ros_detect_box_set_score(buf: *mut u8, len: usize, v: f32) -> 
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_detect_box_set_distance(buf: *mut u8, len: usize, v: f32) -> i32 {
+pub extern "C" fn edgefirst_msgs_detect_box_set_distance(buf: *mut u8, len: usize, v: f32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16290,7 +16920,7 @@ pub extern "C" fn ros_detect_box_set_distance(buf: *mut u8, len: usize, v: f32) 
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_detect_box_set_speed(buf: *mut u8, len: usize, v: f32) -> i32 {
+pub extern "C" fn edgefirst_msgs_detect_box_set_speed(buf: *mut u8, len: usize, v: f32) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16318,7 +16948,11 @@ pub extern "C" fn ros_detect_box_set_speed(buf: *mut u8, len: usize, v: f32) -> 
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_detect_box_set_track_lifetime(buf: *mut u8, len: usize, v: i32) -> i32 {
+pub extern "C" fn edgefirst_msgs_detect_box_set_track_lifetime(
+    buf: *mut u8,
+    len: usize,
+    v: i32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16346,7 +16980,7 @@ pub extern "C" fn ros_detect_box_set_track_lifetime(buf: *mut u8, len: usize, v:
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_detect_box_set_track_created(
+pub extern "C" fn edgefirst_msgs_detect_box_set_track_created(
     buf: *mut u8,
     len: usize,
     sec: i32,
@@ -16379,7 +17013,12 @@ pub extern "C" fn ros_detect_box_set_track_created(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_detect_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+pub extern "C" fn edgefirst_msgs_detect_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16406,7 +17045,7 @@ pub extern "C" fn ros_detect_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec:
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_detect_set_input_timestamp(
+pub extern "C" fn edgefirst_msgs_detect_set_input_timestamp(
     buf: *mut u8,
     len: usize,
     sec: i32,
@@ -16438,7 +17077,12 @@ pub extern "C" fn ros_detect_set_input_timestamp(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_detect_set_model_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+pub extern "C" fn edgefirst_msgs_detect_set_model_time(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16465,7 +17109,12 @@ pub extern "C" fn ros_detect_set_model_time(buf: *mut u8, len: usize, sec: i32, 
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_detect_set_output_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+pub extern "C" fn edgefirst_msgs_detect_set_output_time(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16492,7 +17141,12 @@ pub extern "C" fn ros_detect_set_output_time(buf: *mut u8, len: usize, sec: i32,
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_model_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+pub extern "C" fn edgefirst_msgs_model_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16519,7 +17173,12 @@ pub extern "C" fn ros_model_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: 
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_model_set_input_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+pub extern "C" fn edgefirst_msgs_model_set_input_time(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16546,7 +17205,12 @@ pub extern "C" fn ros_model_set_input_time(buf: *mut u8, len: usize, sec: i32, n
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_model_set_model_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+pub extern "C" fn edgefirst_msgs_model_set_model_time(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16573,7 +17237,12 @@ pub extern "C" fn ros_model_set_model_time(buf: *mut u8, len: usize, sec: i32, n
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_model_set_output_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+pub extern "C" fn edgefirst_msgs_model_set_output_time(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16600,7 +17269,12 @@ pub extern "C" fn ros_model_set_output_time(buf: *mut u8, len: usize, sec: i32, 
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_model_set_decode_time(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+pub extern "C" fn edgefirst_msgs_model_set_decode_time(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16627,7 +17301,12 @@ pub extern "C" fn ros_model_set_decode_time(buf: *mut u8, len: usize, sec: i32, 
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_model_info_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+pub extern "C" fn edgefirst_msgs_model_info_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16655,7 +17334,7 @@ pub extern "C" fn ros_model_info_set_stamp(buf: *mut u8, len: usize, sec: i32, n
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_model_info_set_input_type(buf: *mut u8, len: usize, v: u8) -> i32 {
+pub extern "C" fn edgefirst_msgs_model_info_set_input_type(buf: *mut u8, len: usize, v: u8) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16683,7 +17362,11 @@ pub extern "C" fn ros_model_info_set_input_type(buf: *mut u8, len: usize, v: u8)
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_model_info_set_output_type(buf: *mut u8, len: usize, v: u8) -> i32 {
+pub extern "C" fn edgefirst_msgs_model_info_set_output_type(
+    buf: *mut u8,
+    len: usize,
+    v: u8,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16711,7 +17394,12 @@ pub extern "C" fn ros_model_info_set_output_type(buf: *mut u8, len: usize, v: u8
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_vibration_set_stamp(buf: *mut u8, len: usize, sec: i32, nsec: u32) -> i32 {
+pub extern "C" fn edgefirst_msgs_vibration_set_stamp(
+    buf: *mut u8,
+    len: usize,
+    sec: i32,
+    nsec: u32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16739,7 +17427,7 @@ pub extern "C" fn ros_vibration_set_stamp(buf: *mut u8, len: usize, sec: i32, ns
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_vibration_set_vibration(
+pub extern "C" fn edgefirst_msgs_vibration_set_vibration(
     buf: *mut u8,
     len: usize,
     x: f64,
@@ -16773,7 +17461,11 @@ pub extern "C" fn ros_vibration_set_vibration(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_vibration_set_band_lower_hz(buf: *mut u8, len: usize, v: f32) -> i32 {
+pub extern "C" fn edgefirst_msgs_vibration_set_band_lower_hz(
+    buf: *mut u8,
+    len: usize,
+    v: f32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16801,7 +17493,11 @@ pub extern "C" fn ros_vibration_set_band_lower_hz(buf: *mut u8, len: usize, v: f
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_vibration_set_band_upper_hz(buf: *mut u8, len: usize, v: f32) -> i32 {
+pub extern "C" fn edgefirst_msgs_vibration_set_band_upper_hz(
+    buf: *mut u8,
+    len: usize,
+    v: f32,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16829,7 +17525,11 @@ pub extern "C" fn ros_vibration_set_band_upper_hz(buf: *mut u8, len: usize, v: f
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_vibration_set_measurement_type(buf: *mut u8, len: usize, v: u8) -> i32 {
+pub extern "C" fn edgefirst_msgs_vibration_set_measurement_type(
+    buf: *mut u8,
+    len: usize,
+    v: u8,
+) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16857,7 +17557,7 @@ pub extern "C" fn ros_vibration_set_measurement_type(buf: *mut u8, len: usize, v
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_vibration_set_unit(buf: *mut u8, len: usize, v: u8) -> i32 {
+pub extern "C" fn edgefirst_msgs_vibration_set_unit(buf: *mut u8, len: usize, v: u8) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -16885,7 +17585,7 @@ pub extern "C" fn ros_vibration_set_unit(buf: *mut u8, len: usize, v: u8) -> i32
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_video_set_stamp(
+pub extern "C" fn foxglove_msgs_compressed_video_set_stamp(
     buf: *mut u8,
     len: usize,
     sec: i32,
@@ -16913,18 +17613,18 @@ pub extern "C" fn ros_foxglove_compressed_video_set_stamp(
     }
 }
 
-/// Alias for `ros_foxglove_compressed_video_set_stamp`; matches the Foxglove schema field name.
+/// Alias for `foxglove_msgs_compressed_video_set_stamp`; matches the Foxglove schema field name.
 ///
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub unsafe extern "C" fn ros_foxglove_compressed_video_set_timestamp(
+pub unsafe extern "C" fn foxglove_msgs_compressed_video_set_timestamp(
     buf: *mut u8,
     len: usize,
     sec: i32,
     nsec: u32,
 ) -> i32 {
-    ros_foxglove_compressed_video_set_stamp(buf, len, sec, nsec)
+    foxglove_msgs_compressed_video_set_stamp(buf, len, sec, nsec)
 }
 
 /// Set the stamp field in place on a FoxgloveCompressedImage buffer.
@@ -16932,7 +17632,7 @@ pub unsafe extern "C" fn ros_foxglove_compressed_video_set_timestamp(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_foxglove_compressed_image_set_stamp(
+pub extern "C" fn foxglove_msgs_compressed_image_set_stamp(
     buf: *mut u8,
     len: usize,
     sec: i32,
@@ -16960,18 +17660,18 @@ pub extern "C" fn ros_foxglove_compressed_image_set_stamp(
     }
 }
 
-/// Alias for `ros_foxglove_compressed_image_set_stamp`; matches the Foxglove schema field name.
+/// Alias for `foxglove_msgs_compressed_image_set_stamp`; matches the Foxglove schema field name.
 ///
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub unsafe extern "C" fn ros_foxglove_compressed_image_set_timestamp(
+pub unsafe extern "C" fn foxglove_msgs_compressed_image_set_timestamp(
     buf: *mut u8,
     len: usize,
     sec: i32,
     nsec: u32,
 ) -> i32 {
-    ros_foxglove_compressed_image_set_stamp(buf, len, sec, nsec)
+    foxglove_msgs_compressed_image_set_stamp(buf, len, sec, nsec)
 }
 
 /// Set the timestamp field in place on a FoxgloveTextAnnotation buffer.
@@ -16979,7 +17679,7 @@ pub unsafe extern "C" fn ros_foxglove_compressed_image_set_timestamp(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_foxglove_text_annotation_set_timestamp(
+pub extern "C" fn foxglove_msgs_text_annotation_set_timestamp(
     buf: *mut u8,
     len: usize,
     sec: i32,
@@ -17012,7 +17712,7 @@ pub extern "C" fn ros_foxglove_text_annotation_set_timestamp(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_foxglove_text_annotation_set_position(
+pub extern "C" fn foxglove_msgs_text_annotation_set_position(
     buf: *mut u8,
     len: usize,
     x: f64,
@@ -17045,7 +17745,7 @@ pub extern "C" fn ros_foxglove_text_annotation_set_position(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_foxglove_text_annotation_set_font_size(
+pub extern "C" fn foxglove_msgs_text_annotation_set_font_size(
     buf: *mut u8,
     len: usize,
     v: f64,
@@ -17077,7 +17777,7 @@ pub extern "C" fn ros_foxglove_text_annotation_set_font_size(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_foxglove_text_annotation_set_text_color(
+pub extern "C" fn foxglove_msgs_text_annotation_set_text_color(
     buf: *mut u8,
     len: usize,
     r: f64,
@@ -17112,7 +17812,7 @@ pub extern "C" fn ros_foxglove_text_annotation_set_text_color(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_foxglove_text_annotation_set_background_color(
+pub extern "C" fn foxglove_msgs_text_annotation_set_background_color(
     buf: *mut u8,
     len: usize,
     r: f64,
@@ -17147,7 +17847,7 @@ pub extern "C" fn ros_foxglove_text_annotation_set_background_color(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_foxglove_point_annotation_set_timestamp(
+pub extern "C" fn foxglove_msgs_point_annotation_set_timestamp(
     buf: *mut u8,
     len: usize,
     sec: i32,
@@ -17180,7 +17880,7 @@ pub extern "C" fn ros_foxglove_point_annotation_set_timestamp(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_foxglove_point_annotation_set_type(buf: *mut u8, len: usize, v: u8) -> i32 {
+pub extern "C" fn foxglove_msgs_point_annotation_set_type(buf: *mut u8, len: usize, v: u8) -> i32 {
     if buf.is_null() {
         set_errno(EINVAL);
         return -1;
@@ -17208,7 +17908,7 @@ pub extern "C" fn ros_foxglove_point_annotation_set_type(buf: *mut u8, len: usiz
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_foxglove_point_annotation_set_outline_color(
+pub extern "C" fn foxglove_msgs_point_annotation_set_outline_color(
     buf: *mut u8,
     len: usize,
     r: f64,
@@ -17243,7 +17943,7 @@ pub extern "C" fn ros_foxglove_point_annotation_set_outline_color(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_foxglove_point_annotation_set_fill_color(
+pub extern "C" fn foxglove_msgs_point_annotation_set_fill_color(
     buf: *mut u8,
     len: usize,
     r: f64,
@@ -17278,7 +17978,7 @@ pub extern "C" fn ros_foxglove_point_annotation_set_fill_color(
 /// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
 /// EBADMSG if buf is not a valid encoded message of this type).
 #[no_mangle]
-pub extern "C" fn ros_foxglove_point_annotation_set_thickness(
+pub extern "C" fn foxglove_msgs_point_annotation_set_thickness(
     buf: *mut u8,
     len: usize,
     v: f64,
@@ -17309,7 +18009,7 @@ pub extern "C" fn ros_foxglove_point_annotation_set_thickness(
 //
 // These live under tests/ alongside the C and C++ suites but compile as unit
 // tests: the crate emits no rlib (see [lib] in Cargo.toml), so an integration
-// test could not link the `ros_*` symbols. Declared last so they cannot affect
+// test could not link the `<package>_*` symbols. Declared last so they cannot affect
 // the textual scoping of the `macro_rules!` helpers defined above.
 #[cfg(test)]
 #[path = "../tests/builder_ffi_smoke.rs"]

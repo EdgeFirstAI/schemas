@@ -107,10 +107,10 @@ struct AltitudeBuilderOwned {
     bottom_clearance: f32,
 }
 impl_builder_new_free!(
-    ros_mavros_altitude_builder_t,
+    mavros_msgs_altitude_builder_t,
     AltitudeBuilderOwned,
-    ros_mavros_altitude_builder_new,
-    ros_mavros_altitude_builder_free,
+    mavros_msgs_altitude_builder_new,
+    mavros_msgs_altitude_builder_free,
     AltitudeBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -124,14 +124,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_mavros_altitude_builder_t,
-    ros_mavros_altitude_builder_set_stamp,
-    ros_mavros_altitude_builder_set_frame_id
+    mavros_msgs_altitude_builder_t,
+    mavros_msgs_altitude_builder_set_stamp,
+    mavros_msgs_altitude_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_altitude_builder_set_monotonic(
-    b: *mut ros_mavros_altitude_builder_t,
+pub extern "C" fn mavros_msgs_altitude_builder_set_monotonic(
+    b: *mut mavros_msgs_altitude_builder_t,
     v: f32,
 ) {
     if b.is_null() {
@@ -143,8 +143,8 @@ pub extern "C" fn ros_mavros_altitude_builder_set_monotonic(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_altitude_builder_set_amsl(
-    b: *mut ros_mavros_altitude_builder_t,
+pub extern "C" fn mavros_msgs_altitude_builder_set_amsl(
+    b: *mut mavros_msgs_altitude_builder_t,
     v: f32,
 ) {
     if b.is_null() {
@@ -156,8 +156,8 @@ pub extern "C" fn ros_mavros_altitude_builder_set_amsl(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_altitude_builder_set_local(
-    b: *mut ros_mavros_altitude_builder_t,
+pub extern "C" fn mavros_msgs_altitude_builder_set_local(
+    b: *mut mavros_msgs_altitude_builder_t,
     v: f32,
 ) {
     if b.is_null() {
@@ -169,8 +169,8 @@ pub extern "C" fn ros_mavros_altitude_builder_set_local(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_altitude_builder_set_relative(
-    b: *mut ros_mavros_altitude_builder_t,
+pub extern "C" fn mavros_msgs_altitude_builder_set_relative(
+    b: *mut mavros_msgs_altitude_builder_t,
     v: f32,
 ) {
     if b.is_null() {
@@ -182,8 +182,8 @@ pub extern "C" fn ros_mavros_altitude_builder_set_relative(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_altitude_builder_set_terrain(
-    b: *mut ros_mavros_altitude_builder_t,
+pub extern "C" fn mavros_msgs_altitude_builder_set_terrain(
+    b: *mut mavros_msgs_altitude_builder_t,
     v: f32,
 ) {
     if b.is_null() {
@@ -195,8 +195,8 @@ pub extern "C" fn ros_mavros_altitude_builder_set_terrain(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_altitude_builder_set_bottom_clearance(
-    b: *mut ros_mavros_altitude_builder_t,
+pub extern "C" fn mavros_msgs_altitude_builder_set_bottom_clearance(
+    b: *mut mavros_msgs_altitude_builder_t,
     v: f32,
 ) {
     if b.is_null() {
@@ -208,8 +208,8 @@ pub extern "C" fn ros_mavros_altitude_builder_set_bottom_clearance(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_altitude_builder_build(
-    b: *mut ros_mavros_altitude_builder_t,
+pub extern "C" fn mavros_msgs_altitude_builder_build(
+    b: *mut mavros_msgs_altitude_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -232,8 +232,8 @@ pub extern "C" fn ros_mavros_altitude_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_altitude_builder_encode_into(
-    b: *mut ros_mavros_altitude_builder_t,
+pub extern "C" fn mavros_msgs_altitude_builder_encode_into(
+    b: *mut mavros_msgs_altitude_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -271,10 +271,10 @@ struct VfrHudBuilderOwned {
     climb: f32,
 }
 impl_builder_new_free!(
-    ros_mavros_vfrhud_builder_t,
+    mavros_msgs_vfrhud_builder_t,
     VfrHudBuilderOwned,
-    ros_mavros_vfrhud_builder_new,
-    ros_mavros_vfrhud_builder_free,
+    mavros_msgs_vfrhud_builder_new,
+    mavros_msgs_vfrhud_builder_free,
     VfrHudBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -288,14 +288,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_mavros_vfrhud_builder_t,
-    ros_mavros_vfrhud_builder_set_stamp,
-    ros_mavros_vfrhud_builder_set_frame_id
+    mavros_msgs_vfrhud_builder_t,
+    mavros_msgs_vfrhud_builder_set_stamp,
+    mavros_msgs_vfrhud_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_vfrhud_builder_set_airspeed(
-    b: *mut ros_mavros_vfrhud_builder_t,
+pub extern "C" fn mavros_msgs_vfrhud_builder_set_airspeed(
+    b: *mut mavros_msgs_vfrhud_builder_t,
     v: f32,
 ) {
     if b.is_null() {
@@ -307,8 +307,8 @@ pub extern "C" fn ros_mavros_vfrhud_builder_set_airspeed(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_vfrhud_builder_set_groundspeed(
-    b: *mut ros_mavros_vfrhud_builder_t,
+pub extern "C" fn mavros_msgs_vfrhud_builder_set_groundspeed(
+    b: *mut mavros_msgs_vfrhud_builder_t,
     v: f32,
 ) {
     if b.is_null() {
@@ -320,8 +320,8 @@ pub extern "C" fn ros_mavros_vfrhud_builder_set_groundspeed(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_vfrhud_builder_set_heading(
-    b: *mut ros_mavros_vfrhud_builder_t,
+pub extern "C" fn mavros_msgs_vfrhud_builder_set_heading(
+    b: *mut mavros_msgs_vfrhud_builder_t,
     v: i16,
 ) {
     if b.is_null() {
@@ -333,8 +333,8 @@ pub extern "C" fn ros_mavros_vfrhud_builder_set_heading(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_vfrhud_builder_set_throttle(
-    b: *mut ros_mavros_vfrhud_builder_t,
+pub extern "C" fn mavros_msgs_vfrhud_builder_set_throttle(
+    b: *mut mavros_msgs_vfrhud_builder_t,
     v: f32,
 ) {
     if b.is_null() {
@@ -346,8 +346,8 @@ pub extern "C" fn ros_mavros_vfrhud_builder_set_throttle(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_vfrhud_builder_set_altitude(
-    b: *mut ros_mavros_vfrhud_builder_t,
+pub extern "C" fn mavros_msgs_vfrhud_builder_set_altitude(
+    b: *mut mavros_msgs_vfrhud_builder_t,
     v: f32,
 ) {
     if b.is_null() {
@@ -359,7 +359,10 @@ pub extern "C" fn ros_mavros_vfrhud_builder_set_altitude(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_vfrhud_builder_set_climb(b: *mut ros_mavros_vfrhud_builder_t, v: f32) {
+pub extern "C" fn mavros_msgs_vfrhud_builder_set_climb(
+    b: *mut mavros_msgs_vfrhud_builder_t,
+    v: f32,
+) {
     if b.is_null() {
         return;
     }
@@ -369,8 +372,8 @@ pub extern "C" fn ros_mavros_vfrhud_builder_set_climb(b: *mut ros_mavros_vfrhud_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_vfrhud_builder_build(
-    b: *mut ros_mavros_vfrhud_builder_t,
+pub extern "C" fn mavros_msgs_vfrhud_builder_build(
+    b: *mut mavros_msgs_vfrhud_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -393,8 +396,8 @@ pub extern "C" fn ros_mavros_vfrhud_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_vfrhud_builder_encode_into(
-    b: *mut ros_mavros_vfrhud_builder_t,
+pub extern "C" fn mavros_msgs_vfrhud_builder_encode_into(
+    b: *mut mavros_msgs_vfrhud_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -438,10 +441,10 @@ struct EstimatorStatusBuilderOwned {
     accel_error_status_flag: bool,
 }
 impl_builder_new_free!(
-    ros_mavros_estimator_status_builder_t,
+    mavros_msgs_estimator_status_builder_t,
     EstimatorStatusBuilderOwned,
-    ros_mavros_estimator_status_builder_new,
-    ros_mavros_estimator_status_builder_free,
+    mavros_msgs_estimator_status_builder_new,
+    mavros_msgs_estimator_status_builder_free,
     EstimatorStatusBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -461,14 +464,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_mavros_estimator_status_builder_t,
-    ros_mavros_estimator_status_builder_set_stamp,
-    ros_mavros_estimator_status_builder_set_frame_id
+    mavros_msgs_estimator_status_builder_t,
+    mavros_msgs_estimator_status_builder_set_stamp,
+    mavros_msgs_estimator_status_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_builder_set_attitude_status_flag(
-    b: *mut ros_mavros_estimator_status_builder_t,
+pub extern "C" fn mavros_msgs_estimator_status_builder_set_attitude_status_flag(
+    b: *mut mavros_msgs_estimator_status_builder_t,
     v: bool,
 ) {
     if b.is_null() {
@@ -480,8 +483,8 @@ pub extern "C" fn ros_mavros_estimator_status_builder_set_attitude_status_flag(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_builder_set_velocity_horiz_status_flag(
-    b: *mut ros_mavros_estimator_status_builder_t,
+pub extern "C" fn mavros_msgs_estimator_status_builder_set_velocity_horiz_status_flag(
+    b: *mut mavros_msgs_estimator_status_builder_t,
     v: bool,
 ) {
     if b.is_null() {
@@ -493,8 +496,8 @@ pub extern "C" fn ros_mavros_estimator_status_builder_set_velocity_horiz_status_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_builder_set_velocity_vert_status_flag(
-    b: *mut ros_mavros_estimator_status_builder_t,
+pub extern "C" fn mavros_msgs_estimator_status_builder_set_velocity_vert_status_flag(
+    b: *mut mavros_msgs_estimator_status_builder_t,
     v: bool,
 ) {
     if b.is_null() {
@@ -506,8 +509,8 @@ pub extern "C" fn ros_mavros_estimator_status_builder_set_velocity_vert_status_f
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_builder_set_pos_horiz_rel_status_flag(
-    b: *mut ros_mavros_estimator_status_builder_t,
+pub extern "C" fn mavros_msgs_estimator_status_builder_set_pos_horiz_rel_status_flag(
+    b: *mut mavros_msgs_estimator_status_builder_t,
     v: bool,
 ) {
     if b.is_null() {
@@ -519,8 +522,8 @@ pub extern "C" fn ros_mavros_estimator_status_builder_set_pos_horiz_rel_status_f
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_builder_set_pos_horiz_abs_status_flag(
-    b: *mut ros_mavros_estimator_status_builder_t,
+pub extern "C" fn mavros_msgs_estimator_status_builder_set_pos_horiz_abs_status_flag(
+    b: *mut mavros_msgs_estimator_status_builder_t,
     v: bool,
 ) {
     if b.is_null() {
@@ -532,8 +535,8 @@ pub extern "C" fn ros_mavros_estimator_status_builder_set_pos_horiz_abs_status_f
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_builder_set_pos_vert_abs_status_flag(
-    b: *mut ros_mavros_estimator_status_builder_t,
+pub extern "C" fn mavros_msgs_estimator_status_builder_set_pos_vert_abs_status_flag(
+    b: *mut mavros_msgs_estimator_status_builder_t,
     v: bool,
 ) {
     if b.is_null() {
@@ -545,8 +548,8 @@ pub extern "C" fn ros_mavros_estimator_status_builder_set_pos_vert_abs_status_fl
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_builder_set_pos_vert_agl_status_flag(
-    b: *mut ros_mavros_estimator_status_builder_t,
+pub extern "C" fn mavros_msgs_estimator_status_builder_set_pos_vert_agl_status_flag(
+    b: *mut mavros_msgs_estimator_status_builder_t,
     v: bool,
 ) {
     if b.is_null() {
@@ -558,8 +561,8 @@ pub extern "C" fn ros_mavros_estimator_status_builder_set_pos_vert_agl_status_fl
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_builder_set_const_pos_mode_status_flag(
-    b: *mut ros_mavros_estimator_status_builder_t,
+pub extern "C" fn mavros_msgs_estimator_status_builder_set_const_pos_mode_status_flag(
+    b: *mut mavros_msgs_estimator_status_builder_t,
     v: bool,
 ) {
     if b.is_null() {
@@ -571,8 +574,8 @@ pub extern "C" fn ros_mavros_estimator_status_builder_set_const_pos_mode_status_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_builder_set_pred_pos_horiz_rel_status_flag(
-    b: *mut ros_mavros_estimator_status_builder_t,
+pub extern "C" fn mavros_msgs_estimator_status_builder_set_pred_pos_horiz_rel_status_flag(
+    b: *mut mavros_msgs_estimator_status_builder_t,
     v: bool,
 ) {
     if b.is_null() {
@@ -584,8 +587,8 @@ pub extern "C" fn ros_mavros_estimator_status_builder_set_pred_pos_horiz_rel_sta
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_builder_set_pred_pos_horiz_abs_status_flag(
-    b: *mut ros_mavros_estimator_status_builder_t,
+pub extern "C" fn mavros_msgs_estimator_status_builder_set_pred_pos_horiz_abs_status_flag(
+    b: *mut mavros_msgs_estimator_status_builder_t,
     v: bool,
 ) {
     if b.is_null() {
@@ -597,8 +600,8 @@ pub extern "C" fn ros_mavros_estimator_status_builder_set_pred_pos_horiz_abs_sta
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_builder_set_gps_glitch_status_flag(
-    b: *mut ros_mavros_estimator_status_builder_t,
+pub extern "C" fn mavros_msgs_estimator_status_builder_set_gps_glitch_status_flag(
+    b: *mut mavros_msgs_estimator_status_builder_t,
     v: bool,
 ) {
     if b.is_null() {
@@ -610,8 +613,8 @@ pub extern "C" fn ros_mavros_estimator_status_builder_set_gps_glitch_status_flag
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_builder_set_accel_error_status_flag(
-    b: *mut ros_mavros_estimator_status_builder_t,
+pub extern "C" fn mavros_msgs_estimator_status_builder_set_accel_error_status_flag(
+    b: *mut mavros_msgs_estimator_status_builder_t,
     v: bool,
 ) {
     if b.is_null() {
@@ -623,8 +626,8 @@ pub extern "C" fn ros_mavros_estimator_status_builder_set_accel_error_status_fla
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_builder_build(
-    b: *mut ros_mavros_estimator_status_builder_t,
+pub extern "C" fn mavros_msgs_estimator_status_builder_build(
+    b: *mut mavros_msgs_estimator_status_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -653,8 +656,8 @@ pub extern "C" fn ros_mavros_estimator_status_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_estimator_status_builder_encode_into(
-    b: *mut ros_mavros_estimator_status_builder_t,
+pub extern "C" fn mavros_msgs_estimator_status_builder_encode_into(
+    b: *mut mavros_msgs_estimator_status_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -694,10 +697,10 @@ struct ExtendedStateBuilderOwned {
     landed_state: u8,
 }
 impl_builder_new_free!(
-    ros_mavros_extended_state_builder_t,
+    mavros_msgs_extended_state_builder_t,
     ExtendedStateBuilderOwned,
-    ros_mavros_extended_state_builder_new,
-    ros_mavros_extended_state_builder_free,
+    mavros_msgs_extended_state_builder_new,
+    mavros_msgs_extended_state_builder_free,
     ExtendedStateBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -707,14 +710,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_mavros_extended_state_builder_t,
-    ros_mavros_extended_state_builder_set_stamp,
-    ros_mavros_extended_state_builder_set_frame_id
+    mavros_msgs_extended_state_builder_t,
+    mavros_msgs_extended_state_builder_set_stamp,
+    mavros_msgs_extended_state_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_extended_state_builder_set_vtol_state(
-    b: *mut ros_mavros_extended_state_builder_t,
+pub extern "C" fn mavros_msgs_extended_state_builder_set_vtol_state(
+    b: *mut mavros_msgs_extended_state_builder_t,
     v: u8,
 ) {
     if b.is_null() {
@@ -726,8 +729,8 @@ pub extern "C" fn ros_mavros_extended_state_builder_set_vtol_state(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_extended_state_builder_set_landed_state(
-    b: *mut ros_mavros_extended_state_builder_t,
+pub extern "C" fn mavros_msgs_extended_state_builder_set_landed_state(
+    b: *mut mavros_msgs_extended_state_builder_t,
     v: u8,
 ) {
     if b.is_null() {
@@ -739,8 +742,8 @@ pub extern "C" fn ros_mavros_extended_state_builder_set_landed_state(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_extended_state_builder_build(
-    b: *mut ros_mavros_extended_state_builder_t,
+pub extern "C" fn mavros_msgs_extended_state_builder_build(
+    b: *mut mavros_msgs_extended_state_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -759,8 +762,8 @@ pub extern "C" fn ros_mavros_extended_state_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_extended_state_builder_encode_into(
-    b: *mut ros_mavros_extended_state_builder_t,
+pub extern "C" fn mavros_msgs_extended_state_builder_encode_into(
+    b: *mut mavros_msgs_extended_state_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -801,10 +804,10 @@ struct SysStatusBuilderOwned {
     errors_count4: u16,
 }
 impl_builder_new_free!(
-    ros_mavros_sys_status_builder_t,
+    mavros_msgs_sys_status_builder_t,
     SysStatusBuilderOwned,
-    ros_mavros_sys_status_builder_new,
-    ros_mavros_sys_status_builder_free,
+    mavros_msgs_sys_status_builder_new,
+    mavros_msgs_sys_status_builder_free,
     SysStatusBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -825,14 +828,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_mavros_sys_status_builder_t,
-    ros_mavros_sys_status_builder_set_stamp,
-    ros_mavros_sys_status_builder_set_frame_id
+    mavros_msgs_sys_status_builder_t,
+    mavros_msgs_sys_status_builder_set_stamp,
+    mavros_msgs_sys_status_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_builder_set_sensors_present(
-    b: *mut ros_mavros_sys_status_builder_t,
+pub extern "C" fn mavros_msgs_sys_status_builder_set_sensors_present(
+    b: *mut mavros_msgs_sys_status_builder_t,
     v: u32,
 ) {
     if b.is_null() {
@@ -844,8 +847,8 @@ pub extern "C" fn ros_mavros_sys_status_builder_set_sensors_present(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_builder_set_sensors_enabled(
-    b: *mut ros_mavros_sys_status_builder_t,
+pub extern "C" fn mavros_msgs_sys_status_builder_set_sensors_enabled(
+    b: *mut mavros_msgs_sys_status_builder_t,
     v: u32,
 ) {
     if b.is_null() {
@@ -857,8 +860,8 @@ pub extern "C" fn ros_mavros_sys_status_builder_set_sensors_enabled(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_builder_set_sensors_health(
-    b: *mut ros_mavros_sys_status_builder_t,
+pub extern "C" fn mavros_msgs_sys_status_builder_set_sensors_health(
+    b: *mut mavros_msgs_sys_status_builder_t,
     v: u32,
 ) {
     if b.is_null() {
@@ -870,8 +873,8 @@ pub extern "C" fn ros_mavros_sys_status_builder_set_sensors_health(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_builder_set_load(
-    b: *mut ros_mavros_sys_status_builder_t,
+pub extern "C" fn mavros_msgs_sys_status_builder_set_load(
+    b: *mut mavros_msgs_sys_status_builder_t,
     v: u16,
 ) {
     if b.is_null() {
@@ -883,8 +886,8 @@ pub extern "C" fn ros_mavros_sys_status_builder_set_load(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_builder_set_voltage_battery(
-    b: *mut ros_mavros_sys_status_builder_t,
+pub extern "C" fn mavros_msgs_sys_status_builder_set_voltage_battery(
+    b: *mut mavros_msgs_sys_status_builder_t,
     v: u16,
 ) {
     if b.is_null() {
@@ -896,8 +899,8 @@ pub extern "C" fn ros_mavros_sys_status_builder_set_voltage_battery(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_builder_set_current_battery(
-    b: *mut ros_mavros_sys_status_builder_t,
+pub extern "C" fn mavros_msgs_sys_status_builder_set_current_battery(
+    b: *mut mavros_msgs_sys_status_builder_t,
     v: i16,
 ) {
     if b.is_null() {
@@ -909,8 +912,8 @@ pub extern "C" fn ros_mavros_sys_status_builder_set_current_battery(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_builder_set_battery_remaining(
-    b: *mut ros_mavros_sys_status_builder_t,
+pub extern "C" fn mavros_msgs_sys_status_builder_set_battery_remaining(
+    b: *mut mavros_msgs_sys_status_builder_t,
     v: i8,
 ) {
     if b.is_null() {
@@ -922,8 +925,8 @@ pub extern "C" fn ros_mavros_sys_status_builder_set_battery_remaining(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_builder_set_drop_rate_comm(
-    b: *mut ros_mavros_sys_status_builder_t,
+pub extern "C" fn mavros_msgs_sys_status_builder_set_drop_rate_comm(
+    b: *mut mavros_msgs_sys_status_builder_t,
     v: u16,
 ) {
     if b.is_null() {
@@ -935,8 +938,8 @@ pub extern "C" fn ros_mavros_sys_status_builder_set_drop_rate_comm(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_builder_set_errors_comm(
-    b: *mut ros_mavros_sys_status_builder_t,
+pub extern "C" fn mavros_msgs_sys_status_builder_set_errors_comm(
+    b: *mut mavros_msgs_sys_status_builder_t,
     v: u16,
 ) {
     if b.is_null() {
@@ -948,8 +951,8 @@ pub extern "C" fn ros_mavros_sys_status_builder_set_errors_comm(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_builder_set_errors_count1(
-    b: *mut ros_mavros_sys_status_builder_t,
+pub extern "C" fn mavros_msgs_sys_status_builder_set_errors_count1(
+    b: *mut mavros_msgs_sys_status_builder_t,
     v: u16,
 ) {
     if b.is_null() {
@@ -961,8 +964,8 @@ pub extern "C" fn ros_mavros_sys_status_builder_set_errors_count1(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_builder_set_errors_count2(
-    b: *mut ros_mavros_sys_status_builder_t,
+pub extern "C" fn mavros_msgs_sys_status_builder_set_errors_count2(
+    b: *mut mavros_msgs_sys_status_builder_t,
     v: u16,
 ) {
     if b.is_null() {
@@ -974,8 +977,8 @@ pub extern "C" fn ros_mavros_sys_status_builder_set_errors_count2(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_builder_set_errors_count3(
-    b: *mut ros_mavros_sys_status_builder_t,
+pub extern "C" fn mavros_msgs_sys_status_builder_set_errors_count3(
+    b: *mut mavros_msgs_sys_status_builder_t,
     v: u16,
 ) {
     if b.is_null() {
@@ -987,8 +990,8 @@ pub extern "C" fn ros_mavros_sys_status_builder_set_errors_count3(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_builder_set_errors_count4(
-    b: *mut ros_mavros_sys_status_builder_t,
+pub extern "C" fn mavros_msgs_sys_status_builder_set_errors_count4(
+    b: *mut mavros_msgs_sys_status_builder_t,
     v: u16,
 ) {
     if b.is_null() {
@@ -1000,8 +1003,8 @@ pub extern "C" fn ros_mavros_sys_status_builder_set_errors_count4(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_builder_build(
-    b: *mut ros_mavros_sys_status_builder_t,
+pub extern "C" fn mavros_msgs_sys_status_builder_build(
+    b: *mut mavros_msgs_sys_status_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -1031,8 +1034,8 @@ pub extern "C" fn ros_mavros_sys_status_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_sys_status_builder_encode_into(
-    b: *mut ros_mavros_sys_status_builder_t,
+pub extern "C" fn mavros_msgs_sys_status_builder_encode_into(
+    b: *mut mavros_msgs_sys_status_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -1077,10 +1080,10 @@ struct StateBuilderOwned {
     system_status: u8,
 }
 impl_builder_new_free!(
-    ros_mavros_state_builder_t,
+    mavros_msgs_state_builder_t,
     StateBuilderOwned,
-    ros_mavros_state_builder_new,
-    ros_mavros_state_builder_free,
+    mavros_msgs_state_builder_new,
+    mavros_msgs_state_builder_free,
     StateBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -1094,14 +1097,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_mavros_state_builder_t,
-    ros_mavros_state_builder_set_stamp,
-    ros_mavros_state_builder_set_frame_id
+    mavros_msgs_state_builder_t,
+    mavros_msgs_state_builder_set_stamp,
+    mavros_msgs_state_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_state_builder_set_connected(
-    b: *mut ros_mavros_state_builder_t,
+pub extern "C" fn mavros_msgs_state_builder_set_connected(
+    b: *mut mavros_msgs_state_builder_t,
     v: bool,
 ) {
     if b.is_null() {
@@ -1113,7 +1116,10 @@ pub extern "C" fn ros_mavros_state_builder_set_connected(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_state_builder_set_armed(b: *mut ros_mavros_state_builder_t, v: bool) {
+pub extern "C" fn mavros_msgs_state_builder_set_armed(
+    b: *mut mavros_msgs_state_builder_t,
+    v: bool,
+) {
     if b.is_null() {
         return;
     }
@@ -1123,7 +1129,10 @@ pub extern "C" fn ros_mavros_state_builder_set_armed(b: *mut ros_mavros_state_bu
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_state_builder_set_guided(b: *mut ros_mavros_state_builder_t, v: bool) {
+pub extern "C" fn mavros_msgs_state_builder_set_guided(
+    b: *mut mavros_msgs_state_builder_t,
+    v: bool,
+) {
     if b.is_null() {
         return;
     }
@@ -1133,8 +1142,8 @@ pub extern "C" fn ros_mavros_state_builder_set_guided(b: *mut ros_mavros_state_b
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_state_builder_set_manual_input(
-    b: *mut ros_mavros_state_builder_t,
+pub extern "C" fn mavros_msgs_state_builder_set_manual_input(
+    b: *mut mavros_msgs_state_builder_t,
     v: bool,
 ) {
     if b.is_null() {
@@ -1146,8 +1155,8 @@ pub extern "C" fn ros_mavros_state_builder_set_manual_input(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_state_builder_set_mode(
-    b: *mut ros_mavros_state_builder_t,
+pub extern "C" fn mavros_msgs_state_builder_set_mode(
+    b: *mut mavros_msgs_state_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -1165,8 +1174,8 @@ pub extern "C" fn ros_mavros_state_builder_set_mode(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_state_builder_set_system_status(
-    b: *mut ros_mavros_state_builder_t,
+pub extern "C" fn mavros_msgs_state_builder_set_system_status(
+    b: *mut mavros_msgs_state_builder_t,
     v: u8,
 ) {
     if b.is_null() {
@@ -1178,8 +1187,8 @@ pub extern "C" fn ros_mavros_state_builder_set_system_status(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_state_builder_build(
-    b: *mut ros_mavros_state_builder_t,
+pub extern "C" fn mavros_msgs_state_builder_build(
+    b: *mut mavros_msgs_state_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -1202,8 +1211,8 @@ pub extern "C" fn ros_mavros_state_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_state_builder_encode_into(
-    b: *mut ros_mavros_state_builder_t,
+pub extern "C" fn mavros_msgs_state_builder_encode_into(
+    b: *mut mavros_msgs_state_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -1237,10 +1246,10 @@ struct StatusTextBuilderOwned {
     text: String,
 }
 impl_builder_new_free!(
-    ros_mavros_status_text_builder_t,
+    mavros_msgs_status_text_builder_t,
     StatusTextBuilderOwned,
-    ros_mavros_status_text_builder_new,
-    ros_mavros_status_text_builder_free,
+    mavros_msgs_status_text_builder_new,
+    mavros_msgs_status_text_builder_free,
     StatusTextBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -1250,14 +1259,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_mavros_status_text_builder_t,
-    ros_mavros_status_text_builder_set_stamp,
-    ros_mavros_status_text_builder_set_frame_id
+    mavros_msgs_status_text_builder_t,
+    mavros_msgs_status_text_builder_set_stamp,
+    mavros_msgs_status_text_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_status_text_builder_set_severity(
-    b: *mut ros_mavros_status_text_builder_t,
+pub extern "C" fn mavros_msgs_status_text_builder_set_severity(
+    b: *mut mavros_msgs_status_text_builder_t,
     v: u8,
 ) {
     if b.is_null() {
@@ -1269,8 +1278,8 @@ pub extern "C" fn ros_mavros_status_text_builder_set_severity(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_status_text_builder_set_text(
-    b: *mut ros_mavros_status_text_builder_t,
+pub extern "C" fn mavros_msgs_status_text_builder_set_text(
+    b: *mut mavros_msgs_status_text_builder_t,
     s: *const c_char,
 ) -> i32 {
     if b.is_null() {
@@ -1288,8 +1297,8 @@ pub extern "C" fn ros_mavros_status_text_builder_set_text(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_status_text_builder_build(
-    b: *mut ros_mavros_status_text_builder_t,
+pub extern "C" fn mavros_msgs_status_text_builder_build(
+    b: *mut mavros_msgs_status_text_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -1308,8 +1317,8 @@ pub extern "C" fn ros_mavros_status_text_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_status_text_builder_encode_into(
-    b: *mut ros_mavros_status_text_builder_t,
+pub extern "C" fn mavros_msgs_status_text_builder_encode_into(
+    b: *mut mavros_msgs_status_text_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -1354,10 +1363,10 @@ struct GpsRawBuilderOwned {
     dgps_age: u32,
 }
 impl_builder_new_free!(
-    ros_mavros_gps_raw_builder_t,
+    mavros_msgs_gps_raw_builder_t,
     GpsRawBuilderOwned,
-    ros_mavros_gps_raw_builder_new,
-    ros_mavros_gps_raw_builder_free,
+    mavros_msgs_gps_raw_builder_new,
+    mavros_msgs_gps_raw_builder_free,
     GpsRawBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -1382,14 +1391,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_mavros_gps_raw_builder_t,
-    ros_mavros_gps_raw_builder_set_stamp,
-    ros_mavros_gps_raw_builder_set_frame_id
+    mavros_msgs_gps_raw_builder_t,
+    mavros_msgs_gps_raw_builder_set_stamp,
+    mavros_msgs_gps_raw_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_builder_set_fix_type(
-    b: *mut ros_mavros_gps_raw_builder_t,
+pub extern "C" fn mavros_msgs_gps_raw_builder_set_fix_type(
+    b: *mut mavros_msgs_gps_raw_builder_t,
     v: u8,
 ) {
     if b.is_null() {
@@ -1401,7 +1410,10 @@ pub extern "C" fn ros_mavros_gps_raw_builder_set_fix_type(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_builder_set_lat(b: *mut ros_mavros_gps_raw_builder_t, v: i32) {
+pub extern "C" fn mavros_msgs_gps_raw_builder_set_lat(
+    b: *mut mavros_msgs_gps_raw_builder_t,
+    v: i32,
+) {
     if b.is_null() {
         return;
     }
@@ -1411,7 +1423,10 @@ pub extern "C" fn ros_mavros_gps_raw_builder_set_lat(b: *mut ros_mavros_gps_raw_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_builder_set_lon(b: *mut ros_mavros_gps_raw_builder_t, v: i32) {
+pub extern "C" fn mavros_msgs_gps_raw_builder_set_lon(
+    b: *mut mavros_msgs_gps_raw_builder_t,
+    v: i32,
+) {
     if b.is_null() {
         return;
     }
@@ -1421,7 +1436,10 @@ pub extern "C" fn ros_mavros_gps_raw_builder_set_lon(b: *mut ros_mavros_gps_raw_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_builder_set_alt(b: *mut ros_mavros_gps_raw_builder_t, v: i32) {
+pub extern "C" fn mavros_msgs_gps_raw_builder_set_alt(
+    b: *mut mavros_msgs_gps_raw_builder_t,
+    v: i32,
+) {
     if b.is_null() {
         return;
     }
@@ -1431,7 +1449,10 @@ pub extern "C" fn ros_mavros_gps_raw_builder_set_alt(b: *mut ros_mavros_gps_raw_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_builder_set_eph(b: *mut ros_mavros_gps_raw_builder_t, v: u16) {
+pub extern "C" fn mavros_msgs_gps_raw_builder_set_eph(
+    b: *mut mavros_msgs_gps_raw_builder_t,
+    v: u16,
+) {
     if b.is_null() {
         return;
     }
@@ -1441,7 +1462,10 @@ pub extern "C" fn ros_mavros_gps_raw_builder_set_eph(b: *mut ros_mavros_gps_raw_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_builder_set_epv(b: *mut ros_mavros_gps_raw_builder_t, v: u16) {
+pub extern "C" fn mavros_msgs_gps_raw_builder_set_epv(
+    b: *mut mavros_msgs_gps_raw_builder_t,
+    v: u16,
+) {
     if b.is_null() {
         return;
     }
@@ -1451,7 +1475,10 @@ pub extern "C" fn ros_mavros_gps_raw_builder_set_epv(b: *mut ros_mavros_gps_raw_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_builder_set_vel(b: *mut ros_mavros_gps_raw_builder_t, v: u16) {
+pub extern "C" fn mavros_msgs_gps_raw_builder_set_vel(
+    b: *mut mavros_msgs_gps_raw_builder_t,
+    v: u16,
+) {
     if b.is_null() {
         return;
     }
@@ -1461,7 +1488,10 @@ pub extern "C" fn ros_mavros_gps_raw_builder_set_vel(b: *mut ros_mavros_gps_raw_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_builder_set_cog(b: *mut ros_mavros_gps_raw_builder_t, v: u16) {
+pub extern "C" fn mavros_msgs_gps_raw_builder_set_cog(
+    b: *mut mavros_msgs_gps_raw_builder_t,
+    v: u16,
+) {
     if b.is_null() {
         return;
     }
@@ -1471,8 +1501,8 @@ pub extern "C" fn ros_mavros_gps_raw_builder_set_cog(b: *mut ros_mavros_gps_raw_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_builder_set_satellites_visible(
-    b: *mut ros_mavros_gps_raw_builder_t,
+pub extern "C" fn mavros_msgs_gps_raw_builder_set_satellites_visible(
+    b: *mut mavros_msgs_gps_raw_builder_t,
     v: u8,
 ) {
     if b.is_null() {
@@ -1484,8 +1514,8 @@ pub extern "C" fn ros_mavros_gps_raw_builder_set_satellites_visible(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_builder_set_alt_ellipsoid(
-    b: *mut ros_mavros_gps_raw_builder_t,
+pub extern "C" fn mavros_msgs_gps_raw_builder_set_alt_ellipsoid(
+    b: *mut mavros_msgs_gps_raw_builder_t,
     v: i32,
 ) {
     if b.is_null() {
@@ -1497,8 +1527,8 @@ pub extern "C" fn ros_mavros_gps_raw_builder_set_alt_ellipsoid(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_builder_set_h_acc(
-    b: *mut ros_mavros_gps_raw_builder_t,
+pub extern "C" fn mavros_msgs_gps_raw_builder_set_h_acc(
+    b: *mut mavros_msgs_gps_raw_builder_t,
     v: u32,
 ) {
     if b.is_null() {
@@ -1510,8 +1540,8 @@ pub extern "C" fn ros_mavros_gps_raw_builder_set_h_acc(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_builder_set_v_acc(
-    b: *mut ros_mavros_gps_raw_builder_t,
+pub extern "C" fn mavros_msgs_gps_raw_builder_set_v_acc(
+    b: *mut mavros_msgs_gps_raw_builder_t,
     v: u32,
 ) {
     if b.is_null() {
@@ -1523,8 +1553,8 @@ pub extern "C" fn ros_mavros_gps_raw_builder_set_v_acc(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_builder_set_vel_acc(
-    b: *mut ros_mavros_gps_raw_builder_t,
+pub extern "C" fn mavros_msgs_gps_raw_builder_set_vel_acc(
+    b: *mut mavros_msgs_gps_raw_builder_t,
     v: u32,
 ) {
     if b.is_null() {
@@ -1536,8 +1566,8 @@ pub extern "C" fn ros_mavros_gps_raw_builder_set_vel_acc(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_builder_set_hdg_acc(
-    b: *mut ros_mavros_gps_raw_builder_t,
+pub extern "C" fn mavros_msgs_gps_raw_builder_set_hdg_acc(
+    b: *mut mavros_msgs_gps_raw_builder_t,
     v: i32,
 ) {
     if b.is_null() {
@@ -1549,7 +1579,10 @@ pub extern "C" fn ros_mavros_gps_raw_builder_set_hdg_acc(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_builder_set_yaw(b: *mut ros_mavros_gps_raw_builder_t, v: u16) {
+pub extern "C" fn mavros_msgs_gps_raw_builder_set_yaw(
+    b: *mut mavros_msgs_gps_raw_builder_t,
+    v: u16,
+) {
     if b.is_null() {
         return;
     }
@@ -1559,8 +1592,8 @@ pub extern "C" fn ros_mavros_gps_raw_builder_set_yaw(b: *mut ros_mavros_gps_raw_
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_builder_set_dgps_numch(
-    b: *mut ros_mavros_gps_raw_builder_t,
+pub extern "C" fn mavros_msgs_gps_raw_builder_set_dgps_numch(
+    b: *mut mavros_msgs_gps_raw_builder_t,
     v: u8,
 ) {
     if b.is_null() {
@@ -1572,8 +1605,8 @@ pub extern "C" fn ros_mavros_gps_raw_builder_set_dgps_numch(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_builder_set_dgps_age(
-    b: *mut ros_mavros_gps_raw_builder_t,
+pub extern "C" fn mavros_msgs_gps_raw_builder_set_dgps_age(
+    b: *mut mavros_msgs_gps_raw_builder_t,
     v: u32,
 ) {
     if b.is_null() {
@@ -1585,8 +1618,8 @@ pub extern "C" fn ros_mavros_gps_raw_builder_set_dgps_age(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_builder_build(
-    b: *mut ros_mavros_gps_raw_builder_t,
+pub extern "C" fn mavros_msgs_gps_raw_builder_build(
+    b: *mut mavros_msgs_gps_raw_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -1620,8 +1653,8 @@ pub extern "C" fn ros_mavros_gps_raw_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_gps_raw_builder_encode_into(
-    b: *mut ros_mavros_gps_raw_builder_t,
+pub extern "C" fn mavros_msgs_gps_raw_builder_encode_into(
+    b: *mut mavros_msgs_gps_raw_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,
@@ -1668,10 +1701,10 @@ struct TimesyncStatusBuilderOwned {
     round_trip_time_ms: f32,
 }
 impl_builder_new_free!(
-    ros_mavros_timesync_status_builder_t,
+    mavros_msgs_timesync_status_builder_t,
     TimesyncStatusBuilderOwned,
-    ros_mavros_timesync_status_builder_new,
-    ros_mavros_timesync_status_builder_free,
+    mavros_msgs_timesync_status_builder_new,
+    mavros_msgs_timesync_status_builder_free,
     TimesyncStatusBuilderOwned {
         stamp_sec: 0,
         stamp_nanosec: 0,
@@ -1683,14 +1716,14 @@ impl_builder_new_free!(
     }
 );
 impl_builder_stamp_frame!(
-    ros_mavros_timesync_status_builder_t,
-    ros_mavros_timesync_status_builder_set_stamp,
-    ros_mavros_timesync_status_builder_set_frame_id
+    mavros_msgs_timesync_status_builder_t,
+    mavros_msgs_timesync_status_builder_set_stamp,
+    mavros_msgs_timesync_status_builder_set_frame_id
 );
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_timesync_status_builder_set_remote_timestamp_ns(
-    b: *mut ros_mavros_timesync_status_builder_t,
+pub extern "C" fn mavros_msgs_timesync_status_builder_set_remote_timestamp_ns(
+    b: *mut mavros_msgs_timesync_status_builder_t,
     v: u64,
 ) {
     if b.is_null() {
@@ -1702,8 +1735,8 @@ pub extern "C" fn ros_mavros_timesync_status_builder_set_remote_timestamp_ns(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_timesync_status_builder_set_observed_offset_ns(
-    b: *mut ros_mavros_timesync_status_builder_t,
+pub extern "C" fn mavros_msgs_timesync_status_builder_set_observed_offset_ns(
+    b: *mut mavros_msgs_timesync_status_builder_t,
     v: i64,
 ) {
     if b.is_null() {
@@ -1715,8 +1748,8 @@ pub extern "C" fn ros_mavros_timesync_status_builder_set_observed_offset_ns(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_timesync_status_builder_set_estimated_offset_ns(
-    b: *mut ros_mavros_timesync_status_builder_t,
+pub extern "C" fn mavros_msgs_timesync_status_builder_set_estimated_offset_ns(
+    b: *mut mavros_msgs_timesync_status_builder_t,
     v: i64,
 ) {
     if b.is_null() {
@@ -1728,8 +1761,8 @@ pub extern "C" fn ros_mavros_timesync_status_builder_set_estimated_offset_ns(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_timesync_status_builder_set_round_trip_time_ms(
-    b: *mut ros_mavros_timesync_status_builder_t,
+pub extern "C" fn mavros_msgs_timesync_status_builder_set_round_trip_time_ms(
+    b: *mut mavros_msgs_timesync_status_builder_t,
     v: f32,
 ) {
     if b.is_null() {
@@ -1741,8 +1774,8 @@ pub extern "C" fn ros_mavros_timesync_status_builder_set_round_trip_time_ms(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_timesync_status_builder_build(
-    b: *mut ros_mavros_timesync_status_builder_t,
+pub extern "C" fn mavros_msgs_timesync_status_builder_build(
+    b: *mut mavros_msgs_timesync_status_builder_t,
     out_bytes: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
@@ -1763,8 +1796,8 @@ pub extern "C" fn ros_mavros_timesync_status_builder_build(
 }
 
 #[no_mangle]
-pub extern "C" fn ros_mavros_timesync_status_builder_encode_into(
-    b: *mut ros_mavros_timesync_status_builder_t,
+pub extern "C" fn mavros_msgs_timesync_status_builder_encode_into(
+    b: *mut mavros_msgs_timesync_status_builder_t,
     buf: *mut u8,
     cap: usize,
     out_len: *mut usize,

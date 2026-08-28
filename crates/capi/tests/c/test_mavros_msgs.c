@@ -38,7 +38,7 @@ static uint8_t *_load_fixture_mav(const char *relpath, size_t *out_len) {
 
 Test(mavros_msgs, altitude_from_cdr_null) {
     errno = 0;
-    ros_mavros_altitude_t *h = ros_mavros_altitude_from_cdr(NULL, 100);
+    mavros_msgs_altitude_t *h = mavros_msgs_altitude_from_cdr(NULL, 100);
     cr_assert_null(h);
     cr_assert_eq(errno, EINVAL);
 }
@@ -46,13 +46,13 @@ Test(mavros_msgs, altitude_from_cdr_null) {
 Test(mavros_msgs, altitude_from_cdr_invalid) {
     uint8_t bad[] = {0xDE, 0xAD, 0xBE, 0xEF};
     errno = 0;
-    ros_mavros_altitude_t *h = ros_mavros_altitude_from_cdr(bad, sizeof(bad));
+    mavros_msgs_altitude_t *h = mavros_msgs_altitude_from_cdr(bad, sizeof(bad));
     cr_assert_null(h);
     cr_assert_eq(errno, EBADMSG);
 }
 
 Test(mavros_msgs, altitude_free_null) {
-    ros_mavros_altitude_free(NULL); /* must not crash */
+    mavros_msgs_altitude_free(NULL); /* must not crash */
 }
 
 // ============================================================================
@@ -61,7 +61,7 @@ Test(mavros_msgs, altitude_free_null) {
 
 Test(mavros_msgs, vfrhud_from_cdr_null) {
     errno = 0;
-    ros_mavros_vfrhud_t *h = ros_mavros_vfrhud_from_cdr(NULL, 100);
+    mavros_msgs_vfrhud_t *h = mavros_msgs_vfrhud_from_cdr(NULL, 100);
     cr_assert_null(h);
     cr_assert_eq(errno, EINVAL);
 }
@@ -69,13 +69,13 @@ Test(mavros_msgs, vfrhud_from_cdr_null) {
 Test(mavros_msgs, vfrhud_from_cdr_invalid) {
     uint8_t bad[] = {0xDE, 0xAD, 0xBE, 0xEF};
     errno = 0;
-    ros_mavros_vfrhud_t *h = ros_mavros_vfrhud_from_cdr(bad, sizeof(bad));
+    mavros_msgs_vfrhud_t *h = mavros_msgs_vfrhud_from_cdr(bad, sizeof(bad));
     cr_assert_null(h);
     cr_assert_eq(errno, EBADMSG);
 }
 
 Test(mavros_msgs, vfrhud_free_null) {
-    ros_mavros_vfrhud_free(NULL);
+    mavros_msgs_vfrhud_free(NULL);
 }
 
 // ============================================================================
@@ -84,7 +84,7 @@ Test(mavros_msgs, vfrhud_free_null) {
 
 Test(mavros_msgs, estimator_status_from_cdr_null) {
     errno = 0;
-    ros_mavros_estimator_status_t *h = ros_mavros_estimator_status_from_cdr(NULL, 100);
+    mavros_msgs_estimator_status_t *h = mavros_msgs_estimator_status_from_cdr(NULL, 100);
     cr_assert_null(h);
     cr_assert_eq(errno, EINVAL);
 }
@@ -92,13 +92,13 @@ Test(mavros_msgs, estimator_status_from_cdr_null) {
 Test(mavros_msgs, estimator_status_from_cdr_invalid) {
     uint8_t bad[] = {0xDE, 0xAD};
     errno = 0;
-    ros_mavros_estimator_status_t *h = ros_mavros_estimator_status_from_cdr(bad, sizeof(bad));
+    mavros_msgs_estimator_status_t *h = mavros_msgs_estimator_status_from_cdr(bad, sizeof(bad));
     cr_assert_null(h);
     cr_assert_eq(errno, EBADMSG);
 }
 
 Test(mavros_msgs, estimator_status_free_null) {
-    ros_mavros_estimator_status_free(NULL);
+    mavros_msgs_estimator_status_free(NULL);
 }
 
 // ============================================================================
@@ -107,7 +107,7 @@ Test(mavros_msgs, estimator_status_free_null) {
 
 Test(mavros_msgs, extended_state_from_cdr_null) {
     errno = 0;
-    ros_mavros_extended_state_t *h = ros_mavros_extended_state_from_cdr(NULL, 100);
+    mavros_msgs_extended_state_t *h = mavros_msgs_extended_state_from_cdr(NULL, 100);
     cr_assert_null(h);
     cr_assert_eq(errno, EINVAL);
 }
@@ -115,13 +115,13 @@ Test(mavros_msgs, extended_state_from_cdr_null) {
 Test(mavros_msgs, extended_state_from_cdr_invalid) {
     uint8_t bad[] = {0x01};
     errno = 0;
-    ros_mavros_extended_state_t *h = ros_mavros_extended_state_from_cdr(bad, sizeof(bad));
+    mavros_msgs_extended_state_t *h = mavros_msgs_extended_state_from_cdr(bad, sizeof(bad));
     cr_assert_null(h);
     cr_assert_eq(errno, EBADMSG);
 }
 
 Test(mavros_msgs, extended_state_free_null) {
-    ros_mavros_extended_state_free(NULL);
+    mavros_msgs_extended_state_free(NULL);
 }
 
 Test(mavros_msgs, extended_state_constants) {
@@ -136,7 +136,7 @@ Test(mavros_msgs, extended_state_constants) {
 
 Test(mavros_msgs, sys_status_from_cdr_null) {
     errno = 0;
-    ros_mavros_sys_status_t *h = ros_mavros_sys_status_from_cdr(NULL, 100);
+    mavros_msgs_sys_status_t *h = mavros_msgs_sys_status_from_cdr(NULL, 100);
     cr_assert_null(h);
     cr_assert_eq(errno, EINVAL);
 }
@@ -144,13 +144,13 @@ Test(mavros_msgs, sys_status_from_cdr_null) {
 Test(mavros_msgs, sys_status_from_cdr_invalid) {
     uint8_t bad[] = {0xFF, 0xFF, 0xFF, 0xFF};
     errno = 0;
-    ros_mavros_sys_status_t *h = ros_mavros_sys_status_from_cdr(bad, sizeof(bad));
+    mavros_msgs_sys_status_t *h = mavros_msgs_sys_status_from_cdr(bad, sizeof(bad));
     cr_assert_null(h);
     cr_assert_eq(errno, EBADMSG);
 }
 
 Test(mavros_msgs, sys_status_free_null) {
-    ros_mavros_sys_status_free(NULL);
+    mavros_msgs_sys_status_free(NULL);
 }
 
 // ============================================================================
@@ -159,7 +159,7 @@ Test(mavros_msgs, sys_status_free_null) {
 
 Test(mavros_msgs, state_from_cdr_null) {
     errno = 0;
-    ros_mavros_state_t *h = ros_mavros_state_from_cdr(NULL, 100);
+    mavros_msgs_state_t *h = mavros_msgs_state_from_cdr(NULL, 100);
     cr_assert_null(h);
     cr_assert_eq(errno, EINVAL);
 }
@@ -167,13 +167,13 @@ Test(mavros_msgs, state_from_cdr_null) {
 Test(mavros_msgs, state_from_cdr_invalid) {
     uint8_t bad[] = {0x00, 0x01};
     errno = 0;
-    ros_mavros_state_t *h = ros_mavros_state_from_cdr(bad, sizeof(bad));
+    mavros_msgs_state_t *h = mavros_msgs_state_from_cdr(bad, sizeof(bad));
     cr_assert_null(h);
     cr_assert_eq(errno, EBADMSG);
 }
 
 Test(mavros_msgs, state_free_null) {
-    ros_mavros_state_free(NULL);
+    mavros_msgs_state_free(NULL);
 }
 
 Test(mavros_msgs, state_constants) {
@@ -188,7 +188,7 @@ Test(mavros_msgs, state_constants) {
 
 Test(mavros_msgs, status_text_from_cdr_null) {
     errno = 0;
-    ros_mavros_status_text_t *h = ros_mavros_status_text_from_cdr(NULL, 100);
+    mavros_msgs_status_text_t *h = mavros_msgs_status_text_from_cdr(NULL, 100);
     cr_assert_null(h);
     cr_assert_eq(errno, EINVAL);
 }
@@ -196,13 +196,13 @@ Test(mavros_msgs, status_text_from_cdr_null) {
 Test(mavros_msgs, status_text_from_cdr_invalid) {
     uint8_t bad[] = {0xCA, 0xFE};
     errno = 0;
-    ros_mavros_status_text_t *h = ros_mavros_status_text_from_cdr(bad, sizeof(bad));
+    mavros_msgs_status_text_t *h = mavros_msgs_status_text_from_cdr(bad, sizeof(bad));
     cr_assert_null(h);
     cr_assert_eq(errno, EBADMSG);
 }
 
 Test(mavros_msgs, status_text_free_null) {
-    ros_mavros_status_text_free(NULL);
+    mavros_msgs_status_text_free(NULL);
 }
 
 Test(mavros_msgs, status_text_severity_constants) {
@@ -216,7 +216,7 @@ Test(mavros_msgs, status_text_severity_constants) {
 
 Test(mavros_msgs, gps_raw_from_cdr_null) {
     errno = 0;
-    ros_mavros_gps_raw_t *h = ros_mavros_gps_raw_from_cdr(NULL, 100);
+    mavros_msgs_gps_raw_t *h = mavros_msgs_gps_raw_from_cdr(NULL, 100);
     cr_assert_null(h);
     cr_assert_eq(errno, EINVAL);
 }
@@ -224,13 +224,13 @@ Test(mavros_msgs, gps_raw_from_cdr_null) {
 Test(mavros_msgs, gps_raw_from_cdr_invalid) {
     uint8_t bad[] = {0x00, 0x01, 0x02, 0x03};
     errno = 0;
-    ros_mavros_gps_raw_t *h = ros_mavros_gps_raw_from_cdr(bad, sizeof(bad));
+    mavros_msgs_gps_raw_t *h = mavros_msgs_gps_raw_from_cdr(bad, sizeof(bad));
     cr_assert_null(h);
     cr_assert_eq(errno, EBADMSG);
 }
 
 Test(mavros_msgs, gps_raw_free_null) {
-    ros_mavros_gps_raw_free(NULL);
+    mavros_msgs_gps_raw_free(NULL);
 }
 
 Test(mavros_msgs, gps_raw_fix_type_constants) {
@@ -245,7 +245,7 @@ Test(mavros_msgs, gps_raw_fix_type_constants) {
 
 Test(mavros_msgs, timesync_status_from_cdr_null) {
     errno = 0;
-    ros_mavros_timesync_status_t *h = ros_mavros_timesync_status_from_cdr(NULL, 100);
+    mavros_msgs_timesync_status_t *h = mavros_msgs_timesync_status_from_cdr(NULL, 100);
     cr_assert_null(h);
     cr_assert_eq(errno, EINVAL);
 }
@@ -253,18 +253,18 @@ Test(mavros_msgs, timesync_status_from_cdr_null) {
 Test(mavros_msgs, timesync_status_from_cdr_invalid) {
     uint8_t bad[] = {0xBA, 0xDC, 0x0D, 0xE0};
     errno = 0;
-    ros_mavros_timesync_status_t *h = ros_mavros_timesync_status_from_cdr(bad, sizeof(bad));
+    mavros_msgs_timesync_status_t *h = mavros_msgs_timesync_status_from_cdr(bad, sizeof(bad));
     cr_assert_null(h);
     cr_assert_eq(errno, EBADMSG);
 }
 
 Test(mavros_msgs, timesync_status_free_null) {
-    ros_mavros_timesync_status_free(NULL);
+    mavros_msgs_timesync_status_free(NULL);
 }
 
 Test(mavros_msgs, altitude_builder_null) {
     errno = 0;
-    cr_assert_eq(ros_mavros_altitude_builder_set_frame_id(NULL, "x"), -1);
+    cr_assert_eq(mavros_msgs_altitude_builder_set_frame_id(NULL, "x"), -1);
     cr_assert_eq(errno, EINVAL);
 }
 
@@ -274,24 +274,24 @@ Test(mavros_msgs, altitude_builder_matches_golden) {
                                        &golden_len);
     cr_assert_not_null(golden, "failed to load Altitude fixture");
 
-    ros_mavros_altitude_builder_t *b = ros_mavros_altitude_builder_new();
+    mavros_msgs_altitude_builder_t *b = mavros_msgs_altitude_builder_new();
     cr_assert_not_null(b);
-    ros_mavros_altitude_builder_set_stamp(b, 1234567890, 123456789u);
-    cr_assert_eq(ros_mavros_altitude_builder_set_frame_id(b, "test_frame"), 0);
-    ros_mavros_altitude_builder_set_monotonic(b, 100.0f);
-    ros_mavros_altitude_builder_set_amsl(b, 50.0f);
-    ros_mavros_altitude_builder_set_local(b, 10.0f);
-    ros_mavros_altitude_builder_set_relative(b, 5.0f);
-    ros_mavros_altitude_builder_set_terrain(b, 2.0f);
-    ros_mavros_altitude_builder_set_bottom_clearance(b, 1.5f);
+    mavros_msgs_altitude_builder_set_stamp(b, 1234567890, 123456789u);
+    cr_assert_eq(mavros_msgs_altitude_builder_set_frame_id(b, "test_frame"), 0);
+    mavros_msgs_altitude_builder_set_monotonic(b, 100.0f);
+    mavros_msgs_altitude_builder_set_amsl(b, 50.0f);
+    mavros_msgs_altitude_builder_set_local(b, 10.0f);
+    mavros_msgs_altitude_builder_set_relative(b, 5.0f);
+    mavros_msgs_altitude_builder_set_terrain(b, 2.0f);
+    mavros_msgs_altitude_builder_set_bottom_clearance(b, 1.5f);
 
     uint8_t *out = NULL;
     size_t out_len = 0;
-    cr_assert_eq(ros_mavros_altitude_builder_build(b, &out, &out_len), 0);
+    cr_assert_eq(mavros_msgs_altitude_builder_build(b, &out, &out_len), 0);
     cr_assert_eq(out_len, golden_len);
     cr_assert_eq(memcmp(out, golden, golden_len), 0);
 
-    ros_bytes_free(out, out_len);
-    ros_mavros_altitude_builder_free(b);
+    edgefirst_schemas_bytes_free(out, out_len);
+    mavros_msgs_altitude_builder_free(b);
     free(golden);
 }

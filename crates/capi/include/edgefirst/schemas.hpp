@@ -81,7 +81,7 @@
  *
  * Owning types allocate exactly **one** fresh CDR byte buffer per
  * `encode(...)` call, sized to the serialised message. The buffer is
- * owned by the wrapper and freed by its destructor via `ros_bytes_free`.
+ * owned by the wrapper and freed by its destructor via `edgefirst_schemas_bytes_free`.
  * At high publish rates (for example a 30 Hz compressed-image stream),
  * this produces allocator churn proportional to `rate × message_size`.
  * Applications on allocator-sensitive paths should be aware of this and
@@ -103,7 +103,7 @@
  * @code{.cpp}
  * void on_image(std::span<const std::uint8_t> payload) {  // from zenoh
  *     namespace ef = edgefirst::schemas;
- *     auto img = ef::ImageView::from_cdr({payload.data(), payload.size()});
+ *     auto img = sensor_msgs::ImageView::from_cdr({payload.data(), payload.size()});
  *     if (!img) return;
  *     std::string_view enc = img->encoding();  // borrows zenoh buffer
  *     // ... process ...
@@ -118,12 +118,12 @@
  *
  * @code{.cpp}
  * namespace ef = edgefirst::schemas;
- * auto img = ef::CompressedImage::encode(stamp, "cam", "jpeg", jpeg_bytes);
+ * auto img = sensor_msgs::CompressedImage::encode(stamp, "cam", "jpeg", jpeg_bytes);
  * if (!img) return;
  * auto owned = std::move(*img).release();   // transfer (ptr, size) out
  * zenoh::Bytes payload{
  *     owned.data, owned.size,
- *     [size = owned.size](std::uint8_t* p) { ros_bytes_free(p, size); }
+ *     [size = owned.size](std::uint8_t* p) { edgefirst_schemas_bytes_free(p, size); }
  * };
  * publisher.put(std::move(payload));
  * @endcode
@@ -132,7 +132,7 @@
  *
  * @code{.cpp}
  * namespace ef = edgefirst::schemas;
- * auto b = ef::ImuBuilder::create();
+ * auto b = sensor_msgs::ImuBuilder::create();
  * if (!b) return;
  * b->stamp({now_s, now_ns}).orientation({qx, qy, qz, qw})
  *   .angular_velocity({gx, gy, gz}).linear_acceleration({ax, ay, az});
@@ -161,6 +161,10 @@
 #include <edgefirst/stdlib/span.hpp>
 
 namespace edgefirst::schemas {
+
+// Public message types live in nested package namespaces (builtin_interfaces, std_msgs, …).
+// Shared utilities (Error, Released, detail::) remain in edgefirst::schemas.
+
 
 // Re-export the stdlib polyfills as first-class edgefirst::schemas types.
 // On C++23+ these alias to std::expected / std::span from the standard
@@ -205,7 +209,7 @@ struct Error {
     /// POSIX errno code — typically EINVAL, ENOBUFS, or EBADMSG.
     int code;
     /// Static string naming the C function that reported the error
-    /// (e.g., "ros_image_from_cdr"). Always has static storage duration.
+    /// (e.g., "sensor_msgs_image_from_cdr"). Always has static storage duration.
     std::string_view where;
 
     /// @brief Human-readable category label for `code`.
@@ -234,7 +238,7 @@ struct Error {
  *        an owning wrapper via `release()`.
  *
  * The buffer was originally allocated by the C library's encode path
- * (`ros_<type>_encode`) and MUST be freed via `ros_bytes_free(data, size)`
+ * (`<package>_<type>_encode`) and MUST be freed via `edgefirst_schemas_bytes_free(data, size)`
  * OR handed to a sink that takes ownership (for example
  * `zenoh::Bytes` with a deleter lambda). Dropping a `Released` without
  * freeing `data` leaks the buffer — this is a POD by design so that
@@ -242,12 +246,12 @@ struct Error {
  *
  * Typical use:
  * @code{.cpp}
- * auto img = ef::CompressedImage::encode(stamp, "cam", "jpeg", jpeg_span);
+ * auto img = sensor_msgs::CompressedImage::encode(stamp, "cam", "jpeg", jpeg_span);
  * if (!img) return;
  * auto owned = std::move(*img).release();   // transfer ownership out
  * zenoh::Bytes payload{
  *     owned.data, owned.size,
- *     [size = owned.size](std::uint8_t* p) { ros_bytes_free(p, size); }
+ *     [size = owned.size](std::uint8_t* p) { edgefirst_schemas_bytes_free(p, size); }
  * };
  * publisher.put(std::move(payload));
  * @endcode
@@ -264,6 +268,8 @@ struct Released {
     std::size_t   size{0};
 };
 
+
+namespace builtin_interfaces {
 /**
  * @brief ROS 2 `builtin_interfaces::Time` — trivially-copyable value type.
  *
@@ -273,7 +279,7 @@ struct Released {
  *
  * @code{.cpp}
  * namespace ef = edgefirst::schemas;
- * ef::Time t{1234567890, 500000};  // sec, nanosec
+ * builtin_interfaces::Time t{1234567890, 500000};  // sec, nanosec
  * std::uint8_t buf[16];
  * auto written = t.encode({buf, sizeof(buf)});
  * if (written) std::cout << "wrote " << *written << " bytes\n";
@@ -300,8 +306,8 @@ public:
     [[nodiscard]] static expected<Time, Error>
     decode(span<const std::uint8_t> data) noexcept {
         Time t;
-        if (ros_time_decode(data.data(), data.size(), &t.sec, &t.nanosec) != 0)
-            return unexpected<Error>(Error::from_errno("ros_time_decode"));
+        if (builtin_interfaces_time_decode(data.data(), data.size(), &t.sec, &t.nanosec) != 0)
+            return unexpected<Error>(Error::from_errno("builtin_interfaces_time_decode"));
         return t;
     }
 
@@ -312,8 +318,8 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encode(span<std::uint8_t> out) const noexcept {
         std::size_t written = 0;
-        if (ros_time_encode(out.data(), out.size(), &written, sec, nanosec) != 0)
-            return unexpected<Error>(Error::from_errno("ros_time_encode"));
+        if (builtin_interfaces_time_encode(out.data(), out.size(), &written, sec, nanosec) != 0)
+            return unexpected<Error>(Error::from_errno("builtin_interfaces_time_encode"));
         return written;
     }
 
@@ -324,14 +330,17 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encoded_size() const noexcept {
         std::size_t written = 0;
-        if (ros_time_encode(nullptr, 0, &written, sec, nanosec) != 0)
-            return unexpected<Error>(Error::from_errno("ros_time_encode"));
+        if (builtin_interfaces_time_encode(nullptr, 0, &written, sec, nanosec) != 0)
+            return unexpected<Error>(Error::from_errno("builtin_interfaces_time_encode"));
         return written;
     }
 };
+} // namespace builtin_interfaces
 
 /// @brief ROS 2 `builtin_interfaces::Duration` — signed seconds plus
 ///        nanoseconds offset, representing a span of time.
+
+namespace builtin_interfaces {
 class Duration {
 public:
     /// Signed seconds component of the duration.
@@ -352,8 +361,8 @@ public:
     [[nodiscard]] static expected<Duration, Error>
     decode(span<const std::uint8_t> data) noexcept {
         Duration t;
-        if (ros_duration_decode(data.data(), data.size(), &t.sec, &t.nanosec) != 0)
-            return unexpected<Error>(Error::from_errno("ros_duration_decode"));
+        if (builtin_interfaces_duration_decode(data.data(), data.size(), &t.sec, &t.nanosec) != 0)
+            return unexpected<Error>(Error::from_errno("builtin_interfaces_duration_decode"));
         return t;
     }
 
@@ -363,8 +372,8 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encode(span<std::uint8_t> out) const noexcept {
         std::size_t written = 0;
-        if (ros_duration_encode(out.data(), out.size(), &written, sec, nanosec) != 0)
-            return unexpected<Error>(Error::from_errno("ros_duration_encode"));
+        if (builtin_interfaces_duration_encode(out.data(), out.size(), &written, sec, nanosec) != 0)
+            return unexpected<Error>(Error::from_errno("builtin_interfaces_duration_encode"));
         return written;
     }
 
@@ -373,14 +382,24 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encoded_size() const noexcept {
         std::size_t written = 0;
-        if (ros_duration_encode(nullptr, 0, &written, sec, nanosec) != 0)
-            return unexpected<Error>(Error::from_errno("ros_duration_encode"));
+        if (builtin_interfaces_duration_encode(nullptr, 0, &written, sec, nanosec) != 0)
+            return unexpected<Error>(Error::from_errno("builtin_interfaces_duration_encode"));
         return written;
     }
 };
+} // namespace builtin_interfaces
 
 /// @brief ROS 2 `geometry_msgs::Vector3` — three double-precision components
 ///        representing a direction/velocity vector (no positional semantics).
+
+namespace geometry_msgs {
+using ::edgefirst::schemas::builtin_interfaces::Time;
+using ::edgefirst::schemas::builtin_interfaces::Duration;
+using ::edgefirst::schemas::Error;
+using ::edgefirst::schemas::span;
+using ::edgefirst::schemas::expected;
+using ::edgefirst::schemas::unexpected;
+
 class Vector3 {
 public:
     /// X component (meters or m/s depending on usage context).
@@ -404,8 +423,8 @@ public:
     [[nodiscard]] static expected<Vector3, Error>
     decode(span<const std::uint8_t> data) noexcept {
         Vector3 t;
-        if (ros_vector3_decode(data.data(), data.size(), &t.x, &t.y, &t.z) != 0)
-            return unexpected<Error>(Error::from_errno("ros_vector3_decode"));
+        if (geometry_msgs_vector3_decode(data.data(), data.size(), &t.x, &t.y, &t.z) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_vector3_decode"));
         return t;
     }
 
@@ -415,8 +434,8 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encode(span<std::uint8_t> out) const noexcept {
         std::size_t written = 0;
-        if (ros_vector3_encode(out.data(), out.size(), &written, x, y, z) != 0)
-            return unexpected<Error>(Error::from_errno("ros_vector3_encode"));
+        if (geometry_msgs_vector3_encode(out.data(), out.size(), &written, x, y, z) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_vector3_encode"));
         return written;
     }
 
@@ -425,14 +444,17 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encoded_size() const noexcept {
         std::size_t written = 0;
-        if (ros_vector3_encode(nullptr, 0, &written, x, y, z) != 0)
-            return unexpected<Error>(Error::from_errno("ros_vector3_encode"));
+        if (geometry_msgs_vector3_encode(nullptr, 0, &written, x, y, z) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_vector3_encode"));
         return written;
     }
 };
+} // namespace geometry_msgs
 
 /// @brief ROS 2 `geometry_msgs::Point` — three double-precision position
 ///        coordinates in meters, referenced to a parent frame.
+
+namespace geometry_msgs {
 class Point {
 public:
     /// X coordinate in meters.
@@ -456,8 +478,8 @@ public:
     [[nodiscard]] static expected<Point, Error>
     decode(span<const std::uint8_t> data) noexcept {
         Point t;
-        if (ros_point_decode(data.data(), data.size(), &t.x, &t.y, &t.z) != 0)
-            return unexpected<Error>(Error::from_errno("ros_point_decode"));
+        if (geometry_msgs_point_decode(data.data(), data.size(), &t.x, &t.y, &t.z) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_point_decode"));
         return t;
     }
 
@@ -467,8 +489,8 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encode(span<std::uint8_t> out) const noexcept {
         std::size_t written = 0;
-        if (ros_point_encode(out.data(), out.size(), &written, x, y, z) != 0)
-            return unexpected<Error>(Error::from_errno("ros_point_encode"));
+        if (geometry_msgs_point_encode(out.data(), out.size(), &written, x, y, z) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_point_encode"));
         return written;
     }
 
@@ -477,14 +499,17 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encoded_size() const noexcept {
         std::size_t written = 0;
-        if (ros_point_encode(nullptr, 0, &written, x, y, z) != 0)
-            return unexpected<Error>(Error::from_errno("ros_point_encode"));
+        if (geometry_msgs_point_encode(nullptr, 0, &written, x, y, z) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_point_encode"));
         return written;
     }
 };
+} // namespace geometry_msgs
 
 /// @brief ROS 2 `geometry_msgs::Point32` — single-precision 3D point used by
 ///        `Polygon` messages.
+
+namespace geometry_msgs {
 struct Point32 {
     float x{0};
     float y{0};
@@ -492,9 +517,12 @@ struct Point32 {
     constexpr Point32() noexcept = default;
     constexpr Point32(float x_, float y_, float z_) noexcept : x(x_), y(y_), z(z_) {}
 };
+} // namespace geometry_msgs
 
 /// @brief ROS 2 `geometry_msgs::Quaternion` — unit quaternion representing
 ///        a 3D rotation in `(x, y, z, w)` order.
+
+namespace geometry_msgs {
 class Quaternion {
 public:
     /// Imaginary i component.
@@ -523,8 +551,8 @@ public:
     [[nodiscard]] static expected<Quaternion, Error>
     decode(span<const std::uint8_t> data) noexcept {
         Quaternion t;
-        if (ros_quaternion_decode(data.data(), data.size(), &t.x, &t.y, &t.z, &t.w) != 0)
-            return unexpected<Error>(Error::from_errno("ros_quaternion_decode"));
+        if (geometry_msgs_quaternion_decode(data.data(), data.size(), &t.x, &t.y, &t.z, &t.w) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_quaternion_decode"));
         return t;
     }
 
@@ -534,8 +562,8 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encode(span<std::uint8_t> out) const noexcept {
         std::size_t written = 0;
-        if (ros_quaternion_encode(out.data(), out.size(), &written, x, y, z, w) != 0)
-            return unexpected<Error>(Error::from_errno("ros_quaternion_encode"));
+        if (geometry_msgs_quaternion_encode(out.data(), out.size(), &written, x, y, z, w) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_quaternion_encode"));
         return written;
     }
 
@@ -545,14 +573,17 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encoded_size() const noexcept {
         std::size_t written = 0;
-        if (ros_quaternion_encode(nullptr, 0, &written, x, y, z, w) != 0)
-            return unexpected<Error>(Error::from_errno("ros_quaternion_encode"));
+        if (geometry_msgs_quaternion_encode(nullptr, 0, &written, x, y, z, w) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_quaternion_encode"));
         return written;
     }
 };
+} // namespace geometry_msgs
 
 /// @brief ROS 2 `geometry_msgs::Pose` — position + orientation in a single
 ///        flattened 7-double value type.
+
+namespace geometry_msgs {
 class Pose {
 public:
     /// Position X coordinate in meters.
@@ -590,10 +621,10 @@ public:
     [[nodiscard]] static expected<Pose, Error>
     decode(span<const std::uint8_t> data) noexcept {
         Pose t;
-        if (ros_pose_decode(data.data(), data.size(),
+        if (geometry_msgs_pose_decode(data.data(), data.size(),
                             &t.px, &t.py, &t.pz,
                             &t.ox, &t.oy, &t.oz, &t.ow) != 0)
-            return unexpected<Error>(Error::from_errno("ros_pose_decode"));
+            return unexpected<Error>(Error::from_errno("geometry_msgs_pose_decode"));
         return t;
     }
 
@@ -603,9 +634,9 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encode(span<std::uint8_t> out) const noexcept {
         std::size_t written = 0;
-        if (ros_pose_encode(out.data(), out.size(), &written,
+        if (geometry_msgs_pose_encode(out.data(), out.size(), &written,
                             px, py, pz, ox, oy, oz, ow) != 0)
-            return unexpected<Error>(Error::from_errno("ros_pose_encode"));
+            return unexpected<Error>(Error::from_errno("geometry_msgs_pose_encode"));
         return written;
     }
 
@@ -614,15 +645,18 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encoded_size() const noexcept {
         std::size_t written = 0;
-        if (ros_pose_encode(nullptr, 0, &written, px, py, pz, ox, oy, oz, ow) != 0)
-            return unexpected<Error>(Error::from_errno("ros_pose_encode"));
+        if (geometry_msgs_pose_encode(nullptr, 0, &written, px, py, pz, ox, oy, oz, ow) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_pose_encode"));
         return written;
     }
 };
+} // namespace geometry_msgs
 
 /// @brief ROS 2 `geometry_msgs::Transform` — translation plus rotation
 ///        quaternion, identical in layout to Pose but semantically a
 ///        rigid-body transform between two coordinate frames.
+
+namespace geometry_msgs {
 class Transform {
 public:
     /// Translation X in meters.
@@ -660,10 +694,10 @@ public:
     [[nodiscard]] static expected<Transform, Error>
     decode(span<const std::uint8_t> data) noexcept {
         Transform t;
-        if (ros_transform_decode(data.data(), data.size(),
+        if (geometry_msgs_transform_decode(data.data(), data.size(),
                                  &t.tx, &t.ty, &t.tz,
                                  &t.rx, &t.ry, &t.rz, &t.rw) != 0)
-            return unexpected<Error>(Error::from_errno("ros_transform_decode"));
+            return unexpected<Error>(Error::from_errno("geometry_msgs_transform_decode"));
         return t;
     }
 
@@ -673,9 +707,9 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encode(span<std::uint8_t> out) const noexcept {
         std::size_t written = 0;
-        if (ros_transform_encode(out.data(), out.size(), &written,
+        if (geometry_msgs_transform_encode(out.data(), out.size(), &written,
                                  tx, ty, tz, rx, ry, rz, rw) != 0)
-            return unexpected<Error>(Error::from_errno("ros_transform_encode"));
+            return unexpected<Error>(Error::from_errno("geometry_msgs_transform_encode"));
         return written;
     }
 
@@ -684,14 +718,17 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encoded_size() const noexcept {
         std::size_t written = 0;
-        if (ros_transform_encode(nullptr, 0, &written, tx, ty, tz, rx, ry, rz, rw) != 0)
-            return unexpected<Error>(Error::from_errno("ros_transform_encode"));
+        if (geometry_msgs_transform_encode(nullptr, 0, &written, tx, ty, tz, rx, ry, rz, rw) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_transform_encode"));
         return written;
     }
 };
+} // namespace geometry_msgs
 
 /// @brief ROS 2 `geometry_msgs::Twist` — linear and angular velocity of a
 ///        rigid body in free space (m/s and rad/s).
+
+namespace geometry_msgs {
 class Twist {
 public:
     /// Linear velocity X component in m/s.
@@ -727,10 +764,10 @@ public:
     [[nodiscard]] static expected<Twist, Error>
     decode(span<const std::uint8_t> data) noexcept {
         Twist t;
-        if (ros_twist_decode(data.data(), data.size(),
+        if (geometry_msgs_twist_decode(data.data(), data.size(),
                              &t.lx, &t.ly, &t.lz,
                              &t.ax, &t.ay, &t.az) != 0)
-            return unexpected<Error>(Error::from_errno("ros_twist_decode"));
+            return unexpected<Error>(Error::from_errno("geometry_msgs_twist_decode"));
         return t;
     }
 
@@ -740,9 +777,9 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encode(span<std::uint8_t> out) const noexcept {
         std::size_t written = 0;
-        if (ros_twist_encode(out.data(), out.size(), &written,
+        if (geometry_msgs_twist_encode(out.data(), out.size(), &written,
                              lx, ly, lz, ax, ay, az) != 0)
-            return unexpected<Error>(Error::from_errno("ros_twist_encode"));
+            return unexpected<Error>(Error::from_errno("geometry_msgs_twist_encode"));
         return written;
     }
 
@@ -751,14 +788,17 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encoded_size() const noexcept {
         std::size_t written = 0;
-        if (ros_twist_encode(nullptr, 0, &written, lx, ly, lz, ax, ay, az) != 0)
-            return unexpected<Error>(Error::from_errno("ros_twist_encode"));
+        if (geometry_msgs_twist_encode(nullptr, 0, &written, lx, ly, lz, ax, ay, az) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_twist_encode"));
         return written;
     }
 };
+} // namespace geometry_msgs
 
 /// @brief ROS 2 `geometry_msgs::PoseWithCovariance` — Pose plus a 6×6
 ///        row-major covariance matrix over (x, y, z, rotX, rotY, rotZ).
+
+namespace geometry_msgs {
 class PoseWithCovariance {
 public:
     Pose pose{};
@@ -771,39 +811,42 @@ public:
     [[nodiscard]] static expected<PoseWithCovariance, Error>
     decode(span<const std::uint8_t> data) noexcept {
         PoseWithCovariance t;
-        if (ros_pose_with_covariance_decode(data.data(), data.size(),
+        if (geometry_msgs_pose_with_covariance_decode(data.data(), data.size(),
                                             &t.pose.px, &t.pose.py, &t.pose.pz,
                                             &t.pose.ox, &t.pose.oy, &t.pose.oz, &t.pose.ow,
                                             t.covariance.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_pose_with_covariance_decode"));
+            return unexpected<Error>(Error::from_errno("geometry_msgs_pose_with_covariance_decode"));
         return t;
     }
 
     [[nodiscard]] expected<std::size_t, Error>
     encode(span<std::uint8_t> out) const noexcept {
         std::size_t written = 0;
-        if (ros_pose_with_covariance_encode(out.data(), out.size(), &written,
+        if (geometry_msgs_pose_with_covariance_encode(out.data(), out.size(), &written,
                                             pose.px, pose.py, pose.pz,
                                             pose.ox, pose.oy, pose.oz, pose.ow,
                                             covariance.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_pose_with_covariance_encode"));
+            return unexpected<Error>(Error::from_errno("geometry_msgs_pose_with_covariance_encode"));
         return written;
     }
 
     [[nodiscard]] expected<std::size_t, Error>
     encoded_size() const noexcept {
         std::size_t written = 0;
-        if (ros_pose_with_covariance_encode(nullptr, 0, &written,
+        if (geometry_msgs_pose_with_covariance_encode(nullptr, 0, &written,
                                             pose.px, pose.py, pose.pz,
                                             pose.ox, pose.oy, pose.oz, pose.ow,
                                             covariance.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_pose_with_covariance_encode"));
+            return unexpected<Error>(Error::from_errno("geometry_msgs_pose_with_covariance_encode"));
         return written;
     }
 };
+} // namespace geometry_msgs
 
 /// @brief ROS 2 `geometry_msgs::TwistWithCovariance` — Twist plus a 6×6
 ///        row-major covariance matrix over (x, y, z, rotX, rotY, rotZ).
+
+namespace geometry_msgs {
 class TwistWithCovariance {
 public:
     Twist twist{};
@@ -816,39 +859,42 @@ public:
     [[nodiscard]] static expected<TwistWithCovariance, Error>
     decode(span<const std::uint8_t> data) noexcept {
         TwistWithCovariance t;
-        if (ros_twist_with_covariance_decode(data.data(), data.size(),
+        if (geometry_msgs_twist_with_covariance_decode(data.data(), data.size(),
                                              &t.twist.lx, &t.twist.ly, &t.twist.lz,
                                              &t.twist.ax, &t.twist.ay, &t.twist.az,
                                              t.covariance.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_twist_with_covariance_decode"));
+            return unexpected<Error>(Error::from_errno("geometry_msgs_twist_with_covariance_decode"));
         return t;
     }
 
     [[nodiscard]] expected<std::size_t, Error>
     encode(span<std::uint8_t> out) const noexcept {
         std::size_t written = 0;
-        if (ros_twist_with_covariance_encode(out.data(), out.size(), &written,
+        if (geometry_msgs_twist_with_covariance_encode(out.data(), out.size(), &written,
                                              twist.lx, twist.ly, twist.lz,
                                              twist.ax, twist.ay, twist.az,
                                              covariance.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_twist_with_covariance_encode"));
+            return unexpected<Error>(Error::from_errno("geometry_msgs_twist_with_covariance_encode"));
         return written;
     }
 
     [[nodiscard]] expected<std::size_t, Error>
     encoded_size() const noexcept {
         std::size_t written = 0;
-        if (ros_twist_with_covariance_encode(nullptr, 0, &written,
+        if (geometry_msgs_twist_with_covariance_encode(nullptr, 0, &written,
                                              twist.lx, twist.ly, twist.lz,
                                              twist.ax, twist.ay, twist.az,
                                              covariance.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_twist_with_covariance_encode"));
+            return unexpected<Error>(Error::from_errno("geometry_msgs_twist_with_covariance_encode"));
         return written;
     }
 };
+} // namespace geometry_msgs
 
 /// @brief ROS 2 `geometry_msgs::Accel` — linear and angular acceleration of
 ///        a rigid body in free space (m/s² and rad/s²).
+
+namespace geometry_msgs {
 class Accel {
 public:
     /// Linear acceleration X component in m/s².
@@ -884,10 +930,10 @@ public:
     [[nodiscard]] static expected<Accel, Error>
     decode(span<const std::uint8_t> data) noexcept {
         Accel t;
-        if (ros_accel_decode(data.data(), data.size(),
+        if (geometry_msgs_accel_decode(data.data(), data.size(),
                              &t.lx, &t.ly, &t.lz,
                              &t.ax, &t.ay, &t.az) != 0)
-            return unexpected<Error>(Error::from_errno("ros_accel_decode"));
+            return unexpected<Error>(Error::from_errno("geometry_msgs_accel_decode"));
         return t;
     }
 
@@ -897,9 +943,9 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encode(span<std::uint8_t> out) const noexcept {
         std::size_t written = 0;
-        if (ros_accel_encode(out.data(), out.size(), &written,
+        if (geometry_msgs_accel_encode(out.data(), out.size(), &written,
                              lx, ly, lz, ax, ay, az) != 0)
-            return unexpected<Error>(Error::from_errno("ros_accel_encode"));
+            return unexpected<Error>(Error::from_errno("geometry_msgs_accel_encode"));
         return written;
     }
 
@@ -908,14 +954,17 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encoded_size() const noexcept {
         std::size_t written = 0;
-        if (ros_accel_encode(nullptr, 0, &written, lx, ly, lz, ax, ay, az) != 0)
-            return unexpected<Error>(Error::from_errno("ros_accel_encode"));
+        if (geometry_msgs_accel_encode(nullptr, 0, &written, lx, ly, lz, ax, ay, az) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_accel_encode"));
         return written;
     }
 };
+} // namespace geometry_msgs
 
 /// @brief ROS 2 `geometry_msgs::Wrench` — force and torque vectors applied
 ///        to a rigid body, each as a 3D vector (N and N·m).
+
+namespace geometry_msgs {
 class Wrench {
 public:
     /// Force X component in Newtons.
@@ -944,10 +993,10 @@ public:
     [[nodiscard]] static expected<Wrench, Error>
     decode(span<const std::uint8_t> data) noexcept {
         Wrench w;
-        if (ros_wrench_decode(data.data(), data.size(),
+        if (geometry_msgs_wrench_decode(data.data(), data.size(),
                               &w.fx, &w.fy, &w.fz,
                               &w.tx, &w.ty, &w.tz) != 0)
-            return unexpected<Error>(Error::from_errno("ros_wrench_decode"));
+            return unexpected<Error>(Error::from_errno("geometry_msgs_wrench_decode"));
         return w;
     }
 
@@ -957,9 +1006,9 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encode(span<std::uint8_t> out) const noexcept {
         std::size_t written = 0;
-        if (ros_wrench_encode(out.data(), out.size(), &written,
+        if (geometry_msgs_wrench_encode(out.data(), out.size(), &written,
                               fx, fy, fz, tx, ty, tz) != 0)
-            return unexpected<Error>(Error::from_errno("ros_wrench_encode"));
+            return unexpected<Error>(Error::from_errno("geometry_msgs_wrench_encode"));
         return written;
     }
 
@@ -968,14 +1017,17 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encoded_size() const noexcept {
         std::size_t written = 0;
-        if (ros_wrench_encode(nullptr, 0, &written, fx, fy, fz, tx, ty, tz) != 0)
-            return unexpected<Error>(Error::from_errno("ros_wrench_encode"));
+        if (geometry_msgs_wrench_encode(nullptr, 0, &written, fx, fy, fz, tx, ty, tz) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_wrench_encode"));
         return written;
     }
 };
+} // namespace geometry_msgs
 
 /// @brief ROS 2 `geometry_msgs::AccelWithCovariance` — acceleration with a
 ///        6×6 row-major covariance matrix (linear + angular).
+
+namespace geometry_msgs {
 class AccelWithCovariance {
 public:
     Accel accel{};
@@ -988,39 +1040,51 @@ public:
     [[nodiscard]] static expected<AccelWithCovariance, Error>
     decode(span<const std::uint8_t> data) noexcept {
         AccelWithCovariance a;
-        if (ros_accel_with_covariance_decode(data.data(), data.size(),
+        if (geometry_msgs_accel_with_covariance_decode(data.data(), data.size(),
                                              &a.accel.lx, &a.accel.ly, &a.accel.lz,
                                              &a.accel.ax, &a.accel.ay, &a.accel.az,
                                              a.covariance.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_accel_with_covariance_decode"));
+            return unexpected<Error>(Error::from_errno("geometry_msgs_accel_with_covariance_decode"));
         return a;
     }
 
     [[nodiscard]] expected<std::size_t, Error>
     encode(span<std::uint8_t> out) const noexcept {
         std::size_t written = 0;
-        if (ros_accel_with_covariance_encode(out.data(), out.size(), &written,
+        if (geometry_msgs_accel_with_covariance_encode(out.data(), out.size(), &written,
                                              accel.lx, accel.ly, accel.lz,
                                              accel.ax, accel.ay, accel.az,
                                              covariance.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_accel_with_covariance_encode"));
+            return unexpected<Error>(Error::from_errno("geometry_msgs_accel_with_covariance_encode"));
         return written;
     }
 
     [[nodiscard]] expected<std::size_t, Error>
     encoded_size() const noexcept {
         std::size_t written = 0;
-        if (ros_accel_with_covariance_encode(nullptr, 0, &written,
+        if (geometry_msgs_accel_with_covariance_encode(nullptr, 0, &written,
                                              accel.lx, accel.ly, accel.lz,
                                              accel.ax, accel.ay, accel.az,
                                              covariance.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_accel_with_covariance_encode"));
+            return unexpected<Error>(Error::from_errno("geometry_msgs_accel_with_covariance_encode"));
         return written;
     }
 };
+} // namespace geometry_msgs
 
 /// @brief ROS 2 `sensor_msgs::NavSatStatus` — GNSS fix status and service
 ///        bitmask as defined by `sensor_msgs/NavSatStatus.msg`.
+
+namespace sensor_msgs {
+using ::edgefirst::schemas::builtin_interfaces::Time;
+using ::edgefirst::schemas::geometry_msgs::Vector3;
+using ::edgefirst::schemas::geometry_msgs::Quaternion;
+using ::edgefirst::schemas::Error;
+using ::edgefirst::schemas::Released;
+using ::edgefirst::schemas::span;
+using ::edgefirst::schemas::expected;
+using ::edgefirst::schemas::unexpected;
+
 class NavSatStatus {
 public:
     /// Fix status (e.g. STATUS_NO_FIX, STATUS_FIX, STATUS_SBAS_FIX,
@@ -1044,8 +1108,8 @@ public:
     [[nodiscard]] static expected<NavSatStatus, Error>
     decode(span<const std::uint8_t> data) noexcept {
         NavSatStatus t;
-        if (ros_nav_sat_status_decode(data.data(), data.size(), &t.status, &t.service) != 0)
-            return unexpected<Error>(Error::from_errno("ros_nav_sat_status_decode"));
+        if (sensor_msgs_nav_sat_status_decode(data.data(), data.size(), &t.status, &t.service) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_nav_sat_status_decode"));
         return t;
     }
 
@@ -1055,8 +1119,8 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encode(span<std::uint8_t> out) const noexcept {
         std::size_t written = 0;
-        if (ros_nav_sat_status_encode(out.data(), out.size(), &written, status, service) != 0)
-            return unexpected<Error>(Error::from_errno("ros_nav_sat_status_encode"));
+        if (sensor_msgs_nav_sat_status_encode(out.data(), out.size(), &written, status, service) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_nav_sat_status_encode"));
         return written;
     }
 
@@ -1066,11 +1130,12 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encoded_size() const noexcept {
         std::size_t written = 0;
-        if (ros_nav_sat_status_encode(nullptr, 0, &written, status, service) != 0)
-            return unexpected<Error>(Error::from_errno("ros_nav_sat_status_encode"));
+        if (sensor_msgs_nav_sat_status_encode(nullptr, 0, &written, status, service) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_nav_sat_status_encode"));
         return written;
     }
 };
+} // namespace sensor_msgs
 
 /// @brief ROS 2 `nav_msgs::MapMetaData` — fixed-size map metadata: load
 ///        time, cell resolution, grid dimensions, and the origin pose.
@@ -1080,6 +1145,20 @@ public:
 /// and `Transform`. It is also embedded as the `info` block of an
 /// `OccupancyGrid`; see `OccupancyGridView::info()` and
 /// `OccupancyGridBuilder::info()`.
+
+namespace nav_msgs {
+using ::edgefirst::schemas::builtin_interfaces::Time;
+using ::edgefirst::schemas::geometry_msgs::Point;
+using ::edgefirst::schemas::geometry_msgs::Pose;
+using ::edgefirst::schemas::geometry_msgs::Twist;
+using ::edgefirst::schemas::geometry_msgs::PoseWithCovariance;
+using ::edgefirst::schemas::geometry_msgs::TwistWithCovariance;
+using ::edgefirst::schemas::Error;
+using ::edgefirst::schemas::Released;
+using ::edgefirst::schemas::span;
+using ::edgefirst::schemas::expected;
+using ::edgefirst::schemas::unexpected;
+
 class MapMetaData {
 public:
     /// Time at which the map was loaded.
@@ -1111,13 +1190,13 @@ public:
     [[nodiscard]] static expected<MapMetaData, Error>
     decode(span<const std::uint8_t> data) noexcept {
         MapMetaData m;
-        if (ros_map_meta_data_decode(
+        if (nav_msgs_map_meta_data_decode(
                 data.data(), data.size(),
                 &m.map_load_time.sec, &m.map_load_time.nanosec,
                 &m.resolution, &m.width, &m.height,
                 &m.origin.px, &m.origin.py, &m.origin.pz,
                 &m.origin.ox, &m.origin.oy, &m.origin.oz, &m.origin.ow) != 0)
-            return unexpected<Error>(Error::from_errno("ros_map_meta_data_decode"));
+            return unexpected<Error>(Error::from_errno("nav_msgs_map_meta_data_decode"));
         return m;
     }
 
@@ -1127,13 +1206,13 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encode(span<std::uint8_t> out) const noexcept {
         std::size_t written = 0;
-        if (ros_map_meta_data_encode(
+        if (nav_msgs_map_meta_data_encode(
                 out.data(), out.size(), &written,
                 map_load_time.sec, map_load_time.nanosec,
                 resolution, width, height,
                 origin.px, origin.py, origin.pz,
                 origin.ox, origin.oy, origin.oz, origin.ow) != 0)
-            return unexpected<Error>(Error::from_errno("ros_map_meta_data_encode"));
+            return unexpected<Error>(Error::from_errno("nav_msgs_map_meta_data_encode"));
         return written;
     }
 
@@ -1142,22 +1221,31 @@ public:
     [[nodiscard]] expected<std::size_t, Error>
     encoded_size() const noexcept {
         std::size_t written = 0;
-        if (ros_map_meta_data_encode(
+        if (nav_msgs_map_meta_data_encode(
                 nullptr, 0, &written,
                 map_load_time.sec, map_load_time.nanosec,
                 resolution, width, height,
                 origin.px, origin.py, origin.pz,
                 origin.ox, origin.oy, origin.oz, origin.ow) != 0)
-            return unexpected<Error>(Error::from_errno("ros_map_meta_data_encode"));
+            return unexpected<Error>(Error::from_errno("nav_msgs_map_meta_data_encode"));
         return written;
     }
 };
+} // namespace nav_msgs
 
 // ============================================================================
 // Buffer-backed types — template base classes (no macros)
 // ============================================================================
 
 namespace detail {
+using ::edgefirst::schemas::builtin_interfaces::Time;
+using ::edgefirst::schemas::geometry_msgs::Point;
+using ::edgefirst::schemas::geometry_msgs::Vector3;
+using ::edgefirst::schemas::Error;
+using ::edgefirst::schemas::span;
+using ::edgefirst::schemas::expected;
+using ::edgefirst::schemas::unexpected;
+
 
 /**
  * @internal
@@ -1224,7 +1312,7 @@ private:
  *
  * Same shape as ViewBase but omits the `as_cdr()` member. Used for
  * `MaskView` and `BoxView`, whose C handles do not expose
- * `ros_<prefix>_as_cdr` after the Task 4 refactor.
+ * `<package>_<type>_as_cdr` after the Task 4 refactor.
  */
 template <typename Derived, typename Traits>
 class ViewBaseNoCdr {
@@ -1264,9 +1352,9 @@ private:
  * @brief CRTP base for move-only owning wrappers.
  *
  * Holds both the encoded CDR bytes (allocated by
- * `ros_<prefix>_encode`) and the opaque view handle over them. The
+ * `<package>_<type>_encode`) and the opaque view handle over them. The
  * destructor frees the handle via the traits and then releases the
- * encoded bytes via `ros_bytes_free()`. `as_cdr()` delegates to
+ * encoded bytes via `edgefirst_schemas_bytes_free()`. `as_cdr()` delegates to
  * `Traits::as_cdr` on the handle. The Traits struct has the same
  * shape as for ViewBase.
  */
@@ -1304,7 +1392,7 @@ public:
     /// After this call the wrapper is empty: its internal C handle has
     /// been freed, its byte pointer has been nulled, and the destructor
     /// becomes a safe no-op. The caller is responsible for freeing the
-    /// returned buffer via `ros_bytes_free(r.data, r.size)` or handing
+    /// returned buffer via `edgefirst_schemas_bytes_free(r.data, r.size)` or handing
     /// ownership to a sink that frees it (for example a
     /// `zenoh::Bytes` constructed with a matching deleter lambda).
     ///
@@ -1337,7 +1425,7 @@ protected:
         auto* h = Traits::from_cdr(out, len);
         if (!h) {
             auto err = Error::from_errno(Traits::name);
-            ros_bytes_free(out, len);
+            edgefirst_schemas_bytes_free(out, len);
             return unexpected<Error>(err);
         }
         Derived result;
@@ -1348,7 +1436,7 @@ protected:
 private:
     void reset() noexcept {
         if (handle_) { Traits::free(handle_); handle_ = nullptr; }
-        if (bytes_)  { ros_bytes_free(bytes_, bytes_len_);
+        if (bytes_)  { edgefirst_schemas_bytes_free(bytes_, bytes_len_);
                        bytes_ = nullptr; bytes_len_ = 0; }
     }
     std::uint8_t* bytes_{nullptr};
@@ -1363,7 +1451,7 @@ private:
  *
  * Same as OwnedBase except `as_cdr()` returns the stored encoded bytes
  * directly rather than calling `Traits::as_cdr`. Used by the owning
- * `Mask` class, since `ros_mask_as_cdr` does not exist in the C API.
+ * `Mask` class, since `edgefirst_msgs_mask_as_cdr` does not exist in the C API.
  */
 template <typename Derived, typename Traits>
 class OwnedBaseNoCdr {
@@ -1419,7 +1507,7 @@ protected:
         auto* h = Traits::from_cdr(out, len);
         if (!h) {
             auto err = Error::from_errno(Traits::name);
-            ros_bytes_free(out, len);
+            edgefirst_schemas_bytes_free(out, len);
             return unexpected<Error>(err);
         }
         Derived result;
@@ -1430,7 +1518,7 @@ protected:
 private:
     void reset() noexcept {
         if (handle_) { Traits::free(handle_); handle_ = nullptr; }
-        if (bytes_)  { ros_bytes_free(bytes_, bytes_len_);
+        if (bytes_)  { edgefirst_schemas_bytes_free(bytes_, bytes_len_);
                        bytes_ = nullptr; bytes_len_ = 0; }
     }
     std::uint8_t* bytes_{nullptr};
@@ -1494,7 +1582,7 @@ public:
 
     /// @brief Allocate a fresh CDR buffer and encode the message.
     /// @return A `Released` POD on success (caller frees via
-    ///         `ros_bytes_free`), or an Error.
+    ///         `edgefirst_schemas_bytes_free`), or an Error.
     [[nodiscard]] expected<Released, Error> build() noexcept {
         std::uint8_t* out = nullptr;
         std::size_t len = 0;
@@ -1528,433 +1616,433 @@ private:
 // ---------------------------------------------------------------------------
 
 struct HeaderTraits {
-    using handle_type = ros_header_t;
-    static constexpr auto from_cdr = ros_header_from_cdr;
-    static constexpr auto free     = ros_header_free;
-    static constexpr auto as_cdr   = ros_header_as_cdr;
-    static constexpr std::string_view name = "ros_header";
+    using handle_type = std_msgs_header_t;
+    static constexpr auto from_cdr = std_msgs_header_from_cdr;
+    static constexpr auto free     = std_msgs_header_free;
+    static constexpr auto as_cdr   = std_msgs_header_as_cdr;
+    static constexpr std::string_view name = "std_msgs_header";
 };
 
 struct CompressedImageTraits {
-    using handle_type = ros_compressed_image_t;
-    static constexpr auto from_cdr = ros_compressed_image_from_cdr;
-    static constexpr auto free     = ros_compressed_image_free;
-    static constexpr auto as_cdr   = ros_compressed_image_as_cdr;
-    static constexpr std::string_view name = "ros_compressed_image";
+    using handle_type = sensor_msgs_compressed_image_t;
+    static constexpr auto from_cdr = sensor_msgs_compressed_image_from_cdr;
+    static constexpr auto free     = sensor_msgs_compressed_image_free;
+    static constexpr auto as_cdr   = sensor_msgs_compressed_image_as_cdr;
+    static constexpr std::string_view name = "sensor_msgs_compressed_image";
 };
 
 struct ImuTraits {
-    using handle_type = ros_imu_t;
-    static constexpr auto from_cdr = ros_imu_from_cdr;
-    static constexpr auto free     = ros_imu_free;
-    static constexpr auto as_cdr   = ros_imu_as_cdr;
-    static constexpr std::string_view name = "ros_imu";
+    using handle_type = sensor_msgs_imu_t;
+    static constexpr auto from_cdr = sensor_msgs_imu_from_cdr;
+    static constexpr auto free     = sensor_msgs_imu_free;
+    static constexpr auto as_cdr   = sensor_msgs_imu_as_cdr;
+    static constexpr std::string_view name = "sensor_msgs_imu";
 };
 
 struct NavSatFixTraits {
-    using handle_type = ros_nav_sat_fix_t;
-    static constexpr auto from_cdr = ros_nav_sat_fix_from_cdr;
-    static constexpr auto free     = ros_nav_sat_fix_free;
-    static constexpr auto as_cdr   = ros_nav_sat_fix_as_cdr;
-    static constexpr std::string_view name = "ros_nav_sat_fix";
+    using handle_type = sensor_msgs_nav_sat_fix_t;
+    static constexpr auto from_cdr = sensor_msgs_nav_sat_fix_from_cdr;
+    static constexpr auto free     = sensor_msgs_nav_sat_fix_free;
+    static constexpr auto as_cdr   = sensor_msgs_nav_sat_fix_as_cdr;
+    static constexpr std::string_view name = "sensor_msgs_nav_sat_fix";
 };
 
 struct CameraInfoTraits {
-    using handle_type = ros_camera_info_t;
-    static constexpr auto from_cdr = ros_camera_info_from_cdr;
-    static constexpr auto free     = ros_camera_info_free;
-    static constexpr auto as_cdr   = ros_camera_info_as_cdr;
-    static constexpr std::string_view name = "ros_camera_info";
+    using handle_type = sensor_msgs_camera_info_t;
+    static constexpr auto from_cdr = sensor_msgs_camera_info_from_cdr;
+    static constexpr auto free     = sensor_msgs_camera_info_free;
+    static constexpr auto as_cdr   = sensor_msgs_camera_info_as_cdr;
+    static constexpr std::string_view name = "sensor_msgs_camera_info";
 };
 
 struct TransformStampedTraits {
-    using handle_type = ros_transform_stamped_t;
-    static constexpr auto from_cdr = ros_transform_stamped_from_cdr;
-    static constexpr auto free     = ros_transform_stamped_free;
-    static constexpr auto as_cdr   = ros_transform_stamped_as_cdr;
-    static constexpr std::string_view name = "ros_transform_stamped";
+    using handle_type = geometry_msgs_transform_stamped_t;
+    static constexpr auto from_cdr = geometry_msgs_transform_stamped_from_cdr;
+    static constexpr auto free     = geometry_msgs_transform_stamped_free;
+    static constexpr auto as_cdr   = geometry_msgs_transform_stamped_as_cdr;
+    static constexpr std::string_view name = "geometry_msgs_transform_stamped";
 };
 
 struct TwistStampedTraits {
-    using handle_type = ros_twist_stamped_t;
-    static constexpr auto from_cdr = ros_twist_stamped_from_cdr;
-    static constexpr auto free     = ros_twist_stamped_free;
-    static constexpr auto as_cdr   = ros_twist_stamped_as_cdr;
-    static constexpr std::string_view name = "ros_twist_stamped";
+    using handle_type = geometry_msgs_twist_stamped_t;
+    static constexpr auto from_cdr = geometry_msgs_twist_stamped_from_cdr;
+    static constexpr auto free     = geometry_msgs_twist_stamped_free;
+    static constexpr auto as_cdr   = geometry_msgs_twist_stamped_as_cdr;
+    static constexpr std::string_view name = "geometry_msgs_twist_stamped";
 };
 
 struct AccelStampedTraits {
-    using handle_type = ros_accel_stamped_t;
-    static constexpr auto from_cdr = ros_accel_stamped_from_cdr;
-    static constexpr auto free     = ros_accel_stamped_free;
-    static constexpr auto as_cdr   = ros_accel_stamped_as_cdr;
-    static constexpr std::string_view name = "ros_accel_stamped";
+    using handle_type = geometry_msgs_accel_stamped_t;
+    static constexpr auto from_cdr = geometry_msgs_accel_stamped_from_cdr;
+    static constexpr auto free     = geometry_msgs_accel_stamped_free;
+    static constexpr auto as_cdr   = geometry_msgs_accel_stamped_as_cdr;
+    static constexpr std::string_view name = "geometry_msgs_accel_stamped";
 };
 
 struct PointStampedTraits {
-    using handle_type = ros_point_stamped_t;
-    static constexpr auto from_cdr = ros_point_stamped_from_cdr;
-    static constexpr auto free     = ros_point_stamped_free;
-    static constexpr auto as_cdr   = ros_point_stamped_as_cdr;
-    static constexpr std::string_view name = "ros_point_stamped";
+    using handle_type = geometry_msgs_point_stamped_t;
+    static constexpr auto from_cdr = geometry_msgs_point_stamped_from_cdr;
+    static constexpr auto free     = geometry_msgs_point_stamped_free;
+    static constexpr auto as_cdr   = geometry_msgs_point_stamped_as_cdr;
+    static constexpr std::string_view name = "geometry_msgs_point_stamped";
 };
 
 struct InertiaStampedTraits {
-    using handle_type = ros_inertia_stamped_t;
-    static constexpr auto from_cdr = ros_inertia_stamped_from_cdr;
-    static constexpr auto free     = ros_inertia_stamped_free;
-    static constexpr auto as_cdr   = ros_inertia_stamped_as_cdr;
-    static constexpr std::string_view name = "ros_inertia_stamped";
+    using handle_type = geometry_msgs_inertia_stamped_t;
+    static constexpr auto from_cdr = geometry_msgs_inertia_stamped_from_cdr;
+    static constexpr auto free     = geometry_msgs_inertia_stamped_free;
+    static constexpr auto as_cdr   = geometry_msgs_inertia_stamped_as_cdr;
+    static constexpr std::string_view name = "geometry_msgs_inertia_stamped";
 };
 
 struct Vector3StampedTraits {
-    using handle_type = ros_vector3_stamped_t;
-    static constexpr auto from_cdr = ros_vector3_stamped_from_cdr;
-    static constexpr auto free     = ros_vector3_stamped_free;
-    static constexpr auto as_cdr   = ros_vector3_stamped_as_cdr;
-    static constexpr std::string_view name = "ros_vector3_stamped";
+    using handle_type = geometry_msgs_vector3_stamped_t;
+    static constexpr auto from_cdr = geometry_msgs_vector3_stamped_from_cdr;
+    static constexpr auto free     = geometry_msgs_vector3_stamped_free;
+    static constexpr auto as_cdr   = geometry_msgs_vector3_stamped_as_cdr;
+    static constexpr std::string_view name = "geometry_msgs_vector3_stamped";
 };
 
 struct PoseStampedTraits {
-    using handle_type = ros_pose_stamped_t;
-    static constexpr auto from_cdr = ros_pose_stamped_from_cdr;
-    static constexpr auto free     = ros_pose_stamped_free;
-    static constexpr auto as_cdr   = ros_pose_stamped_as_cdr;
-    static constexpr std::string_view name = "ros_pose_stamped";
+    using handle_type = geometry_msgs_pose_stamped_t;
+    static constexpr auto from_cdr = geometry_msgs_pose_stamped_from_cdr;
+    static constexpr auto free     = geometry_msgs_pose_stamped_free;
+    static constexpr auto as_cdr   = geometry_msgs_pose_stamped_as_cdr;
+    static constexpr std::string_view name = "geometry_msgs_pose_stamped";
 };
 
 struct QuaternionStampedTraits {
-    using handle_type = ros_quaternion_stamped_t;
-    static constexpr auto from_cdr = ros_quaternion_stamped_from_cdr;
-    static constexpr auto free     = ros_quaternion_stamped_free;
-    static constexpr auto as_cdr   = ros_quaternion_stamped_as_cdr;
-    static constexpr std::string_view name = "ros_quaternion_stamped";
+    using handle_type = geometry_msgs_quaternion_stamped_t;
+    static constexpr auto from_cdr = geometry_msgs_quaternion_stamped_from_cdr;
+    static constexpr auto free     = geometry_msgs_quaternion_stamped_free;
+    static constexpr auto as_cdr   = geometry_msgs_quaternion_stamped_as_cdr;
+    static constexpr std::string_view name = "geometry_msgs_quaternion_stamped";
 };
 
 struct WrenchStampedTraits {
-    using handle_type = ros_wrench_stamped_t;
-    static constexpr auto from_cdr = ros_wrench_stamped_from_cdr;
-    static constexpr auto free     = ros_wrench_stamped_free;
-    static constexpr auto as_cdr   = ros_wrench_stamped_as_cdr;
-    static constexpr std::string_view name = "ros_wrench_stamped";
+    using handle_type = geometry_msgs_wrench_stamped_t;
+    static constexpr auto from_cdr = geometry_msgs_wrench_stamped_from_cdr;
+    static constexpr auto free     = geometry_msgs_wrench_stamped_free;
+    static constexpr auto as_cdr   = geometry_msgs_wrench_stamped_as_cdr;
+    static constexpr std::string_view name = "geometry_msgs_wrench_stamped";
 };
 
 struct PoseWithCovarianceStampedTraits {
-    using handle_type = ros_pose_with_covariance_stamped_t;
-    static constexpr auto from_cdr = ros_pose_with_covariance_stamped_from_cdr;
-    static constexpr auto free     = ros_pose_with_covariance_stamped_free;
-    static constexpr auto as_cdr   = ros_pose_with_covariance_stamped_as_cdr;
-    static constexpr std::string_view name = "ros_pose_with_covariance_stamped";
+    using handle_type = geometry_msgs_pose_with_covariance_stamped_t;
+    static constexpr auto from_cdr = geometry_msgs_pose_with_covariance_stamped_from_cdr;
+    static constexpr auto free     = geometry_msgs_pose_with_covariance_stamped_free;
+    static constexpr auto as_cdr   = geometry_msgs_pose_with_covariance_stamped_as_cdr;
+    static constexpr std::string_view name = "geometry_msgs_pose_with_covariance_stamped";
 };
 
 struct TwistWithCovarianceStampedTraits {
-    using handle_type = ros_twist_with_covariance_stamped_t;
-    static constexpr auto from_cdr = ros_twist_with_covariance_stamped_from_cdr;
-    static constexpr auto free     = ros_twist_with_covariance_stamped_free;
-    static constexpr auto as_cdr   = ros_twist_with_covariance_stamped_as_cdr;
-    static constexpr std::string_view name = "ros_twist_with_covariance_stamped";
+    using handle_type = geometry_msgs_twist_with_covariance_stamped_t;
+    static constexpr auto from_cdr = geometry_msgs_twist_with_covariance_stamped_from_cdr;
+    static constexpr auto free     = geometry_msgs_twist_with_covariance_stamped_free;
+    static constexpr auto as_cdr   = geometry_msgs_twist_with_covariance_stamped_as_cdr;
+    static constexpr std::string_view name = "geometry_msgs_twist_with_covariance_stamped";
 };
 
 struct AccelWithCovarianceStampedTraits {
-    using handle_type = ros_accel_with_covariance_stamped_t;
-    static constexpr auto from_cdr = ros_accel_with_covariance_stamped_from_cdr;
-    static constexpr auto free     = ros_accel_with_covariance_stamped_free;
-    static constexpr auto as_cdr   = ros_accel_with_covariance_stamped_as_cdr;
-    static constexpr std::string_view name = "ros_accel_with_covariance_stamped";
+    using handle_type = geometry_msgs_accel_with_covariance_stamped_t;
+    static constexpr auto from_cdr = geometry_msgs_accel_with_covariance_stamped_from_cdr;
+    static constexpr auto free     = geometry_msgs_accel_with_covariance_stamped_free;
+    static constexpr auto as_cdr   = geometry_msgs_accel_with_covariance_stamped_as_cdr;
+    static constexpr std::string_view name = "geometry_msgs_accel_with_covariance_stamped";
 };
 
 struct PolygonTraits {
-    using handle_type = ros_polygon_t;
-    static constexpr auto from_cdr = ros_polygon_from_cdr;
-    static constexpr auto free     = ros_polygon_free;
-    static constexpr auto as_cdr   = ros_polygon_as_cdr;
-    static constexpr std::string_view name = "ros_polygon";
+    using handle_type = geometry_msgs_polygon_t;
+    static constexpr auto from_cdr = geometry_msgs_polygon_from_cdr;
+    static constexpr auto free     = geometry_msgs_polygon_free;
+    static constexpr auto as_cdr   = geometry_msgs_polygon_as_cdr;
+    static constexpr std::string_view name = "geometry_msgs_polygon";
 };
 
 struct PolygonStampedTraits {
-    using handle_type = ros_polygon_stamped_t;
-    static constexpr auto from_cdr = ros_polygon_stamped_from_cdr;
-    static constexpr auto free     = ros_polygon_stamped_free;
-    static constexpr auto as_cdr   = ros_polygon_stamped_as_cdr;
-    static constexpr std::string_view name = "ros_polygon_stamped";
+    using handle_type = geometry_msgs_polygon_stamped_t;
+    static constexpr auto from_cdr = geometry_msgs_polygon_stamped_from_cdr;
+    static constexpr auto free     = geometry_msgs_polygon_stamped_free;
+    static constexpr auto as_cdr   = geometry_msgs_polygon_stamped_as_cdr;
+    static constexpr std::string_view name = "geometry_msgs_polygon_stamped";
 };
 
 struct PoseArrayTraits {
-    using handle_type = ros_pose_array_t;
-    static constexpr auto from_cdr = ros_pose_array_from_cdr;
-    static constexpr auto free     = ros_pose_array_free;
-    static constexpr auto as_cdr   = ros_pose_array_as_cdr;
-    static constexpr std::string_view name = "ros_pose_array";
+    using handle_type = geometry_msgs_pose_array_t;
+    static constexpr auto from_cdr = geometry_msgs_pose_array_from_cdr;
+    static constexpr auto free     = geometry_msgs_pose_array_free;
+    static constexpr auto as_cdr   = geometry_msgs_pose_array_as_cdr;
+    static constexpr std::string_view name = "geometry_msgs_pose_array";
 };
 
 struct CompressedVideoTraits {
-    using handle_type = ros_compressed_video_t;
-    static constexpr auto from_cdr = ros_compressed_video_from_cdr;
-    static constexpr auto free     = ros_compressed_video_free;
-    static constexpr auto as_cdr   = ros_compressed_video_as_cdr;
-    static constexpr std::string_view name = "ros_compressed_video";
+    using handle_type = foxglove_msgs_compressed_video_t;
+    static constexpr auto from_cdr = foxglove_msgs_compressed_video_from_cdr;
+    static constexpr auto free     = foxglove_msgs_compressed_video_free;
+    static constexpr auto as_cdr   = foxglove_msgs_compressed_video_as_cdr;
+    static constexpr std::string_view name = "foxglove_msgs_compressed_video";
 };
 
 struct FoxgloveCompressedImageTraits {
-    using handle_type = ros_foxglove_compressed_image_t;
-    static constexpr auto from_cdr = ros_foxglove_compressed_image_from_cdr;
-    static constexpr auto free     = ros_foxglove_compressed_image_free;
-    static constexpr auto as_cdr   = ros_foxglove_compressed_image_as_cdr;
-    static constexpr std::string_view name = "ros_foxglove_compressed_image";
+    using handle_type = foxglove_msgs_compressed_image_t;
+    static constexpr auto from_cdr = foxglove_msgs_compressed_image_from_cdr;
+    static constexpr auto free     = foxglove_msgs_compressed_image_free;
+    static constexpr auto as_cdr   = foxglove_msgs_compressed_image_as_cdr;
+    static constexpr std::string_view name = "foxglove_msgs_compressed_image";
 };
 
-// MaskTraits: ros_mask_as_cdr does not exist in the C API (removed in the
+// MaskTraits: edgefirst_msgs_mask_as_cdr does not exist in the C API (removed in the
 // Task 4 refactor).  The as_cdr field is intentionally absent; MaskView uses
 // ViewBaseNoCdr and Mask uses OwnedBaseNoCdr to avoid calling it.
 struct MaskTraits {
-    using handle_type = ros_mask_t;
-    static constexpr auto from_cdr = ros_mask_from_cdr;
-    static constexpr auto free     = ros_mask_free;
-    static constexpr std::string_view name = "ros_mask";
+    using handle_type = edgefirst_msgs_mask_t;
+    static constexpr auto from_cdr = edgefirst_msgs_mask_from_cdr;
+    static constexpr auto free     = edgefirst_msgs_mask_free;
+    static constexpr std::string_view name = "edgefirst_msgs_mask";
 };
 
 struct LocalTimeTraits {
-    using handle_type = ros_local_time_t;
-    static constexpr auto from_cdr = ros_local_time_from_cdr;
-    static constexpr auto free     = ros_local_time_free;
-    static constexpr auto as_cdr   = ros_local_time_as_cdr;
-    static constexpr std::string_view name = "ros_local_time";
+    using handle_type = edgefirst_msgs_local_time_t;
+    static constexpr auto from_cdr = edgefirst_msgs_local_time_from_cdr;
+    static constexpr auto free     = edgefirst_msgs_local_time_free;
+    static constexpr auto as_cdr   = edgefirst_msgs_local_time_as_cdr;
+    static constexpr std::string_view name = "edgefirst_msgs_local_time";
 };
 
 struct TrackTraits {
-    using handle_type = ros_track_t;
-    static constexpr auto from_cdr = ros_track_from_cdr;
-    static constexpr auto free     = ros_track_free;
-    static constexpr auto as_cdr   = ros_track_as_cdr;
-    static constexpr std::string_view name = "ros_track";
+    using handle_type = edgefirst_msgs_track_t;
+    static constexpr auto from_cdr = edgefirst_msgs_track_from_cdr;
+    static constexpr auto free     = edgefirst_msgs_track_free;
+    static constexpr auto as_cdr   = edgefirst_msgs_track_as_cdr;
+    static constexpr std::string_view name = "edgefirst_msgs_track";
 };
 
 struct ImageTraits {
-    using handle_type = ros_image_t;
-    static constexpr auto from_cdr = ros_image_from_cdr;
-    static constexpr auto free     = ros_image_free;
-    static constexpr auto as_cdr   = ros_image_as_cdr;
-    static constexpr std::string_view name = "ros_image";
+    using handle_type = sensor_msgs_image_t;
+    static constexpr auto from_cdr = sensor_msgs_image_from_cdr;
+    static constexpr auto free     = sensor_msgs_image_free;
+    static constexpr auto as_cdr   = sensor_msgs_image_as_cdr;
+    static constexpr std::string_view name = "sensor_msgs_image";
 };
 
 struct PointCloud2Traits {
-    using handle_type = ros_point_cloud2_t;
-    static constexpr auto from_cdr = ros_point_cloud2_from_cdr;
-    static constexpr auto free     = ros_point_cloud2_free;
-    static constexpr auto as_cdr   = ros_point_cloud2_as_cdr;
-    static constexpr std::string_view name = "ros_point_cloud2";
+    using handle_type = sensor_msgs_point_cloud2_t;
+    static constexpr auto from_cdr = sensor_msgs_point_cloud2_from_cdr;
+    static constexpr auto free     = sensor_msgs_point_cloud2_free;
+    static constexpr auto as_cdr   = sensor_msgs_point_cloud2_as_cdr;
+    static constexpr std::string_view name = "sensor_msgs_point_cloud2";
 };
 
 struct RadarCubeTraits {
-    using handle_type = ros_radar_cube_t;
-    static constexpr auto from_cdr = ros_radar_cube_from_cdr;
-    static constexpr auto free     = ros_radar_cube_free;
-    static constexpr auto as_cdr   = ros_radar_cube_as_cdr;
-    static constexpr std::string_view name = "ros_radar_cube";
+    using handle_type = edgefirst_msgs_radar_cube_t;
+    static constexpr auto from_cdr = edgefirst_msgs_radar_cube_from_cdr;
+    static constexpr auto free     = edgefirst_msgs_radar_cube_free;
+    static constexpr auto as_cdr   = edgefirst_msgs_radar_cube_as_cdr;
+    static constexpr std::string_view name = "edgefirst_msgs_radar_cube";
 };
 
 struct RadarInfoTraits {
-    using handle_type = ros_radar_info_t;
-    static constexpr auto from_cdr = ros_radar_info_from_cdr;
-    static constexpr auto free     = ros_radar_info_free;
-    static constexpr auto as_cdr   = ros_radar_info_as_cdr;
-    static constexpr std::string_view name = "ros_radar_info";
+    using handle_type = edgefirst_msgs_radar_info_t;
+    static constexpr auto from_cdr = edgefirst_msgs_radar_info_from_cdr;
+    static constexpr auto free     = edgefirst_msgs_radar_info_free;
+    static constexpr auto as_cdr   = edgefirst_msgs_radar_info_as_cdr;
+    static constexpr std::string_view name = "edgefirst_msgs_radar_info";
 };
 
-// BoxTraits: ros_box_as_cdr was removed in the Task 4 refactor.
+// BoxTraits: edgefirst_msgs_box_as_cdr was removed in the Task 4 refactor.
 // BoxView uses ViewBaseNoCdr; Box (owning) is not provided as there is no
-// ros_box_encode in the C API.
+// edgefirst_msgs_box_encode in the C API.
 struct BoxTraits {
-    using handle_type = ros_box_t;
-    static constexpr auto from_cdr = ros_box_from_cdr;
-    static constexpr auto free     = ros_box_free;
-    static constexpr std::string_view name = "ros_box";
+    using handle_type = edgefirst_msgs_box_t;
+    static constexpr auto from_cdr = edgefirst_msgs_box_from_cdr;
+    static constexpr auto free     = edgefirst_msgs_box_free;
+    static constexpr std::string_view name = "edgefirst_msgs_box";
 };
 
 struct DetectTraits {
-    using handle_type = ros_detect_t;
-    static constexpr auto from_cdr = ros_detect_from_cdr;
-    static constexpr auto free     = ros_detect_free;
-    static constexpr auto as_cdr   = ros_detect_as_cdr;
-    static constexpr std::string_view name = "ros_detect";
+    using handle_type = edgefirst_msgs_detect_t;
+    static constexpr auto from_cdr = edgefirst_msgs_detect_from_cdr;
+    static constexpr auto free     = edgefirst_msgs_detect_free;
+    static constexpr auto as_cdr   = edgefirst_msgs_detect_as_cdr;
+    static constexpr std::string_view name = "edgefirst_msgs_detect";
 };
 
 struct ModelTraits {
-    using handle_type = ros_model_t;
-    static constexpr auto from_cdr = ros_model_from_cdr;
-    static constexpr auto free     = ros_model_free;
-    static constexpr auto as_cdr   = ros_model_as_cdr;
-    static constexpr std::string_view name = "ros_model";
+    using handle_type = edgefirst_msgs_model_t;
+    static constexpr auto from_cdr = edgefirst_msgs_model_from_cdr;
+    static constexpr auto free     = edgefirst_msgs_model_free;
+    static constexpr auto as_cdr   = edgefirst_msgs_model_as_cdr;
+    static constexpr std::string_view name = "edgefirst_msgs_model";
 };
 
 struct ModelInfoTraits {
-    using handle_type = ros_model_info_t;
-    static constexpr auto from_cdr = ros_model_info_from_cdr;
-    static constexpr auto free     = ros_model_info_free;
-    static constexpr auto as_cdr   = ros_model_info_as_cdr;
-    static constexpr std::string_view name = "ros_model_info";
+    using handle_type = edgefirst_msgs_model_info_t;
+    static constexpr auto from_cdr = edgefirst_msgs_model_info_from_cdr;
+    static constexpr auto free     = edgefirst_msgs_model_info_free;
+    static constexpr auto as_cdr   = edgefirst_msgs_model_info_as_cdr;
+    static constexpr std::string_view name = "edgefirst_msgs_model_info";
 };
 
 struct MagneticFieldTraits {
-    using handle_type = ros_magnetic_field_t;
-    static constexpr auto from_cdr = ros_magnetic_field_from_cdr;
-    static constexpr auto free     = ros_magnetic_field_free;
-    static constexpr auto as_cdr   = ros_magnetic_field_as_cdr;
-    static constexpr std::string_view name = "ros_magnetic_field";
+    using handle_type = sensor_msgs_magnetic_field_t;
+    static constexpr auto from_cdr = sensor_msgs_magnetic_field_from_cdr;
+    static constexpr auto free     = sensor_msgs_magnetic_field_free;
+    static constexpr auto as_cdr   = sensor_msgs_magnetic_field_as_cdr;
+    static constexpr std::string_view name = "sensor_msgs_magnetic_field";
 };
 
 struct FluidPressureTraits {
-    using handle_type = ros_fluid_pressure_t;
-    static constexpr auto from_cdr = ros_fluid_pressure_from_cdr;
-    static constexpr auto free     = ros_fluid_pressure_free;
-    static constexpr auto as_cdr   = ros_fluid_pressure_as_cdr;
-    static constexpr std::string_view name = "ros_fluid_pressure";
+    using handle_type = sensor_msgs_fluid_pressure_t;
+    static constexpr auto from_cdr = sensor_msgs_fluid_pressure_from_cdr;
+    static constexpr auto free     = sensor_msgs_fluid_pressure_free;
+    static constexpr auto as_cdr   = sensor_msgs_fluid_pressure_as_cdr;
+    static constexpr std::string_view name = "sensor_msgs_fluid_pressure";
 };
 
 struct TemperatureTraits {
-    using handle_type = ros_temperature_t;
-    static constexpr auto from_cdr = ros_temperature_from_cdr;
-    static constexpr auto free     = ros_temperature_free;
-    static constexpr auto as_cdr   = ros_temperature_as_cdr;
-    static constexpr std::string_view name = "ros_temperature";
+    using handle_type = sensor_msgs_temperature_t;
+    static constexpr auto from_cdr = sensor_msgs_temperature_from_cdr;
+    static constexpr auto free     = sensor_msgs_temperature_free;
+    static constexpr auto as_cdr   = sensor_msgs_temperature_as_cdr;
+    static constexpr std::string_view name = "sensor_msgs_temperature";
 };
 
 struct BatteryStateTraits {
-    using handle_type = ros_battery_state_t;
-    static constexpr auto from_cdr = ros_battery_state_from_cdr;
-    static constexpr auto free     = ros_battery_state_free;
-    static constexpr auto as_cdr   = ros_battery_state_as_cdr;
-    static constexpr std::string_view name = "ros_battery_state";
+    using handle_type = sensor_msgs_battery_state_t;
+    static constexpr auto from_cdr = sensor_msgs_battery_state_from_cdr;
+    static constexpr auto free     = sensor_msgs_battery_state_free;
+    static constexpr auto as_cdr   = sensor_msgs_battery_state_as_cdr;
+    static constexpr std::string_view name = "sensor_msgs_battery_state";
 };
 
 struct OdometryTraits {
-    using handle_type = ros_odometry_t;
-    static constexpr auto from_cdr = ros_odometry_from_cdr;
-    static constexpr auto free     = ros_odometry_free;
-    static constexpr auto as_cdr   = ros_odometry_as_cdr;
-    static constexpr std::string_view name = "ros_odometry";
+    using handle_type = nav_msgs_odometry_t;
+    static constexpr auto from_cdr = nav_msgs_odometry_from_cdr;
+    static constexpr auto free     = nav_msgs_odometry_free;
+    static constexpr auto as_cdr   = nav_msgs_odometry_as_cdr;
+    static constexpr std::string_view name = "nav_msgs_odometry";
 };
 
 struct VibrationTraits {
-    using handle_type = ros_vibration_t;
-    static constexpr auto from_cdr = ros_vibration_from_cdr;
-    static constexpr auto free     = ros_vibration_free;
-    static constexpr auto as_cdr   = ros_vibration_as_cdr;
-    static constexpr std::string_view name = "ros_vibration";
+    using handle_type = edgefirst_msgs_vibration_t;
+    static constexpr auto from_cdr = edgefirst_msgs_vibration_from_cdr;
+    static constexpr auto free     = edgefirst_msgs_vibration_free;
+    static constexpr auto as_cdr   = edgefirst_msgs_vibration_as_cdr;
+    static constexpr std::string_view name = "edgefirst_msgs_vibration";
 };
 
 struct MavrosAltitudeTraits {
-    using handle_type = ros_mavros_altitude_t;
-    static constexpr auto from_cdr = ros_mavros_altitude_from_cdr;
-    static constexpr auto free     = ros_mavros_altitude_free;
-    static constexpr auto as_cdr   = ros_mavros_altitude_as_cdr;
-    static constexpr std::string_view name = "ros_mavros_altitude";
+    using handle_type = mavros_msgs_altitude_t;
+    static constexpr auto from_cdr = mavros_msgs_altitude_from_cdr;
+    static constexpr auto free     = mavros_msgs_altitude_free;
+    static constexpr auto as_cdr   = mavros_msgs_altitude_as_cdr;
+    static constexpr std::string_view name = "mavros_msgs_altitude";
 };
 
 struct MavrosVfrHudTraits {
-    using handle_type = ros_mavros_vfrhud_t;
-    static constexpr auto from_cdr = ros_mavros_vfrhud_from_cdr;
-    static constexpr auto free     = ros_mavros_vfrhud_free;
-    static constexpr auto as_cdr   = ros_mavros_vfrhud_as_cdr;
-    static constexpr std::string_view name = "ros_mavros_vfrhud";
+    using handle_type = mavros_msgs_vfrhud_t;
+    static constexpr auto from_cdr = mavros_msgs_vfrhud_from_cdr;
+    static constexpr auto free     = mavros_msgs_vfrhud_free;
+    static constexpr auto as_cdr   = mavros_msgs_vfrhud_as_cdr;
+    static constexpr std::string_view name = "mavros_msgs_vfrhud";
 };
 
 struct MavrosEstimatorStatusTraits {
-    using handle_type = ros_mavros_estimator_status_t;
-    static constexpr auto from_cdr = ros_mavros_estimator_status_from_cdr;
-    static constexpr auto free     = ros_mavros_estimator_status_free;
-    static constexpr auto as_cdr   = ros_mavros_estimator_status_as_cdr;
-    static constexpr std::string_view name = "ros_mavros_estimator_status";
+    using handle_type = mavros_msgs_estimator_status_t;
+    static constexpr auto from_cdr = mavros_msgs_estimator_status_from_cdr;
+    static constexpr auto free     = mavros_msgs_estimator_status_free;
+    static constexpr auto as_cdr   = mavros_msgs_estimator_status_as_cdr;
+    static constexpr std::string_view name = "mavros_msgs_estimator_status";
 };
 
 struct MavrosExtendedStateTraits {
-    using handle_type = ros_mavros_extended_state_t;
-    static constexpr auto from_cdr = ros_mavros_extended_state_from_cdr;
-    static constexpr auto free     = ros_mavros_extended_state_free;
-    static constexpr auto as_cdr   = ros_mavros_extended_state_as_cdr;
-    static constexpr std::string_view name = "ros_mavros_extended_state";
+    using handle_type = mavros_msgs_extended_state_t;
+    static constexpr auto from_cdr = mavros_msgs_extended_state_from_cdr;
+    static constexpr auto free     = mavros_msgs_extended_state_free;
+    static constexpr auto as_cdr   = mavros_msgs_extended_state_as_cdr;
+    static constexpr std::string_view name = "mavros_msgs_extended_state";
 };
 
 struct MavrosSysStatusTraits {
-    using handle_type = ros_mavros_sys_status_t;
-    static constexpr auto from_cdr = ros_mavros_sys_status_from_cdr;
-    static constexpr auto free     = ros_mavros_sys_status_free;
-    static constexpr auto as_cdr   = ros_mavros_sys_status_as_cdr;
-    static constexpr std::string_view name = "ros_mavros_sys_status";
+    using handle_type = mavros_msgs_sys_status_t;
+    static constexpr auto from_cdr = mavros_msgs_sys_status_from_cdr;
+    static constexpr auto free     = mavros_msgs_sys_status_free;
+    static constexpr auto as_cdr   = mavros_msgs_sys_status_as_cdr;
+    static constexpr std::string_view name = "mavros_msgs_sys_status";
 };
 
 struct MavrosStateTraits {
-    using handle_type = ros_mavros_state_t;
-    static constexpr auto from_cdr = ros_mavros_state_from_cdr;
-    static constexpr auto free     = ros_mavros_state_free;
-    static constexpr auto as_cdr   = ros_mavros_state_as_cdr;
-    static constexpr std::string_view name = "ros_mavros_state";
+    using handle_type = mavros_msgs_state_t;
+    static constexpr auto from_cdr = mavros_msgs_state_from_cdr;
+    static constexpr auto free     = mavros_msgs_state_free;
+    static constexpr auto as_cdr   = mavros_msgs_state_as_cdr;
+    static constexpr std::string_view name = "mavros_msgs_state";
 };
 
 struct MavrosStatusTextTraits {
-    using handle_type = ros_mavros_status_text_t;
-    static constexpr auto from_cdr = ros_mavros_status_text_from_cdr;
-    static constexpr auto free     = ros_mavros_status_text_free;
-    static constexpr auto as_cdr   = ros_mavros_status_text_as_cdr;
-    static constexpr std::string_view name = "ros_mavros_status_text";
+    using handle_type = mavros_msgs_status_text_t;
+    static constexpr auto from_cdr = mavros_msgs_status_text_from_cdr;
+    static constexpr auto free     = mavros_msgs_status_text_free;
+    static constexpr auto as_cdr   = mavros_msgs_status_text_as_cdr;
+    static constexpr std::string_view name = "mavros_msgs_status_text";
 };
 
 struct MavrosGpsRawTraits {
-    using handle_type = ros_mavros_gps_raw_t;
-    static constexpr auto from_cdr = ros_mavros_gps_raw_from_cdr;
-    static constexpr auto free     = ros_mavros_gps_raw_free;
-    static constexpr auto as_cdr   = ros_mavros_gps_raw_as_cdr;
-    static constexpr std::string_view name = "ros_mavros_gps_raw";
+    using handle_type = mavros_msgs_gps_raw_t;
+    static constexpr auto from_cdr = mavros_msgs_gps_raw_from_cdr;
+    static constexpr auto free     = mavros_msgs_gps_raw_free;
+    static constexpr auto as_cdr   = mavros_msgs_gps_raw_as_cdr;
+    static constexpr std::string_view name = "mavros_msgs_gps_raw";
 };
 
 struct MavrosTimesyncStatusTraits {
-    using handle_type = ros_mavros_timesync_status_t;
-    static constexpr auto from_cdr = ros_mavros_timesync_status_from_cdr;
-    static constexpr auto free     = ros_mavros_timesync_status_free;
-    static constexpr auto as_cdr   = ros_mavros_timesync_status_as_cdr;
-    static constexpr std::string_view name = "ros_mavros_timesync_status";
+    using handle_type = mavros_msgs_timesync_status_t;
+    static constexpr auto from_cdr = mavros_msgs_timesync_status_from_cdr;
+    static constexpr auto free     = mavros_msgs_timesync_status_free;
+    static constexpr auto as_cdr   = mavros_msgs_timesync_status_as_cdr;
+    static constexpr std::string_view name = "mavros_msgs_timesync_status";
 };
 
 // DE-2781 nav_msgs / sensor_msgs view traits.
 
 struct RelativeHumidityTraits {
-    using handle_type = ros_relative_humidity_t;
-    static constexpr auto from_cdr = ros_relative_humidity_from_cdr;
-    static constexpr auto free     = ros_relative_humidity_free;
-    static constexpr auto as_cdr   = ros_relative_humidity_as_cdr;
-    static constexpr std::string_view name = "ros_relative_humidity";
+    using handle_type = sensor_msgs_relative_humidity_t;
+    static constexpr auto from_cdr = sensor_msgs_relative_humidity_from_cdr;
+    static constexpr auto free     = sensor_msgs_relative_humidity_free;
+    static constexpr auto as_cdr   = sensor_msgs_relative_humidity_as_cdr;
+    static constexpr std::string_view name = "sensor_msgs_relative_humidity";
 };
 
 struct TimeReferenceTraits {
-    using handle_type = ros_time_reference_t;
-    static constexpr auto from_cdr = ros_time_reference_from_cdr;
-    static constexpr auto free     = ros_time_reference_free;
-    static constexpr auto as_cdr   = ros_time_reference_as_cdr;
-    static constexpr std::string_view name = "ros_time_reference";
+    using handle_type = sensor_msgs_time_reference_t;
+    static constexpr auto from_cdr = sensor_msgs_time_reference_from_cdr;
+    static constexpr auto free     = sensor_msgs_time_reference_free;
+    static constexpr auto as_cdr   = sensor_msgs_time_reference_as_cdr;
+    static constexpr std::string_view name = "sensor_msgs_time_reference";
 };
 
 struct GridCellsTraits {
-    using handle_type = ros_grid_cells_t;
-    static constexpr auto from_cdr = ros_grid_cells_from_cdr;
-    static constexpr auto free     = ros_grid_cells_free;
-    static constexpr auto as_cdr   = ros_grid_cells_as_cdr;
-    static constexpr std::string_view name = "ros_grid_cells";
+    using handle_type = nav_msgs_grid_cells_t;
+    static constexpr auto from_cdr = nav_msgs_grid_cells_from_cdr;
+    static constexpr auto free     = nav_msgs_grid_cells_free;
+    static constexpr auto as_cdr   = nav_msgs_grid_cells_as_cdr;
+    static constexpr std::string_view name = "nav_msgs_grid_cells";
 };
 
 struct OccupancyGridTraits {
-    using handle_type = ros_occupancy_grid_t;
-    static constexpr auto from_cdr = ros_occupancy_grid_from_cdr;
-    static constexpr auto free     = ros_occupancy_grid_free;
-    static constexpr auto as_cdr   = ros_occupancy_grid_as_cdr;
-    static constexpr std::string_view name = "ros_occupancy_grid";
+    using handle_type = nav_msgs_occupancy_grid_t;
+    static constexpr auto from_cdr = nav_msgs_occupancy_grid_from_cdr;
+    static constexpr auto free     = nav_msgs_occupancy_grid_free;
+    static constexpr auto as_cdr   = nav_msgs_occupancy_grid_as_cdr;
+    static constexpr std::string_view name = "nav_msgs_occupancy_grid";
 };
 
 struct PathTraits {
-    using handle_type = ros_path_t;
-    static constexpr auto from_cdr = ros_path_from_cdr;
-    static constexpr auto free     = ros_path_free;
-    static constexpr auto as_cdr   = ros_path_as_cdr;
-    static constexpr std::string_view name = "ros_path";
+    using handle_type = nav_msgs_path_t;
+    static constexpr auto from_cdr = nav_msgs_path_from_cdr;
+    static constexpr auto free     = nav_msgs_path_free;
+    static constexpr auto as_cdr   = nav_msgs_path_as_cdr;
+    static constexpr std::string_view name = "nav_msgs_path";
 };
 
 // ---------------------------------------------------------------------------
@@ -1962,633 +2050,633 @@ struct PathTraits {
 // ---------------------------------------------------------------------------
 
 struct HeaderBuilderTraits {
-    using builder_type = ros_header_builder_t;
-    static constexpr auto new_fn = ros_header_builder_new;
-    static constexpr auto free_fn = ros_header_builder_free;
-    static constexpr auto build_fn = ros_header_builder_build;
-    static constexpr auto encode_into_fn = ros_header_builder_encode_into;
-    static constexpr std::string_view name = "ros_header_builder";
-    static constexpr std::string_view build_name = "ros_header_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_header_builder_encode_into";
+    using builder_type = std_msgs_header_builder_t;
+    static constexpr auto new_fn = std_msgs_header_builder_new;
+    static constexpr auto free_fn = std_msgs_header_builder_free;
+    static constexpr auto build_fn = std_msgs_header_builder_build;
+    static constexpr auto encode_into_fn = std_msgs_header_builder_encode_into;
+    static constexpr std::string_view name = "std_msgs_header_builder";
+    static constexpr std::string_view build_name = "std_msgs_header_builder_build";
+    static constexpr std::string_view encode_into_name = "std_msgs_header_builder_encode_into";
 };
 
 struct ImageBuilderTraits {
-    using builder_type = ros_image_builder_t;
-    static constexpr auto new_fn = ros_image_builder_new;
-    static constexpr auto free_fn = ros_image_builder_free;
-    static constexpr auto build_fn = ros_image_builder_build;
-    static constexpr auto encode_into_fn = ros_image_builder_encode_into;
-    static constexpr std::string_view name = "ros_image_builder";
-    static constexpr std::string_view build_name = "ros_image_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_image_builder_encode_into";
+    using builder_type = sensor_msgs_image_builder_t;
+    static constexpr auto new_fn = sensor_msgs_image_builder_new;
+    static constexpr auto free_fn = sensor_msgs_image_builder_free;
+    static constexpr auto build_fn = sensor_msgs_image_builder_build;
+    static constexpr auto encode_into_fn = sensor_msgs_image_builder_encode_into;
+    static constexpr std::string_view name = "sensor_msgs_image_builder";
+    static constexpr std::string_view build_name = "sensor_msgs_image_builder_build";
+    static constexpr std::string_view encode_into_name = "sensor_msgs_image_builder_encode_into";
 };
 
 struct CompressedImageBuilderTraits {
-    using builder_type = ros_compressed_image_builder_t;
-    static constexpr auto new_fn = ros_compressed_image_builder_new;
-    static constexpr auto free_fn = ros_compressed_image_builder_free;
-    static constexpr auto build_fn = ros_compressed_image_builder_build;
-    static constexpr auto encode_into_fn = ros_compressed_image_builder_encode_into;
-    static constexpr std::string_view name = "ros_compressed_image_builder";
-    static constexpr std::string_view build_name = "ros_compressed_image_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_compressed_image_builder_encode_into";
+    using builder_type = sensor_msgs_compressed_image_builder_t;
+    static constexpr auto new_fn = sensor_msgs_compressed_image_builder_new;
+    static constexpr auto free_fn = sensor_msgs_compressed_image_builder_free;
+    static constexpr auto build_fn = sensor_msgs_compressed_image_builder_build;
+    static constexpr auto encode_into_fn = sensor_msgs_compressed_image_builder_encode_into;
+    static constexpr std::string_view name = "sensor_msgs_compressed_image_builder";
+    static constexpr std::string_view build_name = "sensor_msgs_compressed_image_builder_build";
+    static constexpr std::string_view encode_into_name = "sensor_msgs_compressed_image_builder_encode_into";
 };
 
 struct ImuBuilderTraits {
-    using builder_type = ros_imu_builder_t;
-    static constexpr auto new_fn = ros_imu_builder_new;
-    static constexpr auto free_fn = ros_imu_builder_free;
-    static constexpr auto build_fn = ros_imu_builder_build;
-    static constexpr auto encode_into_fn = ros_imu_builder_encode_into;
-    static constexpr std::string_view name = "ros_imu_builder";
-    static constexpr std::string_view build_name = "ros_imu_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_imu_builder_encode_into";
+    using builder_type = sensor_msgs_imu_builder_t;
+    static constexpr auto new_fn = sensor_msgs_imu_builder_new;
+    static constexpr auto free_fn = sensor_msgs_imu_builder_free;
+    static constexpr auto build_fn = sensor_msgs_imu_builder_build;
+    static constexpr auto encode_into_fn = sensor_msgs_imu_builder_encode_into;
+    static constexpr std::string_view name = "sensor_msgs_imu_builder";
+    static constexpr std::string_view build_name = "sensor_msgs_imu_builder_build";
+    static constexpr std::string_view encode_into_name = "sensor_msgs_imu_builder_encode_into";
 };
 
 struct NavSatFixBuilderTraits {
-    using builder_type = ros_nav_sat_fix_builder_t;
-    static constexpr auto new_fn = ros_nav_sat_fix_builder_new;
-    static constexpr auto free_fn = ros_nav_sat_fix_builder_free;
-    static constexpr auto build_fn = ros_nav_sat_fix_builder_build;
-    static constexpr auto encode_into_fn = ros_nav_sat_fix_builder_encode_into;
-    static constexpr std::string_view name = "ros_nav_sat_fix_builder";
-    static constexpr std::string_view build_name = "ros_nav_sat_fix_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_nav_sat_fix_builder_encode_into";
+    using builder_type = sensor_msgs_nav_sat_fix_builder_t;
+    static constexpr auto new_fn = sensor_msgs_nav_sat_fix_builder_new;
+    static constexpr auto free_fn = sensor_msgs_nav_sat_fix_builder_free;
+    static constexpr auto build_fn = sensor_msgs_nav_sat_fix_builder_build;
+    static constexpr auto encode_into_fn = sensor_msgs_nav_sat_fix_builder_encode_into;
+    static constexpr std::string_view name = "sensor_msgs_nav_sat_fix_builder";
+    static constexpr std::string_view build_name = "sensor_msgs_nav_sat_fix_builder_build";
+    static constexpr std::string_view encode_into_name = "sensor_msgs_nav_sat_fix_builder_encode_into";
 };
 
 struct PointFieldBuilderTraits {
-    using builder_type = ros_point_field_builder_t;
-    static constexpr auto new_fn = ros_point_field_builder_new;
-    static constexpr auto free_fn = ros_point_field_builder_free;
-    static constexpr auto build_fn = ros_point_field_builder_build;
-    static constexpr auto encode_into_fn = ros_point_field_builder_encode_into;
-    static constexpr std::string_view name = "ros_point_field_builder";
-    static constexpr std::string_view build_name = "ros_point_field_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_point_field_builder_encode_into";
+    using builder_type = sensor_msgs_point_field_builder_t;
+    static constexpr auto new_fn = sensor_msgs_point_field_builder_new;
+    static constexpr auto free_fn = sensor_msgs_point_field_builder_free;
+    static constexpr auto build_fn = sensor_msgs_point_field_builder_build;
+    static constexpr auto encode_into_fn = sensor_msgs_point_field_builder_encode_into;
+    static constexpr std::string_view name = "sensor_msgs_point_field_builder";
+    static constexpr std::string_view build_name = "sensor_msgs_point_field_builder_build";
+    static constexpr std::string_view encode_into_name = "sensor_msgs_point_field_builder_encode_into";
 };
 
 struct PointCloud2BuilderTraits {
-    using builder_type = ros_point_cloud2_builder_t;
-    static constexpr auto new_fn = ros_point_cloud2_builder_new;
-    static constexpr auto free_fn = ros_point_cloud2_builder_free;
-    static constexpr auto build_fn = ros_point_cloud2_builder_build;
-    static constexpr auto encode_into_fn = ros_point_cloud2_builder_encode_into;
-    static constexpr std::string_view name = "ros_point_cloud2_builder";
-    static constexpr std::string_view build_name = "ros_point_cloud2_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_point_cloud2_builder_encode_into";
+    using builder_type = sensor_msgs_point_cloud2_builder_t;
+    static constexpr auto new_fn = sensor_msgs_point_cloud2_builder_new;
+    static constexpr auto free_fn = sensor_msgs_point_cloud2_builder_free;
+    static constexpr auto build_fn = sensor_msgs_point_cloud2_builder_build;
+    static constexpr auto encode_into_fn = sensor_msgs_point_cloud2_builder_encode_into;
+    static constexpr std::string_view name = "sensor_msgs_point_cloud2_builder";
+    static constexpr std::string_view build_name = "sensor_msgs_point_cloud2_builder_build";
+    static constexpr std::string_view encode_into_name = "sensor_msgs_point_cloud2_builder_encode_into";
 };
 
 struct CameraInfoBuilderTraits {
-    using builder_type = ros_camera_info_builder_t;
-    static constexpr auto new_fn = ros_camera_info_builder_new;
-    static constexpr auto free_fn = ros_camera_info_builder_free;
-    static constexpr auto build_fn = ros_camera_info_builder_build;
-    static constexpr auto encode_into_fn = ros_camera_info_builder_encode_into;
-    static constexpr std::string_view name = "ros_camera_info_builder";
-    static constexpr std::string_view build_name = "ros_camera_info_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_camera_info_builder_encode_into";
+    using builder_type = sensor_msgs_camera_info_builder_t;
+    static constexpr auto new_fn = sensor_msgs_camera_info_builder_new;
+    static constexpr auto free_fn = sensor_msgs_camera_info_builder_free;
+    static constexpr auto build_fn = sensor_msgs_camera_info_builder_build;
+    static constexpr auto encode_into_fn = sensor_msgs_camera_info_builder_encode_into;
+    static constexpr std::string_view name = "sensor_msgs_camera_info_builder";
+    static constexpr std::string_view build_name = "sensor_msgs_camera_info_builder_build";
+    static constexpr std::string_view encode_into_name = "sensor_msgs_camera_info_builder_encode_into";
 };
 
 struct MagneticFieldBuilderTraits {
-    using builder_type = ros_magnetic_field_builder_t;
-    static constexpr auto new_fn = ros_magnetic_field_builder_new;
-    static constexpr auto free_fn = ros_magnetic_field_builder_free;
-    static constexpr auto build_fn = ros_magnetic_field_builder_build;
-    static constexpr auto encode_into_fn = ros_magnetic_field_builder_encode_into;
-    static constexpr std::string_view name = "ros_magnetic_field_builder";
-    static constexpr std::string_view build_name = "ros_magnetic_field_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_magnetic_field_builder_encode_into";
+    using builder_type = sensor_msgs_magnetic_field_builder_t;
+    static constexpr auto new_fn = sensor_msgs_magnetic_field_builder_new;
+    static constexpr auto free_fn = sensor_msgs_magnetic_field_builder_free;
+    static constexpr auto build_fn = sensor_msgs_magnetic_field_builder_build;
+    static constexpr auto encode_into_fn = sensor_msgs_magnetic_field_builder_encode_into;
+    static constexpr std::string_view name = "sensor_msgs_magnetic_field_builder";
+    static constexpr std::string_view build_name = "sensor_msgs_magnetic_field_builder_build";
+    static constexpr std::string_view encode_into_name = "sensor_msgs_magnetic_field_builder_encode_into";
 };
 
 struct FluidPressureBuilderTraits {
-    using builder_type = ros_fluid_pressure_builder_t;
-    static constexpr auto new_fn = ros_fluid_pressure_builder_new;
-    static constexpr auto free_fn = ros_fluid_pressure_builder_free;
-    static constexpr auto build_fn = ros_fluid_pressure_builder_build;
-    static constexpr auto encode_into_fn = ros_fluid_pressure_builder_encode_into;
-    static constexpr std::string_view name = "ros_fluid_pressure_builder";
-    static constexpr std::string_view build_name = "ros_fluid_pressure_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_fluid_pressure_builder_encode_into";
+    using builder_type = sensor_msgs_fluid_pressure_builder_t;
+    static constexpr auto new_fn = sensor_msgs_fluid_pressure_builder_new;
+    static constexpr auto free_fn = sensor_msgs_fluid_pressure_builder_free;
+    static constexpr auto build_fn = sensor_msgs_fluid_pressure_builder_build;
+    static constexpr auto encode_into_fn = sensor_msgs_fluid_pressure_builder_encode_into;
+    static constexpr std::string_view name = "sensor_msgs_fluid_pressure_builder";
+    static constexpr std::string_view build_name = "sensor_msgs_fluid_pressure_builder_build";
+    static constexpr std::string_view encode_into_name = "sensor_msgs_fluid_pressure_builder_encode_into";
 };
 
 struct TemperatureBuilderTraits {
-    using builder_type = ros_temperature_builder_t;
-    static constexpr auto new_fn = ros_temperature_builder_new;
-    static constexpr auto free_fn = ros_temperature_builder_free;
-    static constexpr auto build_fn = ros_temperature_builder_build;
-    static constexpr auto encode_into_fn = ros_temperature_builder_encode_into;
-    static constexpr std::string_view name = "ros_temperature_builder";
-    static constexpr std::string_view build_name = "ros_temperature_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_temperature_builder_encode_into";
+    using builder_type = sensor_msgs_temperature_builder_t;
+    static constexpr auto new_fn = sensor_msgs_temperature_builder_new;
+    static constexpr auto free_fn = sensor_msgs_temperature_builder_free;
+    static constexpr auto build_fn = sensor_msgs_temperature_builder_build;
+    static constexpr auto encode_into_fn = sensor_msgs_temperature_builder_encode_into;
+    static constexpr std::string_view name = "sensor_msgs_temperature_builder";
+    static constexpr std::string_view build_name = "sensor_msgs_temperature_builder_build";
+    static constexpr std::string_view encode_into_name = "sensor_msgs_temperature_builder_encode_into";
 };
 
 struct BatteryStateBuilderTraits {
-    using builder_type = ros_battery_state_builder_t;
-    static constexpr auto new_fn = ros_battery_state_builder_new;
-    static constexpr auto free_fn = ros_battery_state_builder_free;
-    static constexpr auto build_fn = ros_battery_state_builder_build;
-    static constexpr auto encode_into_fn = ros_battery_state_builder_encode_into;
-    static constexpr std::string_view name = "ros_battery_state_builder";
-    static constexpr std::string_view build_name = "ros_battery_state_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_battery_state_builder_encode_into";
+    using builder_type = sensor_msgs_battery_state_builder_t;
+    static constexpr auto new_fn = sensor_msgs_battery_state_builder_new;
+    static constexpr auto free_fn = sensor_msgs_battery_state_builder_free;
+    static constexpr auto build_fn = sensor_msgs_battery_state_builder_build;
+    static constexpr auto encode_into_fn = sensor_msgs_battery_state_builder_encode_into;
+    static constexpr std::string_view name = "sensor_msgs_battery_state_builder";
+    static constexpr std::string_view build_name = "sensor_msgs_battery_state_builder_build";
+    static constexpr std::string_view encode_into_name = "sensor_msgs_battery_state_builder_encode_into";
 };
 
 struct MaskBuilderTraits {
-    using builder_type = ros_mask_builder_t;
-    static constexpr auto new_fn = ros_mask_builder_new;
-    static constexpr auto free_fn = ros_mask_builder_free;
-    static constexpr auto build_fn = ros_mask_builder_build;
-    static constexpr auto encode_into_fn = ros_mask_builder_encode_into;
-    static constexpr std::string_view name = "ros_mask_builder";
-    static constexpr std::string_view build_name = "ros_mask_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_mask_builder_encode_into";
+    using builder_type = edgefirst_msgs_mask_builder_t;
+    static constexpr auto new_fn = edgefirst_msgs_mask_builder_new;
+    static constexpr auto free_fn = edgefirst_msgs_mask_builder_free;
+    static constexpr auto build_fn = edgefirst_msgs_mask_builder_build;
+    static constexpr auto encode_into_fn = edgefirst_msgs_mask_builder_encode_into;
+    static constexpr std::string_view name = "edgefirst_msgs_mask_builder";
+    static constexpr std::string_view build_name = "edgefirst_msgs_mask_builder_build";
+    static constexpr std::string_view encode_into_name = "edgefirst_msgs_mask_builder_encode_into";
 };
 
 struct LocalTimeBuilderTraits {
-    using builder_type = ros_local_time_builder_t;
-    static constexpr auto new_fn = ros_local_time_builder_new;
-    static constexpr auto free_fn = ros_local_time_builder_free;
-    static constexpr auto build_fn = ros_local_time_builder_build;
-    static constexpr auto encode_into_fn = ros_local_time_builder_encode_into;
-    static constexpr std::string_view name = "ros_local_time_builder";
-    static constexpr std::string_view build_name = "ros_local_time_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_local_time_builder_encode_into";
+    using builder_type = edgefirst_msgs_local_time_builder_t;
+    static constexpr auto new_fn = edgefirst_msgs_local_time_builder_new;
+    static constexpr auto free_fn = edgefirst_msgs_local_time_builder_free;
+    static constexpr auto build_fn = edgefirst_msgs_local_time_builder_build;
+    static constexpr auto encode_into_fn = edgefirst_msgs_local_time_builder_encode_into;
+    static constexpr std::string_view name = "edgefirst_msgs_local_time_builder";
+    static constexpr std::string_view build_name = "edgefirst_msgs_local_time_builder_build";
+    static constexpr std::string_view encode_into_name = "edgefirst_msgs_local_time_builder_encode_into";
 };
 
 struct RadarCubeBuilderTraits {
-    using builder_type = ros_radar_cube_builder_t;
-    static constexpr auto new_fn = ros_radar_cube_builder_new;
-    static constexpr auto free_fn = ros_radar_cube_builder_free;
-    static constexpr auto build_fn = ros_radar_cube_builder_build;
-    static constexpr auto encode_into_fn = ros_radar_cube_builder_encode_into;
-    static constexpr std::string_view name = "ros_radar_cube_builder";
-    static constexpr std::string_view build_name = "ros_radar_cube_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_radar_cube_builder_encode_into";
+    using builder_type = edgefirst_msgs_radar_cube_builder_t;
+    static constexpr auto new_fn = edgefirst_msgs_radar_cube_builder_new;
+    static constexpr auto free_fn = edgefirst_msgs_radar_cube_builder_free;
+    static constexpr auto build_fn = edgefirst_msgs_radar_cube_builder_build;
+    static constexpr auto encode_into_fn = edgefirst_msgs_radar_cube_builder_encode_into;
+    static constexpr std::string_view name = "edgefirst_msgs_radar_cube_builder";
+    static constexpr std::string_view build_name = "edgefirst_msgs_radar_cube_builder_build";
+    static constexpr std::string_view encode_into_name = "edgefirst_msgs_radar_cube_builder_encode_into";
 };
 
 struct RadarInfoBuilderTraits {
-    using builder_type = ros_radar_info_builder_t;
-    static constexpr auto new_fn = ros_radar_info_builder_new;
-    static constexpr auto free_fn = ros_radar_info_builder_free;
-    static constexpr auto build_fn = ros_radar_info_builder_build;
-    static constexpr auto encode_into_fn = ros_radar_info_builder_encode_into;
-    static constexpr std::string_view name = "ros_radar_info_builder";
-    static constexpr std::string_view build_name = "ros_radar_info_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_radar_info_builder_encode_into";
+    using builder_type = edgefirst_msgs_radar_info_builder_t;
+    static constexpr auto new_fn = edgefirst_msgs_radar_info_builder_new;
+    static constexpr auto free_fn = edgefirst_msgs_radar_info_builder_free;
+    static constexpr auto build_fn = edgefirst_msgs_radar_info_builder_build;
+    static constexpr auto encode_into_fn = edgefirst_msgs_radar_info_builder_encode_into;
+    static constexpr std::string_view name = "edgefirst_msgs_radar_info_builder";
+    static constexpr std::string_view build_name = "edgefirst_msgs_radar_info_builder_build";
+    static constexpr std::string_view encode_into_name = "edgefirst_msgs_radar_info_builder_encode_into";
 };
 
 struct TrackBuilderTraits {
-    using builder_type = ros_track_builder_t;
-    static constexpr auto new_fn = ros_track_builder_new;
-    static constexpr auto free_fn = ros_track_builder_free;
-    static constexpr auto build_fn = ros_track_builder_build;
-    static constexpr auto encode_into_fn = ros_track_builder_encode_into;
-    static constexpr std::string_view name = "ros_track_builder";
-    static constexpr std::string_view build_name = "ros_track_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_track_builder_encode_into";
+    using builder_type = edgefirst_msgs_track_builder_t;
+    static constexpr auto new_fn = edgefirst_msgs_track_builder_new;
+    static constexpr auto free_fn = edgefirst_msgs_track_builder_free;
+    static constexpr auto build_fn = edgefirst_msgs_track_builder_build;
+    static constexpr auto encode_into_fn = edgefirst_msgs_track_builder_encode_into;
+    static constexpr std::string_view name = "edgefirst_msgs_track_builder";
+    static constexpr std::string_view build_name = "edgefirst_msgs_track_builder_build";
+    static constexpr std::string_view encode_into_name = "edgefirst_msgs_track_builder_encode_into";
 };
 
 struct DetectBoxBuilderTraits {
-    using builder_type = ros_detect_box_builder_t;
-    static constexpr auto new_fn = ros_detect_box_builder_new;
-    static constexpr auto free_fn = ros_detect_box_builder_free;
-    static constexpr auto build_fn = ros_detect_box_builder_build;
-    static constexpr auto encode_into_fn = ros_detect_box_builder_encode_into;
-    static constexpr std::string_view name = "ros_detect_box_builder";
-    static constexpr std::string_view build_name = "ros_detect_box_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_detect_box_builder_encode_into";
+    using builder_type = edgefirst_msgs_detect_box_builder_t;
+    static constexpr auto new_fn = edgefirst_msgs_detect_box_builder_new;
+    static constexpr auto free_fn = edgefirst_msgs_detect_box_builder_free;
+    static constexpr auto build_fn = edgefirst_msgs_detect_box_builder_build;
+    static constexpr auto encode_into_fn = edgefirst_msgs_detect_box_builder_encode_into;
+    static constexpr std::string_view name = "edgefirst_msgs_detect_box_builder";
+    static constexpr std::string_view build_name = "edgefirst_msgs_detect_box_builder_build";
+    static constexpr std::string_view encode_into_name = "edgefirst_msgs_detect_box_builder_encode_into";
 };
 
 struct DetectBuilderTraits {
-    using builder_type = ros_detect_builder_t;
-    static constexpr auto new_fn = ros_detect_builder_new;
-    static constexpr auto free_fn = ros_detect_builder_free;
-    static constexpr auto build_fn = ros_detect_builder_build;
-    static constexpr auto encode_into_fn = ros_detect_builder_encode_into;
-    static constexpr std::string_view name = "ros_detect_builder";
-    static constexpr std::string_view build_name = "ros_detect_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_detect_builder_encode_into";
+    using builder_type = edgefirst_msgs_detect_builder_t;
+    static constexpr auto new_fn = edgefirst_msgs_detect_builder_new;
+    static constexpr auto free_fn = edgefirst_msgs_detect_builder_free;
+    static constexpr auto build_fn = edgefirst_msgs_detect_builder_build;
+    static constexpr auto encode_into_fn = edgefirst_msgs_detect_builder_encode_into;
+    static constexpr std::string_view name = "edgefirst_msgs_detect_builder";
+    static constexpr std::string_view build_name = "edgefirst_msgs_detect_builder_build";
+    static constexpr std::string_view encode_into_name = "edgefirst_msgs_detect_builder_encode_into";
 };
 
 struct ModelBuilderTraits {
-    using builder_type = ros_model_builder_t;
-    static constexpr auto new_fn = ros_model_builder_new;
-    static constexpr auto free_fn = ros_model_builder_free;
-    static constexpr auto build_fn = ros_model_builder_build;
-    static constexpr auto encode_into_fn = ros_model_builder_encode_into;
-    static constexpr std::string_view name = "ros_model_builder";
-    static constexpr std::string_view build_name = "ros_model_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_model_builder_encode_into";
+    using builder_type = edgefirst_msgs_model_builder_t;
+    static constexpr auto new_fn = edgefirst_msgs_model_builder_new;
+    static constexpr auto free_fn = edgefirst_msgs_model_builder_free;
+    static constexpr auto build_fn = edgefirst_msgs_model_builder_build;
+    static constexpr auto encode_into_fn = edgefirst_msgs_model_builder_encode_into;
+    static constexpr std::string_view name = "edgefirst_msgs_model_builder";
+    static constexpr std::string_view build_name = "edgefirst_msgs_model_builder_build";
+    static constexpr std::string_view encode_into_name = "edgefirst_msgs_model_builder_encode_into";
 };
 
 struct ModelInfoBuilderTraits {
-    using builder_type = ros_model_info_builder_t;
-    static constexpr auto new_fn = ros_model_info_builder_new;
-    static constexpr auto free_fn = ros_model_info_builder_free;
-    static constexpr auto build_fn = ros_model_info_builder_build;
-    static constexpr auto encode_into_fn = ros_model_info_builder_encode_into;
-    static constexpr std::string_view name = "ros_model_info_builder";
-    static constexpr std::string_view build_name = "ros_model_info_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_model_info_builder_encode_into";
+    using builder_type = edgefirst_msgs_model_info_builder_t;
+    static constexpr auto new_fn = edgefirst_msgs_model_info_builder_new;
+    static constexpr auto free_fn = edgefirst_msgs_model_info_builder_free;
+    static constexpr auto build_fn = edgefirst_msgs_model_info_builder_build;
+    static constexpr auto encode_into_fn = edgefirst_msgs_model_info_builder_encode_into;
+    static constexpr std::string_view name = "edgefirst_msgs_model_info_builder";
+    static constexpr std::string_view build_name = "edgefirst_msgs_model_info_builder_build";
+    static constexpr std::string_view encode_into_name = "edgefirst_msgs_model_info_builder_encode_into";
 };
 
 struct VibrationBuilderTraits {
-    using builder_type = ros_vibration_builder_t;
-    static constexpr auto new_fn = ros_vibration_builder_new;
-    static constexpr auto free_fn = ros_vibration_builder_free;
-    static constexpr auto build_fn = ros_vibration_builder_build;
-    static constexpr auto encode_into_fn = ros_vibration_builder_encode_into;
-    static constexpr std::string_view name = "ros_vibration_builder";
-    static constexpr std::string_view build_name = "ros_vibration_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_vibration_builder_encode_into";
+    using builder_type = edgefirst_msgs_vibration_builder_t;
+    static constexpr auto new_fn = edgefirst_msgs_vibration_builder_new;
+    static constexpr auto free_fn = edgefirst_msgs_vibration_builder_free;
+    static constexpr auto build_fn = edgefirst_msgs_vibration_builder_build;
+    static constexpr auto encode_into_fn = edgefirst_msgs_vibration_builder_encode_into;
+    static constexpr std::string_view name = "edgefirst_msgs_vibration_builder";
+    static constexpr std::string_view build_name = "edgefirst_msgs_vibration_builder_build";
+    static constexpr std::string_view encode_into_name = "edgefirst_msgs_vibration_builder_encode_into";
 };
 
 struct FoxgloveCompressedVideoBuilderTraits {
-    using builder_type = ros_foxglove_compressed_video_builder_t;
-    static constexpr auto new_fn = ros_foxglove_compressed_video_builder_new;
-    static constexpr auto free_fn = ros_foxglove_compressed_video_builder_free;
-    static constexpr auto build_fn = ros_foxglove_compressed_video_builder_build;
-    static constexpr auto encode_into_fn = ros_foxglove_compressed_video_builder_encode_into;
-    static constexpr std::string_view name = "ros_foxglove_compressed_video_builder";
-    static constexpr std::string_view build_name = "ros_foxglove_compressed_video_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_foxglove_compressed_video_builder_encode_into";
+    using builder_type = foxglove_msgs_compressed_video_builder_t;
+    static constexpr auto new_fn = foxglove_msgs_compressed_video_builder_new;
+    static constexpr auto free_fn = foxglove_msgs_compressed_video_builder_free;
+    static constexpr auto build_fn = foxglove_msgs_compressed_video_builder_build;
+    static constexpr auto encode_into_fn = foxglove_msgs_compressed_video_builder_encode_into;
+    static constexpr std::string_view name = "foxglove_msgs_compressed_video_builder";
+    static constexpr std::string_view build_name = "foxglove_msgs_compressed_video_builder_build";
+    static constexpr std::string_view encode_into_name = "foxglove_msgs_compressed_video_builder_encode_into";
 };
 
 struct FoxgloveCompressedImageBuilderTraits {
-    using builder_type = ros_foxglove_compressed_image_builder_t;
-    static constexpr auto new_fn = ros_foxglove_compressed_image_builder_new;
-    static constexpr auto free_fn = ros_foxglove_compressed_image_builder_free;
-    static constexpr auto build_fn = ros_foxglove_compressed_image_builder_build;
-    static constexpr auto encode_into_fn = ros_foxglove_compressed_image_builder_encode_into;
-    static constexpr std::string_view name = "ros_foxglove_compressed_image_builder";
-    static constexpr std::string_view build_name = "ros_foxglove_compressed_image_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_foxglove_compressed_image_builder_encode_into";
+    using builder_type = foxglove_msgs_compressed_image_builder_t;
+    static constexpr auto new_fn = foxglove_msgs_compressed_image_builder_new;
+    static constexpr auto free_fn = foxglove_msgs_compressed_image_builder_free;
+    static constexpr auto build_fn = foxglove_msgs_compressed_image_builder_build;
+    static constexpr auto encode_into_fn = foxglove_msgs_compressed_image_builder_encode_into;
+    static constexpr std::string_view name = "foxglove_msgs_compressed_image_builder";
+    static constexpr std::string_view build_name = "foxglove_msgs_compressed_image_builder_build";
+    static constexpr std::string_view encode_into_name = "foxglove_msgs_compressed_image_builder_encode_into";
 };
 
 struct FoxgloveTextAnnotationBuilderTraits {
-    using builder_type = ros_foxglove_text_annotation_builder_t;
-    static constexpr auto new_fn = ros_foxglove_text_annotation_builder_new;
-    static constexpr auto free_fn = ros_foxglove_text_annotation_builder_free;
-    static constexpr auto build_fn = ros_foxglove_text_annotation_builder_build;
-    static constexpr auto encode_into_fn = ros_foxglove_text_annotation_builder_encode_into;
-    static constexpr std::string_view name = "ros_foxglove_text_annotation_builder";
-    static constexpr std::string_view build_name = "ros_foxglove_text_annotation_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_foxglove_text_annotation_builder_encode_into";
+    using builder_type = foxglove_msgs_text_annotation_builder_t;
+    static constexpr auto new_fn = foxglove_msgs_text_annotation_builder_new;
+    static constexpr auto free_fn = foxglove_msgs_text_annotation_builder_free;
+    static constexpr auto build_fn = foxglove_msgs_text_annotation_builder_build;
+    static constexpr auto encode_into_fn = foxglove_msgs_text_annotation_builder_encode_into;
+    static constexpr std::string_view name = "foxglove_msgs_text_annotation_builder";
+    static constexpr std::string_view build_name = "foxglove_msgs_text_annotation_builder_build";
+    static constexpr std::string_view encode_into_name = "foxglove_msgs_text_annotation_builder_encode_into";
 };
 
 struct FoxglovePointAnnotationBuilderTraits {
-    using builder_type = ros_foxglove_point_annotation_builder_t;
-    static constexpr auto new_fn = ros_foxglove_point_annotation_builder_new;
-    static constexpr auto free_fn = ros_foxglove_point_annotation_builder_free;
-    static constexpr auto build_fn = ros_foxglove_point_annotation_builder_build;
-    static constexpr auto encode_into_fn = ros_foxglove_point_annotation_builder_encode_into;
-    static constexpr std::string_view name = "ros_foxglove_point_annotation_builder";
-    static constexpr std::string_view build_name = "ros_foxglove_point_annotation_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_foxglove_point_annotation_builder_encode_into";
+    using builder_type = foxglove_msgs_point_annotation_builder_t;
+    static constexpr auto new_fn = foxglove_msgs_point_annotation_builder_new;
+    static constexpr auto free_fn = foxglove_msgs_point_annotation_builder_free;
+    static constexpr auto build_fn = foxglove_msgs_point_annotation_builder_build;
+    static constexpr auto encode_into_fn = foxglove_msgs_point_annotation_builder_encode_into;
+    static constexpr std::string_view name = "foxglove_msgs_point_annotation_builder";
+    static constexpr std::string_view build_name = "foxglove_msgs_point_annotation_builder_build";
+    static constexpr std::string_view encode_into_name = "foxglove_msgs_point_annotation_builder_encode_into";
 };
 
 struct FoxgloveImageAnnotationBuilderTraits {
-    using builder_type = ros_foxglove_image_annotation_builder_t;
-    static constexpr auto new_fn = ros_foxglove_image_annotation_builder_new;
-    static constexpr auto free_fn = ros_foxglove_image_annotation_builder_free;
-    static constexpr auto build_fn = ros_foxglove_image_annotation_builder_build;
-    static constexpr auto encode_into_fn = ros_foxglove_image_annotation_builder_encode_into;
-    static constexpr std::string_view name = "ros_foxglove_image_annotation_builder";
-    static constexpr std::string_view build_name = "ros_foxglove_image_annotation_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_foxglove_image_annotation_builder_encode_into";
+    using builder_type = foxglove_msgs_image_annotation_builder_t;
+    static constexpr auto new_fn = foxglove_msgs_image_annotation_builder_new;
+    static constexpr auto free_fn = foxglove_msgs_image_annotation_builder_free;
+    static constexpr auto build_fn = foxglove_msgs_image_annotation_builder_build;
+    static constexpr auto encode_into_fn = foxglove_msgs_image_annotation_builder_encode_into;
+    static constexpr std::string_view name = "foxglove_msgs_image_annotation_builder";
+    static constexpr std::string_view build_name = "foxglove_msgs_image_annotation_builder_build";
+    static constexpr std::string_view encode_into_name = "foxglove_msgs_image_annotation_builder_encode_into";
 };
 
 // DE-2781 nav_msgs / sensor_msgs builder traits.
 
 struct RelativeHumidityBuilderTraits {
-    using builder_type = ros_relative_humidity_builder_t;
-    static constexpr auto new_fn = ros_relative_humidity_builder_new;
-    static constexpr auto free_fn = ros_relative_humidity_builder_free;
-    static constexpr auto build_fn = ros_relative_humidity_builder_build;
-    static constexpr auto encode_into_fn = ros_relative_humidity_builder_encode_into;
-    static constexpr std::string_view name = "ros_relative_humidity_builder";
-    static constexpr std::string_view build_name = "ros_relative_humidity_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_relative_humidity_builder_encode_into";
+    using builder_type = sensor_msgs_relative_humidity_builder_t;
+    static constexpr auto new_fn = sensor_msgs_relative_humidity_builder_new;
+    static constexpr auto free_fn = sensor_msgs_relative_humidity_builder_free;
+    static constexpr auto build_fn = sensor_msgs_relative_humidity_builder_build;
+    static constexpr auto encode_into_fn = sensor_msgs_relative_humidity_builder_encode_into;
+    static constexpr std::string_view name = "sensor_msgs_relative_humidity_builder";
+    static constexpr std::string_view build_name = "sensor_msgs_relative_humidity_builder_build";
+    static constexpr std::string_view encode_into_name = "sensor_msgs_relative_humidity_builder_encode_into";
 };
 
 struct TimeReferenceBuilderTraits {
-    using builder_type = ros_time_reference_builder_t;
-    static constexpr auto new_fn = ros_time_reference_builder_new;
-    static constexpr auto free_fn = ros_time_reference_builder_free;
-    static constexpr auto build_fn = ros_time_reference_builder_build;
-    static constexpr auto encode_into_fn = ros_time_reference_builder_encode_into;
-    static constexpr std::string_view name = "ros_time_reference_builder";
-    static constexpr std::string_view build_name = "ros_time_reference_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_time_reference_builder_encode_into";
+    using builder_type = sensor_msgs_time_reference_builder_t;
+    static constexpr auto new_fn = sensor_msgs_time_reference_builder_new;
+    static constexpr auto free_fn = sensor_msgs_time_reference_builder_free;
+    static constexpr auto build_fn = sensor_msgs_time_reference_builder_build;
+    static constexpr auto encode_into_fn = sensor_msgs_time_reference_builder_encode_into;
+    static constexpr std::string_view name = "sensor_msgs_time_reference_builder";
+    static constexpr std::string_view build_name = "sensor_msgs_time_reference_builder_build";
+    static constexpr std::string_view encode_into_name = "sensor_msgs_time_reference_builder_encode_into";
 };
 
 struct GridCellsBuilderTraits {
-    using builder_type = ros_grid_cells_builder_t;
-    static constexpr auto new_fn = ros_grid_cells_builder_new;
-    static constexpr auto free_fn = ros_grid_cells_builder_free;
-    static constexpr auto build_fn = ros_grid_cells_builder_build;
-    static constexpr auto encode_into_fn = ros_grid_cells_builder_encode_into;
-    static constexpr std::string_view name = "ros_grid_cells_builder";
-    static constexpr std::string_view build_name = "ros_grid_cells_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_grid_cells_builder_encode_into";
+    using builder_type = nav_msgs_grid_cells_builder_t;
+    static constexpr auto new_fn = nav_msgs_grid_cells_builder_new;
+    static constexpr auto free_fn = nav_msgs_grid_cells_builder_free;
+    static constexpr auto build_fn = nav_msgs_grid_cells_builder_build;
+    static constexpr auto encode_into_fn = nav_msgs_grid_cells_builder_encode_into;
+    static constexpr std::string_view name = "nav_msgs_grid_cells_builder";
+    static constexpr std::string_view build_name = "nav_msgs_grid_cells_builder_build";
+    static constexpr std::string_view encode_into_name = "nav_msgs_grid_cells_builder_encode_into";
 };
 
 struct OccupancyGridBuilderTraits {
-    using builder_type = ros_occupancy_grid_builder_t;
-    static constexpr auto new_fn = ros_occupancy_grid_builder_new;
-    static constexpr auto free_fn = ros_occupancy_grid_builder_free;
-    static constexpr auto build_fn = ros_occupancy_grid_builder_build;
-    static constexpr auto encode_into_fn = ros_occupancy_grid_builder_encode_into;
-    static constexpr std::string_view name = "ros_occupancy_grid_builder";
-    static constexpr std::string_view build_name = "ros_occupancy_grid_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_occupancy_grid_builder_encode_into";
+    using builder_type = nav_msgs_occupancy_grid_builder_t;
+    static constexpr auto new_fn = nav_msgs_occupancy_grid_builder_new;
+    static constexpr auto free_fn = nav_msgs_occupancy_grid_builder_free;
+    static constexpr auto build_fn = nav_msgs_occupancy_grid_builder_build;
+    static constexpr auto encode_into_fn = nav_msgs_occupancy_grid_builder_encode_into;
+    static constexpr std::string_view name = "nav_msgs_occupancy_grid_builder";
+    static constexpr std::string_view build_name = "nav_msgs_occupancy_grid_builder_build";
+    static constexpr std::string_view encode_into_name = "nav_msgs_occupancy_grid_builder_encode_into";
 };
 
 struct PathBuilderTraits {
-    using builder_type = ros_path_builder_t;
-    static constexpr auto new_fn = ros_path_builder_new;
-    static constexpr auto free_fn = ros_path_builder_free;
-    static constexpr auto build_fn = ros_path_builder_build;
-    static constexpr auto encode_into_fn = ros_path_builder_encode_into;
-    static constexpr std::string_view name = "ros_path_builder";
-    static constexpr std::string_view build_name = "ros_path_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_path_builder_encode_into";
+    using builder_type = nav_msgs_path_builder_t;
+    static constexpr auto new_fn = nav_msgs_path_builder_new;
+    static constexpr auto free_fn = nav_msgs_path_builder_free;
+    static constexpr auto build_fn = nav_msgs_path_builder_build;
+    static constexpr auto encode_into_fn = nav_msgs_path_builder_encode_into;
+    static constexpr std::string_view name = "nav_msgs_path_builder";
+    static constexpr std::string_view build_name = "nav_msgs_path_builder_build";
+    static constexpr std::string_view encode_into_name = "nav_msgs_path_builder_encode_into";
 };
 // Geometry / Odometry / mavros builder traits.
 
 struct AccelStampedBuilderTraits {
-    using builder_type = ros_accel_stamped_builder_t;
-    static constexpr auto new_fn = ros_accel_stamped_builder_new;
-    static constexpr auto free_fn = ros_accel_stamped_builder_free;
-    static constexpr auto build_fn = ros_accel_stamped_builder_build;
-    static constexpr auto encode_into_fn = ros_accel_stamped_builder_encode_into;
-    static constexpr std::string_view name = "ros_accel_stamped_builder";
-    static constexpr std::string_view build_name = "ros_accel_stamped_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_accel_stamped_builder_encode_into";
+    using builder_type = geometry_msgs_accel_stamped_builder_t;
+    static constexpr auto new_fn = geometry_msgs_accel_stamped_builder_new;
+    static constexpr auto free_fn = geometry_msgs_accel_stamped_builder_free;
+    static constexpr auto build_fn = geometry_msgs_accel_stamped_builder_build;
+    static constexpr auto encode_into_fn = geometry_msgs_accel_stamped_builder_encode_into;
+    static constexpr std::string_view name = "geometry_msgs_accel_stamped_builder";
+    static constexpr std::string_view build_name = "geometry_msgs_accel_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "geometry_msgs_accel_stamped_builder_encode_into";
 };
 
 struct TwistStampedBuilderTraits {
-    using builder_type = ros_twist_stamped_builder_t;
-    static constexpr auto new_fn = ros_twist_stamped_builder_new;
-    static constexpr auto free_fn = ros_twist_stamped_builder_free;
-    static constexpr auto build_fn = ros_twist_stamped_builder_build;
-    static constexpr auto encode_into_fn = ros_twist_stamped_builder_encode_into;
-    static constexpr std::string_view name = "ros_twist_stamped_builder";
-    static constexpr std::string_view build_name = "ros_twist_stamped_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_twist_stamped_builder_encode_into";
+    using builder_type = geometry_msgs_twist_stamped_builder_t;
+    static constexpr auto new_fn = geometry_msgs_twist_stamped_builder_new;
+    static constexpr auto free_fn = geometry_msgs_twist_stamped_builder_free;
+    static constexpr auto build_fn = geometry_msgs_twist_stamped_builder_build;
+    static constexpr auto encode_into_fn = geometry_msgs_twist_stamped_builder_encode_into;
+    static constexpr std::string_view name = "geometry_msgs_twist_stamped_builder";
+    static constexpr std::string_view build_name = "geometry_msgs_twist_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "geometry_msgs_twist_stamped_builder_encode_into";
 };
 
 struct InertiaStampedBuilderTraits {
-    using builder_type = ros_inertia_stamped_builder_t;
-    static constexpr auto new_fn = ros_inertia_stamped_builder_new;
-    static constexpr auto free_fn = ros_inertia_stamped_builder_free;
-    static constexpr auto build_fn = ros_inertia_stamped_builder_build;
-    static constexpr auto encode_into_fn = ros_inertia_stamped_builder_encode_into;
-    static constexpr std::string_view name = "ros_inertia_stamped_builder";
-    static constexpr std::string_view build_name = "ros_inertia_stamped_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_inertia_stamped_builder_encode_into";
+    using builder_type = geometry_msgs_inertia_stamped_builder_t;
+    static constexpr auto new_fn = geometry_msgs_inertia_stamped_builder_new;
+    static constexpr auto free_fn = geometry_msgs_inertia_stamped_builder_free;
+    static constexpr auto build_fn = geometry_msgs_inertia_stamped_builder_build;
+    static constexpr auto encode_into_fn = geometry_msgs_inertia_stamped_builder_encode_into;
+    static constexpr std::string_view name = "geometry_msgs_inertia_stamped_builder";
+    static constexpr std::string_view build_name = "geometry_msgs_inertia_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "geometry_msgs_inertia_stamped_builder_encode_into";
 };
 
 struct PointStampedBuilderTraits {
-    using builder_type = ros_point_stamped_builder_t;
-    static constexpr auto new_fn = ros_point_stamped_builder_new;
-    static constexpr auto free_fn = ros_point_stamped_builder_free;
-    static constexpr auto build_fn = ros_point_stamped_builder_build;
-    static constexpr auto encode_into_fn = ros_point_stamped_builder_encode_into;
-    static constexpr std::string_view name = "ros_point_stamped_builder";
-    static constexpr std::string_view build_name = "ros_point_stamped_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_point_stamped_builder_encode_into";
+    using builder_type = geometry_msgs_point_stamped_builder_t;
+    static constexpr auto new_fn = geometry_msgs_point_stamped_builder_new;
+    static constexpr auto free_fn = geometry_msgs_point_stamped_builder_free;
+    static constexpr auto build_fn = geometry_msgs_point_stamped_builder_build;
+    static constexpr auto encode_into_fn = geometry_msgs_point_stamped_builder_encode_into;
+    static constexpr std::string_view name = "geometry_msgs_point_stamped_builder";
+    static constexpr std::string_view build_name = "geometry_msgs_point_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "geometry_msgs_point_stamped_builder_encode_into";
 };
 
 struct Vector3StampedBuilderTraits {
-    using builder_type = ros_vector3_stamped_builder_t;
-    static constexpr auto new_fn = ros_vector3_stamped_builder_new;
-    static constexpr auto free_fn = ros_vector3_stamped_builder_free;
-    static constexpr auto build_fn = ros_vector3_stamped_builder_build;
-    static constexpr auto encode_into_fn = ros_vector3_stamped_builder_encode_into;
-    static constexpr std::string_view name = "ros_vector3_stamped_builder";
-    static constexpr std::string_view build_name = "ros_vector3_stamped_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_vector3_stamped_builder_encode_into";
+    using builder_type = geometry_msgs_vector3_stamped_builder_t;
+    static constexpr auto new_fn = geometry_msgs_vector3_stamped_builder_new;
+    static constexpr auto free_fn = geometry_msgs_vector3_stamped_builder_free;
+    static constexpr auto build_fn = geometry_msgs_vector3_stamped_builder_build;
+    static constexpr auto encode_into_fn = geometry_msgs_vector3_stamped_builder_encode_into;
+    static constexpr std::string_view name = "geometry_msgs_vector3_stamped_builder";
+    static constexpr std::string_view build_name = "geometry_msgs_vector3_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "geometry_msgs_vector3_stamped_builder_encode_into";
 };
 
 struct PoseStampedBuilderTraits {
-    using builder_type = ros_pose_stamped_builder_t;
-    static constexpr auto new_fn = ros_pose_stamped_builder_new;
-    static constexpr auto free_fn = ros_pose_stamped_builder_free;
-    static constexpr auto build_fn = ros_pose_stamped_builder_build;
-    static constexpr auto encode_into_fn = ros_pose_stamped_builder_encode_into;
-    static constexpr std::string_view name = "ros_pose_stamped_builder";
-    static constexpr std::string_view build_name = "ros_pose_stamped_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_pose_stamped_builder_encode_into";
+    using builder_type = geometry_msgs_pose_stamped_builder_t;
+    static constexpr auto new_fn = geometry_msgs_pose_stamped_builder_new;
+    static constexpr auto free_fn = geometry_msgs_pose_stamped_builder_free;
+    static constexpr auto build_fn = geometry_msgs_pose_stamped_builder_build;
+    static constexpr auto encode_into_fn = geometry_msgs_pose_stamped_builder_encode_into;
+    static constexpr std::string_view name = "geometry_msgs_pose_stamped_builder";
+    static constexpr std::string_view build_name = "geometry_msgs_pose_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "geometry_msgs_pose_stamped_builder_encode_into";
 };
 
 struct QuaternionStampedBuilderTraits {
-    using builder_type = ros_quaternion_stamped_builder_t;
-    static constexpr auto new_fn = ros_quaternion_stamped_builder_new;
-    static constexpr auto free_fn = ros_quaternion_stamped_builder_free;
-    static constexpr auto build_fn = ros_quaternion_stamped_builder_build;
-    static constexpr auto encode_into_fn = ros_quaternion_stamped_builder_encode_into;
-    static constexpr std::string_view name = "ros_quaternion_stamped_builder";
-    static constexpr std::string_view build_name = "ros_quaternion_stamped_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_quaternion_stamped_builder_encode_into";
+    using builder_type = geometry_msgs_quaternion_stamped_builder_t;
+    static constexpr auto new_fn = geometry_msgs_quaternion_stamped_builder_new;
+    static constexpr auto free_fn = geometry_msgs_quaternion_stamped_builder_free;
+    static constexpr auto build_fn = geometry_msgs_quaternion_stamped_builder_build;
+    static constexpr auto encode_into_fn = geometry_msgs_quaternion_stamped_builder_encode_into;
+    static constexpr std::string_view name = "geometry_msgs_quaternion_stamped_builder";
+    static constexpr std::string_view build_name = "geometry_msgs_quaternion_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "geometry_msgs_quaternion_stamped_builder_encode_into";
 };
 
 struct WrenchStampedBuilderTraits {
-    using builder_type = ros_wrench_stamped_builder_t;
-    static constexpr auto new_fn = ros_wrench_stamped_builder_new;
-    static constexpr auto free_fn = ros_wrench_stamped_builder_free;
-    static constexpr auto build_fn = ros_wrench_stamped_builder_build;
-    static constexpr auto encode_into_fn = ros_wrench_stamped_builder_encode_into;
-    static constexpr std::string_view name = "ros_wrench_stamped_builder";
-    static constexpr std::string_view build_name = "ros_wrench_stamped_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_wrench_stamped_builder_encode_into";
+    using builder_type = geometry_msgs_wrench_stamped_builder_t;
+    static constexpr auto new_fn = geometry_msgs_wrench_stamped_builder_new;
+    static constexpr auto free_fn = geometry_msgs_wrench_stamped_builder_free;
+    static constexpr auto build_fn = geometry_msgs_wrench_stamped_builder_build;
+    static constexpr auto encode_into_fn = geometry_msgs_wrench_stamped_builder_encode_into;
+    static constexpr std::string_view name = "geometry_msgs_wrench_stamped_builder";
+    static constexpr std::string_view build_name = "geometry_msgs_wrench_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "geometry_msgs_wrench_stamped_builder_encode_into";
 };
 
 struct PoseWithCovarianceStampedBuilderTraits {
-    using builder_type = ros_pose_with_covariance_stamped_builder_t;
-    static constexpr auto new_fn = ros_pose_with_covariance_stamped_builder_new;
-    static constexpr auto free_fn = ros_pose_with_covariance_stamped_builder_free;
-    static constexpr auto build_fn = ros_pose_with_covariance_stamped_builder_build;
-    static constexpr auto encode_into_fn = ros_pose_with_covariance_stamped_builder_encode_into;
-    static constexpr std::string_view name = "ros_pose_with_covariance_stamped_builder";
-    static constexpr std::string_view build_name = "ros_pose_with_covariance_stamped_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_pose_with_covariance_stamped_builder_encode_into";
+    using builder_type = geometry_msgs_pose_with_covariance_stamped_builder_t;
+    static constexpr auto new_fn = geometry_msgs_pose_with_covariance_stamped_builder_new;
+    static constexpr auto free_fn = geometry_msgs_pose_with_covariance_stamped_builder_free;
+    static constexpr auto build_fn = geometry_msgs_pose_with_covariance_stamped_builder_build;
+    static constexpr auto encode_into_fn = geometry_msgs_pose_with_covariance_stamped_builder_encode_into;
+    static constexpr std::string_view name = "geometry_msgs_pose_with_covariance_stamped_builder";
+    static constexpr std::string_view build_name = "geometry_msgs_pose_with_covariance_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "geometry_msgs_pose_with_covariance_stamped_builder_encode_into";
 };
 
 struct TwistWithCovarianceStampedBuilderTraits {
-    using builder_type = ros_twist_with_covariance_stamped_builder_t;
-    static constexpr auto new_fn = ros_twist_with_covariance_stamped_builder_new;
-    static constexpr auto free_fn = ros_twist_with_covariance_stamped_builder_free;
-    static constexpr auto build_fn = ros_twist_with_covariance_stamped_builder_build;
-    static constexpr auto encode_into_fn = ros_twist_with_covariance_stamped_builder_encode_into;
-    static constexpr std::string_view name = "ros_twist_with_covariance_stamped_builder";
-    static constexpr std::string_view build_name = "ros_twist_with_covariance_stamped_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_twist_with_covariance_stamped_builder_encode_into";
+    using builder_type = geometry_msgs_twist_with_covariance_stamped_builder_t;
+    static constexpr auto new_fn = geometry_msgs_twist_with_covariance_stamped_builder_new;
+    static constexpr auto free_fn = geometry_msgs_twist_with_covariance_stamped_builder_free;
+    static constexpr auto build_fn = geometry_msgs_twist_with_covariance_stamped_builder_build;
+    static constexpr auto encode_into_fn = geometry_msgs_twist_with_covariance_stamped_builder_encode_into;
+    static constexpr std::string_view name = "geometry_msgs_twist_with_covariance_stamped_builder";
+    static constexpr std::string_view build_name = "geometry_msgs_twist_with_covariance_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "geometry_msgs_twist_with_covariance_stamped_builder_encode_into";
 };
 
 struct AccelWithCovarianceStampedBuilderTraits {
-    using builder_type = ros_accel_with_covariance_stamped_builder_t;
-    static constexpr auto new_fn = ros_accel_with_covariance_stamped_builder_new;
-    static constexpr auto free_fn = ros_accel_with_covariance_stamped_builder_free;
-    static constexpr auto build_fn = ros_accel_with_covariance_stamped_builder_build;
-    static constexpr auto encode_into_fn = ros_accel_with_covariance_stamped_builder_encode_into;
-    static constexpr std::string_view name = "ros_accel_with_covariance_stamped_builder";
-    static constexpr std::string_view build_name = "ros_accel_with_covariance_stamped_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_accel_with_covariance_stamped_builder_encode_into";
+    using builder_type = geometry_msgs_accel_with_covariance_stamped_builder_t;
+    static constexpr auto new_fn = geometry_msgs_accel_with_covariance_stamped_builder_new;
+    static constexpr auto free_fn = geometry_msgs_accel_with_covariance_stamped_builder_free;
+    static constexpr auto build_fn = geometry_msgs_accel_with_covariance_stamped_builder_build;
+    static constexpr auto encode_into_fn = geometry_msgs_accel_with_covariance_stamped_builder_encode_into;
+    static constexpr std::string_view name = "geometry_msgs_accel_with_covariance_stamped_builder";
+    static constexpr std::string_view build_name = "geometry_msgs_accel_with_covariance_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "geometry_msgs_accel_with_covariance_stamped_builder_encode_into";
 };
 
 struct TransformStampedBuilderTraits {
-    using builder_type = ros_transform_stamped_builder_t;
-    static constexpr auto new_fn = ros_transform_stamped_builder_new;
-    static constexpr auto free_fn = ros_transform_stamped_builder_free;
-    static constexpr auto build_fn = ros_transform_stamped_builder_build;
-    static constexpr auto encode_into_fn = ros_transform_stamped_builder_encode_into;
-    static constexpr std::string_view name = "ros_transform_stamped_builder";
-    static constexpr std::string_view build_name = "ros_transform_stamped_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_transform_stamped_builder_encode_into";
+    using builder_type = geometry_msgs_transform_stamped_builder_t;
+    static constexpr auto new_fn = geometry_msgs_transform_stamped_builder_new;
+    static constexpr auto free_fn = geometry_msgs_transform_stamped_builder_free;
+    static constexpr auto build_fn = geometry_msgs_transform_stamped_builder_build;
+    static constexpr auto encode_into_fn = geometry_msgs_transform_stamped_builder_encode_into;
+    static constexpr std::string_view name = "geometry_msgs_transform_stamped_builder";
+    static constexpr std::string_view build_name = "geometry_msgs_transform_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "geometry_msgs_transform_stamped_builder_encode_into";
 };
 
 struct PolygonBuilderTraits {
-    using builder_type = ros_polygon_builder_t;
-    static constexpr auto new_fn = ros_polygon_builder_new;
-    static constexpr auto free_fn = ros_polygon_builder_free;
-    static constexpr auto build_fn = ros_polygon_builder_build;
-    static constexpr auto encode_into_fn = ros_polygon_builder_encode_into;
-    static constexpr std::string_view name = "ros_polygon_builder";
-    static constexpr std::string_view build_name = "ros_polygon_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_polygon_builder_encode_into";
+    using builder_type = geometry_msgs_polygon_builder_t;
+    static constexpr auto new_fn = geometry_msgs_polygon_builder_new;
+    static constexpr auto free_fn = geometry_msgs_polygon_builder_free;
+    static constexpr auto build_fn = geometry_msgs_polygon_builder_build;
+    static constexpr auto encode_into_fn = geometry_msgs_polygon_builder_encode_into;
+    static constexpr std::string_view name = "geometry_msgs_polygon_builder";
+    static constexpr std::string_view build_name = "geometry_msgs_polygon_builder_build";
+    static constexpr std::string_view encode_into_name = "geometry_msgs_polygon_builder_encode_into";
 };
 
 struct PolygonStampedBuilderTraits {
-    using builder_type = ros_polygon_stamped_builder_t;
-    static constexpr auto new_fn = ros_polygon_stamped_builder_new;
-    static constexpr auto free_fn = ros_polygon_stamped_builder_free;
-    static constexpr auto build_fn = ros_polygon_stamped_builder_build;
-    static constexpr auto encode_into_fn = ros_polygon_stamped_builder_encode_into;
-    static constexpr std::string_view name = "ros_polygon_stamped_builder";
-    static constexpr std::string_view build_name = "ros_polygon_stamped_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_polygon_stamped_builder_encode_into";
+    using builder_type = geometry_msgs_polygon_stamped_builder_t;
+    static constexpr auto new_fn = geometry_msgs_polygon_stamped_builder_new;
+    static constexpr auto free_fn = geometry_msgs_polygon_stamped_builder_free;
+    static constexpr auto build_fn = geometry_msgs_polygon_stamped_builder_build;
+    static constexpr auto encode_into_fn = geometry_msgs_polygon_stamped_builder_encode_into;
+    static constexpr std::string_view name = "geometry_msgs_polygon_stamped_builder";
+    static constexpr std::string_view build_name = "geometry_msgs_polygon_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "geometry_msgs_polygon_stamped_builder_encode_into";
 };
 
 struct PoseArrayBuilderTraits {
-    using builder_type = ros_pose_array_builder_t;
-    static constexpr auto new_fn = ros_pose_array_builder_new;
-    static constexpr auto free_fn = ros_pose_array_builder_free;
-    static constexpr auto build_fn = ros_pose_array_builder_build;
-    static constexpr auto encode_into_fn = ros_pose_array_builder_encode_into;
-    static constexpr std::string_view name = "ros_pose_array_builder";
-    static constexpr std::string_view build_name = "ros_pose_array_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_pose_array_builder_encode_into";
+    using builder_type = geometry_msgs_pose_array_builder_t;
+    static constexpr auto new_fn = geometry_msgs_pose_array_builder_new;
+    static constexpr auto free_fn = geometry_msgs_pose_array_builder_free;
+    static constexpr auto build_fn = geometry_msgs_pose_array_builder_build;
+    static constexpr auto encode_into_fn = geometry_msgs_pose_array_builder_encode_into;
+    static constexpr std::string_view name = "geometry_msgs_pose_array_builder";
+    static constexpr std::string_view build_name = "geometry_msgs_pose_array_builder_build";
+    static constexpr std::string_view encode_into_name = "geometry_msgs_pose_array_builder_encode_into";
 };
 
 struct OdometryBuilderTraits {
-    using builder_type = ros_odometry_builder_t;
-    static constexpr auto new_fn = ros_odometry_builder_new;
-    static constexpr auto free_fn = ros_odometry_builder_free;
-    static constexpr auto build_fn = ros_odometry_builder_build;
-    static constexpr auto encode_into_fn = ros_odometry_builder_encode_into;
-    static constexpr std::string_view name = "ros_odometry_builder";
-    static constexpr std::string_view build_name = "ros_odometry_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_odometry_builder_encode_into";
+    using builder_type = nav_msgs_odometry_builder_t;
+    static constexpr auto new_fn = nav_msgs_odometry_builder_new;
+    static constexpr auto free_fn = nav_msgs_odometry_builder_free;
+    static constexpr auto build_fn = nav_msgs_odometry_builder_build;
+    static constexpr auto encode_into_fn = nav_msgs_odometry_builder_encode_into;
+    static constexpr std::string_view name = "nav_msgs_odometry_builder";
+    static constexpr std::string_view build_name = "nav_msgs_odometry_builder_build";
+    static constexpr std::string_view encode_into_name = "nav_msgs_odometry_builder_encode_into";
 };
 
 struct MavrosAltitudeBuilderTraits {
-    using builder_type = ros_mavros_altitude_builder_t;
-    static constexpr auto new_fn = ros_mavros_altitude_builder_new;
-    static constexpr auto free_fn = ros_mavros_altitude_builder_free;
-    static constexpr auto build_fn = ros_mavros_altitude_builder_build;
-    static constexpr auto encode_into_fn = ros_mavros_altitude_builder_encode_into;
-    static constexpr std::string_view name = "ros_mavros_altitude_builder";
-    static constexpr std::string_view build_name = "ros_mavros_altitude_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_mavros_altitude_builder_encode_into";
+    using builder_type = mavros_msgs_altitude_builder_t;
+    static constexpr auto new_fn = mavros_msgs_altitude_builder_new;
+    static constexpr auto free_fn = mavros_msgs_altitude_builder_free;
+    static constexpr auto build_fn = mavros_msgs_altitude_builder_build;
+    static constexpr auto encode_into_fn = mavros_msgs_altitude_builder_encode_into;
+    static constexpr std::string_view name = "mavros_msgs_altitude_builder";
+    static constexpr std::string_view build_name = "mavros_msgs_altitude_builder_build";
+    static constexpr std::string_view encode_into_name = "mavros_msgs_altitude_builder_encode_into";
 };
 
 struct MavrosVfrHudBuilderTraits {
-    using builder_type = ros_mavros_vfrhud_builder_t;
-    static constexpr auto new_fn = ros_mavros_vfrhud_builder_new;
-    static constexpr auto free_fn = ros_mavros_vfrhud_builder_free;
-    static constexpr auto build_fn = ros_mavros_vfrhud_builder_build;
-    static constexpr auto encode_into_fn = ros_mavros_vfrhud_builder_encode_into;
-    static constexpr std::string_view name = "ros_mavros_vfrhud_builder";
-    static constexpr std::string_view build_name = "ros_mavros_vfrhud_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_mavros_vfrhud_builder_encode_into";
+    using builder_type = mavros_msgs_vfrhud_builder_t;
+    static constexpr auto new_fn = mavros_msgs_vfrhud_builder_new;
+    static constexpr auto free_fn = mavros_msgs_vfrhud_builder_free;
+    static constexpr auto build_fn = mavros_msgs_vfrhud_builder_build;
+    static constexpr auto encode_into_fn = mavros_msgs_vfrhud_builder_encode_into;
+    static constexpr std::string_view name = "mavros_msgs_vfrhud_builder";
+    static constexpr std::string_view build_name = "mavros_msgs_vfrhud_builder_build";
+    static constexpr std::string_view encode_into_name = "mavros_msgs_vfrhud_builder_encode_into";
 };
 
 struct MavrosEstimatorStatusBuilderTraits {
-    using builder_type = ros_mavros_estimator_status_builder_t;
-    static constexpr auto new_fn = ros_mavros_estimator_status_builder_new;
-    static constexpr auto free_fn = ros_mavros_estimator_status_builder_free;
-    static constexpr auto build_fn = ros_mavros_estimator_status_builder_build;
-    static constexpr auto encode_into_fn = ros_mavros_estimator_status_builder_encode_into;
-    static constexpr std::string_view name = "ros_mavros_estimator_status_builder";
-    static constexpr std::string_view build_name = "ros_mavros_estimator_status_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_mavros_estimator_status_builder_encode_into";
+    using builder_type = mavros_msgs_estimator_status_builder_t;
+    static constexpr auto new_fn = mavros_msgs_estimator_status_builder_new;
+    static constexpr auto free_fn = mavros_msgs_estimator_status_builder_free;
+    static constexpr auto build_fn = mavros_msgs_estimator_status_builder_build;
+    static constexpr auto encode_into_fn = mavros_msgs_estimator_status_builder_encode_into;
+    static constexpr std::string_view name = "mavros_msgs_estimator_status_builder";
+    static constexpr std::string_view build_name = "mavros_msgs_estimator_status_builder_build";
+    static constexpr std::string_view encode_into_name = "mavros_msgs_estimator_status_builder_encode_into";
 };
 
 struct MavrosExtendedStateBuilderTraits {
-    using builder_type = ros_mavros_extended_state_builder_t;
-    static constexpr auto new_fn = ros_mavros_extended_state_builder_new;
-    static constexpr auto free_fn = ros_mavros_extended_state_builder_free;
-    static constexpr auto build_fn = ros_mavros_extended_state_builder_build;
-    static constexpr auto encode_into_fn = ros_mavros_extended_state_builder_encode_into;
-    static constexpr std::string_view name = "ros_mavros_extended_state_builder";
-    static constexpr std::string_view build_name = "ros_mavros_extended_state_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_mavros_extended_state_builder_encode_into";
+    using builder_type = mavros_msgs_extended_state_builder_t;
+    static constexpr auto new_fn = mavros_msgs_extended_state_builder_new;
+    static constexpr auto free_fn = mavros_msgs_extended_state_builder_free;
+    static constexpr auto build_fn = mavros_msgs_extended_state_builder_build;
+    static constexpr auto encode_into_fn = mavros_msgs_extended_state_builder_encode_into;
+    static constexpr std::string_view name = "mavros_msgs_extended_state_builder";
+    static constexpr std::string_view build_name = "mavros_msgs_extended_state_builder_build";
+    static constexpr std::string_view encode_into_name = "mavros_msgs_extended_state_builder_encode_into";
 };
 
 struct MavrosSysStatusBuilderTraits {
-    using builder_type = ros_mavros_sys_status_builder_t;
-    static constexpr auto new_fn = ros_mavros_sys_status_builder_new;
-    static constexpr auto free_fn = ros_mavros_sys_status_builder_free;
-    static constexpr auto build_fn = ros_mavros_sys_status_builder_build;
-    static constexpr auto encode_into_fn = ros_mavros_sys_status_builder_encode_into;
-    static constexpr std::string_view name = "ros_mavros_sys_status_builder";
-    static constexpr std::string_view build_name = "ros_mavros_sys_status_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_mavros_sys_status_builder_encode_into";
+    using builder_type = mavros_msgs_sys_status_builder_t;
+    static constexpr auto new_fn = mavros_msgs_sys_status_builder_new;
+    static constexpr auto free_fn = mavros_msgs_sys_status_builder_free;
+    static constexpr auto build_fn = mavros_msgs_sys_status_builder_build;
+    static constexpr auto encode_into_fn = mavros_msgs_sys_status_builder_encode_into;
+    static constexpr std::string_view name = "mavros_msgs_sys_status_builder";
+    static constexpr std::string_view build_name = "mavros_msgs_sys_status_builder_build";
+    static constexpr std::string_view encode_into_name = "mavros_msgs_sys_status_builder_encode_into";
 };
 
 struct MavrosStateBuilderTraits {
-    using builder_type = ros_mavros_state_builder_t;
-    static constexpr auto new_fn = ros_mavros_state_builder_new;
-    static constexpr auto free_fn = ros_mavros_state_builder_free;
-    static constexpr auto build_fn = ros_mavros_state_builder_build;
-    static constexpr auto encode_into_fn = ros_mavros_state_builder_encode_into;
-    static constexpr std::string_view name = "ros_mavros_state_builder";
-    static constexpr std::string_view build_name = "ros_mavros_state_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_mavros_state_builder_encode_into";
+    using builder_type = mavros_msgs_state_builder_t;
+    static constexpr auto new_fn = mavros_msgs_state_builder_new;
+    static constexpr auto free_fn = mavros_msgs_state_builder_free;
+    static constexpr auto build_fn = mavros_msgs_state_builder_build;
+    static constexpr auto encode_into_fn = mavros_msgs_state_builder_encode_into;
+    static constexpr std::string_view name = "mavros_msgs_state_builder";
+    static constexpr std::string_view build_name = "mavros_msgs_state_builder_build";
+    static constexpr std::string_view encode_into_name = "mavros_msgs_state_builder_encode_into";
 };
 
 struct MavrosStatusTextBuilderTraits {
-    using builder_type = ros_mavros_status_text_builder_t;
-    static constexpr auto new_fn = ros_mavros_status_text_builder_new;
-    static constexpr auto free_fn = ros_mavros_status_text_builder_free;
-    static constexpr auto build_fn = ros_mavros_status_text_builder_build;
-    static constexpr auto encode_into_fn = ros_mavros_status_text_builder_encode_into;
-    static constexpr std::string_view name = "ros_mavros_status_text_builder";
-    static constexpr std::string_view build_name = "ros_mavros_status_text_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_mavros_status_text_builder_encode_into";
+    using builder_type = mavros_msgs_status_text_builder_t;
+    static constexpr auto new_fn = mavros_msgs_status_text_builder_new;
+    static constexpr auto free_fn = mavros_msgs_status_text_builder_free;
+    static constexpr auto build_fn = mavros_msgs_status_text_builder_build;
+    static constexpr auto encode_into_fn = mavros_msgs_status_text_builder_encode_into;
+    static constexpr std::string_view name = "mavros_msgs_status_text_builder";
+    static constexpr std::string_view build_name = "mavros_msgs_status_text_builder_build";
+    static constexpr std::string_view encode_into_name = "mavros_msgs_status_text_builder_encode_into";
 };
 
 struct MavrosGpsRawBuilderTraits {
-    using builder_type = ros_mavros_gps_raw_builder_t;
-    static constexpr auto new_fn = ros_mavros_gps_raw_builder_new;
-    static constexpr auto free_fn = ros_mavros_gps_raw_builder_free;
-    static constexpr auto build_fn = ros_mavros_gps_raw_builder_build;
-    static constexpr auto encode_into_fn = ros_mavros_gps_raw_builder_encode_into;
-    static constexpr std::string_view name = "ros_mavros_gps_raw_builder";
-    static constexpr std::string_view build_name = "ros_mavros_gps_raw_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_mavros_gps_raw_builder_encode_into";
+    using builder_type = mavros_msgs_gps_raw_builder_t;
+    static constexpr auto new_fn = mavros_msgs_gps_raw_builder_new;
+    static constexpr auto free_fn = mavros_msgs_gps_raw_builder_free;
+    static constexpr auto build_fn = mavros_msgs_gps_raw_builder_build;
+    static constexpr auto encode_into_fn = mavros_msgs_gps_raw_builder_encode_into;
+    static constexpr std::string_view name = "mavros_msgs_gps_raw_builder";
+    static constexpr std::string_view build_name = "mavros_msgs_gps_raw_builder_build";
+    static constexpr std::string_view encode_into_name = "mavros_msgs_gps_raw_builder_encode_into";
 };
 
 struct MavrosTimesyncStatusBuilderTraits {
-    using builder_type = ros_mavros_timesync_status_builder_t;
-    static constexpr auto new_fn = ros_mavros_timesync_status_builder_new;
-    static constexpr auto free_fn = ros_mavros_timesync_status_builder_free;
-    static constexpr auto build_fn = ros_mavros_timesync_status_builder_build;
-    static constexpr auto encode_into_fn = ros_mavros_timesync_status_builder_encode_into;
-    static constexpr std::string_view name = "ros_mavros_timesync_status_builder";
-    static constexpr std::string_view build_name = "ros_mavros_timesync_status_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_mavros_timesync_status_builder_encode_into";
+    using builder_type = mavros_msgs_timesync_status_builder_t;
+    static constexpr auto new_fn = mavros_msgs_timesync_status_builder_new;
+    static constexpr auto free_fn = mavros_msgs_timesync_status_builder_free;
+    static constexpr auto build_fn = mavros_msgs_timesync_status_builder_build;
+    static constexpr auto encode_into_fn = mavros_msgs_timesync_status_builder_encode_into;
+    static constexpr std::string_view name = "mavros_msgs_timesync_status_builder";
+    static constexpr std::string_view build_name = "mavros_msgs_timesync_status_builder_build";
+    static constexpr std::string_view encode_into_name = "mavros_msgs_timesync_status_builder_encode_into";
 };
 
 
@@ -2603,10 +2691,10 @@ struct MavrosTimesyncStatusBuilderTraits {
  * invalidates all previously-yielded children.
  *
  * Template parameters:
- *   - `ParentHandle` : the owning handle type (e.g. `ros_detect_t`).
+ *   - `ParentHandle` : the owning handle type (e.g. `edgefirst_msgs_detect_t`).
  *   - `ChildView`    : the element type yielded by the iterator.
  *   - `GetFn`        : the C accessor type, e.g.
- *                      `decltype(&ros_detect_get_box)`.
+ *                      `decltype(&edgefirst_msgs_detect_get_box)`.
  *
  * Length is passed directly as `std::uint32_t`; there is no `LenFn`
  * parameter.
@@ -2676,11 +2764,11 @@ private:
 
 /**
  * @internal
- * @brief Non-owning accessor over a parent-borrowed `ros_box_t*`.
+ * @brief Non-owning accessor over a parent-borrowed `edgefirst_msgs_box_t*`.
  *
  * Yielded by `DetectView::boxes()` / `ModelView::boxes()` iteration. The
  * handle is owned by the parent view and becomes invalid when the parent
- * is destroyed. Must NOT call `ros_box_free`; lifetime is tied to the
+ * is destroyed. Must NOT call `edgefirst_msgs_box_free`; lifetime is tied to the
  * parent handle.
  *
  * Non-default-constructible and non-assignable to prevent dangling
@@ -2701,63 +2789,63 @@ public:
     BorrowedBoxView& operator=(BorrowedBoxView&&) = delete;       ///< @brief Deleted: prevents reassignment.
 
     /// @brief Wrap a borrowed child handle.
-    /// @param h Non-null borrowed `ros_box_t*` owned by the parent view.
-    explicit BorrowedBoxView(const ros_box_t* h) noexcept : handle_(h) {}
+    /// @param h Non-null borrowed `edgefirst_msgs_box_t*` owned by the parent view.
+    explicit BorrowedBoxView(const edgefirst_msgs_box_t* h) noexcept : handle_(h) {}
 
     /// @brief Box center X coordinate (image-space or normalized).
     /// @return The center X value from the underlying handle.
-    [[nodiscard]] float            center_x()       const noexcept { return ros_box_get_center_x(handle_); }
+    [[nodiscard]] float            center_x()       const noexcept { return edgefirst_msgs_box_get_center_x(handle_); }
     /// @brief Box center Y coordinate.
     /// @return The center Y value from the underlying handle.
-    [[nodiscard]] float            center_y()       const noexcept { return ros_box_get_center_y(handle_); }
+    [[nodiscard]] float            center_y()       const noexcept { return edgefirst_msgs_box_get_center_y(handle_); }
     /// @brief Box width.
     /// @return The width value from the underlying handle.
-    [[nodiscard]] float            width()          const noexcept { return ros_box_get_width(handle_); }
+    [[nodiscard]] float            width()          const noexcept { return edgefirst_msgs_box_get_width(handle_); }
     /// @brief Box height.
     /// @return The height value from the underlying handle.
-    [[nodiscard]] float            height()         const noexcept { return ros_box_get_height(handle_); }
+    [[nodiscard]] float            height()         const noexcept { return edgefirst_msgs_box_get_height(handle_); }
     /// @brief Class label of the detected object.
     /// @return A `std::string_view` borrowed from the parent CDR buffer.
     /// @warning Valid only while the parent view and its backing buffer
     ///          are alive.
-    [[nodiscard]] std::string_view label()          const noexcept { return ros_box_get_label(handle_); }
+    [[nodiscard]] std::string_view label()          const noexcept { return edgefirst_msgs_box_get_label(handle_); }
     /// @brief Detection confidence score in [0, 1].
     /// @return The score value from the underlying handle.
-    [[nodiscard]] float            score()          const noexcept { return ros_box_get_score(handle_); }
+    [[nodiscard]] float            score()          const noexcept { return edgefirst_msgs_box_get_score(handle_); }
     /// @brief Estimated distance to the detected object (meters).
     /// @return The distance value from the underlying handle.
-    [[nodiscard]] float            distance()       const noexcept { return ros_box_get_distance(handle_); }
+    [[nodiscard]] float            distance()       const noexcept { return edgefirst_msgs_box_get_distance(handle_); }
     /// @brief Estimated object speed (m/s).
     /// @return The speed value from the underlying handle.
-    [[nodiscard]] float            speed()          const noexcept { return ros_box_get_speed(handle_); }
+    [[nodiscard]] float            speed()          const noexcept { return edgefirst_msgs_box_get_speed(handle_); }
     /// @brief Optional tracker identifier string.
     /// @return A `std::string_view` borrowed from the parent CDR buffer,
     ///         empty if untracked.
     /// @warning Valid only while the parent view and its backing buffer
     ///          are alive.
-    [[nodiscard]] std::string_view track_id()       const noexcept { return ros_box_get_track_id(handle_); }
+    [[nodiscard]] std::string_view track_id()       const noexcept { return edgefirst_msgs_box_get_track_id(handle_); }
     /// @brief Number of frames this track has been alive.
     /// @return The track lifetime value.
-    [[nodiscard]] std::int32_t     track_lifetime() const noexcept { return ros_box_get_track_lifetime(handle_); }
+    [[nodiscard]] std::int32_t     track_lifetime() const noexcept { return edgefirst_msgs_box_get_track_lifetime(handle_); }
     /// @brief Time at which the track was first created.
     /// @return A Time value assembled from the handle's seconds and
     ///         nanoseconds fields.
     [[nodiscard]] Time             track_created()  const noexcept {
-        return Time{ros_box_get_track_created_sec(handle_),
-                    ros_box_get_track_created_nanosec(handle_)};
+        return Time{edgefirst_msgs_box_get_track_created_sec(handle_),
+                    edgefirst_msgs_box_get_track_created_nanosec(handle_)};
     }
 
 private:
-    const ros_box_t* handle_;
+    const edgefirst_msgs_box_t* handle_;
 };
 
 /**
  * @internal
- * @brief Non-owning accessor over a parent-borrowed `ros_mask_t*`.
+ * @brief Non-owning accessor over a parent-borrowed `edgefirst_msgs_mask_t*`.
  *
  * Yielded by `ModelView::masks()` iteration. The handle is owned by the
  * parent view and becomes invalid when the parent is destroyed. Must NOT
- * call `ros_mask_free`; lifetime is tied to the parent handle.
+ * call `edgefirst_msgs_mask_free`; lifetime is tied to the parent handle.
  *
  * @warning Do not store a BorrowedMaskView past the lifetime of its
  *          parent view. All references returned by `encoding()` and
@@ -2772,23 +2860,23 @@ public:
     BorrowedMaskView& operator=(BorrowedMaskView&&) = delete;       ///< @brief Deleted: prevents reassignment.
 
     /// @brief Wrap a borrowed child handle.
-    /// @param h Non-null borrowed `ros_mask_t*` owned by the parent view.
-    explicit BorrowedMaskView(const ros_mask_t* h) noexcept : handle_(h) {}
+    /// @param h Non-null borrowed `edgefirst_msgs_mask_t*` owned by the parent view.
+    explicit BorrowedMaskView(const edgefirst_msgs_mask_t* h) noexcept : handle_(h) {}
 
     /// @brief Mask height in pixels.
     /// @return The height value from the underlying handle.
-    [[nodiscard]] std::uint32_t height()   const noexcept { return ros_mask_get_height(handle_); }
+    [[nodiscard]] std::uint32_t height()   const noexcept { return edgefirst_msgs_mask_get_height(handle_); }
     /// @brief Mask width in pixels.
     /// @return The width value from the underlying handle.
-    [[nodiscard]] std::uint32_t width()    const noexcept { return ros_mask_get_width(handle_); }
+    [[nodiscard]] std::uint32_t width()    const noexcept { return edgefirst_msgs_mask_get_width(handle_); }
     /// @brief Raw byte length of the mask payload.
     /// @return The length value from the underlying handle.
-    [[nodiscard]] std::uint32_t length()   const noexcept { return ros_mask_get_length(handle_); }
+    [[nodiscard]] std::uint32_t length()   const noexcept { return edgefirst_msgs_mask_get_length(handle_); }
     /// @brief Mask pixel encoding identifier (e.g. "mono8", "rle").
     /// @return A `std::string_view` borrowed from the parent CDR buffer.
     /// @warning Valid only while the parent view and its backing buffer
     ///          are alive.
-    [[nodiscard]] std::string_view encoding() const noexcept { return ros_mask_get_encoding(handle_); }
+    [[nodiscard]] std::string_view encoding() const noexcept { return edgefirst_msgs_mask_get_encoding(handle_); }
     /// @brief Raw mask payload bytes.
     /// @return A `span<const std::uint8_t>` borrowing into the parent CDR
     ///         buffer.
@@ -2796,15 +2884,15 @@ public:
     ///          are alive.
     [[nodiscard]] span<const std::uint8_t> data() const noexcept {
         std::size_t n = 0;
-        auto* p = ros_mask_get_data(handle_, &n);
+        auto* p = edgefirst_msgs_mask_get_data(handle_, &n);
         return {p, n};
     }
     /// @brief Whether the mask is constrained to a bounding box.
     /// @return `true` if the mask is stored as box-relative pixels.
-    [[nodiscard]] bool boxed() const noexcept { return ros_mask_get_boxed(handle_); }
+    [[nodiscard]] bool boxed() const noexcept { return edgefirst_msgs_mask_get_boxed(handle_); }
 
 private:
-    const ros_mask_t* handle_;
+    const edgefirst_msgs_mask_t* handle_;
 };
 
 
@@ -2814,59 +2902,59 @@ private:
 // symbols they name.
 
 struct TensorTraits {
-    using handle_type = ros_tensor_t;
-    static constexpr auto from_cdr = ros_tensor_from_cdr;
-    static constexpr auto free     = ros_tensor_free;
-    static constexpr std::string_view name = "ros_tensor";
+    using handle_type = edgefirst_msgs_tensor_t;
+    static constexpr auto from_cdr = edgefirst_msgs_tensor_from_cdr;
+    static constexpr auto free     = edgefirst_msgs_tensor_free;
+    static constexpr std::string_view name = "edgefirst_msgs_tensor";
 };
 
 struct TensorStampedTraits {
-    using handle_type = ros_tensor_stamped_t;
-    static constexpr auto from_cdr = ros_tensor_stamped_from_cdr;
-    static constexpr auto free     = ros_tensor_stamped_free;
-    static constexpr auto as_cdr   = ros_tensor_stamped_get_cdr;
-    static constexpr std::string_view name = "ros_tensor_stamped";
+    using handle_type = edgefirst_msgs_tensor_stamped_t;
+    static constexpr auto from_cdr = edgefirst_msgs_tensor_stamped_from_cdr;
+    static constexpr auto free     = edgefirst_msgs_tensor_stamped_free;
+    static constexpr auto as_cdr   = edgefirst_msgs_tensor_stamped_get_cdr;
+    static constexpr std::string_view name = "edgefirst_msgs_tensor_stamped";
 };
 
 struct CameraFrameTraits {
-    using handle_type = ros_camera_frame_t;
-    static constexpr auto from_cdr = ros_camera_frame_from_cdr;
-    static constexpr auto free     = ros_camera_frame_free;
-    static constexpr auto as_cdr   = ros_camera_frame_get_cdr;
-    static constexpr std::string_view name = "ros_camera_frame";
+    using handle_type = edgefirst_msgs_camera_frame_t;
+    static constexpr auto from_cdr = edgefirst_msgs_camera_frame_from_cdr;
+    static constexpr auto free     = edgefirst_msgs_camera_frame_free;
+    static constexpr auto as_cdr   = edgefirst_msgs_camera_frame_get_cdr;
+    static constexpr std::string_view name = "edgefirst_msgs_camera_frame";
 };
 
 struct TensorBuilderTraits {
-    using builder_type = ros_tensor_builder_t;
-    static constexpr auto new_fn = ros_tensor_builder_new;
-    static constexpr auto free_fn = ros_tensor_builder_free;
-    static constexpr auto build_fn = ros_tensor_builder_build;
-    static constexpr auto encode_into_fn = ros_tensor_builder_encode_into;
-    static constexpr std::string_view name = "ros_tensor_builder";
-    static constexpr std::string_view build_name = "ros_tensor_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_tensor_builder_encode_into";
+    using builder_type = edgefirst_msgs_tensor_builder_t;
+    static constexpr auto new_fn = edgefirst_msgs_tensor_builder_new;
+    static constexpr auto free_fn = edgefirst_msgs_tensor_builder_free;
+    static constexpr auto build_fn = edgefirst_msgs_tensor_builder_build;
+    static constexpr auto encode_into_fn = edgefirst_msgs_tensor_builder_encode_into;
+    static constexpr std::string_view name = "edgefirst_msgs_tensor_builder";
+    static constexpr std::string_view build_name = "edgefirst_msgs_tensor_builder_build";
+    static constexpr std::string_view encode_into_name = "edgefirst_msgs_tensor_builder_encode_into";
 };
 
 struct TensorStampedBuilderTraits {
-    using builder_type = ros_tensor_stamped_builder_t;
-    static constexpr auto new_fn = ros_tensor_stamped_builder_new;
-    static constexpr auto free_fn = ros_tensor_stamped_builder_free;
-    static constexpr auto build_fn = ros_tensor_stamped_builder_build;
-    static constexpr auto encode_into_fn = ros_tensor_stamped_builder_encode_into;
-    static constexpr std::string_view name = "ros_tensor_stamped_builder";
-    static constexpr std::string_view build_name = "ros_tensor_stamped_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_tensor_stamped_builder_encode_into";
+    using builder_type = edgefirst_msgs_tensor_stamped_builder_t;
+    static constexpr auto new_fn = edgefirst_msgs_tensor_stamped_builder_new;
+    static constexpr auto free_fn = edgefirst_msgs_tensor_stamped_builder_free;
+    static constexpr auto build_fn = edgefirst_msgs_tensor_stamped_builder_build;
+    static constexpr auto encode_into_fn = edgefirst_msgs_tensor_stamped_builder_encode_into;
+    static constexpr std::string_view name = "edgefirst_msgs_tensor_stamped_builder";
+    static constexpr std::string_view build_name = "edgefirst_msgs_tensor_stamped_builder_build";
+    static constexpr std::string_view encode_into_name = "edgefirst_msgs_tensor_stamped_builder_encode_into";
 };
 
 struct CameraFrameBuilderTraits {
-    using builder_type = ros_camera_frame_builder_t;
-    static constexpr auto new_fn = ros_camera_frame_builder_new;
-    static constexpr auto free_fn = ros_camera_frame_builder_free;
-    static constexpr auto build_fn = ros_camera_frame_builder_build;
-    static constexpr auto encode_into_fn = ros_camera_frame_builder_encode_into;
-    static constexpr std::string_view name = "ros_camera_frame_builder";
-    static constexpr std::string_view build_name = "ros_camera_frame_builder_build";
-    static constexpr std::string_view encode_into_name = "ros_camera_frame_builder_encode_into";
+    using builder_type = edgefirst_msgs_camera_frame_builder_t;
+    static constexpr auto new_fn = edgefirst_msgs_camera_frame_builder_new;
+    static constexpr auto free_fn = edgefirst_msgs_camera_frame_builder_free;
+    static constexpr auto build_fn = edgefirst_msgs_camera_frame_builder_build;
+    static constexpr auto encode_into_fn = edgefirst_msgs_camera_frame_builder_encode_into;
+    static constexpr std::string_view name = "edgefirst_msgs_camera_frame_builder";
+    static constexpr std::string_view build_name = "edgefirst_msgs_camera_frame_builder_build";
+    static constexpr std::string_view encode_into_name = "edgefirst_msgs_camera_frame_builder_encode_into";
 };
 
 } // namespace detail
@@ -2878,6 +2966,15 @@ struct CameraFrameBuilderTraits {
 // ---------------------------------------------------------------------------
 // std_msgs - Header
 // ---------------------------------------------------------------------------
+
+
+namespace std_msgs {
+using ::edgefirst::schemas::builtin_interfaces::Time;
+using ::edgefirst::schemas::Error;
+using ::edgefirst::schemas::Released;
+using ::edgefirst::schemas::span;
+using ::edgefirst::schemas::expected;
+using ::edgefirst::schemas::unexpected;
 
 /**
  * @brief Non-owning, move-only view over a `std_msgs::Header` message.
@@ -2906,23 +3003,26 @@ public:
     /// @brief Header timestamp.
     /// @return A Time value assembled from the handle's stamp fields.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_header_get_stamp_sec(handle()),
-                ros_header_get_stamp_nanosec(handle())};
+        return {std_msgs_header_get_stamp_sec(handle()),
+                std_msgs_header_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_header_get_frame_id(handle());
+        return std_msgs_header_get_frame_id(handle());
     }
 };
+} // namespace std_msgs
 
+
+namespace std_msgs {
 /**
  * @brief Owning, move-only `std_msgs::Header` instance.
  *
  * Holds both the CDR-encoded byte buffer (allocated by `encode()`) and a
  * view handle over that buffer. Move-only; the destructor frees the
- * encoded bytes via `ros_bytes_free()` and releases the C handle.
+ * encoded bytes via `edgefirst_schemas_bytes_free()` and releases the C handle.
  *
  * Use `encode()` to construct. Accessors forward to an internal view over
  * this instance's own buffer, so they are always valid as long as the
@@ -2942,40 +3042,43 @@ public:
     ///         failure or invalid UTF-8.
     [[nodiscard]] static expected<Header, Error>
     encode(Time stamp, std::string_view frame_id) noexcept {
-        ros_header_builder_t* b = ros_header_builder_new();
+        std_msgs_header_builder_t* b = std_msgs_header_builder_new();
         if (!b)
-            return unexpected<Error>(Error::from_errno("ros_header_builder_new"));
-        ros_header_builder_set_stamp(b, stamp.sec, stamp.nanosec);
-        if (ros_header_builder_set_frame_id(b, frame_id.data()) != 0) {
-            ros_header_builder_free(b);
-            return unexpected<Error>(Error::from_errno("ros_header_builder_set_frame_id"));
+            return unexpected<Error>(Error::from_errno("std_msgs_header_builder_new"));
+        std_msgs_header_builder_set_stamp(b, stamp.sec, stamp.nanosec);
+        if (std_msgs_header_builder_set_frame_id(b, frame_id.data()) != 0) {
+            std_msgs_header_builder_free(b);
+            return unexpected<Error>(Error::from_errno("std_msgs_header_builder_set_frame_id"));
         }
         std::uint8_t* out = nullptr; std::size_t len = 0;
-        if (ros_header_builder_build(b, &out, &len) != 0) {
-            ros_header_builder_free(b);
-            return unexpected<Error>(Error::from_errno("ros_header_builder_build"));
+        if (std_msgs_header_builder_build(b, &out, &len) != 0) {
+            std_msgs_header_builder_free(b);
+            return unexpected<Error>(Error::from_errno("std_msgs_header_builder_build"));
         }
-        ros_header_builder_free(b);
+        std_msgs_header_builder_free(b);
         return make_(out, len);
     }
     /// @brief Header timestamp.
     /// @return A Time value assembled from the handle's stamp fields.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_header_get_stamp_sec(handle()),
-                ros_header_get_stamp_nanosec(handle())};
+        return {std_msgs_header_get_stamp_sec(handle()),
+                std_msgs_header_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     /// @return A `std::string_view` borrowed from this Header's internal
     ///         CDR buffer. Valid for the lifetime of this instance.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_header_get_frame_id(handle());
+        return std_msgs_header_get_frame_id(handle());
     }
 };
+} // namespace std_msgs
 
 // ---------------------------------------------------------------------------
 // sensor_msgs - CompressedImage
 // ---------------------------------------------------------------------------
 
+
+namespace sensor_msgs {
 /**
  * @brief Non-owning, move-only view over a `sensor_msgs::CompressedImage`.
  *
@@ -3001,20 +3104,20 @@ public:
     /// @brief Message timestamp.
     /// @return The header stamp as a Time value.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_compressed_image_get_stamp_sec(handle()),
-                ros_compressed_image_get_stamp_nanosec(handle())};
+        return {sensor_msgs_compressed_image_get_stamp_sec(handle()),
+                sensor_msgs_compressed_image_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_compressed_image_get_frame_id(handle());
+        return sensor_msgs_compressed_image_get_frame_id(handle());
     }
     /// @brief Compression format label (e.g. "jpeg", "png").
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view format() const noexcept {
-        return ros_compressed_image_get_format(handle());
+        return sensor_msgs_compressed_image_get_format(handle());
     }
     /// @brief Compressed image payload.
     /// @return A `span<const std::uint8_t>` borrowed from the CDR buffer.
@@ -3022,11 +3125,14 @@ public:
     ///          destroyed.
     [[nodiscard]] span<const std::uint8_t> data() const noexcept {
         std::size_t n = 0;
-        auto* p = ros_compressed_image_get_data(handle(), &n);
+        auto* p = sensor_msgs_compressed_image_get_data(handle(), &n);
         return {p, n};
     }
 };
+} // namespace sensor_msgs
 
+
+namespace sensor_msgs {
 /**
  * @brief Owning, move-only `sensor_msgs::CompressedImage` instance.
  *
@@ -3051,58 +3157,61 @@ public:
     [[nodiscard]] static expected<CompressedImage, Error>
     encode(Time stamp, std::string_view frame_id, std::string_view format,
            span<const std::uint8_t> data) noexcept {
-        ros_compressed_image_builder_t* b = ros_compressed_image_builder_new();
+        sensor_msgs_compressed_image_builder_t* b = sensor_msgs_compressed_image_builder_new();
         if (!b)
-            return unexpected<Error>(Error::from_errno("ros_compressed_image_builder_new"));
-        ros_compressed_image_builder_set_stamp(b, stamp.sec, stamp.nanosec);
-        if (ros_compressed_image_builder_set_frame_id(b, frame_id.data()) != 0 ||
-            ros_compressed_image_builder_set_format(b, format.data()) != 0 ||
-            ros_compressed_image_builder_set_data(b, data.data(), data.size()) != 0) {
-            ros_compressed_image_builder_free(b);
-            return unexpected<Error>(Error::from_errno("ros_compressed_image_builder_set"));
+            return unexpected<Error>(Error::from_errno("sensor_msgs_compressed_image_builder_new"));
+        sensor_msgs_compressed_image_builder_set_stamp(b, stamp.sec, stamp.nanosec);
+        if (sensor_msgs_compressed_image_builder_set_frame_id(b, frame_id.data()) != 0 ||
+            sensor_msgs_compressed_image_builder_set_format(b, format.data()) != 0 ||
+            sensor_msgs_compressed_image_builder_set_data(b, data.data(), data.size()) != 0) {
+            sensor_msgs_compressed_image_builder_free(b);
+            return unexpected<Error>(Error::from_errno("sensor_msgs_compressed_image_builder_set"));
         }
         std::uint8_t* out = nullptr; std::size_t len = 0;
-        if (ros_compressed_image_builder_build(b, &out, &len) != 0) {
-            ros_compressed_image_builder_free(b);
-            return unexpected<Error>(Error::from_errno("ros_compressed_image_builder_build"));
+        if (sensor_msgs_compressed_image_builder_build(b, &out, &len) != 0) {
+            sensor_msgs_compressed_image_builder_free(b);
+            return unexpected<Error>(Error::from_errno("sensor_msgs_compressed_image_builder_build"));
         }
-        ros_compressed_image_builder_free(b);
+        sensor_msgs_compressed_image_builder_free(b);
         return make_(out, len);
     }
     /// @brief Message timestamp.
     /// @return The header stamp as a Time value.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_compressed_image_get_stamp_sec(handle()),
-                ros_compressed_image_get_stamp_nanosec(handle())};
+        return {sensor_msgs_compressed_image_get_stamp_sec(handle()),
+                sensor_msgs_compressed_image_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     /// @return A `std::string_view` borrowed from this instance's buffer.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_compressed_image_get_frame_id(handle());
+        return sensor_msgs_compressed_image_get_frame_id(handle());
     }
     /// @brief Compression format label.
     /// @return A `std::string_view` borrowed from this instance's buffer.
     [[nodiscard]] std::string_view format() const noexcept {
-        return ros_compressed_image_get_format(handle());
+        return sensor_msgs_compressed_image_get_format(handle());
     }
     /// @brief Compressed image payload.
     /// @return A `span<const std::uint8_t>` borrowed from this instance's
     ///         buffer.
     [[nodiscard]] span<const std::uint8_t> data() const noexcept {
         std::size_t n = 0;
-        auto* p = ros_compressed_image_get_data(handle(), &n);
+        auto* p = sensor_msgs_compressed_image_get_data(handle(), &n);
         return {p, n};
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
-// sensor_msgs - Imu (view-only: no ros_imu_encode in the C API)
+// sensor_msgs - Imu (view-only: no sensor_msgs_imu_encode in the C API)
 // ---------------------------------------------------------------------------
 
+
+namespace sensor_msgs {
 /**
  * @brief Non-owning, move-only view over a `sensor_msgs::Imu` message.
  *
- * View-only: the C API does not provide `ros_imu_encode`, so there is no
+ * View-only: the C API does not provide `sensor_msgs_imu_encode`, so there is no
  * owning `Imu` counterpart.
  *
  * @warning The caller's CDR buffer passed to `from_cdr()` must outlive
@@ -3120,19 +3229,19 @@ public:
     /// @brief Message timestamp.
     /// @return The header stamp as a Time value.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_imu_get_stamp_sec(handle()), ros_imu_get_stamp_nanosec(handle())};
+        return {sensor_msgs_imu_get_stamp_sec(handle()), sensor_msgs_imu_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_imu_get_frame_id(handle());
+        return sensor_msgs_imu_get_frame_id(handle());
     }
     /// @brief Orientation quaternion.
     /// @return A Quaternion value copied from the handle.
     [[nodiscard]] Quaternion orientation() const noexcept {
         Quaternion q;
-        ros_imu_get_orientation(handle(), &q.x, &q.y, &q.z, &q.w);
+        sensor_msgs_imu_get_orientation(handle(), &q.x, &q.y, &q.z, &q.w);
         return q;
     }
     /// @brief 3x3 orientation covariance matrix (row-major, 9 doubles).
@@ -3140,14 +3249,14 @@ public:
     ///         `std::array<double, 9>`.
     [[nodiscard]] std::array<double, 9> orientation_covariance() const noexcept {
         std::array<double, 9> cov{};
-        ros_imu_get_orientation_covariance(handle(), cov.data());
+        sensor_msgs_imu_get_orientation_covariance(handle(), cov.data());
         return cov;
     }
     /// @brief Angular velocity (rad/s).
     /// @return A Vector3 value copied from the handle.
     [[nodiscard]] Vector3 angular_velocity() const noexcept {
         Vector3 v;
-        ros_imu_get_angular_velocity(handle(), &v.x, &v.y, &v.z);
+        sensor_msgs_imu_get_angular_velocity(handle(), &v.x, &v.y, &v.z);
         return v;
     }
     /// @brief 3x3 angular velocity covariance matrix (row-major).
@@ -3155,14 +3264,14 @@ public:
     ///         `std::array<double, 9>`.
     [[nodiscard]] std::array<double, 9> angular_velocity_covariance() const noexcept {
         std::array<double, 9> cov{};
-        ros_imu_get_angular_velocity_covariance(handle(), cov.data());
+        sensor_msgs_imu_get_angular_velocity_covariance(handle(), cov.data());
         return cov;
     }
     /// @brief Linear acceleration (m/s²).
     /// @return A Vector3 value copied from the handle.
     [[nodiscard]] Vector3 linear_acceleration() const noexcept {
         Vector3 v;
-        ros_imu_get_linear_acceleration(handle(), &v.x, &v.y, &v.z);
+        sensor_msgs_imu_get_linear_acceleration(handle(), &v.x, &v.y, &v.z);
         return v;
     }
     /// @brief 3x3 linear acceleration covariance matrix (row-major).
@@ -3170,19 +3279,22 @@ public:
     ///         `std::array<double, 9>`.
     [[nodiscard]] std::array<double, 9> linear_acceleration_covariance() const noexcept {
         std::array<double, 9> cov{};
-        ros_imu_get_linear_acceleration_covariance(handle(), cov.data());
+        sensor_msgs_imu_get_linear_acceleration_covariance(handle(), cov.data());
         return cov;
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
-// sensor_msgs - NavSatFix (view-only: no ros_nav_sat_fix_encode in the C API)
+// sensor_msgs - NavSatFix (view-only: no sensor_msgs_nav_sat_fix_encode in the C API)
 // ---------------------------------------------------------------------------
 
+
+namespace sensor_msgs {
 /**
  * @brief Non-owning, move-only view over a `sensor_msgs::NavSatFix`.
  *
- * View-only: the C API does not provide `ros_nav_sat_fix_encode`.
+ * View-only: the C API does not provide `sensor_msgs_nav_sat_fix_encode`.
  *
  * @warning Backing CDR buffer must outlive this view and any borrowed
  *          `frame_id()` string.
@@ -3199,36 +3311,39 @@ public:
     /// @brief Message timestamp.
     /// @return The header stamp as a Time value.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_nav_sat_fix_get_stamp_sec(handle()),
-                ros_nav_sat_fix_get_stamp_nanosec(handle())};
+        return {sensor_msgs_nav_sat_fix_get_stamp_sec(handle()),
+                sensor_msgs_nav_sat_fix_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_nav_sat_fix_get_frame_id(handle());
+        return sensor_msgs_nav_sat_fix_get_frame_id(handle());
     }
     /// @brief Latitude in degrees (WGS84).
     /// @return Latitude value from the handle.
     [[nodiscard]] double latitude() const noexcept {
-        return ros_nav_sat_fix_get_latitude(handle());
+        return sensor_msgs_nav_sat_fix_get_latitude(handle());
     }
     /// @brief Longitude in degrees (WGS84).
     /// @return Longitude value from the handle.
     [[nodiscard]] double longitude() const noexcept {
-        return ros_nav_sat_fix_get_longitude(handle());
+        return sensor_msgs_nav_sat_fix_get_longitude(handle());
     }
     /// @brief Altitude in meters above the WGS84 ellipsoid.
     /// @return Altitude value from the handle.
     [[nodiscard]] double altitude() const noexcept {
-        return ros_nav_sat_fix_get_altitude(handle());
+        return sensor_msgs_nav_sat_fix_get_altitude(handle());
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
-// sensor_msgs - CameraInfo (view-only: no ros_camera_info_encode in the C API)
+// sensor_msgs - CameraInfo (view-only: no sensor_msgs_camera_info_encode in the C API)
 // ---------------------------------------------------------------------------
 
+
+namespace sensor_msgs {
 /**
  * @brief Non-owning, move-only view over a `sensor_msgs::CameraInfo`.
  *
@@ -3250,47 +3365,50 @@ public:
     /// @brief Message timestamp.
     /// @return The header stamp as a Time value.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_camera_info_get_stamp_sec(handle()),
-                ros_camera_info_get_stamp_nanosec(handle())};
+        return {sensor_msgs_camera_info_get_stamp_sec(handle()),
+                sensor_msgs_camera_info_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_camera_info_get_frame_id(handle());
+        return sensor_msgs_camera_info_get_frame_id(handle());
     }
     /// @brief Image height in pixels.
     /// @return The height value from the handle.
     [[nodiscard]] std::uint32_t height() const noexcept {
-        return ros_camera_info_get_height(handle());
+        return sensor_msgs_camera_info_get_height(handle());
     }
     /// @brief Image width in pixels.
     /// @return The width value from the handle.
     [[nodiscard]] std::uint32_t width() const noexcept {
-        return ros_camera_info_get_width(handle());
+        return sensor_msgs_camera_info_get_width(handle());
     }
     /// @brief Distortion model name (e.g. "plumb_bob", "rational_polynomial").
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view distortion_model() const noexcept {
-        return ros_camera_info_get_distortion_model(handle());
+        return sensor_msgs_camera_info_get_distortion_model(handle());
     }
     /// @brief Horizontal binning factor (1 = unbinned).
     /// @return The binning_x value from the handle.
     [[nodiscard]] std::uint32_t binning_x() const noexcept {
-        return ros_camera_info_get_binning_x(handle());
+        return sensor_msgs_camera_info_get_binning_x(handle());
     }
     /// @brief Vertical binning factor (1 = unbinned).
     /// @return The binning_y value from the handle.
     [[nodiscard]] std::uint32_t binning_y() const noexcept {
-        return ros_camera_info_get_binning_y(handle());
+        return sensor_msgs_camera_info_get_binning_y(handle());
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
 // geometry_msgs - TransformStamped
 // ---------------------------------------------------------------------------
 
+
+namespace geometry_msgs {
 /**
  * @brief Non-owning, move-only view over a
  *        `geometry_msgs::TransformStamped`.
@@ -3314,27 +3432,30 @@ public:
     /// @brief Message timestamp.
     /// @return The header stamp as a Time value.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_transform_stamped_get_stamp_sec(handle()),
-                ros_transform_stamped_get_stamp_nanosec(handle())};
+        return {geometry_msgs_transform_stamped_get_stamp_sec(handle()),
+                geometry_msgs_transform_stamped_get_stamp_nanosec(handle())};
     }
     /// @brief Parent coordinate frame identifier.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_transform_stamped_get_frame_id(handle());
+        return geometry_msgs_transform_stamped_get_frame_id(handle());
     }
     /// @brief Child coordinate frame identifier.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view child_frame_id() const noexcept {
-        return ros_transform_stamped_get_child_frame_id(handle());
+        return geometry_msgs_transform_stamped_get_child_frame_id(handle());
     }
 };
+} // namespace geometry_msgs
 
 // ---------------------------------------------------------------------------
 // geometry_msgs - TwistStamped
 // ---------------------------------------------------------------------------
 
+
+namespace geometry_msgs {
 /**
  * @brief Non-owning, move-only view over a `geometry_msgs::TwistStamped`.
  *
@@ -3352,19 +3473,22 @@ public:
 
     /// @brief Message timestamp.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_twist_stamped_get_stamp_sec(handle()),
-                ros_twist_stamped_get_stamp_nanosec(handle())};
+        return {geometry_msgs_twist_stamped_get_stamp_sec(handle()),
+                geometry_msgs_twist_stamped_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_twist_stamped_get_frame_id(handle());
+        return geometry_msgs_twist_stamped_get_frame_id(handle());
     }
 };
+} // namespace geometry_msgs
 
 // ---------------------------------------------------------------------------
 // geometry_msgs - AccelStamped
 // ---------------------------------------------------------------------------
 
+
+namespace geometry_msgs {
 /**
  * @brief Non-owning, move-only view over a `geometry_msgs::AccelStamped`.
  *
@@ -3382,19 +3506,22 @@ public:
 
     /// @brief Message timestamp.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_accel_stamped_get_stamp_sec(handle()),
-                ros_accel_stamped_get_stamp_nanosec(handle())};
+        return {geometry_msgs_accel_stamped_get_stamp_sec(handle()),
+                geometry_msgs_accel_stamped_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_accel_stamped_get_frame_id(handle());
+        return geometry_msgs_accel_stamped_get_frame_id(handle());
     }
 };
+} // namespace geometry_msgs
 
 // ---------------------------------------------------------------------------
 // geometry_msgs - PointStamped
 // ---------------------------------------------------------------------------
 
+
+namespace geometry_msgs {
 /**
  * @brief Non-owning, move-only view over a `geometry_msgs::PointStamped`.
  *
@@ -3412,19 +3539,22 @@ public:
 
     /// @brief Message timestamp.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_point_stamped_get_stamp_sec(handle()),
-                ros_point_stamped_get_stamp_nanosec(handle())};
+        return {geometry_msgs_point_stamped_get_stamp_sec(handle()),
+                geometry_msgs_point_stamped_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_point_stamped_get_frame_id(handle());
+        return geometry_msgs_point_stamped_get_frame_id(handle());
     }
 };
+} // namespace geometry_msgs
 
 // ---------------------------------------------------------------------------
 // geometry_msgs - InertiaStamped
 // ---------------------------------------------------------------------------
 
+
+namespace geometry_msgs {
 /**
  * @brief Non-owning, move-only view over a `geometry_msgs::InertiaStamped`.
  *
@@ -3442,19 +3572,22 @@ public:
 
     /// @brief Message timestamp.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_inertia_stamped_get_stamp_sec(handle()),
-                ros_inertia_stamped_get_stamp_nanosec(handle())};
+        return {geometry_msgs_inertia_stamped_get_stamp_sec(handle()),
+                geometry_msgs_inertia_stamped_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_inertia_stamped_get_frame_id(handle());
+        return geometry_msgs_inertia_stamped_get_frame_id(handle());
     }
 };
+} // namespace geometry_msgs
 
 // ---------------------------------------------------------------------------
 // geometry_msgs - Vector3Stamped
 // ---------------------------------------------------------------------------
 
+
+namespace geometry_msgs {
 /**
  * @brief Non-owning, move-only view over a `geometry_msgs::Vector3Stamped`.
  *
@@ -3472,19 +3605,22 @@ public:
 
     /// @brief Message timestamp.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_vector3_stamped_get_stamp_sec(handle()),
-                ros_vector3_stamped_get_stamp_nanosec(handle())};
+        return {geometry_msgs_vector3_stamped_get_stamp_sec(handle()),
+                geometry_msgs_vector3_stamped_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_vector3_stamped_get_frame_id(handle());
+        return geometry_msgs_vector3_stamped_get_frame_id(handle());
     }
 };
+} // namespace geometry_msgs
 
 // ---------------------------------------------------------------------------
 // geometry_msgs - PoseStamped
 // ---------------------------------------------------------------------------
 
+
+namespace geometry_msgs {
 /**
  * @brief Non-owning, move-only view over a `geometry_msgs::PoseStamped`.
  *
@@ -3502,19 +3638,22 @@ public:
 
     /// @brief Message timestamp.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_pose_stamped_get_stamp_sec(handle()),
-                ros_pose_stamped_get_stamp_nanosec(handle())};
+        return {geometry_msgs_pose_stamped_get_stamp_sec(handle()),
+                geometry_msgs_pose_stamped_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_pose_stamped_get_frame_id(handle());
+        return geometry_msgs_pose_stamped_get_frame_id(handle());
     }
 };
+} // namespace geometry_msgs
 
 // ---------------------------------------------------------------------------
 // geometry_msgs - QuaternionStamped
 // ---------------------------------------------------------------------------
 
+
+namespace geometry_msgs {
 /**
  * @brief Non-owning, move-only view over a `geometry_msgs::QuaternionStamped`.
  *
@@ -3532,19 +3671,22 @@ public:
 
     /// @brief Message timestamp.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_quaternion_stamped_get_stamp_sec(handle()),
-                ros_quaternion_stamped_get_stamp_nanosec(handle())};
+        return {geometry_msgs_quaternion_stamped_get_stamp_sec(handle()),
+                geometry_msgs_quaternion_stamped_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_quaternion_stamped_get_frame_id(handle());
+        return geometry_msgs_quaternion_stamped_get_frame_id(handle());
     }
 };
+} // namespace geometry_msgs
 
 // ---------------------------------------------------------------------------
 // geometry_msgs - WrenchStamped
 // ---------------------------------------------------------------------------
 
+
+namespace geometry_msgs {
 /**
  * @brief Non-owning, move-only view over a `geometry_msgs::WrenchStamped`.
  *
@@ -3562,19 +3704,22 @@ public:
 
     /// @brief Message timestamp.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_wrench_stamped_get_stamp_sec(handle()),
-                ros_wrench_stamped_get_stamp_nanosec(handle())};
+        return {geometry_msgs_wrench_stamped_get_stamp_sec(handle()),
+                geometry_msgs_wrench_stamped_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_wrench_stamped_get_frame_id(handle());
+        return geometry_msgs_wrench_stamped_get_frame_id(handle());
     }
 };
+} // namespace geometry_msgs
 
 // ---------------------------------------------------------------------------
 // geometry_msgs - PoseWithCovarianceStamped
 // ---------------------------------------------------------------------------
 
+
+namespace geometry_msgs {
 /**
  * @brief Non-owning, move-only view over a `geometry_msgs::PoseWithCovarianceStamped`.
  *
@@ -3592,19 +3737,22 @@ public:
 
     /// @brief Message timestamp.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_pose_with_covariance_stamped_get_stamp_sec(handle()),
-                ros_pose_with_covariance_stamped_get_stamp_nanosec(handle())};
+        return {geometry_msgs_pose_with_covariance_stamped_get_stamp_sec(handle()),
+                geometry_msgs_pose_with_covariance_stamped_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_pose_with_covariance_stamped_get_frame_id(handle());
+        return geometry_msgs_pose_with_covariance_stamped_get_frame_id(handle());
     }
 };
+} // namespace geometry_msgs
 
 // ---------------------------------------------------------------------------
 // geometry_msgs - TwistWithCovarianceStamped
 // ---------------------------------------------------------------------------
 
+
+namespace geometry_msgs {
 /**
  * @brief Non-owning, move-only view over a `geometry_msgs::TwistWithCovarianceStamped`.
  *
@@ -3622,19 +3770,22 @@ public:
 
     /// @brief Message timestamp.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_twist_with_covariance_stamped_get_stamp_sec(handle()),
-                ros_twist_with_covariance_stamped_get_stamp_nanosec(handle())};
+        return {geometry_msgs_twist_with_covariance_stamped_get_stamp_sec(handle()),
+                geometry_msgs_twist_with_covariance_stamped_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_twist_with_covariance_stamped_get_frame_id(handle());
+        return geometry_msgs_twist_with_covariance_stamped_get_frame_id(handle());
     }
 };
+} // namespace geometry_msgs
 
 // ---------------------------------------------------------------------------
 // geometry_msgs - AccelWithCovarianceStamped
 // ---------------------------------------------------------------------------
 
+
+namespace geometry_msgs {
 /**
  * @brief Non-owning, move-only view over a `geometry_msgs::AccelWithCovarianceStamped`.
  *
@@ -3652,19 +3803,22 @@ public:
 
     /// @brief Message timestamp.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_accel_with_covariance_stamped_get_stamp_sec(handle()),
-                ros_accel_with_covariance_stamped_get_stamp_nanosec(handle())};
+        return {geometry_msgs_accel_with_covariance_stamped_get_stamp_sec(handle()),
+                geometry_msgs_accel_with_covariance_stamped_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_accel_with_covariance_stamped_get_frame_id(handle());
+        return geometry_msgs_accel_with_covariance_stamped_get_frame_id(handle());
     }
 };
+} // namespace geometry_msgs
 
 // ---------------------------------------------------------------------------
 // geometry_msgs - Polygon
 // ---------------------------------------------------------------------------
 
+
+namespace geometry_msgs {
 /**
  * @brief Non-owning, move-only view over a `geometry_msgs::Polygon`.
  *
@@ -3682,23 +3836,26 @@ public:
 
     /// @brief Number of points in the polygon.
     [[nodiscard]] std::size_t size() const noexcept {
-        return ros_polygon_get_len(handle());
+        return geometry_msgs_polygon_get_len(handle());
     }
 
     /// @brief Get a point by index.
     /// @return The point on success, or an Error if index is out of range.
     [[nodiscard]] expected<Point32, Error> point(std::size_t index) const noexcept {
         Point32 p;
-        if (ros_polygon_get_point(handle(), index, &p.x, &p.y, &p.z) != 0)
-            return unexpected<Error>(Error::from_errno("ros_polygon_get_point"));
+        if (geometry_msgs_polygon_get_point(handle(), index, &p.x, &p.y, &p.z) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_polygon_get_point"));
         return p;
     }
 };
+} // namespace geometry_msgs
 
 // ---------------------------------------------------------------------------
 // geometry_msgs - PolygonStamped
 // ---------------------------------------------------------------------------
 
+
+namespace geometry_msgs {
 /**
  * @brief Non-owning, move-only view over a `geometry_msgs::PolygonStamped`.
  *
@@ -3716,32 +3873,35 @@ public:
 
     /// @brief Message timestamp.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_polygon_stamped_get_stamp_sec(handle()),
-                ros_polygon_stamped_get_stamp_nanosec(handle())};
+        return {geometry_msgs_polygon_stamped_get_stamp_sec(handle()),
+                geometry_msgs_polygon_stamped_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_polygon_stamped_get_frame_id(handle());
+        return geometry_msgs_polygon_stamped_get_frame_id(handle());
     }
     /// @brief Number of points in the polygon.
     [[nodiscard]] std::size_t size() const noexcept {
-        return ros_polygon_stamped_get_len(handle());
+        return geometry_msgs_polygon_stamped_get_len(handle());
     }
 
     /// @brief Get a point by index.
     /// @return The point on success, or an Error if index is out of range.
     [[nodiscard]] expected<Point32, Error> point(std::size_t index) const noexcept {
         Point32 p;
-        if (ros_polygon_stamped_get_point(handle(), index, &p.x, &p.y, &p.z) != 0)
-            return unexpected<Error>(Error::from_errno("ros_polygon_stamped_get_point"));
+        if (geometry_msgs_polygon_stamped_get_point(handle(), index, &p.x, &p.y, &p.z) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_polygon_stamped_get_point"));
         return p;
     }
 };
+} // namespace geometry_msgs
 
 // ---------------------------------------------------------------------------
 // geometry_msgs - PoseArray
 // ---------------------------------------------------------------------------
 
+
+namespace geometry_msgs {
 /**
  * @brief Non-owning, move-only view over a `geometry_msgs::PoseArray`.
  *
@@ -3759,34 +3919,37 @@ public:
 
     /// @brief Message timestamp.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_pose_array_get_stamp_sec(handle()),
-                ros_pose_array_get_stamp_nanosec(handle())};
+        return {geometry_msgs_pose_array_get_stamp_sec(handle()),
+                geometry_msgs_pose_array_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_pose_array_get_frame_id(handle());
+        return geometry_msgs_pose_array_get_frame_id(handle());
     }
     /// @brief Number of poses in the array.
     [[nodiscard]] std::size_t size() const noexcept {
-        return ros_pose_array_get_len(handle());
+        return geometry_msgs_pose_array_get_len(handle());
     }
 
     /// @brief Get a pose by index.
     /// @return The pose on success, or an Error if index is out of range.
     [[nodiscard]] expected<Pose, Error> pose(std::size_t index) const noexcept {
         Pose p;
-        if (ros_pose_array_get_pose(handle(), index,
+        if (geometry_msgs_pose_array_get_pose(handle(), index,
                                     &p.px, &p.py, &p.pz,
                                     &p.ox, &p.oy, &p.oz, &p.ow) != 0)
-            return unexpected<Error>(Error::from_errno("ros_pose_array_get_pose"));
+            return unexpected<Error>(Error::from_errno("geometry_msgs_pose_array_get_pose"));
         return p;
     }
 };
+} // namespace geometry_msgs
 
 // ---------------------------------------------------------------------------
 // geometry / odometry / mavros builders
 
 /// @brief Fluent builder for `AccelStamped` messages.
+
+namespace geometry_msgs {
 class AccelStampedBuilder
     : public detail::BuilderBase<AccelStampedBuilder, detail::AccelStampedBuilderTraits> {
     using Base = detail::BuilderBase<AccelStampedBuilder, detail::AccelStampedBuilderTraits>;
@@ -3798,24 +3961,27 @@ public:
     using Base::encode_into;
 
     AccelStampedBuilder& stamp(Time t) noexcept {
-        ros_accel_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        geometry_msgs_accel_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_accel_stamped_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_accel_stamped_builder_set_frame_id"));
+        if (geometry_msgs_accel_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_accel_stamped_builder_set_frame_id"));
         return {};
     }
 
     AccelStampedBuilder& linear_acceleration(double x, double y, double z) noexcept {
-        ros_accel_stamped_builder_set_linear_acceleration(ptr(), x, y, z); return *this;
+        geometry_msgs_accel_stamped_builder_set_linear_acceleration(ptr(), x, y, z); return *this;
     }
     AccelStampedBuilder& angular_acceleration(double x, double y, double z) noexcept {
-        ros_accel_stamped_builder_set_angular_acceleration(ptr(), x, y, z); return *this;
+        geometry_msgs_accel_stamped_builder_set_angular_acceleration(ptr(), x, y, z); return *this;
     }
 };
+} // namespace geometry_msgs
 
 /// @brief Fluent builder for `TwistStamped` messages.
+
+namespace geometry_msgs {
 class TwistStampedBuilder
     : public detail::BuilderBase<TwistStampedBuilder, detail::TwistStampedBuilderTraits> {
     using Base = detail::BuilderBase<TwistStampedBuilder, detail::TwistStampedBuilderTraits>;
@@ -3827,24 +3993,27 @@ public:
     using Base::encode_into;
 
     TwistStampedBuilder& stamp(Time t) noexcept {
-        ros_twist_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        geometry_msgs_twist_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_twist_stamped_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_twist_stamped_builder_set_frame_id"));
+        if (geometry_msgs_twist_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_twist_stamped_builder_set_frame_id"));
         return {};
     }
 
     TwistStampedBuilder& linear(double x, double y, double z) noexcept {
-        ros_twist_stamped_builder_set_linear(ptr(), x, y, z); return *this;
+        geometry_msgs_twist_stamped_builder_set_linear(ptr(), x, y, z); return *this;
     }
     TwistStampedBuilder& angular(double x, double y, double z) noexcept {
-        ros_twist_stamped_builder_set_angular(ptr(), x, y, z); return *this;
+        geometry_msgs_twist_stamped_builder_set_angular(ptr(), x, y, z); return *this;
     }
 };
+} // namespace geometry_msgs
 
 /// @brief Fluent builder for `PointStamped` messages.
+
+namespace geometry_msgs {
 class PointStampedBuilder
     : public detail::BuilderBase<PointStampedBuilder, detail::PointStampedBuilderTraits> {
     using Base = detail::BuilderBase<PointStampedBuilder, detail::PointStampedBuilderTraits>;
@@ -3856,21 +4025,24 @@ public:
     using Base::encode_into;
 
     PointStampedBuilder& stamp(Time t) noexcept {
-        ros_point_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        geometry_msgs_point_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_point_stamped_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_point_stamped_builder_set_frame_id"));
+        if (geometry_msgs_point_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_point_stamped_builder_set_frame_id"));
         return {};
     }
 
     PointStampedBuilder& point(double x, double y, double z) noexcept {
-        ros_point_stamped_builder_set_point(ptr(), x, y, z); return *this;
+        geometry_msgs_point_stamped_builder_set_point(ptr(), x, y, z); return *this;
     }
 };
+} // namespace geometry_msgs
 
 /// @brief Fluent builder for `Vector3Stamped` messages.
+
+namespace geometry_msgs {
 class Vector3StampedBuilder
     : public detail::BuilderBase<Vector3StampedBuilder, detail::Vector3StampedBuilderTraits> {
     using Base = detail::BuilderBase<Vector3StampedBuilder, detail::Vector3StampedBuilderTraits>;
@@ -3882,21 +4054,24 @@ public:
     using Base::encode_into;
 
     Vector3StampedBuilder& stamp(Time t) noexcept {
-        ros_vector3_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        geometry_msgs_vector3_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_vector3_stamped_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_vector3_stamped_builder_set_frame_id"));
+        if (geometry_msgs_vector3_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_vector3_stamped_builder_set_frame_id"));
         return {};
     }
 
     Vector3StampedBuilder& vector(double x, double y, double z) noexcept {
-        ros_vector3_stamped_builder_set_vector(ptr(), x, y, z); return *this;
+        geometry_msgs_vector3_stamped_builder_set_vector(ptr(), x, y, z); return *this;
     }
 };
+} // namespace geometry_msgs
 
 /// @brief Fluent builder for `QuaternionStamped` messages.
+
+namespace geometry_msgs {
 class QuaternionStampedBuilder
     : public detail::BuilderBase<QuaternionStampedBuilder, detail::QuaternionStampedBuilderTraits> {
     using Base = detail::BuilderBase<QuaternionStampedBuilder, detail::QuaternionStampedBuilderTraits>;
@@ -3908,21 +4083,24 @@ public:
     using Base::encode_into;
 
     QuaternionStampedBuilder& stamp(Time t) noexcept {
-        ros_quaternion_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        geometry_msgs_quaternion_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_quaternion_stamped_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_quaternion_stamped_builder_set_frame_id"));
+        if (geometry_msgs_quaternion_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_quaternion_stamped_builder_set_frame_id"));
         return {};
     }
 
     QuaternionStampedBuilder& quaternion(double x, double y, double z, double w) noexcept {
-        ros_quaternion_stamped_builder_set_quaternion(ptr(), x, y, z, w); return *this;
+        geometry_msgs_quaternion_stamped_builder_set_quaternion(ptr(), x, y, z, w); return *this;
     }
 };
+} // namespace geometry_msgs
 
 /// @brief Fluent builder for `PoseStamped` messages.
+
+namespace geometry_msgs {
 class PoseStampedBuilder
     : public detail::BuilderBase<PoseStampedBuilder, detail::PoseStampedBuilderTraits> {
     using Base = detail::BuilderBase<PoseStampedBuilder, detail::PoseStampedBuilderTraits>;
@@ -3934,24 +4112,27 @@ public:
     using Base::encode_into;
 
     PoseStampedBuilder& stamp(Time t) noexcept {
-        ros_pose_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        geometry_msgs_pose_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_pose_stamped_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_pose_stamped_builder_set_frame_id"));
+        if (geometry_msgs_pose_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_pose_stamped_builder_set_frame_id"));
         return {};
     }
 
     PoseStampedBuilder& position(double x, double y, double z) noexcept {
-        ros_pose_stamped_builder_set_position(ptr(), x, y, z); return *this;
+        geometry_msgs_pose_stamped_builder_set_position(ptr(), x, y, z); return *this;
     }
     PoseStampedBuilder& orientation(double x, double y, double z, double w) noexcept {
-        ros_pose_stamped_builder_set_orientation(ptr(), x, y, z, w); return *this;
+        geometry_msgs_pose_stamped_builder_set_orientation(ptr(), x, y, z, w); return *this;
     }
 };
+} // namespace geometry_msgs
 
 /// @brief Fluent builder for `WrenchStamped` messages.
+
+namespace geometry_msgs {
 class WrenchStampedBuilder
     : public detail::BuilderBase<WrenchStampedBuilder, detail::WrenchStampedBuilderTraits> {
     using Base = detail::BuilderBase<WrenchStampedBuilder, detail::WrenchStampedBuilderTraits>;
@@ -3963,24 +4144,27 @@ public:
     using Base::encode_into;
 
     WrenchStampedBuilder& stamp(Time t) noexcept {
-        ros_wrench_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        geometry_msgs_wrench_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_wrench_stamped_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_wrench_stamped_builder_set_frame_id"));
+        if (geometry_msgs_wrench_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_wrench_stamped_builder_set_frame_id"));
         return {};
     }
 
     WrenchStampedBuilder& force(double x, double y, double z) noexcept {
-        ros_wrench_stamped_builder_set_force(ptr(), x, y, z); return *this;
+        geometry_msgs_wrench_stamped_builder_set_force(ptr(), x, y, z); return *this;
     }
     WrenchStampedBuilder& torque(double x, double y, double z) noexcept {
-        ros_wrench_stamped_builder_set_torque(ptr(), x, y, z); return *this;
+        geometry_msgs_wrench_stamped_builder_set_torque(ptr(), x, y, z); return *this;
     }
 };
+} // namespace geometry_msgs
 
 /// @brief Fluent builder for `InertiaStamped` messages.
+
+namespace geometry_msgs {
 class InertiaStampedBuilder
     : public detail::BuilderBase<InertiaStampedBuilder, detail::InertiaStampedBuilderTraits> {
     using Base = detail::BuilderBase<InertiaStampedBuilder, detail::InertiaStampedBuilderTraits>;
@@ -3992,29 +4176,32 @@ public:
     using Base::encode_into;
 
     InertiaStampedBuilder& stamp(Time t) noexcept {
-        ros_inertia_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        geometry_msgs_inertia_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_inertia_stamped_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_inertia_stamped_builder_set_frame_id"));
+        if (geometry_msgs_inertia_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_inertia_stamped_builder_set_frame_id"));
         return {};
     }
 
     InertiaStampedBuilder& mass(double v) noexcept {
-        ros_inertia_stamped_builder_set_mass(ptr(), v); return *this;
+        geometry_msgs_inertia_stamped_builder_set_mass(ptr(), v); return *this;
     }
     InertiaStampedBuilder& com(double x, double y, double z) noexcept {
-        ros_inertia_stamped_builder_set_com(ptr(), x, y, z); return *this;
+        geometry_msgs_inertia_stamped_builder_set_com(ptr(), x, y, z); return *this;
     }
     InertiaStampedBuilder& inertia_tensor(double ixx, double ixy, double ixz,
                                           double iyy, double iyz, double izz) noexcept {
-        ros_inertia_stamped_builder_set_inertia_tensor(ptr(), ixx, ixy, ixz, iyy, iyz, izz);
+        geometry_msgs_inertia_stamped_builder_set_inertia_tensor(ptr(), ixx, ixy, ixz, iyy, iyz, izz);
         return *this;
     }
 };
+} // namespace geometry_msgs
 
 /// @brief Fluent builder for `TransformStamped` messages.
+
+namespace geometry_msgs {
 class TransformStampedBuilder
     : public detail::BuilderBase<TransformStampedBuilder, detail::TransformStampedBuilderTraits> {
     using Base = detail::BuilderBase<TransformStampedBuilder, detail::TransformStampedBuilderTraits>;
@@ -4026,29 +4213,32 @@ public:
     using Base::encode_into;
 
     TransformStampedBuilder& stamp(Time t) noexcept {
-        ros_transform_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        geometry_msgs_transform_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_transform_stamped_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_transform_stamped_builder_set_frame_id"));
+        if (geometry_msgs_transform_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_transform_stamped_builder_set_frame_id"));
         return {};
     }
 
     [[nodiscard]] expected<void, Error> child_frame_id(const char* s) noexcept {
-        if (ros_transform_stamped_builder_set_child_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_transform_stamped_builder_set_child_frame_id"));
+        if (geometry_msgs_transform_stamped_builder_set_child_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_transform_stamped_builder_set_child_frame_id"));
         return {};
     }
     TransformStampedBuilder& translation(double x, double y, double z) noexcept {
-        ros_transform_stamped_builder_set_translation(ptr(), x, y, z); return *this;
+        geometry_msgs_transform_stamped_builder_set_translation(ptr(), x, y, z); return *this;
     }
     TransformStampedBuilder& rotation(double x, double y, double z, double w) noexcept {
-        ros_transform_stamped_builder_set_rotation(ptr(), x, y, z, w); return *this;
+        geometry_msgs_transform_stamped_builder_set_rotation(ptr(), x, y, z, w); return *this;
     }
 };
+} // namespace geometry_msgs
 
 /// @brief Fluent builder for `PoseWithCovarianceStamped` messages.
+
+namespace geometry_msgs {
 class PoseWithCovarianceStampedBuilder
     : public detail::BuilderBase<PoseWithCovarianceStampedBuilder, detail::PoseWithCovarianceStampedBuilderTraits> {
     using Base = detail::BuilderBase<PoseWithCovarianceStampedBuilder, detail::PoseWithCovarianceStampedBuilderTraits>;
@@ -4060,31 +4250,34 @@ public:
     using Base::encode_into;
 
     PoseWithCovarianceStampedBuilder& stamp(Time t) noexcept {
-        ros_pose_with_covariance_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        geometry_msgs_pose_with_covariance_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_pose_with_covariance_stamped_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_pose_with_covariance_stamped_builder_set_frame_id"));
+        if (geometry_msgs_pose_with_covariance_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_pose_with_covariance_stamped_builder_set_frame_id"));
         return {};
     }
 
     PoseWithCovarianceStampedBuilder& position(double x, double y, double z) noexcept {
-        ros_pose_with_covariance_stamped_builder_set_position(ptr(), x, y, z); return *this;
+        geometry_msgs_pose_with_covariance_stamped_builder_set_position(ptr(), x, y, z); return *this;
     }
     PoseWithCovarianceStampedBuilder& orientation(double x, double y, double z, double w) noexcept {
-        ros_pose_with_covariance_stamped_builder_set_orientation(ptr(), x, y, z, w); return *this;
+        geometry_msgs_pose_with_covariance_stamped_builder_set_orientation(ptr(), x, y, z, w); return *this;
     }
     [[nodiscard]] expected<void, Error> covariance(span<const double> cov) noexcept {
         if (cov.size() < 36)
-            return unexpected<Error>({EINVAL, "ros_pose_with_covariance_stamped_builder_set_covariance"});
-        if (ros_pose_with_covariance_stamped_builder_set_covariance(ptr(), cov.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_pose_with_covariance_stamped_builder_set_covariance"));
+            return unexpected<Error>({EINVAL, "geometry_msgs_pose_with_covariance_stamped_builder_set_covariance"});
+        if (geometry_msgs_pose_with_covariance_stamped_builder_set_covariance(ptr(), cov.data()) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_pose_with_covariance_stamped_builder_set_covariance"));
         return {};
     }
 };
+} // namespace geometry_msgs
 
 /// @brief Fluent builder for `TwistWithCovarianceStamped` messages.
+
+namespace geometry_msgs {
 class TwistWithCovarianceStampedBuilder
     : public detail::BuilderBase<TwistWithCovarianceStampedBuilder, detail::TwistWithCovarianceStampedBuilderTraits> {
     using Base = detail::BuilderBase<TwistWithCovarianceStampedBuilder, detail::TwistWithCovarianceStampedBuilderTraits>;
@@ -4096,31 +4289,34 @@ public:
     using Base::encode_into;
 
     TwistWithCovarianceStampedBuilder& stamp(Time t) noexcept {
-        ros_twist_with_covariance_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        geometry_msgs_twist_with_covariance_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_twist_with_covariance_stamped_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_twist_with_covariance_stamped_builder_set_frame_id"));
+        if (geometry_msgs_twist_with_covariance_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_twist_with_covariance_stamped_builder_set_frame_id"));
         return {};
     }
 
     TwistWithCovarianceStampedBuilder& linear(double x, double y, double z) noexcept {
-        ros_twist_with_covariance_stamped_builder_set_linear(ptr(), x, y, z); return *this;
+        geometry_msgs_twist_with_covariance_stamped_builder_set_linear(ptr(), x, y, z); return *this;
     }
     TwistWithCovarianceStampedBuilder& angular(double x, double y, double z) noexcept {
-        ros_twist_with_covariance_stamped_builder_set_angular(ptr(), x, y, z); return *this;
+        geometry_msgs_twist_with_covariance_stamped_builder_set_angular(ptr(), x, y, z); return *this;
     }
     [[nodiscard]] expected<void, Error> covariance(span<const double> cov) noexcept {
         if (cov.size() < 36)
-            return unexpected<Error>({EINVAL, "ros_twist_with_covariance_stamped_builder_set_covariance"});
-        if (ros_twist_with_covariance_stamped_builder_set_covariance(ptr(), cov.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_twist_with_covariance_stamped_builder_set_covariance"));
+            return unexpected<Error>({EINVAL, "geometry_msgs_twist_with_covariance_stamped_builder_set_covariance"});
+        if (geometry_msgs_twist_with_covariance_stamped_builder_set_covariance(ptr(), cov.data()) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_twist_with_covariance_stamped_builder_set_covariance"));
         return {};
     }
 };
+} // namespace geometry_msgs
 
 /// @brief Fluent builder for `AccelWithCovarianceStamped` messages.
+
+namespace geometry_msgs {
 class AccelWithCovarianceStampedBuilder
     : public detail::BuilderBase<AccelWithCovarianceStampedBuilder, detail::AccelWithCovarianceStampedBuilderTraits> {
     using Base = detail::BuilderBase<AccelWithCovarianceStampedBuilder, detail::AccelWithCovarianceStampedBuilderTraits>;
@@ -4132,31 +4328,34 @@ public:
     using Base::encode_into;
 
     AccelWithCovarianceStampedBuilder& stamp(Time t) noexcept {
-        ros_accel_with_covariance_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        geometry_msgs_accel_with_covariance_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_accel_with_covariance_stamped_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_accel_with_covariance_stamped_builder_set_frame_id"));
+        if (geometry_msgs_accel_with_covariance_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_accel_with_covariance_stamped_builder_set_frame_id"));
         return {};
     }
 
     AccelWithCovarianceStampedBuilder& linear_acceleration(double x, double y, double z) noexcept {
-        ros_accel_with_covariance_stamped_builder_set_linear_acceleration(ptr(), x, y, z); return *this;
+        geometry_msgs_accel_with_covariance_stamped_builder_set_linear_acceleration(ptr(), x, y, z); return *this;
     }
     AccelWithCovarianceStampedBuilder& angular_acceleration(double x, double y, double z) noexcept {
-        ros_accel_with_covariance_stamped_builder_set_angular_acceleration(ptr(), x, y, z); return *this;
+        geometry_msgs_accel_with_covariance_stamped_builder_set_angular_acceleration(ptr(), x, y, z); return *this;
     }
     [[nodiscard]] expected<void, Error> covariance(span<const double> cov) noexcept {
         if (cov.size() < 36)
-            return unexpected<Error>({EINVAL, "ros_accel_with_covariance_stamped_builder_set_covariance"});
-        if (ros_accel_with_covariance_stamped_builder_set_covariance(ptr(), cov.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_accel_with_covariance_stamped_builder_set_covariance"));
+            return unexpected<Error>({EINVAL, "geometry_msgs_accel_with_covariance_stamped_builder_set_covariance"});
+        if (geometry_msgs_accel_with_covariance_stamped_builder_set_covariance(ptr(), cov.data()) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_accel_with_covariance_stamped_builder_set_covariance"));
         return {};
     }
 };
+} // namespace geometry_msgs
 
 /// @brief Fluent builder for `Polygon` messages.
+
+namespace geometry_msgs {
 class PolygonBuilder
     : public detail::BuilderBase<PolygonBuilder, detail::PolygonBuilderTraits> {
     using Base = detail::BuilderBase<PolygonBuilder, detail::PolygonBuilderTraits>;
@@ -4171,13 +4370,16 @@ public:
     /// @param pts Point count; `pts[i].x/y/z` are borrowed until build/encode_into.
     [[nodiscard]] expected<void, Error> points(span<const Point32> pts) noexcept {
         const float* xyz = pts.empty() ? nullptr : &pts[0].x;
-        if (ros_polygon_builder_set_points(ptr(), xyz, pts.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_polygon_builder_set_points"));
+        if (geometry_msgs_polygon_builder_set_points(ptr(), xyz, pts.size()) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_polygon_builder_set_points"));
         return {};
     }
 };
+} // namespace geometry_msgs
 
 /// @brief Fluent builder for `PolygonStamped` messages.
+
+namespace geometry_msgs {
 class PolygonStampedBuilder
     : public detail::BuilderBase<PolygonStampedBuilder, detail::PolygonStampedBuilderTraits> {
     using Base = detail::BuilderBase<PolygonStampedBuilder, detail::PolygonStampedBuilderTraits>;
@@ -4189,12 +4391,12 @@ public:
     using Base::encode_into;
 
     PolygonStampedBuilder& stamp(Time t) noexcept {
-        ros_polygon_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        geometry_msgs_polygon_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_polygon_stamped_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_polygon_stamped_builder_set_frame_id"));
+        if (geometry_msgs_polygon_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_polygon_stamped_builder_set_frame_id"));
         return {};
     }
 
@@ -4202,13 +4404,16 @@ public:
     /// @param pts Point count; `pts[i].x/y/z` are borrowed until build/encode_into.
     [[nodiscard]] expected<void, Error> points(span<const Point32> pts) noexcept {
         const float* xyz = pts.empty() ? nullptr : &pts[0].x;
-        if (ros_polygon_stamped_builder_set_points(ptr(), xyz, pts.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_polygon_stamped_builder_set_points"));
+        if (geometry_msgs_polygon_stamped_builder_set_points(ptr(), xyz, pts.size()) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_polygon_stamped_builder_set_points"));
         return {};
     }
 };
+} // namespace geometry_msgs
 
 /// @brief Fluent builder for `PoseArray` messages.
+
+namespace geometry_msgs {
 class PoseArrayBuilder
     : public detail::BuilderBase<PoseArrayBuilder, detail::PoseArrayBuilderTraits> {
     using Base = detail::BuilderBase<PoseArrayBuilder, detail::PoseArrayBuilderTraits>;
@@ -4220,12 +4425,12 @@ public:
     using Base::encode_into;
 
     PoseArrayBuilder& stamp(Time t) noexcept {
-        ros_pose_array_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        geometry_msgs_pose_array_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_pose_array_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_pose_array_builder_set_frame_id"));
+        if (geometry_msgs_pose_array_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_pose_array_builder_set_frame_id"));
         return {};
     }
 
@@ -4234,13 +4439,16 @@ public:
     ///        build/encode_into.
     [[nodiscard]] expected<void, Error> poses(span<const Pose> p) noexcept {
         const double* data = p.empty() ? nullptr : &p[0].px;
-        if (ros_pose_array_builder_set_poses(ptr(), data, p.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_pose_array_builder_set_poses"));
+        if (geometry_msgs_pose_array_builder_set_poses(ptr(), data, p.size()) != 0)
+            return unexpected<Error>(Error::from_errno("geometry_msgs_pose_array_builder_set_poses"));
         return {};
     }
 };
+} // namespace geometry_msgs
 
 /// @brief Fluent builder for `Odometry` messages.
+
+namespace nav_msgs {
 class OdometryBuilder
     : public detail::BuilderBase<OdometryBuilder, detail::OdometryBuilderTraits> {
     using Base = detail::BuilderBase<OdometryBuilder, detail::OdometryBuilderTraits>;
@@ -4252,48 +4460,58 @@ public:
     using Base::encode_into;
 
     OdometryBuilder& stamp(Time t) noexcept {
-        ros_odometry_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        nav_msgs_odometry_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_odometry_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_odometry_builder_set_frame_id"));
+        if (nav_msgs_odometry_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("nav_msgs_odometry_builder_set_frame_id"));
         return {};
     }
 
     [[nodiscard]] expected<void, Error> child_frame_id(const char* s) noexcept {
-        if (ros_odometry_builder_set_child_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_odometry_builder_set_child_frame_id"));
+        if (nav_msgs_odometry_builder_set_child_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("nav_msgs_odometry_builder_set_child_frame_id"));
         return {};
     }
     OdometryBuilder& pose(const Pose& p) noexcept {
-        ros_odometry_builder_set_pose(ptr(), p.px, p.py, p.pz, p.ox, p.oy, p.oz, p.ow);
+        nav_msgs_odometry_builder_set_pose(ptr(), p.px, p.py, p.pz, p.ox, p.oy, p.oz, p.ow);
         return *this;
     }
     [[nodiscard]] expected<void, Error> pose_covariance(span<const double> cov) noexcept {
         if (cov.size() < 36)
-            return unexpected<Error>({EINVAL, "ros_odometry_builder_set_pose_covariance"});
-        if (ros_odometry_builder_set_pose_covariance(ptr(), cov.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_odometry_builder_set_pose_covariance"));
+            return unexpected<Error>({EINVAL, "nav_msgs_odometry_builder_set_pose_covariance"});
+        if (nav_msgs_odometry_builder_set_pose_covariance(ptr(), cov.data()) != 0)
+            return unexpected<Error>(Error::from_errno("nav_msgs_odometry_builder_set_pose_covariance"));
         return {};
     }
     OdometryBuilder& twist(double lx, double ly, double lz, double ax, double ay, double az) noexcept {
-        ros_odometry_builder_set_twist(ptr(), lx, ly, lz, ax, ay, az);
+        nav_msgs_odometry_builder_set_twist(ptr(), lx, ly, lz, ax, ay, az);
         return *this;
     }
     [[nodiscard]] expected<void, Error> twist_covariance(span<const double> cov) noexcept {
         if (cov.size() < 36)
-            return unexpected<Error>({EINVAL, "ros_odometry_builder_set_twist_covariance"});
-        if (ros_odometry_builder_set_twist_covariance(ptr(), cov.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_odometry_builder_set_twist_covariance"));
+            return unexpected<Error>({EINVAL, "nav_msgs_odometry_builder_set_twist_covariance"});
+        if (nav_msgs_odometry_builder_set_twist_covariance(ptr(), cov.data()) != 0)
+            return unexpected<Error>(Error::from_errno("nav_msgs_odometry_builder_set_twist_covariance"));
         return {};
     }
 };
+} // namespace nav_msgs
 
 /// @brief Fluent builder for `MavrosAltitude` messages.
-class MavrosAltitudeBuilder
-    : public detail::BuilderBase<MavrosAltitudeBuilder, detail::MavrosAltitudeBuilderTraits> {
-    using Base = detail::BuilderBase<MavrosAltitudeBuilder, detail::MavrosAltitudeBuilderTraits>;
+
+namespace mavros_msgs {
+using ::edgefirst::schemas::builtin_interfaces::Time;
+using ::edgefirst::schemas::Error;
+using ::edgefirst::schemas::Released;
+using ::edgefirst::schemas::span;
+using ::edgefirst::schemas::expected;
+using ::edgefirst::schemas::unexpected;
+
+class AltitudeBuilder
+    : public detail::BuilderBase<AltitudeBuilder, detail::MavrosAltitudeBuilderTraits> {
+    using Base = detail::BuilderBase<AltitudeBuilder, detail::MavrosAltitudeBuilderTraits>;
     friend Base;
     using Base::Base;
 public:
@@ -4301,40 +4519,43 @@ public:
     using Base::build;
     using Base::encode_into;
 
-    MavrosAltitudeBuilder& stamp(Time t) noexcept {
-        ros_mavros_altitude_builder_set_stamp(ptr(), t.sec, t.nanosec);
+    AltitudeBuilder& stamp(Time t) noexcept {
+        mavros_msgs_altitude_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_mavros_altitude_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_mavros_altitude_builder_set_frame_id"));
+        if (mavros_msgs_altitude_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("mavros_msgs_altitude_builder_set_frame_id"));
         return {};
     }
 
-    MavrosAltitudeBuilder& monotonic(float v) noexcept {
-        ros_mavros_altitude_builder_set_monotonic(ptr(), v); return *this;
+    AltitudeBuilder& monotonic(float v) noexcept {
+        mavros_msgs_altitude_builder_set_monotonic(ptr(), v); return *this;
     }
-    MavrosAltitudeBuilder& amsl(float v) noexcept {
-        ros_mavros_altitude_builder_set_amsl(ptr(), v); return *this;
+    AltitudeBuilder& amsl(float v) noexcept {
+        mavros_msgs_altitude_builder_set_amsl(ptr(), v); return *this;
     }
-    MavrosAltitudeBuilder& local(float v) noexcept {
-        ros_mavros_altitude_builder_set_local(ptr(), v); return *this;
+    AltitudeBuilder& local(float v) noexcept {
+        mavros_msgs_altitude_builder_set_local(ptr(), v); return *this;
     }
-    MavrosAltitudeBuilder& relative(float v) noexcept {
-        ros_mavros_altitude_builder_set_relative(ptr(), v); return *this;
+    AltitudeBuilder& relative(float v) noexcept {
+        mavros_msgs_altitude_builder_set_relative(ptr(), v); return *this;
     }
-    MavrosAltitudeBuilder& terrain(float v) noexcept {
-        ros_mavros_altitude_builder_set_terrain(ptr(), v); return *this;
+    AltitudeBuilder& terrain(float v) noexcept {
+        mavros_msgs_altitude_builder_set_terrain(ptr(), v); return *this;
     }
-    MavrosAltitudeBuilder& bottom_clearance(float v) noexcept {
-        ros_mavros_altitude_builder_set_bottom_clearance(ptr(), v); return *this;
+    AltitudeBuilder& bottom_clearance(float v) noexcept {
+        mavros_msgs_altitude_builder_set_bottom_clearance(ptr(), v); return *this;
     }
 };
+} // namespace mavros_msgs
 
 /// @brief Fluent builder for `MavrosVfrHud` messages.
-class MavrosVfrHudBuilder
-    : public detail::BuilderBase<MavrosVfrHudBuilder, detail::MavrosVfrHudBuilderTraits> {
-    using Base = detail::BuilderBase<MavrosVfrHudBuilder, detail::MavrosVfrHudBuilderTraits>;
+
+namespace mavros_msgs {
+class VfrHudBuilder
+    : public detail::BuilderBase<VfrHudBuilder, detail::MavrosVfrHudBuilderTraits> {
+    using Base = detail::BuilderBase<VfrHudBuilder, detail::MavrosVfrHudBuilderTraits>;
     friend Base;
     using Base::Base;
 public:
@@ -4342,40 +4563,43 @@ public:
     using Base::build;
     using Base::encode_into;
 
-    MavrosVfrHudBuilder& stamp(Time t) noexcept {
-        ros_mavros_vfrhud_builder_set_stamp(ptr(), t.sec, t.nanosec);
+    VfrHudBuilder& stamp(Time t) noexcept {
+        mavros_msgs_vfrhud_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_mavros_vfrhud_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_mavros_vfrhud_builder_set_frame_id"));
+        if (mavros_msgs_vfrhud_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("mavros_msgs_vfrhud_builder_set_frame_id"));
         return {};
     }
 
-    MavrosVfrHudBuilder& airspeed(float v) noexcept {
-        ros_mavros_vfrhud_builder_set_airspeed(ptr(), v); return *this;
+    VfrHudBuilder& airspeed(float v) noexcept {
+        mavros_msgs_vfrhud_builder_set_airspeed(ptr(), v); return *this;
     }
-    MavrosVfrHudBuilder& groundspeed(float v) noexcept {
-        ros_mavros_vfrhud_builder_set_groundspeed(ptr(), v); return *this;
+    VfrHudBuilder& groundspeed(float v) noexcept {
+        mavros_msgs_vfrhud_builder_set_groundspeed(ptr(), v); return *this;
     }
-    MavrosVfrHudBuilder& heading(std::int16_t v) noexcept {
-        ros_mavros_vfrhud_builder_set_heading(ptr(), v); return *this;
+    VfrHudBuilder& heading(std::int16_t v) noexcept {
+        mavros_msgs_vfrhud_builder_set_heading(ptr(), v); return *this;
     }
-    MavrosVfrHudBuilder& throttle(float v) noexcept {
-        ros_mavros_vfrhud_builder_set_throttle(ptr(), v); return *this;
+    VfrHudBuilder& throttle(float v) noexcept {
+        mavros_msgs_vfrhud_builder_set_throttle(ptr(), v); return *this;
     }
-    MavrosVfrHudBuilder& altitude(float v) noexcept {
-        ros_mavros_vfrhud_builder_set_altitude(ptr(), v); return *this;
+    VfrHudBuilder& altitude(float v) noexcept {
+        mavros_msgs_vfrhud_builder_set_altitude(ptr(), v); return *this;
     }
-    MavrosVfrHudBuilder& climb(float v) noexcept {
-        ros_mavros_vfrhud_builder_set_climb(ptr(), v); return *this;
+    VfrHudBuilder& climb(float v) noexcept {
+        mavros_msgs_vfrhud_builder_set_climb(ptr(), v); return *this;
     }
 };
+} // namespace mavros_msgs
 
 /// @brief Fluent builder for `MavrosEstimatorStatus` messages.
-class MavrosEstimatorStatusBuilder
-    : public detail::BuilderBase<MavrosEstimatorStatusBuilder, detail::MavrosEstimatorStatusBuilderTraits> {
-    using Base = detail::BuilderBase<MavrosEstimatorStatusBuilder, detail::MavrosEstimatorStatusBuilderTraits>;
+
+namespace mavros_msgs {
+class EstimatorStatusBuilder
+    : public detail::BuilderBase<EstimatorStatusBuilder, detail::MavrosEstimatorStatusBuilderTraits> {
+    using Base = detail::BuilderBase<EstimatorStatusBuilder, detail::MavrosEstimatorStatusBuilderTraits>;
     friend Base;
     using Base::Base;
 public:
@@ -4383,58 +4607,61 @@ public:
     using Base::build;
     using Base::encode_into;
 
-    MavrosEstimatorStatusBuilder& stamp(Time t) noexcept {
-        ros_mavros_estimator_status_builder_set_stamp(ptr(), t.sec, t.nanosec);
+    EstimatorStatusBuilder& stamp(Time t) noexcept {
+        mavros_msgs_estimator_status_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_mavros_estimator_status_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_mavros_estimator_status_builder_set_frame_id"));
+        if (mavros_msgs_estimator_status_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("mavros_msgs_estimator_status_builder_set_frame_id"));
         return {};
     }
 
-    MavrosEstimatorStatusBuilder& attitude_status_flag(bool v) noexcept {
-        ros_mavros_estimator_status_builder_set_attitude_status_flag(ptr(), v); return *this;
+    EstimatorStatusBuilder& attitude_status_flag(bool v) noexcept {
+        mavros_msgs_estimator_status_builder_set_attitude_status_flag(ptr(), v); return *this;
     }
-    MavrosEstimatorStatusBuilder& velocity_horiz_status_flag(bool v) noexcept {
-        ros_mavros_estimator_status_builder_set_velocity_horiz_status_flag(ptr(), v); return *this;
+    EstimatorStatusBuilder& velocity_horiz_status_flag(bool v) noexcept {
+        mavros_msgs_estimator_status_builder_set_velocity_horiz_status_flag(ptr(), v); return *this;
     }
-    MavrosEstimatorStatusBuilder& velocity_vert_status_flag(bool v) noexcept {
-        ros_mavros_estimator_status_builder_set_velocity_vert_status_flag(ptr(), v); return *this;
+    EstimatorStatusBuilder& velocity_vert_status_flag(bool v) noexcept {
+        mavros_msgs_estimator_status_builder_set_velocity_vert_status_flag(ptr(), v); return *this;
     }
-    MavrosEstimatorStatusBuilder& pos_horiz_rel_status_flag(bool v) noexcept {
-        ros_mavros_estimator_status_builder_set_pos_horiz_rel_status_flag(ptr(), v); return *this;
+    EstimatorStatusBuilder& pos_horiz_rel_status_flag(bool v) noexcept {
+        mavros_msgs_estimator_status_builder_set_pos_horiz_rel_status_flag(ptr(), v); return *this;
     }
-    MavrosEstimatorStatusBuilder& pos_horiz_abs_status_flag(bool v) noexcept {
-        ros_mavros_estimator_status_builder_set_pos_horiz_abs_status_flag(ptr(), v); return *this;
+    EstimatorStatusBuilder& pos_horiz_abs_status_flag(bool v) noexcept {
+        mavros_msgs_estimator_status_builder_set_pos_horiz_abs_status_flag(ptr(), v); return *this;
     }
-    MavrosEstimatorStatusBuilder& pos_vert_abs_status_flag(bool v) noexcept {
-        ros_mavros_estimator_status_builder_set_pos_vert_abs_status_flag(ptr(), v); return *this;
+    EstimatorStatusBuilder& pos_vert_abs_status_flag(bool v) noexcept {
+        mavros_msgs_estimator_status_builder_set_pos_vert_abs_status_flag(ptr(), v); return *this;
     }
-    MavrosEstimatorStatusBuilder& pos_vert_agl_status_flag(bool v) noexcept {
-        ros_mavros_estimator_status_builder_set_pos_vert_agl_status_flag(ptr(), v); return *this;
+    EstimatorStatusBuilder& pos_vert_agl_status_flag(bool v) noexcept {
+        mavros_msgs_estimator_status_builder_set_pos_vert_agl_status_flag(ptr(), v); return *this;
     }
-    MavrosEstimatorStatusBuilder& const_pos_mode_status_flag(bool v) noexcept {
-        ros_mavros_estimator_status_builder_set_const_pos_mode_status_flag(ptr(), v); return *this;
+    EstimatorStatusBuilder& const_pos_mode_status_flag(bool v) noexcept {
+        mavros_msgs_estimator_status_builder_set_const_pos_mode_status_flag(ptr(), v); return *this;
     }
-    MavrosEstimatorStatusBuilder& pred_pos_horiz_rel_status_flag(bool v) noexcept {
-        ros_mavros_estimator_status_builder_set_pred_pos_horiz_rel_status_flag(ptr(), v); return *this;
+    EstimatorStatusBuilder& pred_pos_horiz_rel_status_flag(bool v) noexcept {
+        mavros_msgs_estimator_status_builder_set_pred_pos_horiz_rel_status_flag(ptr(), v); return *this;
     }
-    MavrosEstimatorStatusBuilder& pred_pos_horiz_abs_status_flag(bool v) noexcept {
-        ros_mavros_estimator_status_builder_set_pred_pos_horiz_abs_status_flag(ptr(), v); return *this;
+    EstimatorStatusBuilder& pred_pos_horiz_abs_status_flag(bool v) noexcept {
+        mavros_msgs_estimator_status_builder_set_pred_pos_horiz_abs_status_flag(ptr(), v); return *this;
     }
-    MavrosEstimatorStatusBuilder& gps_glitch_status_flag(bool v) noexcept {
-        ros_mavros_estimator_status_builder_set_gps_glitch_status_flag(ptr(), v); return *this;
+    EstimatorStatusBuilder& gps_glitch_status_flag(bool v) noexcept {
+        mavros_msgs_estimator_status_builder_set_gps_glitch_status_flag(ptr(), v); return *this;
     }
-    MavrosEstimatorStatusBuilder& accel_error_status_flag(bool v) noexcept {
-        ros_mavros_estimator_status_builder_set_accel_error_status_flag(ptr(), v); return *this;
+    EstimatorStatusBuilder& accel_error_status_flag(bool v) noexcept {
+        mavros_msgs_estimator_status_builder_set_accel_error_status_flag(ptr(), v); return *this;
     }
 };
+} // namespace mavros_msgs
 
 /// @brief Fluent builder for `MavrosExtendedState` messages.
-class MavrosExtendedStateBuilder
-    : public detail::BuilderBase<MavrosExtendedStateBuilder, detail::MavrosExtendedStateBuilderTraits> {
-    using Base = detail::BuilderBase<MavrosExtendedStateBuilder, detail::MavrosExtendedStateBuilderTraits>;
+
+namespace mavros_msgs {
+class ExtendedStateBuilder
+    : public detail::BuilderBase<ExtendedStateBuilder, detail::MavrosExtendedStateBuilderTraits> {
+    using Base = detail::BuilderBase<ExtendedStateBuilder, detail::MavrosExtendedStateBuilderTraits>;
     friend Base;
     using Base::Base;
 public:
@@ -4442,28 +4669,31 @@ public:
     using Base::build;
     using Base::encode_into;
 
-    MavrosExtendedStateBuilder& stamp(Time t) noexcept {
-        ros_mavros_extended_state_builder_set_stamp(ptr(), t.sec, t.nanosec);
+    ExtendedStateBuilder& stamp(Time t) noexcept {
+        mavros_msgs_extended_state_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_mavros_extended_state_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_mavros_extended_state_builder_set_frame_id"));
+        if (mavros_msgs_extended_state_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("mavros_msgs_extended_state_builder_set_frame_id"));
         return {};
     }
 
-    MavrosExtendedStateBuilder& vtol_state(std::uint8_t v) noexcept {
-        ros_mavros_extended_state_builder_set_vtol_state(ptr(), v); return *this;
+    ExtendedStateBuilder& vtol_state(std::uint8_t v) noexcept {
+        mavros_msgs_extended_state_builder_set_vtol_state(ptr(), v); return *this;
     }
-    MavrosExtendedStateBuilder& landed_state(std::uint8_t v) noexcept {
-        ros_mavros_extended_state_builder_set_landed_state(ptr(), v); return *this;
+    ExtendedStateBuilder& landed_state(std::uint8_t v) noexcept {
+        mavros_msgs_extended_state_builder_set_landed_state(ptr(), v); return *this;
     }
 };
+} // namespace mavros_msgs
 
 /// @brief Fluent builder for `MavrosSysStatus` messages.
-class MavrosSysStatusBuilder
-    : public detail::BuilderBase<MavrosSysStatusBuilder, detail::MavrosSysStatusBuilderTraits> {
-    using Base = detail::BuilderBase<MavrosSysStatusBuilder, detail::MavrosSysStatusBuilderTraits>;
+
+namespace mavros_msgs {
+class SysStatusBuilder
+    : public detail::BuilderBase<SysStatusBuilder, detail::MavrosSysStatusBuilderTraits> {
+    using Base = detail::BuilderBase<SysStatusBuilder, detail::MavrosSysStatusBuilderTraits>;
     friend Base;
     using Base::Base;
 public:
@@ -4471,61 +4701,64 @@ public:
     using Base::build;
     using Base::encode_into;
 
-    MavrosSysStatusBuilder& stamp(Time t) noexcept {
-        ros_mavros_sys_status_builder_set_stamp(ptr(), t.sec, t.nanosec);
+    SysStatusBuilder& stamp(Time t) noexcept {
+        mavros_msgs_sys_status_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_mavros_sys_status_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_mavros_sys_status_builder_set_frame_id"));
+        if (mavros_msgs_sys_status_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("mavros_msgs_sys_status_builder_set_frame_id"));
         return {};
     }
 
-    MavrosSysStatusBuilder& sensors_present(std::uint32_t v) noexcept {
-        ros_mavros_sys_status_builder_set_sensors_present(ptr(), v); return *this;
+    SysStatusBuilder& sensors_present(std::uint32_t v) noexcept {
+        mavros_msgs_sys_status_builder_set_sensors_present(ptr(), v); return *this;
     }
-    MavrosSysStatusBuilder& sensors_enabled(std::uint32_t v) noexcept {
-        ros_mavros_sys_status_builder_set_sensors_enabled(ptr(), v); return *this;
+    SysStatusBuilder& sensors_enabled(std::uint32_t v) noexcept {
+        mavros_msgs_sys_status_builder_set_sensors_enabled(ptr(), v); return *this;
     }
-    MavrosSysStatusBuilder& sensors_health(std::uint32_t v) noexcept {
-        ros_mavros_sys_status_builder_set_sensors_health(ptr(), v); return *this;
+    SysStatusBuilder& sensors_health(std::uint32_t v) noexcept {
+        mavros_msgs_sys_status_builder_set_sensors_health(ptr(), v); return *this;
     }
-    MavrosSysStatusBuilder& load(std::uint16_t v) noexcept {
-        ros_mavros_sys_status_builder_set_load(ptr(), v); return *this;
+    SysStatusBuilder& load(std::uint16_t v) noexcept {
+        mavros_msgs_sys_status_builder_set_load(ptr(), v); return *this;
     }
-    MavrosSysStatusBuilder& voltage_battery(std::uint16_t v) noexcept {
-        ros_mavros_sys_status_builder_set_voltage_battery(ptr(), v); return *this;
+    SysStatusBuilder& voltage_battery(std::uint16_t v) noexcept {
+        mavros_msgs_sys_status_builder_set_voltage_battery(ptr(), v); return *this;
     }
-    MavrosSysStatusBuilder& current_battery(std::int16_t v) noexcept {
-        ros_mavros_sys_status_builder_set_current_battery(ptr(), v); return *this;
+    SysStatusBuilder& current_battery(std::int16_t v) noexcept {
+        mavros_msgs_sys_status_builder_set_current_battery(ptr(), v); return *this;
     }
-    MavrosSysStatusBuilder& battery_remaining(std::int8_t v) noexcept {
-        ros_mavros_sys_status_builder_set_battery_remaining(ptr(), v); return *this;
+    SysStatusBuilder& battery_remaining(std::int8_t v) noexcept {
+        mavros_msgs_sys_status_builder_set_battery_remaining(ptr(), v); return *this;
     }
-    MavrosSysStatusBuilder& drop_rate_comm(std::uint16_t v) noexcept {
-        ros_mavros_sys_status_builder_set_drop_rate_comm(ptr(), v); return *this;
+    SysStatusBuilder& drop_rate_comm(std::uint16_t v) noexcept {
+        mavros_msgs_sys_status_builder_set_drop_rate_comm(ptr(), v); return *this;
     }
-    MavrosSysStatusBuilder& errors_comm(std::uint16_t v) noexcept {
-        ros_mavros_sys_status_builder_set_errors_comm(ptr(), v); return *this;
+    SysStatusBuilder& errors_comm(std::uint16_t v) noexcept {
+        mavros_msgs_sys_status_builder_set_errors_comm(ptr(), v); return *this;
     }
-    MavrosSysStatusBuilder& errors_count1(std::uint16_t v) noexcept {
-        ros_mavros_sys_status_builder_set_errors_count1(ptr(), v); return *this;
+    SysStatusBuilder& errors_count1(std::uint16_t v) noexcept {
+        mavros_msgs_sys_status_builder_set_errors_count1(ptr(), v); return *this;
     }
-    MavrosSysStatusBuilder& errors_count2(std::uint16_t v) noexcept {
-        ros_mavros_sys_status_builder_set_errors_count2(ptr(), v); return *this;
+    SysStatusBuilder& errors_count2(std::uint16_t v) noexcept {
+        mavros_msgs_sys_status_builder_set_errors_count2(ptr(), v); return *this;
     }
-    MavrosSysStatusBuilder& errors_count3(std::uint16_t v) noexcept {
-        ros_mavros_sys_status_builder_set_errors_count3(ptr(), v); return *this;
+    SysStatusBuilder& errors_count3(std::uint16_t v) noexcept {
+        mavros_msgs_sys_status_builder_set_errors_count3(ptr(), v); return *this;
     }
-    MavrosSysStatusBuilder& errors_count4(std::uint16_t v) noexcept {
-        ros_mavros_sys_status_builder_set_errors_count4(ptr(), v); return *this;
+    SysStatusBuilder& errors_count4(std::uint16_t v) noexcept {
+        mavros_msgs_sys_status_builder_set_errors_count4(ptr(), v); return *this;
     }
 };
+} // namespace mavros_msgs
 
 /// @brief Fluent builder for `MavrosState` messages.
-class MavrosStateBuilder
-    : public detail::BuilderBase<MavrosStateBuilder, detail::MavrosStateBuilderTraits> {
-    using Base = detail::BuilderBase<MavrosStateBuilder, detail::MavrosStateBuilderTraits>;
+
+namespace mavros_msgs {
+class StateBuilder
+    : public detail::BuilderBase<StateBuilder, detail::MavrosStateBuilderTraits> {
+    using Base = detail::BuilderBase<StateBuilder, detail::MavrosStateBuilderTraits>;
     friend Base;
     using Base::Base;
 public:
@@ -4533,42 +4766,45 @@ public:
     using Base::build;
     using Base::encode_into;
 
-    MavrosStateBuilder& stamp(Time t) noexcept {
-        ros_mavros_state_builder_set_stamp(ptr(), t.sec, t.nanosec);
+    StateBuilder& stamp(Time t) noexcept {
+        mavros_msgs_state_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_mavros_state_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_mavros_state_builder_set_frame_id"));
+        if (mavros_msgs_state_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("mavros_msgs_state_builder_set_frame_id"));
         return {};
     }
 
-    MavrosStateBuilder& connected(bool v) noexcept {
-        ros_mavros_state_builder_set_connected(ptr(), v); return *this;
+    StateBuilder& connected(bool v) noexcept {
+        mavros_msgs_state_builder_set_connected(ptr(), v); return *this;
     }
-    MavrosStateBuilder& armed(bool v) noexcept {
-        ros_mavros_state_builder_set_armed(ptr(), v); return *this;
+    StateBuilder& armed(bool v) noexcept {
+        mavros_msgs_state_builder_set_armed(ptr(), v); return *this;
     }
-    MavrosStateBuilder& guided(bool v) noexcept {
-        ros_mavros_state_builder_set_guided(ptr(), v); return *this;
+    StateBuilder& guided(bool v) noexcept {
+        mavros_msgs_state_builder_set_guided(ptr(), v); return *this;
     }
-    MavrosStateBuilder& manual_input(bool v) noexcept {
-        ros_mavros_state_builder_set_manual_input(ptr(), v); return *this;
+    StateBuilder& manual_input(bool v) noexcept {
+        mavros_msgs_state_builder_set_manual_input(ptr(), v); return *this;
     }
     [[nodiscard]] expected<void, Error> mode(const char* s) noexcept {
-        if (ros_mavros_state_builder_set_mode(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_mavros_state_builder_set_mode"));
+        if (mavros_msgs_state_builder_set_mode(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("mavros_msgs_state_builder_set_mode"));
         return {};
     }
-    MavrosStateBuilder& system_status(std::uint8_t v) noexcept {
-        ros_mavros_state_builder_set_system_status(ptr(), v); return *this;
+    StateBuilder& system_status(std::uint8_t v) noexcept {
+        mavros_msgs_state_builder_set_system_status(ptr(), v); return *this;
     }
 };
+} // namespace mavros_msgs
 
 /// @brief Fluent builder for `MavrosStatusText` messages.
-class MavrosStatusTextBuilder
-    : public detail::BuilderBase<MavrosStatusTextBuilder, detail::MavrosStatusTextBuilderTraits> {
-    using Base = detail::BuilderBase<MavrosStatusTextBuilder, detail::MavrosStatusTextBuilderTraits>;
+
+namespace mavros_msgs {
+class StatusTextBuilder
+    : public detail::BuilderBase<StatusTextBuilder, detail::MavrosStatusTextBuilderTraits> {
+    using Base = detail::BuilderBase<StatusTextBuilder, detail::MavrosStatusTextBuilderTraits>;
     friend Base;
     using Base::Base;
 public:
@@ -4576,30 +4812,33 @@ public:
     using Base::build;
     using Base::encode_into;
 
-    MavrosStatusTextBuilder& stamp(Time t) noexcept {
-        ros_mavros_status_text_builder_set_stamp(ptr(), t.sec, t.nanosec);
+    StatusTextBuilder& stamp(Time t) noexcept {
+        mavros_msgs_status_text_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_mavros_status_text_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_mavros_status_text_builder_set_frame_id"));
+        if (mavros_msgs_status_text_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("mavros_msgs_status_text_builder_set_frame_id"));
         return {};
     }
 
-    MavrosStatusTextBuilder& severity(std::uint8_t v) noexcept {
-        ros_mavros_status_text_builder_set_severity(ptr(), v); return *this;
+    StatusTextBuilder& severity(std::uint8_t v) noexcept {
+        mavros_msgs_status_text_builder_set_severity(ptr(), v); return *this;
     }
     [[nodiscard]] expected<void, Error> text(const char* s) noexcept {
-        if (ros_mavros_status_text_builder_set_text(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_mavros_status_text_builder_set_text"));
+        if (mavros_msgs_status_text_builder_set_text(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("mavros_msgs_status_text_builder_set_text"));
         return {};
     }
 };
+} // namespace mavros_msgs
 
 /// @brief Fluent builder for `MavrosGpsRaw` messages.
-class MavrosGpsRawBuilder
-    : public detail::BuilderBase<MavrosGpsRawBuilder, detail::MavrosGpsRawBuilderTraits> {
-    using Base = detail::BuilderBase<MavrosGpsRawBuilder, detail::MavrosGpsRawBuilderTraits>;
+
+namespace mavros_msgs {
+class GpsRawBuilder
+    : public detail::BuilderBase<GpsRawBuilder, detail::MavrosGpsRawBuilderTraits> {
+    using Base = detail::BuilderBase<GpsRawBuilder, detail::MavrosGpsRawBuilderTraits>;
     friend Base;
     using Base::Base;
 public:
@@ -4607,73 +4846,76 @@ public:
     using Base::build;
     using Base::encode_into;
 
-    MavrosGpsRawBuilder& stamp(Time t) noexcept {
-        ros_mavros_gps_raw_builder_set_stamp(ptr(), t.sec, t.nanosec);
+    GpsRawBuilder& stamp(Time t) noexcept {
+        mavros_msgs_gps_raw_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_mavros_gps_raw_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_mavros_gps_raw_builder_set_frame_id"));
+        if (mavros_msgs_gps_raw_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("mavros_msgs_gps_raw_builder_set_frame_id"));
         return {};
     }
 
-    MavrosGpsRawBuilder& fix_type(std::uint8_t v) noexcept {
-        ros_mavros_gps_raw_builder_set_fix_type(ptr(), v); return *this;
+    GpsRawBuilder& fix_type(std::uint8_t v) noexcept {
+        mavros_msgs_gps_raw_builder_set_fix_type(ptr(), v); return *this;
     }
-    MavrosGpsRawBuilder& lat(std::int32_t v) noexcept {
-        ros_mavros_gps_raw_builder_set_lat(ptr(), v); return *this;
+    GpsRawBuilder& lat(std::int32_t v) noexcept {
+        mavros_msgs_gps_raw_builder_set_lat(ptr(), v); return *this;
     }
-    MavrosGpsRawBuilder& lon(std::int32_t v) noexcept {
-        ros_mavros_gps_raw_builder_set_lon(ptr(), v); return *this;
+    GpsRawBuilder& lon(std::int32_t v) noexcept {
+        mavros_msgs_gps_raw_builder_set_lon(ptr(), v); return *this;
     }
-    MavrosGpsRawBuilder& alt(std::int32_t v) noexcept {
-        ros_mavros_gps_raw_builder_set_alt(ptr(), v); return *this;
+    GpsRawBuilder& alt(std::int32_t v) noexcept {
+        mavros_msgs_gps_raw_builder_set_alt(ptr(), v); return *this;
     }
-    MavrosGpsRawBuilder& eph(std::uint16_t v) noexcept {
-        ros_mavros_gps_raw_builder_set_eph(ptr(), v); return *this;
+    GpsRawBuilder& eph(std::uint16_t v) noexcept {
+        mavros_msgs_gps_raw_builder_set_eph(ptr(), v); return *this;
     }
-    MavrosGpsRawBuilder& epv(std::uint16_t v) noexcept {
-        ros_mavros_gps_raw_builder_set_epv(ptr(), v); return *this;
+    GpsRawBuilder& epv(std::uint16_t v) noexcept {
+        mavros_msgs_gps_raw_builder_set_epv(ptr(), v); return *this;
     }
-    MavrosGpsRawBuilder& vel(std::uint16_t v) noexcept {
-        ros_mavros_gps_raw_builder_set_vel(ptr(), v); return *this;
+    GpsRawBuilder& vel(std::uint16_t v) noexcept {
+        mavros_msgs_gps_raw_builder_set_vel(ptr(), v); return *this;
     }
-    MavrosGpsRawBuilder& cog(std::uint16_t v) noexcept {
-        ros_mavros_gps_raw_builder_set_cog(ptr(), v); return *this;
+    GpsRawBuilder& cog(std::uint16_t v) noexcept {
+        mavros_msgs_gps_raw_builder_set_cog(ptr(), v); return *this;
     }
-    MavrosGpsRawBuilder& satellites_visible(std::uint8_t v) noexcept {
-        ros_mavros_gps_raw_builder_set_satellites_visible(ptr(), v); return *this;
+    GpsRawBuilder& satellites_visible(std::uint8_t v) noexcept {
+        mavros_msgs_gps_raw_builder_set_satellites_visible(ptr(), v); return *this;
     }
-    MavrosGpsRawBuilder& alt_ellipsoid(std::int32_t v) noexcept {
-        ros_mavros_gps_raw_builder_set_alt_ellipsoid(ptr(), v); return *this;
+    GpsRawBuilder& alt_ellipsoid(std::int32_t v) noexcept {
+        mavros_msgs_gps_raw_builder_set_alt_ellipsoid(ptr(), v); return *this;
     }
-    MavrosGpsRawBuilder& h_acc(std::uint32_t v) noexcept {
-        ros_mavros_gps_raw_builder_set_h_acc(ptr(), v); return *this;
+    GpsRawBuilder& h_acc(std::uint32_t v) noexcept {
+        mavros_msgs_gps_raw_builder_set_h_acc(ptr(), v); return *this;
     }
-    MavrosGpsRawBuilder& v_acc(std::uint32_t v) noexcept {
-        ros_mavros_gps_raw_builder_set_v_acc(ptr(), v); return *this;
+    GpsRawBuilder& v_acc(std::uint32_t v) noexcept {
+        mavros_msgs_gps_raw_builder_set_v_acc(ptr(), v); return *this;
     }
-    MavrosGpsRawBuilder& vel_acc(std::uint32_t v) noexcept {
-        ros_mavros_gps_raw_builder_set_vel_acc(ptr(), v); return *this;
+    GpsRawBuilder& vel_acc(std::uint32_t v) noexcept {
+        mavros_msgs_gps_raw_builder_set_vel_acc(ptr(), v); return *this;
     }
-    MavrosGpsRawBuilder& hdg_acc(std::int32_t v) noexcept {
-        ros_mavros_gps_raw_builder_set_hdg_acc(ptr(), v); return *this;
+    GpsRawBuilder& hdg_acc(std::int32_t v) noexcept {
+        mavros_msgs_gps_raw_builder_set_hdg_acc(ptr(), v); return *this;
     }
-    MavrosGpsRawBuilder& yaw(std::uint16_t v) noexcept {
-        ros_mavros_gps_raw_builder_set_yaw(ptr(), v); return *this;
+    GpsRawBuilder& yaw(std::uint16_t v) noexcept {
+        mavros_msgs_gps_raw_builder_set_yaw(ptr(), v); return *this;
     }
-    MavrosGpsRawBuilder& dgps_numch(std::uint8_t v) noexcept {
-        ros_mavros_gps_raw_builder_set_dgps_numch(ptr(), v); return *this;
+    GpsRawBuilder& dgps_numch(std::uint8_t v) noexcept {
+        mavros_msgs_gps_raw_builder_set_dgps_numch(ptr(), v); return *this;
     }
-    MavrosGpsRawBuilder& dgps_age(std::uint32_t v) noexcept {
-        ros_mavros_gps_raw_builder_set_dgps_age(ptr(), v); return *this;
+    GpsRawBuilder& dgps_age(std::uint32_t v) noexcept {
+        mavros_msgs_gps_raw_builder_set_dgps_age(ptr(), v); return *this;
     }
 };
+} // namespace mavros_msgs
 
 /// @brief Fluent builder for `MavrosTimesyncStatus` messages.
-class MavrosTimesyncStatusBuilder
-    : public detail::BuilderBase<MavrosTimesyncStatusBuilder, detail::MavrosTimesyncStatusBuilderTraits> {
-    using Base = detail::BuilderBase<MavrosTimesyncStatusBuilder, detail::MavrosTimesyncStatusBuilderTraits>;
+
+namespace mavros_msgs {
+class TimesyncStatusBuilder
+    : public detail::BuilderBase<TimesyncStatusBuilder, detail::MavrosTimesyncStatusBuilderTraits> {
+    using Base = detail::BuilderBase<TimesyncStatusBuilder, detail::MavrosTimesyncStatusBuilderTraits>;
     friend Base;
     using Base::Base;
 public:
@@ -4681,33 +4923,43 @@ public:
     using Base::build;
     using Base::encode_into;
 
-    MavrosTimesyncStatusBuilder& stamp(Time t) noexcept {
-        ros_mavros_timesync_status_builder_set_stamp(ptr(), t.sec, t.nanosec);
+    TimesyncStatusBuilder& stamp(Time t) noexcept {
+        mavros_msgs_timesync_status_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_mavros_timesync_status_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_mavros_timesync_status_builder_set_frame_id"));
+        if (mavros_msgs_timesync_status_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("mavros_msgs_timesync_status_builder_set_frame_id"));
         return {};
     }
 
-    MavrosTimesyncStatusBuilder& remote_timestamp_ns(std::uint64_t v) noexcept {
-        ros_mavros_timesync_status_builder_set_remote_timestamp_ns(ptr(), v); return *this;
+    TimesyncStatusBuilder& remote_timestamp_ns(std::uint64_t v) noexcept {
+        mavros_msgs_timesync_status_builder_set_remote_timestamp_ns(ptr(), v); return *this;
     }
-    MavrosTimesyncStatusBuilder& observed_offset_ns(std::int64_t v) noexcept {
-        ros_mavros_timesync_status_builder_set_observed_offset_ns(ptr(), v); return *this;
+    TimesyncStatusBuilder& observed_offset_ns(std::int64_t v) noexcept {
+        mavros_msgs_timesync_status_builder_set_observed_offset_ns(ptr(), v); return *this;
     }
-    MavrosTimesyncStatusBuilder& estimated_offset_ns(std::int64_t v) noexcept {
-        ros_mavros_timesync_status_builder_set_estimated_offset_ns(ptr(), v); return *this;
+    TimesyncStatusBuilder& estimated_offset_ns(std::int64_t v) noexcept {
+        mavros_msgs_timesync_status_builder_set_estimated_offset_ns(ptr(), v); return *this;
     }
-    MavrosTimesyncStatusBuilder& round_trip_time_ms(float v) noexcept {
-        ros_mavros_timesync_status_builder_set_round_trip_time_ms(ptr(), v); return *this;
+    TimesyncStatusBuilder& round_trip_time_ms(float v) noexcept {
+        mavros_msgs_timesync_status_builder_set_round_trip_time_ms(ptr(), v); return *this;
     }
 };
+} // namespace mavros_msgs
 
 // ---------------------------------------------------------------------------
 // // foxglove_msgs - CompressedVideo
 // ---------------------------------------------------------------------------
+
+
+namespace foxglove_msgs {
+using ::edgefirst::schemas::builtin_interfaces::Time;
+using ::edgefirst::schemas::Error;
+using ::edgefirst::schemas::Released;
+using ::edgefirst::schemas::span;
+using ::edgefirst::schemas::expected;
+using ::edgefirst::schemas::unexpected;
 
 /**
  * @brief Non-owning, move-only view over a `foxglove_msgs::CompressedVideo`.
@@ -4732,8 +4984,8 @@ public:
     /// @brief Message timestamp.
     /// @return The header stamp as a Time value.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_compressed_video_get_stamp_sec(handle()),
-                ros_compressed_video_get_stamp_nanosec(handle())};
+        return {foxglove_msgs_compressed_video_get_stamp_sec(handle()),
+                foxglove_msgs_compressed_video_get_stamp_nanosec(handle())};
     }
     /// Alias for stamp(); matches the Foxglove schema field name.
     [[nodiscard]] Time timestamp() const noexcept { return stamp(); }
@@ -4741,13 +4993,13 @@ public:
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_compressed_video_get_frame_id(handle());
+        return foxglove_msgs_compressed_video_get_frame_id(handle());
     }
     /// @brief Video codec identifier (e.g. "h264", "h265", "av1").
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view format() const noexcept {
-        return ros_compressed_video_get_format(handle());
+        return foxglove_msgs_compressed_video_get_format(handle());
     }
     /// @brief Compressed video payload bytes.
     /// @return A `span<const std::uint8_t>` borrowed from the CDR buffer.
@@ -4755,11 +5007,14 @@ public:
     ///          destroyed.
     [[nodiscard]] span<const std::uint8_t> data() const noexcept {
         std::size_t n = 0;
-        auto* p = ros_compressed_video_get_data(handle(), &n);
+        auto* p = foxglove_msgs_compressed_video_get_data(handle(), &n);
         return {p, n};
     }
 };
+} // namespace foxglove_msgs
 
+
+namespace foxglove_msgs {
 /**
  * @brief Owning, move-only `foxglove_msgs::CompressedVideo` instance.
  *
@@ -4784,52 +5039,53 @@ public:
     [[nodiscard]] static expected<CompressedVideo, Error>
     encode(Time stamp, std::string_view frame_id,
            span<const std::uint8_t> data, std::string_view format) noexcept {
-        ros_foxglove_compressed_video_builder_t* b =
-            ros_foxglove_compressed_video_builder_new();
+        foxglove_msgs_compressed_video_builder_t* b =
+            foxglove_msgs_compressed_video_builder_new();
         if (!b)
-            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_video_builder_new"));
-        ros_foxglove_compressed_video_builder_set_stamp(b, stamp.sec, stamp.nanosec);
-        if (ros_foxglove_compressed_video_builder_set_frame_id(b, frame_id.data()) != 0 ||
-            ros_foxglove_compressed_video_builder_set_data(b, data.data(), data.size()) != 0 ||
-            ros_foxglove_compressed_video_builder_set_format(b, format.data()) != 0) {
-            ros_foxglove_compressed_video_builder_free(b);
-            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_video_builder_set"));
+            return unexpected<Error>(Error::from_errno("foxglove_msgs_compressed_video_builder_new"));
+        foxglove_msgs_compressed_video_builder_set_stamp(b, stamp.sec, stamp.nanosec);
+        if (foxglove_msgs_compressed_video_builder_set_frame_id(b, frame_id.data()) != 0 ||
+            foxglove_msgs_compressed_video_builder_set_data(b, data.data(), data.size()) != 0 ||
+            foxglove_msgs_compressed_video_builder_set_format(b, format.data()) != 0) {
+            foxglove_msgs_compressed_video_builder_free(b);
+            return unexpected<Error>(Error::from_errno("foxglove_msgs_compressed_video_builder_set"));
         }
         std::uint8_t* out = nullptr; std::size_t len = 0;
-        if (ros_foxglove_compressed_video_builder_build(b, &out, &len) != 0) {
-            ros_foxglove_compressed_video_builder_free(b);
-            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_video_builder_build"));
+        if (foxglove_msgs_compressed_video_builder_build(b, &out, &len) != 0) {
+            foxglove_msgs_compressed_video_builder_free(b);
+            return unexpected<Error>(Error::from_errno("foxglove_msgs_compressed_video_builder_build"));
         }
-        ros_foxglove_compressed_video_builder_free(b);
+        foxglove_msgs_compressed_video_builder_free(b);
         return make_(out, len);
     }
     /// @brief Message timestamp.
     /// @return The header stamp as a Time value.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_compressed_video_get_stamp_sec(handle()),
-                ros_compressed_video_get_stamp_nanosec(handle())};
+        return {foxglove_msgs_compressed_video_get_stamp_sec(handle()),
+                foxglove_msgs_compressed_video_get_stamp_nanosec(handle())};
     }
     /// Alias for stamp(); matches the Foxglove schema field name.
     [[nodiscard]] Time timestamp() const noexcept { return stamp(); }
     /// @brief Coordinate frame identifier.
     /// @return A `std::string_view` borrowed from this instance's buffer.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_compressed_video_get_frame_id(handle());
+        return foxglove_msgs_compressed_video_get_frame_id(handle());
     }
     /// @brief Codec identifier.
     /// @return A `std::string_view` borrowed from this instance's buffer.
     [[nodiscard]] std::string_view format() const noexcept {
-        return ros_compressed_video_get_format(handle());
+        return foxglove_msgs_compressed_video_get_format(handle());
     }
     /// @brief Compressed video payload bytes.
     /// @return A `span<const std::uint8_t>` borrowed from this instance's
     ///         buffer.
     [[nodiscard]] span<const std::uint8_t> data() const noexcept {
         std::size_t n = 0;
-        auto* p = ros_compressed_video_get_data(handle(), &n);
+        auto* p = foxglove_msgs_compressed_video_get_data(handle(), &n);
         return {p, n};
     }
 };
+} // namespace foxglove_msgs
 
 // ---------------------------------------------------------------------------
 // foxglove_msgs - CompressedImage
@@ -4840,6 +5096,8 @@ public:
 // `CompressedImage` name in this namespace.
 // ---------------------------------------------------------------------------
 
+
+namespace foxglove_msgs {
 /**
  * @brief Non-owning, move-only view over a `foxglove_msgs::CompressedImage`.
  *
@@ -4849,11 +5107,11 @@ public:
  * @warning Backing CDR buffer must outlive this view and every borrowed
  *          reference returned by `frame_id()`, `format()`, `data()`.
  * @note Move-only.
- * @see FoxgloveCompressedImage for the owning counterpart.
+ * @see CompressedImage for the owning counterpart.
  */
-class FoxgloveCompressedImageView
-    : public detail::ViewBase<FoxgloveCompressedImageView, detail::FoxgloveCompressedImageTraits> {
-    using Base = detail::ViewBase<FoxgloveCompressedImageView, detail::FoxgloveCompressedImageTraits>;
+class CompressedImageView
+    : public detail::ViewBase<CompressedImageView, detail::FoxgloveCompressedImageTraits> {
+    using Base = detail::ViewBase<CompressedImageView, detail::FoxgloveCompressedImageTraits>;
     friend Base;
     using Base::Base;
 public:
@@ -4863,8 +5121,8 @@ public:
     /// @brief Message timestamp.
     /// @return The header stamp as a Time value.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_foxglove_compressed_image_get_stamp_sec(handle()),
-                ros_foxglove_compressed_image_get_stamp_nanosec(handle())};
+        return {foxglove_msgs_compressed_image_get_stamp_sec(handle()),
+                foxglove_msgs_compressed_image_get_stamp_nanosec(handle())};
     }
     /// Alias for stamp(); matches the Foxglove schema field name.
     [[nodiscard]] Time timestamp() const noexcept { return stamp(); }
@@ -4872,13 +5130,13 @@ public:
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_foxglove_compressed_image_get_frame_id(handle());
+        return foxglove_msgs_compressed_image_get_frame_id(handle());
     }
     /// @brief Image media type (e.g. "jpeg", "png", "webp").
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view format() const noexcept {
-        return ros_foxglove_compressed_image_get_format(handle());
+        return foxglove_msgs_compressed_image_get_format(handle());
     }
     /// @brief Compressed image payload bytes.
     /// @return A `span<const std::uint8_t>` borrowed from the CDR buffer.
@@ -4886,21 +5144,24 @@ public:
     ///          destroyed.
     [[nodiscard]] span<const std::uint8_t> data() const noexcept {
         std::size_t n = 0;
-        auto* p = ros_foxglove_compressed_image_get_data(handle(), &n);
+        auto* p = foxglove_msgs_compressed_image_get_data(handle(), &n);
         return {p, n};
     }
 };
+} // namespace foxglove_msgs
 
+
+namespace foxglove_msgs {
 /**
  * @brief Owning, move-only `foxglove_msgs::CompressedImage` instance.
  *
  * Holds both the CDR-encoded byte buffer and a view handle over it.
  *
- * @see FoxgloveCompressedImageView for the non-owning counterpart.
+ * @see CompressedImageView for the non-owning counterpart.
  */
-class FoxgloveCompressedImage
-    : public detail::OwnedBase<FoxgloveCompressedImage, detail::FoxgloveCompressedImageTraits> {
-    using Base = detail::OwnedBase<FoxgloveCompressedImage, detail::FoxgloveCompressedImageTraits>;
+class CompressedImage
+    : public detail::OwnedBase<CompressedImage, detail::FoxgloveCompressedImageTraits> {
+    using Base = detail::OwnedBase<CompressedImage, detail::FoxgloveCompressedImageTraits>;
     friend Base;
 public:
     /// @brief Encode a fresh CompressedImage into a newly-allocated CDR
@@ -4912,63 +5173,74 @@ public:
     /// @param format Image media type (e.g. "jpeg", "png", "webp").
     /// @return A new CompressedImage on success, or an Error on allocator
     ///         failure or invalid UTF-8.
-    [[nodiscard]] static expected<FoxgloveCompressedImage, Error>
+    [[nodiscard]] static expected<CompressedImage, Error>
     encode(Time stamp, std::string_view frame_id,
            span<const std::uint8_t> data, std::string_view format) noexcept {
-        ros_foxglove_compressed_image_builder_t* b =
-            ros_foxglove_compressed_image_builder_new();
+        foxglove_msgs_compressed_image_builder_t* b =
+            foxglove_msgs_compressed_image_builder_new();
         if (!b)
-            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_image_builder_new"));
-        ros_foxglove_compressed_image_builder_set_stamp(b, stamp.sec, stamp.nanosec);
-        if (ros_foxglove_compressed_image_builder_set_frame_id(b, frame_id.data()) != 0 ||
-            ros_foxglove_compressed_image_builder_set_data(b, data.data(), data.size()) != 0 ||
-            ros_foxglove_compressed_image_builder_set_format(b, format.data()) != 0) {
-            ros_foxglove_compressed_image_builder_free(b);
-            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_image_builder_set"));
+            return unexpected<Error>(Error::from_errno("foxglove_msgs_compressed_image_builder_new"));
+        foxglove_msgs_compressed_image_builder_set_stamp(b, stamp.sec, stamp.nanosec);
+        if (foxglove_msgs_compressed_image_builder_set_frame_id(b, frame_id.data()) != 0 ||
+            foxglove_msgs_compressed_image_builder_set_data(b, data.data(), data.size()) != 0 ||
+            foxglove_msgs_compressed_image_builder_set_format(b, format.data()) != 0) {
+            foxglove_msgs_compressed_image_builder_free(b);
+            return unexpected<Error>(Error::from_errno("foxglove_msgs_compressed_image_builder_set"));
         }
         std::uint8_t* out = nullptr; std::size_t len = 0;
-        if (ros_foxglove_compressed_image_builder_build(b, &out, &len) != 0) {
-            ros_foxglove_compressed_image_builder_free(b);
-            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_image_builder_build"));
+        if (foxglove_msgs_compressed_image_builder_build(b, &out, &len) != 0) {
+            foxglove_msgs_compressed_image_builder_free(b);
+            return unexpected<Error>(Error::from_errno("foxglove_msgs_compressed_image_builder_build"));
         }
-        ros_foxglove_compressed_image_builder_free(b);
+        foxglove_msgs_compressed_image_builder_free(b);
         return make_(out, len);
     }
     /// @brief Message timestamp.
     /// @return The header stamp as a Time value.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_foxglove_compressed_image_get_stamp_sec(handle()),
-                ros_foxglove_compressed_image_get_stamp_nanosec(handle())};
+        return {foxglove_msgs_compressed_image_get_stamp_sec(handle()),
+                foxglove_msgs_compressed_image_get_stamp_nanosec(handle())};
     }
     /// Alias for stamp(); matches the Foxglove schema field name.
     [[nodiscard]] Time timestamp() const noexcept { return stamp(); }
     /// @brief Coordinate frame identifier.
     /// @return A `std::string_view` borrowed from this instance's buffer.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_foxglove_compressed_image_get_frame_id(handle());
+        return foxglove_msgs_compressed_image_get_frame_id(handle());
     }
     /// @brief Image media type.
     /// @return A `std::string_view` borrowed from this instance's buffer.
     [[nodiscard]] std::string_view format() const noexcept {
-        return ros_foxglove_compressed_image_get_format(handle());
+        return foxglove_msgs_compressed_image_get_format(handle());
     }
     /// @brief Compressed image payload bytes.
     /// @return A `span<const std::uint8_t>` borrowed from this instance's
     ///         buffer.
     [[nodiscard]] span<const std::uint8_t> data() const noexcept {
         std::size_t n = 0;
-        auto* p = ros_foxglove_compressed_image_get_data(handle(), &n);
+        auto* p = foxglove_msgs_compressed_image_get_data(handle(), &n);
         return {p, n};
     }
 };
+} // namespace foxglove_msgs
 
 // ---------------------------------------------------------------------------
 // edgefirst_msgs - Mask
 //
-// Note: ros_mask_as_cdr does not exist in the C API (removed in the Task 4
+// Note: edgefirst_msgs_mask_as_cdr does not exist in the C API (removed in the Task 4
 // refactor).  MaskView uses ViewBaseNoCdr (no as_cdr accessor).  Mask (owning)
 // uses OwnedBaseNoCdr whose as_cdr() returns the stored encoded bytes directly.
 // ---------------------------------------------------------------------------
+
+
+namespace edgefirst_msgs {
+using ::edgefirst::schemas::builtin_interfaces::Time;
+using ::edgefirst::schemas::geometry_msgs::Vector3;
+using ::edgefirst::schemas::Error;
+using ::edgefirst::schemas::Released;
+using ::edgefirst::schemas::span;
+using ::edgefirst::schemas::expected;
+using ::edgefirst::schemas::unexpected;
 
 /**
  * @brief Non-owning, move-only view over an `edgefirst_msgs::Mask` message.
@@ -4976,7 +5248,7 @@ public:
  * Represents a pixel mask (full-image or bounding-box relative) published
  * by segmentation or instance-masking models. Unlike most views, MaskView
  * does not expose `as_cdr()` because the underlying C API does not
- * provide `ros_mask_as_cdr`.
+ * provide `edgefirst_msgs_mask_as_cdr`.
  *
  * @warning Backing CDR buffer must outlive this view and any references
  *          returned by `encoding()` / `data()`.
@@ -4993,23 +5265,23 @@ public:
     /// @brief Mask height in pixels.
     /// @return The height value from the handle.
     [[nodiscard]] std::uint32_t height() const noexcept {
-        return ros_mask_get_height(handle());
+        return edgefirst_msgs_mask_get_height(handle());
     }
     /// @brief Mask width in pixels.
     /// @return The width value from the handle.
     [[nodiscard]] std::uint32_t width() const noexcept {
-        return ros_mask_get_width(handle());
+        return edgefirst_msgs_mask_get_width(handle());
     }
     /// @brief Raw byte length of the mask payload.
     /// @return The length value from the handle.
     [[nodiscard]] std::uint32_t length() const noexcept {
-        return ros_mask_get_length(handle());
+        return edgefirst_msgs_mask_get_length(handle());
     }
     /// @brief Mask pixel encoding identifier.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view encoding() const noexcept {
-        return ros_mask_get_encoding(handle());
+        return edgefirst_msgs_mask_get_encoding(handle());
     }
     /// @brief Raw mask payload bytes.
     /// @return A `span<const std::uint8_t>` borrowed from the CDR buffer.
@@ -5017,21 +5289,24 @@ public:
     ///          destroyed.
     [[nodiscard]] span<const std::uint8_t> data() const noexcept {
         std::size_t n = 0;
-        auto* p = ros_mask_get_data(handle(), &n);
+        auto* p = edgefirst_msgs_mask_get_data(handle(), &n);
         return {p, n};
     }
     /// @brief Whether the mask is stored as box-relative pixels.
     /// @return `true` if the mask is clipped to a bounding box.
     [[nodiscard]] bool boxed() const noexcept {
-        return ros_mask_get_boxed(handle());
+        return edgefirst_msgs_mask_get_boxed(handle());
     }
 };
+} // namespace edgefirst_msgs
 
+
+namespace edgefirst_msgs {
 /**
  * @brief Owning, move-only `edgefirst_msgs::Mask` instance.
  *
  * Holds both the CDR-encoded byte buffer and a view handle over it. Uses
- * `OwnedBaseNoCdr` because the C API does not expose `ros_mask_as_cdr`;
+ * `OwnedBaseNoCdr` because the C API does not expose `edgefirst_msgs_mask_as_cdr`;
  * `as_cdr()` returns the stored encoded bytes directly.
  *
  * @see MaskView for the non-owning counterpart.
@@ -5053,65 +5328,68 @@ public:
     encode(std::uint32_t height, std::uint32_t width, std::uint32_t length,
            std::string_view encoding, span<const std::uint8_t> data,
            bool boxed) noexcept {
-        ros_mask_builder_t* b = ros_mask_builder_new();
+        edgefirst_msgs_mask_builder_t* b = edgefirst_msgs_mask_builder_new();
         if (!b)
-            return unexpected<Error>(Error::from_errno("ros_mask_builder_new"));
-        ros_mask_builder_set_height(b, height);
-        ros_mask_builder_set_width(b, width);
-        ros_mask_builder_set_length(b, length);
-        ros_mask_builder_set_boxed(b, boxed);
-        if (ros_mask_builder_set_encoding(b, encoding.data()) != 0 ||
-            ros_mask_builder_set_mask(b, data.data(), data.size()) != 0) {
-            ros_mask_builder_free(b);
-            return unexpected<Error>(Error::from_errno("ros_mask_builder_set"));
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_mask_builder_new"));
+        edgefirst_msgs_mask_builder_set_height(b, height);
+        edgefirst_msgs_mask_builder_set_width(b, width);
+        edgefirst_msgs_mask_builder_set_length(b, length);
+        edgefirst_msgs_mask_builder_set_boxed(b, boxed);
+        if (edgefirst_msgs_mask_builder_set_encoding(b, encoding.data()) != 0 ||
+            edgefirst_msgs_mask_builder_set_mask(b, data.data(), data.size()) != 0) {
+            edgefirst_msgs_mask_builder_free(b);
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_mask_builder_set"));
         }
         std::uint8_t* out = nullptr; std::size_t len = 0;
-        if (ros_mask_builder_build(b, &out, &len) != 0) {
-            ros_mask_builder_free(b);
-            return unexpected<Error>(Error::from_errno("ros_mask_builder_build"));
+        if (edgefirst_msgs_mask_builder_build(b, &out, &len) != 0) {
+            edgefirst_msgs_mask_builder_free(b);
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_mask_builder_build"));
         }
-        ros_mask_builder_free(b);
+        edgefirst_msgs_mask_builder_free(b);
         return make_(out, len);
     }
     /// @brief Mask height in pixels.
     /// @return The height value from the handle.
     [[nodiscard]] std::uint32_t height() const noexcept {
-        return ros_mask_get_height(handle());
+        return edgefirst_msgs_mask_get_height(handle());
     }
     /// @brief Mask width in pixels.
     /// @return The width value from the handle.
     [[nodiscard]] std::uint32_t width() const noexcept {
-        return ros_mask_get_width(handle());
+        return edgefirst_msgs_mask_get_width(handle());
     }
     /// @brief Raw byte length of the mask payload.
     /// @return The length value from the handle.
     [[nodiscard]] std::uint32_t length() const noexcept {
-        return ros_mask_get_length(handle());
+        return edgefirst_msgs_mask_get_length(handle());
     }
     /// @brief Mask pixel encoding identifier.
     /// @return A `std::string_view` borrowed from this instance's buffer.
     [[nodiscard]] std::string_view encoding() const noexcept {
-        return ros_mask_get_encoding(handle());
+        return edgefirst_msgs_mask_get_encoding(handle());
     }
     /// @brief Raw mask payload bytes.
     /// @return A `span<const std::uint8_t>` borrowed from this instance's
     ///         buffer.
     [[nodiscard]] span<const std::uint8_t> data() const noexcept {
         std::size_t n = 0;
-        auto* p = ros_mask_get_data(handle(), &n);
+        auto* p = edgefirst_msgs_mask_get_data(handle(), &n);
         return {p, n};
     }
     /// @brief Whether the mask is stored as box-relative pixels.
     /// @return `true` if the mask is clipped to a bounding box.
     [[nodiscard]] bool boxed() const noexcept {
-        return ros_mask_get_boxed(handle());
+        return edgefirst_msgs_mask_get_boxed(handle());
     }
 };
+} // namespace edgefirst_msgs
 
 // ---------------------------------------------------------------------------
-// edgefirst_msgs - LocalTime (view-only: no ros_local_time_encode in C API)
+// edgefirst_msgs - LocalTime (view-only: no edgefirst_msgs_local_time_encode in C API)
 // ---------------------------------------------------------------------------
 
+
+namespace edgefirst_msgs {
 /**
  * @brief Non-owning, move-only view over an `edgefirst_msgs::LocalTime`
  *        message (wall-clock timestamp + timezone offset).
@@ -5133,26 +5411,29 @@ public:
     /// @brief Message timestamp.
     /// @return The header stamp as a Time value.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_local_time_get_stamp_sec(handle()),
-                ros_local_time_get_stamp_nanosec(handle())};
+        return {edgefirst_msgs_local_time_get_stamp_sec(handle()),
+                edgefirst_msgs_local_time_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_local_time_get_frame_id(handle());
+        return edgefirst_msgs_local_time_get_frame_id(handle());
     }
     /// @brief Timezone offset from UTC in minutes.
     /// @return The offset value from the handle.
     [[nodiscard]] std::int16_t timezone() const noexcept {
-        return ros_local_time_get_timezone(handle());
+        return edgefirst_msgs_local_time_get_timezone(handle());
     }
 };
+} // namespace edgefirst_msgs
 
 // ---------------------------------------------------------------------------
-// edgefirst_msgs - Track (view-only: no ros_track_encode in C API)
+// edgefirst_msgs - Track (view-only: no edgefirst_msgs_track_encode in C API)
 // ---------------------------------------------------------------------------
 
+
+namespace edgefirst_msgs {
 /**
  * @brief Non-owning, move-only view over an `edgefirst_msgs::Track`
  *        standalone tracker message.
@@ -5175,19 +5456,22 @@ public:
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view id() const noexcept {
-        return ros_track_get_id(handle());
+        return edgefirst_msgs_track_get_id(handle());
     }
     /// @brief Track lifetime (number of frames this track has existed).
     /// @return The lifetime count from the handle.
     [[nodiscard]] std::int32_t lifetime() const noexcept {
-        return ros_track_get_lifetime(handle());
+        return edgefirst_msgs_track_get_lifetime(handle());
     }
 };
+} // namespace edgefirst_msgs
 
 // ---------------------------------------------------------------------------
 // sensor_msgs - Image
 // ---------------------------------------------------------------------------
 
+
+namespace sensor_msgs {
 /**
  * @brief Non-owning, move-only view over a `sensor_msgs::Image` message.
  *
@@ -5209,7 +5493,7 @@ public:
  * @code{.cpp}
  * namespace ef = edgefirst::schemas;
  * std::vector<std::uint8_t> cdr_bytes = receive_from_wire();
- * auto img = ef::ImageView::from_cdr({cdr_bytes.data(), cdr_bytes.size()});
+ * auto img = sensor_msgs::ImageView::from_cdr({cdr_bytes.data(), cdr_bytes.size()});
  * if (!img) { log_error(img.error()); return; }
  * std::cout << img->width() << "x" << img->height()
  *           << " " << img->encoding() << "\n";
@@ -5230,42 +5514,42 @@ public:
     ///        field).
     /// @return The stamp as a Time value.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_image_get_stamp_sec(handle()),
-                ros_image_get_stamp_nanosec(handle())};
+        return {sensor_msgs_image_get_stamp_sec(handle()),
+                sensor_msgs_image_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame name identifying the camera.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this ImageView and its backing CDR buffer
     ///       remain alive.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_image_get_frame_id(handle());
+        return sensor_msgs_image_get_frame_id(handle());
     }
     /// @brief Image height in pixels (number of rows).
     /// @return The height value from the handle.
     [[nodiscard]] std::uint32_t height() const noexcept {
-        return ros_image_get_height(handle());
+        return sensor_msgs_image_get_height(handle());
     }
     /// @brief Image width in pixels (number of columns).
     /// @return The width value from the handle.
     [[nodiscard]] std::uint32_t width() const noexcept {
-        return ros_image_get_width(handle());
+        return sensor_msgs_image_get_width(handle());
     }
     /// @brief Pixel format encoding string — e.g. "rgb8", "bgr8",
     ///        "mono8".
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view encoding() const noexcept {
-        return ros_image_get_encoding(handle());
+        return sensor_msgs_image_get_encoding(handle());
     }
     /// @brief Whether the pixel data is stored in big-endian byte order.
     /// @return Non-zero if big-endian, zero otherwise.
     [[nodiscard]] std::uint8_t is_bigendian() const noexcept {
-        return ros_image_get_is_bigendian(handle());
+        return sensor_msgs_image_get_is_bigendian(handle());
     }
     /// @brief Row stride in bytes (≥ `width() * bytes_per_pixel`).
     /// @return The step value from the handle.
     [[nodiscard]] std::uint32_t step() const noexcept {
-        return ros_image_get_step(handle());
+        return sensor_msgs_image_get_step(handle());
     }
     /// @brief Raw pixel data payload.
     /// @return A `span<const std::uint8_t>` borrowing directly into the
@@ -5274,17 +5558,20 @@ public:
     ///          is destroyed.
     [[nodiscard]] span<const std::uint8_t> data() const noexcept {
         std::size_t n = 0;
-        auto* p = ros_image_get_data(handle(), &n);
+        auto* p = sensor_msgs_image_get_data(handle(), &n);
         return {p, n};
     }
 };
+} // namespace sensor_msgs
 
+
+namespace sensor_msgs {
 /**
  * @brief Owning, move-only `sensor_msgs::Image` instance.
  *
  * Holds both the CDR-encoded byte buffer (allocated by `encode()`) and a
  * view handle over that buffer. Move-only; the destructor frees the
- * encoded bytes via `ros_bytes_free()` and releases the C handle.
+ * encoded bytes via `edgefirst_schemas_bytes_free()` and releases the C handle.
  *
  * Use `encode()` to construct. The resulting instance exposes all the
  * same accessors as `ImageView` — those accessors forward to an internal
@@ -5321,78 +5608,81 @@ public:
            std::uint32_t height, std::uint32_t width,
            std::string_view encoding, bool is_bigendian,
            std::uint32_t step, span<const std::uint8_t> data) noexcept {
-        ros_image_builder_t* b = ros_image_builder_new();
+        sensor_msgs_image_builder_t* b = sensor_msgs_image_builder_new();
         if (!b)
-            return unexpected<Error>(Error::from_errno("ros_image_builder_new"));
-        ros_image_builder_set_stamp(b, stamp.sec, stamp.nanosec);
-        ros_image_builder_set_height(b, height);
-        ros_image_builder_set_width(b, width);
-        ros_image_builder_set_is_bigendian(b, static_cast<std::uint8_t>(is_bigendian));
-        ros_image_builder_set_step(b, step);
-        if (ros_image_builder_set_frame_id(b, frame_id.data()) != 0 ||
-            ros_image_builder_set_encoding(b, encoding.data()) != 0 ||
-            ros_image_builder_set_data(b, data.data(), data.size()) != 0) {
-            ros_image_builder_free(b);
-            return unexpected<Error>(Error::from_errno("ros_image_builder_set"));
+            return unexpected<Error>(Error::from_errno("sensor_msgs_image_builder_new"));
+        sensor_msgs_image_builder_set_stamp(b, stamp.sec, stamp.nanosec);
+        sensor_msgs_image_builder_set_height(b, height);
+        sensor_msgs_image_builder_set_width(b, width);
+        sensor_msgs_image_builder_set_is_bigendian(b, static_cast<std::uint8_t>(is_bigendian));
+        sensor_msgs_image_builder_set_step(b, step);
+        if (sensor_msgs_image_builder_set_frame_id(b, frame_id.data()) != 0 ||
+            sensor_msgs_image_builder_set_encoding(b, encoding.data()) != 0 ||
+            sensor_msgs_image_builder_set_data(b, data.data(), data.size()) != 0) {
+            sensor_msgs_image_builder_free(b);
+            return unexpected<Error>(Error::from_errno("sensor_msgs_image_builder_set"));
         }
         std::uint8_t* out = nullptr; std::size_t len = 0;
-        if (ros_image_builder_build(b, &out, &len) != 0) {
-            ros_image_builder_free(b);
-            return unexpected<Error>(Error::from_errno("ros_image_builder_build"));
+        if (sensor_msgs_image_builder_build(b, &out, &len) != 0) {
+            sensor_msgs_image_builder_free(b);
+            return unexpected<Error>(Error::from_errno("sensor_msgs_image_builder_build"));
         }
-        ros_image_builder_free(b);
+        sensor_msgs_image_builder_free(b);
         return make_(out, len);
     }
     /// @brief Timestamp of the encoded message.
     /// @return The stamp as a Time value.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_image_get_stamp_sec(handle()),
-                ros_image_get_stamp_nanosec(handle())};
+        return {sensor_msgs_image_get_stamp_sec(handle()),
+                sensor_msgs_image_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame name.
     /// @return A `std::string_view` borrowed from this instance's buffer.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_image_get_frame_id(handle());
+        return sensor_msgs_image_get_frame_id(handle());
     }
     /// @brief Height in pixels.
     /// @return The height value from the handle.
     [[nodiscard]] std::uint32_t height() const noexcept {
-        return ros_image_get_height(handle());
+        return sensor_msgs_image_get_height(handle());
     }
     /// @brief Width in pixels.
     /// @return The width value from the handle.
     [[nodiscard]] std::uint32_t width() const noexcept {
-        return ros_image_get_width(handle());
+        return sensor_msgs_image_get_width(handle());
     }
     /// @brief Pixel encoding string.
     /// @return A `std::string_view` borrowed from this instance's buffer.
     [[nodiscard]] std::string_view encoding() const noexcept {
-        return ros_image_get_encoding(handle());
+        return sensor_msgs_image_get_encoding(handle());
     }
     /// @brief Big-endian flag.
     /// @return Non-zero if big-endian, zero otherwise.
     [[nodiscard]] std::uint8_t is_bigendian() const noexcept {
-        return ros_image_get_is_bigendian(handle());
+        return sensor_msgs_image_get_is_bigendian(handle());
     }
     /// @brief Row stride in bytes.
     /// @return The step value from the handle.
     [[nodiscard]] std::uint32_t step() const noexcept {
-        return ros_image_get_step(handle());
+        return sensor_msgs_image_get_step(handle());
     }
     /// @brief Pixel data payload.
     /// @return A `span<const std::uint8_t>` borrowed from this instance's
     ///         buffer.
     [[nodiscard]] span<const std::uint8_t> data() const noexcept {
         std::size_t n = 0;
-        auto* p = ros_image_get_data(handle(), &n);
+        auto* p = sensor_msgs_image_get_data(handle(), &n);
         return {p, n};
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
-// sensor_msgs - PointCloud2 (view-only: no ros_point_cloud2_encode in C API)
+// sensor_msgs - PointCloud2 (view-only: no sensor_msgs_point_cloud2_encode in C API)
 // ---------------------------------------------------------------------------
 
+
+namespace sensor_msgs {
 /**
  * @brief Non-owning, move-only view over a `sensor_msgs::PointCloud2`.
  *
@@ -5415,38 +5705,38 @@ public:
     /// @brief Message timestamp.
     /// @return The header stamp as a Time value.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_point_cloud2_get_stamp_sec(handle()),
-                ros_point_cloud2_get_stamp_nanosec(handle())};
+        return {sensor_msgs_point_cloud2_get_stamp_sec(handle()),
+                sensor_msgs_point_cloud2_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_point_cloud2_get_frame_id(handle());
+        return sensor_msgs_point_cloud2_get_frame_id(handle());
     }
     /// @brief Cloud height in points (rows). For unorganized clouds this
     ///        is 1.
     /// @return The height value from the handle.
     [[nodiscard]] std::uint32_t height() const noexcept {
-        return ros_point_cloud2_get_height(handle());
+        return sensor_msgs_point_cloud2_get_height(handle());
     }
     /// @brief Cloud width in points (columns) — total points for
     ///        unorganized clouds.
     /// @return The width value from the handle.
     [[nodiscard]] std::uint32_t width() const noexcept {
-        return ros_point_cloud2_get_width(handle());
+        return sensor_msgs_point_cloud2_get_width(handle());
     }
     /// @brief Length of a single point in bytes (sum of field sizes +
     ///        padding).
     /// @return The point_step value from the handle.
     [[nodiscard]] std::uint32_t point_step() const noexcept {
-        return ros_point_cloud2_get_point_step(handle());
+        return sensor_msgs_point_cloud2_get_point_step(handle());
     }
     /// @brief Length of a single row in bytes
     ///        (`point_step() * width()`).
     /// @return The row_step value from the handle.
     [[nodiscard]] std::uint32_t row_step() const noexcept {
-        return ros_point_cloud2_get_row_step(handle());
+        return sensor_msgs_point_cloud2_get_row_step(handle());
     }
     /// @brief Raw point cloud payload.
     /// @return A `span<const std::uint8_t>` borrowed from the CDR buffer.
@@ -5454,30 +5744,33 @@ public:
     ///          destroyed.
     [[nodiscard]] span<const std::uint8_t> data() const noexcept {
         std::size_t n = 0;
-        auto* p = ros_point_cloud2_get_data(handle(), &n);
+        auto* p = sensor_msgs_point_cloud2_get_data(handle(), &n);
         return {p, n};
     }
     /// @brief Whether the cloud contains no invalid / NaN points.
     /// @return `true` if dense.
     [[nodiscard]] bool is_dense() const noexcept {
-        return ros_point_cloud2_get_is_dense(handle());
+        return sensor_msgs_point_cloud2_get_is_dense(handle());
     }
     /// @brief Whether field values are stored big-endian.
     /// @return `true` if big-endian.
     [[nodiscard]] bool is_bigendian() const noexcept {
-        return ros_point_cloud2_get_is_bigendian(handle());
+        return sensor_msgs_point_cloud2_get_is_bigendian(handle());
     }
     /// @brief Number of point fields declared in the PointField array.
     /// @return The fields array length.
     [[nodiscard]] std::uint32_t fields_len() const noexcept {
-        return ros_point_cloud2_get_fields_len(handle());
+        return sensor_msgs_point_cloud2_get_fields_len(handle());
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
-// edgefirst_msgs - RadarCube (view-only: no ros_radar_cube_encode in C API)
+// edgefirst_msgs - RadarCube (view-only: no edgefirst_msgs_radar_cube_encode in C API)
 // ---------------------------------------------------------------------------
 
+
+namespace edgefirst_msgs {
 /**
  * @brief Non-owning, move-only view over an `edgefirst_msgs::RadarCube`.
  *
@@ -5500,19 +5793,19 @@ public:
     /// @brief Message timestamp.
     /// @return The header stamp as a Time value.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_radar_cube_get_stamp_sec(handle()),
-                ros_radar_cube_get_stamp_nanosec(handle())};
+        return {edgefirst_msgs_radar_cube_get_stamp_sec(handle()),
+                edgefirst_msgs_radar_cube_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_radar_cube_get_frame_id(handle());
+        return edgefirst_msgs_radar_cube_get_frame_id(handle());
     }
     /// @brief Hardware-supplied timestamp counter (vendor specific).
     /// @return The raw 64-bit timestamp value.
     [[nodiscard]] std::uint64_t timestamp() const noexcept {
-        return ros_radar_cube_get_timestamp(handle());
+        return edgefirst_msgs_radar_cube_get_timestamp(handle());
     }
     /// @brief Serialized layout descriptor for the cube's shape/dtype.
     /// @return A `span<const std::uint8_t>` borrowed from the CDR buffer.
@@ -5520,7 +5813,7 @@ public:
     ///          destroyed.
     [[nodiscard]] span<const std::uint8_t> layout() const noexcept {
         std::size_t n = 0;
-        auto* p = ros_radar_cube_get_layout(handle(), &n);
+        auto* p = edgefirst_msgs_radar_cube_get_layout(handle(), &n);
         return {p, n};
     }
     /// @brief Raw cube bytes as described by `layout()`.
@@ -5529,25 +5822,28 @@ public:
     ///          destroyed.
     [[nodiscard]] span<const std::uint8_t> cube_raw() const noexcept {
         std::size_t n = 0;
-        auto* p = ros_radar_cube_get_cube_raw(handle(), &n);
+        auto* p = edgefirst_msgs_radar_cube_get_cube_raw(handle(), &n);
         return {p, n};
     }
     /// @brief Total number of cube samples (not bytes).
     /// @return The sample count from the handle.
     [[nodiscard]] std::uint32_t cube_len() const noexcept {
-        return ros_radar_cube_get_cube_len(handle());
+        return edgefirst_msgs_radar_cube_get_cube_len(handle());
     }
     /// @brief Whether cube samples are complex (I/Q) values.
     /// @return `true` if complex-valued.
     [[nodiscard]] bool is_complex() const noexcept {
-        return ros_radar_cube_get_is_complex(handle());
+        return edgefirst_msgs_radar_cube_get_is_complex(handle());
     }
 };
+} // namespace edgefirst_msgs
 
 // ---------------------------------------------------------------------------
-// edgefirst_msgs - RadarInfo (view-only: no ros_radar_info_encode in C API)
+// edgefirst_msgs - RadarInfo (view-only: no edgefirst_msgs_radar_info_encode in C API)
 // ---------------------------------------------------------------------------
 
+
+namespace edgefirst_msgs {
 /**
  * @brief Non-owning, move-only view over an `edgefirst_msgs::RadarInfo`
  *        configuration / capabilities message.
@@ -5570,55 +5866,58 @@ public:
     /// @brief Message timestamp.
     /// @return The header stamp as a Time value.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_radar_info_get_stamp_sec(handle()),
-                ros_radar_info_get_stamp_nanosec(handle())};
+        return {edgefirst_msgs_radar_info_get_stamp_sec(handle()),
+                edgefirst_msgs_radar_info_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_radar_info_get_frame_id(handle());
+        return edgefirst_msgs_radar_info_get_frame_id(handle());
     }
     /// @brief Currently configured center frequency (vendor-defined
     ///        label, e.g. "77GHz").
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view center_frequency() const noexcept {
-        return ros_radar_info_get_center_frequency(handle());
+        return edgefirst_msgs_radar_info_get_center_frequency(handle());
     }
     /// @brief Current frequency-sweep configuration label.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view frequency_sweep() const noexcept {
-        return ros_radar_info_get_frequency_sweep(handle());
+        return edgefirst_msgs_radar_info_get_frequency_sweep(handle());
     }
     /// @brief Current range-toggle configuration label.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view range_toggle() const noexcept {
-        return ros_radar_info_get_range_toggle(handle());
+        return edgefirst_msgs_radar_info_get_range_toggle(handle());
     }
     /// @brief Current detection-sensitivity configuration label.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view detection_sensitivity() const noexcept {
-        return ros_radar_info_get_detection_sensitivity(handle());
+        return edgefirst_msgs_radar_info_get_detection_sensitivity(handle());
     }
     /// @brief Whether the radar is currently publishing raw cube data.
     /// @return `true` if cube publishing is enabled.
     [[nodiscard]] bool cube() const noexcept {
-        return ros_radar_info_get_cube(handle());
+        return edgefirst_msgs_radar_info_get_cube(handle());
     }
 };
+} // namespace edgefirst_msgs
 
 // ---------------------------------------------------------------------------
 // edgefirst_msgs - BoxView
 //
-// Note: ros_box_as_cdr was removed in the Task 4 refactor, so BoxView uses
-// ViewBaseNoCdr (no as_cdr accessor).  There is also no ros_box_encode in
+// Note: edgefirst_msgs_box_as_cdr was removed in the Task 4 refactor, so BoxView uses
+// ViewBaseNoCdr (no as_cdr accessor).  There is also no edgefirst_msgs_box_encode in
 // the C API, so no owning Box type is provided.
 // ---------------------------------------------------------------------------
 
+
+namespace edgefirst_msgs {
 /**
  * @brief Non-owning, move-only view over a standalone `edgefirst_msgs::Box`
  *        message.
@@ -5626,7 +5925,7 @@ public:
  * Unlike `detail::BorrowedBoxView` (yielded by iteration over
  * `DetectView::boxes()`), this class wraps a top-level box message
  * decoded from its own CDR buffer. View-only: neither
- * `ros_box_as_cdr` nor `ros_box_encode` exist in the C API, so no
+ * `edgefirst_msgs_box_as_cdr` nor `edgefirst_msgs_box_encode` exist in the C API, so no
  * `as_cdr()` accessor and no owning `Box` counterpart are provided.
  *
  * @warning Backing CDR buffer must outlive this view and any borrowed
@@ -5642,48 +5941,51 @@ public:
 
     /// @brief Box center X coordinate.
     /// @return The center X value from the handle.
-    [[nodiscard]] float            center_x()       const noexcept { return ros_box_get_center_x(handle()); }
+    [[nodiscard]] float            center_x()       const noexcept { return edgefirst_msgs_box_get_center_x(handle()); }
     /// @brief Box center Y coordinate.
     /// @return The center Y value from the handle.
-    [[nodiscard]] float            center_y()       const noexcept { return ros_box_get_center_y(handle()); }
+    [[nodiscard]] float            center_y()       const noexcept { return edgefirst_msgs_box_get_center_y(handle()); }
     /// @brief Box width.
     /// @return The width value from the handle.
-    [[nodiscard]] float            width()          const noexcept { return ros_box_get_width(handle()); }
+    [[nodiscard]] float            width()          const noexcept { return edgefirst_msgs_box_get_width(handle()); }
     /// @brief Box height.
     /// @return The height value from the handle.
-    [[nodiscard]] float            height()         const noexcept { return ros_box_get_height(handle()); }
+    [[nodiscard]] float            height()         const noexcept { return edgefirst_msgs_box_get_height(handle()); }
     /// @brief Class label of the detected object.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
-    [[nodiscard]] std::string_view label()          const noexcept { return ros_box_get_label(handle()); }
+    [[nodiscard]] std::string_view label()          const noexcept { return edgefirst_msgs_box_get_label(handle()); }
     /// @brief Detection confidence score in [0, 1].
     /// @return The score value from the handle.
-    [[nodiscard]] float            score()          const noexcept { return ros_box_get_score(handle()); }
+    [[nodiscard]] float            score()          const noexcept { return edgefirst_msgs_box_get_score(handle()); }
     /// @brief Estimated distance to the detected object (meters).
     /// @return The distance value from the handle.
-    [[nodiscard]] float            distance()       const noexcept { return ros_box_get_distance(handle()); }
+    [[nodiscard]] float            distance()       const noexcept { return edgefirst_msgs_box_get_distance(handle()); }
     /// @brief Estimated object speed (m/s).
     /// @return The speed value from the handle.
-    [[nodiscard]] float            speed()          const noexcept { return ros_box_get_speed(handle()); }
+    [[nodiscard]] float            speed()          const noexcept { return edgefirst_msgs_box_get_speed(handle()); }
     /// @brief Optional tracker identifier string.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
-    [[nodiscard]] std::string_view track_id()       const noexcept { return ros_box_get_track_id(handle()); }
+    [[nodiscard]] std::string_view track_id()       const noexcept { return edgefirst_msgs_box_get_track_id(handle()); }
     /// @brief Number of frames this track has been alive.
     /// @return The lifetime value from the handle.
-    [[nodiscard]] std::int32_t     track_lifetime() const noexcept { return ros_box_get_track_lifetime(handle()); }
+    [[nodiscard]] std::int32_t     track_lifetime() const noexcept { return edgefirst_msgs_box_get_track_lifetime(handle()); }
     /// @brief Time at which the track was first created.
     /// @return A Time value assembled from the handle.
     [[nodiscard]] Time             track_created()  const noexcept {
-        return Time{ros_box_get_track_created_sec(handle()),
-                    ros_box_get_track_created_nanosec(handle())};
+        return Time{edgefirst_msgs_box_get_track_created_sec(handle()),
+                    edgefirst_msgs_box_get_track_created_nanosec(handle())};
     }
 };
+} // namespace edgefirst_msgs
 
 // ---------------------------------------------------------------------------
-// edgefirst_msgs - DetectView (view-only: no ros_detect_encode in C API)
+// edgefirst_msgs - DetectView (view-only: no edgefirst_msgs_detect_encode in C API)
 // ---------------------------------------------------------------------------
 
+
+namespace edgefirst_msgs {
 /**
  * @brief Non-owning, move-only view over an `edgefirst_msgs::Detect`
  *        message — a header plus an array of detection boxes.
@@ -5701,7 +6003,7 @@ public:
  *
  * @code{.cpp}
  * namespace ef = edgefirst::schemas;
- * auto det = ef::DetectView::from_cdr(payload);
+ * auto det = edgefirst_msgs::DetectView::from_cdr(payload);
  * if (!det) return;
  * for (auto box : det->boxes()) {
  *     std::cout << box.label() << " score=" << box.score() << "\n";
@@ -5719,19 +6021,19 @@ public:
     /// @brief Message timestamp.
     /// @return The header stamp as a Time value.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_detect_get_stamp_sec(handle()),
-                ros_detect_get_stamp_nanosec(handle())};
+        return {edgefirst_msgs_detect_get_stamp_sec(handle()),
+                edgefirst_msgs_detect_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_detect_get_frame_id(handle());
+        return edgefirst_msgs_detect_get_frame_id(handle());
     }
     /// @brief Number of detection boxes in this message.
     /// @return The box array length.
     [[nodiscard]] std::uint32_t boxes_len() const noexcept {
-        return ros_detect_get_boxes_len(handle());
+        return edgefirst_msgs_detect_get_boxes_len(handle());
     }
 
     /// @brief Range adaptor over the detection boxes.
@@ -5739,20 +6041,23 @@ public:
     ///         elements; each yielded child borrows into this view's CDR
     ///         buffer and is only valid while this DetectView is alive.
     [[nodiscard]] auto boxes() const noexcept {
-        return detail::ChildRange<ros_detect_t,
+        return detail::ChildRange<edgefirst_msgs_detect_t,
                                   detail::BorrowedBoxView,
-                                  decltype(&ros_detect_get_box)>{
+                                  decltype(&edgefirst_msgs_detect_get_box)>{
             handle(),
-            ros_detect_get_boxes_len(handle()),
-            ros_detect_get_box
+            edgefirst_msgs_detect_get_boxes_len(handle()),
+            edgefirst_msgs_detect_get_box
         };
     }
 };
+} // namespace edgefirst_msgs
 
 // ---------------------------------------------------------------------------
-// edgefirst_msgs - ModelView (view-only: no ros_model_encode in C API)
+// edgefirst_msgs - ModelView (view-only: no edgefirst_msgs_model_encode in C API)
 // ---------------------------------------------------------------------------
 
+
+namespace edgefirst_msgs {
 /**
  * @brief Non-owning, move-only view over an `edgefirst_msgs::Model`
  *        combined detection + segmentation message.
@@ -5769,7 +6074,7 @@ public:
  *
  * @code{.cpp}
  * namespace ef = edgefirst::schemas;
- * auto m = ef::ModelView::from_cdr(payload);
+ * auto m = edgefirst_msgs::ModelView::from_cdr(payload);
  * if (!m) return;
  * for (auto box : m->boxes())  { use(box);  }
  * for (auto mask : m->masks()) { use(mask); }
@@ -5786,36 +6091,36 @@ public:
     /// @brief Message timestamp.
     /// @return The header stamp as a Time value.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_model_get_stamp_sec(handle()),
-                ros_model_get_stamp_nanosec(handle())};
+        return {edgefirst_msgs_model_get_stamp_sec(handle()),
+                edgefirst_msgs_model_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_model_get_frame_id(handle());
+        return edgefirst_msgs_model_get_frame_id(handle());
     }
     /// @brief Number of detection boxes in this message.
     /// @return The box array length.
     [[nodiscard]] std::uint32_t boxes_len() const noexcept {
-        return ros_model_get_boxes_len(handle());
+        return edgefirst_msgs_model_get_boxes_len(handle());
     }
     /// @brief Number of segmentation masks in this message.
     /// @return The mask array length.
     [[nodiscard]] std::uint32_t masks_len() const noexcept {
-        return ros_model_get_masks_len(handle());
+        return edgefirst_msgs_model_get_masks_len(handle());
     }
 
     /// @brief Range adaptor over the detection boxes.
     /// @return A `detail::ChildRange` yielding `detail::BorrowedBoxView`
     ///         children whose lifetime is tied to this ModelView.
     [[nodiscard]] auto boxes() const noexcept {
-        return detail::ChildRange<ros_model_t,
+        return detail::ChildRange<edgefirst_msgs_model_t,
                                   detail::BorrowedBoxView,
-                                  decltype(&ros_model_get_box)>{
+                                  decltype(&edgefirst_msgs_model_get_box)>{
             handle(),
-            ros_model_get_boxes_len(handle()),
-            ros_model_get_box
+            edgefirst_msgs_model_get_boxes_len(handle()),
+            edgefirst_msgs_model_get_box
         };
     }
 
@@ -5823,20 +6128,23 @@ public:
     /// @return A `detail::ChildRange` yielding `detail::BorrowedMaskView`
     ///         children whose lifetime is tied to this ModelView.
     [[nodiscard]] auto masks() const noexcept {
-        return detail::ChildRange<ros_model_t,
+        return detail::ChildRange<edgefirst_msgs_model_t,
                                   detail::BorrowedMaskView,
-                                  decltype(&ros_model_get_mask)>{
+                                  decltype(&edgefirst_msgs_model_get_mask)>{
             handle(),
-            ros_model_get_masks_len(handle()),
-            ros_model_get_mask
+            edgefirst_msgs_model_get_masks_len(handle()),
+            edgefirst_msgs_model_get_mask
         };
     }
 };
+} // namespace edgefirst_msgs
 
 // ---------------------------------------------------------------------------
-// edgefirst_msgs - ModelInfoView (view-only: no ros_model_info_encode in C API)
+// edgefirst_msgs - ModelInfoView (view-only: no edgefirst_msgs_model_info_encode in C API)
 // ---------------------------------------------------------------------------
 
+
+namespace edgefirst_msgs {
 /**
  * @brief Non-owning, move-only view over an `edgefirst_msgs::ModelInfo`
  *        message describing a deployed inference model.
@@ -5863,42 +6171,42 @@ public:
     /// @brief Message timestamp.
     /// @return The header stamp as a Time value.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_model_info_get_stamp_sec(handle()),
-                ros_model_info_get_stamp_nanosec(handle())};
+        return {edgefirst_msgs_model_info_get_stamp_sec(handle()),
+                edgefirst_msgs_model_info_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_model_info_get_frame_id(handle());
+        return edgefirst_msgs_model_info_get_frame_id(handle());
     }
     /// @brief Model architecture type (e.g. "detection", "segmentation").
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view model_type() const noexcept {
-        return ros_model_info_get_model_type(handle());
+        return edgefirst_msgs_model_info_get_model_type(handle());
     }
     /// @brief Model serialization format (e.g. "tflite", "onnx").
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view model_format() const noexcept {
-        return ros_model_info_get_model_format(handle());
+        return edgefirst_msgs_model_info_get_model_format(handle());
     }
     /// @brief Human-readable model name.
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view model_name() const noexcept {
-        return ros_model_info_get_model_name(handle());
+        return edgefirst_msgs_model_info_get_model_name(handle());
     }
     /// @brief Numeric input tensor dtype identifier (model-specific).
     /// @return The input type code from the handle.
     [[nodiscard]] std::uint8_t input_type() const noexcept {
-        return ros_model_info_get_input_type(handle());
+        return edgefirst_msgs_model_info_get_input_type(handle());
     }
     /// @brief Numeric output tensor dtype identifier (model-specific).
     /// @return The output type code from the handle.
     [[nodiscard]] std::uint8_t output_type() const noexcept {
-        return ros_model_info_get_output_type(handle());
+        return edgefirst_msgs_model_info_get_output_type(handle());
     }
     /// @brief Input tensor shape as an array of dimensions.
     /// @return A `span<const std::uint32_t>` borrowed from the CDR
@@ -5907,7 +6215,7 @@ public:
     ///          destroyed.
     [[nodiscard]] span<const std::uint32_t> input_shape() const noexcept {
         std::size_t n = 0;
-        auto* p = ros_model_info_get_input_shape(handle(), &n);
+        auto* p = edgefirst_msgs_model_info_get_input_shape(handle(), &n);
         return {p, n};
     }
     /// @brief Output tensor shape as an array of dimensions.
@@ -5917,13 +6225,13 @@ public:
     ///          destroyed.
     [[nodiscard]] span<const std::uint32_t> output_shape() const noexcept {
         std::size_t n = 0;
-        auto* p = ros_model_info_get_output_shape(handle(), &n);
+        auto* p = edgefirst_msgs_model_info_get_output_shape(handle(), &n);
         return {p, n};
     }
     /// @brief Number of class labels known to the model.
     /// @return The labels array length.
     [[nodiscard]] std::uint32_t labels_len() const noexcept {
-        return ros_model_info_get_labels_len(handle());
+        return edgefirst_msgs_model_info_get_labels_len(handle());
     }
     /// @brief Look up the class label at a given index.
     /// @param index Zero-based label index; must be less than
@@ -5931,15 +6239,18 @@ public:
     /// @return A `std::string_view` borrowed from the CDR buffer.
     /// @note Valid only while this view and its backing buffer are alive.
     [[nodiscard]] std::string_view label(std::uint32_t index) const noexcept {
-        return ros_model_info_get_label(handle(), index);
+        return edgefirst_msgs_model_info_get_label(handle(), index);
     }
 };
+} // namespace edgefirst_msgs
 
 // ---------------------------------------------------------------------------
 // sensor_msgs - MagneticField (view-only)
 // ---------------------------------------------------------------------------
 
 /// @brief Non-owning, move-only view over a `sensor_msgs::MagneticField`.
+
+namespace sensor_msgs {
 class MagneticFieldView
     : public detail::ViewBase<MagneticFieldView, detail::MagneticFieldTraits> {
     using Base = detail::ViewBase<MagneticFieldView, detail::MagneticFieldTraits>;
@@ -5950,28 +6261,31 @@ public:
     using Base::as_cdr;
 
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_magnetic_field_get_stamp_sec(handle()),
-                ros_magnetic_field_get_stamp_nanosec(handle())};
+        return {sensor_msgs_magnetic_field_get_stamp_sec(handle()),
+                sensor_msgs_magnetic_field_get_stamp_nanosec(handle())};
     }
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_magnetic_field_get_frame_id(handle());
+        return sensor_msgs_magnetic_field_get_frame_id(handle());
     }
     [[nodiscard]] Vector3 magnetic_field() const noexcept {
         Vector3 v;
-        ros_magnetic_field_get_magnetic_field(handle(), &v.x, &v.y, &v.z);
+        sensor_msgs_magnetic_field_get_magnetic_field(handle(), &v.x, &v.y, &v.z);
         return v;
     }
     [[nodiscard]] std::array<double, 9> magnetic_field_covariance() const noexcept {
         std::array<double, 9> cov{};
-        ros_magnetic_field_get_magnetic_field_covariance(handle(), cov.data());
+        sensor_msgs_magnetic_field_get_magnetic_field_covariance(handle(), cov.data());
         return cov;
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
 // sensor_msgs - FluidPressure (view-only)
 // ---------------------------------------------------------------------------
 
+
+namespace sensor_msgs {
 class FluidPressureView
     : public detail::ViewBase<FluidPressureView, detail::FluidPressureTraits> {
     using Base = detail::ViewBase<FluidPressureView, detail::FluidPressureTraits>;
@@ -5982,24 +6296,27 @@ public:
     using Base::as_cdr;
 
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_fluid_pressure_get_stamp_sec(handle()),
-                ros_fluid_pressure_get_stamp_nanosec(handle())};
+        return {sensor_msgs_fluid_pressure_get_stamp_sec(handle()),
+                sensor_msgs_fluid_pressure_get_stamp_nanosec(handle())};
     }
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_fluid_pressure_get_frame_id(handle());
+        return sensor_msgs_fluid_pressure_get_frame_id(handle());
     }
     [[nodiscard]] double fluid_pressure() const noexcept {
-        return ros_fluid_pressure_get_fluid_pressure(handle());
+        return sensor_msgs_fluid_pressure_get_fluid_pressure(handle());
     }
     [[nodiscard]] double variance() const noexcept {
-        return ros_fluid_pressure_get_variance(handle());
+        return sensor_msgs_fluid_pressure_get_variance(handle());
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
 // sensor_msgs - Temperature (view-only)
 // ---------------------------------------------------------------------------
 
+
+namespace sensor_msgs {
 class TemperatureView
     : public detail::ViewBase<TemperatureView, detail::TemperatureTraits> {
     using Base = detail::ViewBase<TemperatureView, detail::TemperatureTraits>;
@@ -6010,19 +6327,20 @@ public:
     using Base::as_cdr;
 
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_temperature_get_stamp_sec(handle()),
-                ros_temperature_get_stamp_nanosec(handle())};
+        return {sensor_msgs_temperature_get_stamp_sec(handle()),
+                sensor_msgs_temperature_get_stamp_nanosec(handle())};
     }
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_temperature_get_frame_id(handle());
+        return sensor_msgs_temperature_get_frame_id(handle());
     }
     [[nodiscard]] double temperature() const noexcept {
-        return ros_temperature_get_temperature(handle());
+        return sensor_msgs_temperature_get_temperature(handle());
     }
     [[nodiscard]] double variance() const noexcept {
-        return ros_temperature_get_variance(handle());
+        return sensor_msgs_temperature_get_variance(handle());
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
 // sensor_msgs - RelativeHumidity (view; construct via RelativeHumidityBuilder)
@@ -6034,6 +6352,8 @@ public:
 /// there is no owning value class; construct messages with
 /// `RelativeHumidityBuilder`, mirroring `TemperatureView` /
 /// `TemperatureBuilder`.
+
+namespace sensor_msgs {
 class RelativeHumidityView
     : public detail::ViewBase<RelativeHumidityView, detail::RelativeHumidityTraits> {
     using Base = detail::ViewBase<RelativeHumidityView, detail::RelativeHumidityTraits>;
@@ -6044,20 +6364,21 @@ public:
     using Base::as_cdr;
 
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_relative_humidity_get_stamp_sec(handle()),
-                ros_relative_humidity_get_stamp_nanosec(handle())};
+        return {sensor_msgs_relative_humidity_get_stamp_sec(handle()),
+                sensor_msgs_relative_humidity_get_stamp_nanosec(handle())};
     }
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_relative_humidity_get_frame_id(handle());
+        return sensor_msgs_relative_humidity_get_frame_id(handle());
     }
     /// @brief Relative humidity as a dimensionless ratio in [0, 1].
     [[nodiscard]] double relative_humidity() const noexcept {
-        return ros_relative_humidity_get_relative_humidity(handle());
+        return sensor_msgs_relative_humidity_get_relative_humidity(handle());
     }
     [[nodiscard]] double variance() const noexcept {
-        return ros_relative_humidity_get_variance(handle());
+        return sensor_msgs_relative_humidity_get_variance(handle());
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
 // sensor_msgs - TimeReference (view; construct via TimeReferenceBuilder)
@@ -6067,6 +6388,8 @@ public:
 ///
 /// Construct messages with `TimeReferenceBuilder` (the C API has no
 /// standalone `encode` entry point for this type).
+
+namespace sensor_msgs {
 class TimeReferenceView
     : public detail::ViewBase<TimeReferenceView, detail::TimeReferenceTraits> {
     using Base = detail::ViewBase<TimeReferenceView, detail::TimeReferenceTraits>;
@@ -6077,27 +6400,30 @@ public:
     using Base::as_cdr;
 
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_time_reference_get_stamp_sec(handle()),
-                ros_time_reference_get_stamp_nanosec(handle())};
+        return {sensor_msgs_time_reference_get_stamp_sec(handle()),
+                sensor_msgs_time_reference_get_stamp_nanosec(handle())};
     }
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_time_reference_get_frame_id(handle());
+        return sensor_msgs_time_reference_get_frame_id(handle());
     }
     /// @brief The referenced time (the time being reported by the source).
     [[nodiscard]] Time time_ref() const noexcept {
-        return {ros_time_reference_get_time_ref_sec(handle()),
-                ros_time_reference_get_time_ref_nanosec(handle())};
+        return {sensor_msgs_time_reference_get_time_ref_sec(handle()),
+                sensor_msgs_time_reference_get_time_ref_nanosec(handle())};
     }
     /// @brief The time source description (e.g. "GPS_UTC").
     [[nodiscard]] std::string_view source() const noexcept {
-        return ros_time_reference_get_source(handle());
+        return sensor_msgs_time_reference_get_source(handle());
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
 // sensor_msgs - BatteryState (view-only)
 // ---------------------------------------------------------------------------
 
+
+namespace sensor_msgs {
 class BatteryStateView
     : public detail::ViewBase<BatteryStateView, detail::BatteryStateTraits> {
     using Base = detail::ViewBase<BatteryStateView, detail::BatteryStateTraits>;
@@ -6135,70 +6461,73 @@ public:
     static constexpr std::uint8_t POWER_SUPPLY_TECHNOLOGY_LIMN    = 6;
 
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_battery_state_get_stamp_sec(handle()),
-                ros_battery_state_get_stamp_nanosec(handle())};
+        return {sensor_msgs_battery_state_get_stamp_sec(handle()),
+                sensor_msgs_battery_state_get_stamp_nanosec(handle())};
     }
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_battery_state_get_frame_id(handle());
+        return sensor_msgs_battery_state_get_frame_id(handle());
     }
     [[nodiscard]] float voltage() const noexcept {
-        return ros_battery_state_get_voltage(handle());
+        return sensor_msgs_battery_state_get_voltage(handle());
     }
     [[nodiscard]] float temperature() const noexcept {
-        return ros_battery_state_get_temperature(handle());
+        return sensor_msgs_battery_state_get_temperature(handle());
     }
     [[nodiscard]] float current() const noexcept {
-        return ros_battery_state_get_current(handle());
+        return sensor_msgs_battery_state_get_current(handle());
     }
     [[nodiscard]] float charge() const noexcept {
-        return ros_battery_state_get_charge(handle());
+        return sensor_msgs_battery_state_get_charge(handle());
     }
     [[nodiscard]] float capacity() const noexcept {
-        return ros_battery_state_get_capacity(handle());
+        return sensor_msgs_battery_state_get_capacity(handle());
     }
     [[nodiscard]] float design_capacity() const noexcept {
-        return ros_battery_state_get_design_capacity(handle());
+        return sensor_msgs_battery_state_get_design_capacity(handle());
     }
     [[nodiscard]] float percentage() const noexcept {
-        return ros_battery_state_get_percentage(handle());
+        return sensor_msgs_battery_state_get_percentage(handle());
     }
     [[nodiscard]] std::uint8_t power_supply_status() const noexcept {
-        return ros_battery_state_get_power_supply_status(handle());
+        return sensor_msgs_battery_state_get_power_supply_status(handle());
     }
     [[nodiscard]] std::uint8_t power_supply_health() const noexcept {
-        return ros_battery_state_get_power_supply_health(handle());
+        return sensor_msgs_battery_state_get_power_supply_health(handle());
     }
     [[nodiscard]] std::uint8_t power_supply_technology() const noexcept {
-        return ros_battery_state_get_power_supply_technology(handle());
+        return sensor_msgs_battery_state_get_power_supply_technology(handle());
     }
     [[nodiscard]] bool present() const noexcept {
-        return ros_battery_state_get_present(handle());
+        return sensor_msgs_battery_state_get_present(handle());
     }
     [[nodiscard]] std::uint32_t cell_voltage_len() const noexcept {
-        return ros_battery_state_get_cell_voltage_len(handle());
+        return sensor_msgs_battery_state_get_cell_voltage_len(handle());
     }
     /// @brief Copy up to `out.size()` cell voltages; returns total count.
     std::uint32_t cell_voltage(span<float> out) const noexcept {
-        return ros_battery_state_get_cell_voltage(handle(), out.data(), out.size());
+        return sensor_msgs_battery_state_get_cell_voltage(handle(), out.data(), out.size());
     }
     [[nodiscard]] std::uint32_t cell_temperature_len() const noexcept {
-        return ros_battery_state_get_cell_temperature_len(handle());
+        return sensor_msgs_battery_state_get_cell_temperature_len(handle());
     }
     std::uint32_t cell_temperature(span<float> out) const noexcept {
-        return ros_battery_state_get_cell_temperature(handle(), out.data(), out.size());
+        return sensor_msgs_battery_state_get_cell_temperature(handle(), out.data(), out.size());
     }
     [[nodiscard]] std::string_view location() const noexcept {
-        return ros_battery_state_get_location(handle());
+        return sensor_msgs_battery_state_get_location(handle());
     }
     [[nodiscard]] std::string_view serial_number() const noexcept {
-        return ros_battery_state_get_serial_number(handle());
+        return sensor_msgs_battery_state_get_serial_number(handle());
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
 // nav_msgs - Odometry
 // ---------------------------------------------------------------------------
 
+
+namespace nav_msgs {
 class OdometryView : public detail::ViewBase<OdometryView, detail::OdometryTraits> {
     using Base = detail::ViewBase<OdometryView, detail::OdometryTraits>;
     friend Base;
@@ -6208,32 +6537,33 @@ public:
     using Base::as_cdr;
 
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_odometry_get_stamp_sec(handle()),
-                ros_odometry_get_stamp_nanosec(handle())};
+        return {nav_msgs_odometry_get_stamp_sec(handle()),
+                nav_msgs_odometry_get_stamp_nanosec(handle())};
     }
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_odometry_get_frame_id(handle());
+        return nav_msgs_odometry_get_frame_id(handle());
     }
     [[nodiscard]] std::string_view child_frame_id() const noexcept {
-        return ros_odometry_get_child_frame_id(handle());
+        return nav_msgs_odometry_get_child_frame_id(handle());
     }
     [[nodiscard]] PoseWithCovariance pose() const noexcept {
         PoseWithCovariance p;
-        ros_odometry_get_pose(handle(),
+        nav_msgs_odometry_get_pose(handle(),
                               &p.pose.px, &p.pose.py, &p.pose.pz,
                               &p.pose.ox, &p.pose.oy, &p.pose.oz, &p.pose.ow);
-        ros_odometry_get_pose_covariance(handle(), p.covariance.data());
+        nav_msgs_odometry_get_pose_covariance(handle(), p.covariance.data());
         return p;
     }
     [[nodiscard]] TwistWithCovariance twist() const noexcept {
         TwistWithCovariance t;
-        ros_odometry_get_twist(handle(),
+        nav_msgs_odometry_get_twist(handle(),
                                &t.twist.lx, &t.twist.ly, &t.twist.lz,
                                &t.twist.ax, &t.twist.ay, &t.twist.az);
-        ros_odometry_get_twist_covariance(handle(), t.covariance.data());
+        nav_msgs_odometry_get_twist_covariance(handle(), t.covariance.data());
         return t;
     }
 };
+} // namespace nav_msgs
 
 // ---------------------------------------------------------------------------
 // nav_msgs - GridCells (view; construct via GridCellsBuilder)
@@ -6243,6 +6573,8 @@ public:
 ///
 /// Cell centre points are accessed by index via `cell()`; `size()` reports
 /// the count. Construct messages with `GridCellsBuilder`.
+
+namespace nav_msgs {
 class GridCellsView
     : public detail::ViewBase<GridCellsView, detail::GridCellsTraits> {
     using Base = detail::ViewBase<GridCellsView, detail::GridCellsTraits>;
@@ -6253,23 +6585,23 @@ public:
     using Base::as_cdr;
 
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_grid_cells_get_stamp_sec(handle()),
-                ros_grid_cells_get_stamp_nanosec(handle())};
+        return {nav_msgs_grid_cells_get_stamp_sec(handle()),
+                nav_msgs_grid_cells_get_stamp_nanosec(handle())};
     }
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_grid_cells_get_frame_id(handle());
+        return nav_msgs_grid_cells_get_frame_id(handle());
     }
     /// @brief Width of each cell in metres.
     [[nodiscard]] float cell_width() const noexcept {
-        return ros_grid_cells_get_cell_width(handle());
+        return nav_msgs_grid_cells_get_cell_width(handle());
     }
     /// @brief Height of each cell in metres.
     [[nodiscard]] float cell_height() const noexcept {
-        return ros_grid_cells_get_cell_height(handle());
+        return nav_msgs_grid_cells_get_cell_height(handle());
     }
     /// @brief Number of cell centre points.
     [[nodiscard]] std::size_t size() const noexcept {
-        return ros_grid_cells_get_len(handle());
+        return nav_msgs_grid_cells_get_len(handle());
     }
     /// @brief True when there are no cells.
     [[nodiscard]] bool empty() const noexcept { return size() == 0; }
@@ -6280,11 +6612,12 @@ public:
     ///         index is out of range.
     [[nodiscard]] expected<Point, Error> cell(std::size_t index) const noexcept {
         Point p;
-        if (ros_grid_cells_get_cell(handle(), index, &p.x, &p.y, &p.z) != 0)
-            return unexpected<Error>(Error::from_errno("ros_grid_cells_get_cell"));
+        if (nav_msgs_grid_cells_get_cell(handle(), index, &p.x, &p.y, &p.z) != 0)
+            return unexpected<Error>(Error::from_errno("nav_msgs_grid_cells_get_cell"));
         return p;
     }
 };
+} // namespace nav_msgs
 
 // ---------------------------------------------------------------------------
 // nav_msgs - OccupancyGrid (view; construct via OccupancyGridBuilder)
@@ -6295,6 +6628,8 @@ public:
 /// `data()` borrows the occupancy values directly from the backing CDR
 /// buffer (one `std::int8_t` per cell, row-major). Construct messages with
 /// `OccupancyGridBuilder`.
+
+namespace nav_msgs {
 class OccupancyGridView
     : public detail::ViewBase<OccupancyGridView, detail::OccupancyGridTraits> {
     using Base = detail::ViewBase<OccupancyGridView, detail::OccupancyGridTraits>;
@@ -6305,16 +6640,16 @@ public:
     using Base::as_cdr;
 
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_occupancy_grid_get_stamp_sec(handle()),
-                ros_occupancy_grid_get_stamp_nanosec(handle())};
+        return {nav_msgs_occupancy_grid_get_stamp_sec(handle()),
+                nav_msgs_occupancy_grid_get_stamp_nanosec(handle())};
     }
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_occupancy_grid_get_frame_id(handle());
+        return nav_msgs_occupancy_grid_get_frame_id(handle());
     }
     /// @brief The map metadata block (resolution, dimensions, origin).
     [[nodiscard]] MapMetaData info() const noexcept {
         MapMetaData m;
-        ros_occupancy_grid_get_info(handle(),
+        nav_msgs_occupancy_grid_get_info(handle(),
             &m.map_load_time.sec, &m.map_load_time.nanosec,
             &m.resolution, &m.width, &m.height,
             &m.origin.px, &m.origin.py, &m.origin.pz,
@@ -6323,7 +6658,7 @@ public:
     }
     /// @brief Number of occupancy cells (width * height).
     [[nodiscard]] std::size_t size() const noexcept {
-        return ros_occupancy_grid_get_data_len(handle());
+        return nav_msgs_occupancy_grid_get_data_len(handle());
     }
     /// @brief True when there are no occupancy cells.
     [[nodiscard]] bool empty() const noexcept { return size() == 0; }
@@ -6333,10 +6668,11 @@ public:
     ///         lifetime of this view. Values are in the ROS convention:
     ///         0..100 occupancy probability, -1 for unknown.
     [[nodiscard]] span<const std::int8_t> data() const noexcept {
-        return {ros_occupancy_grid_get_data(handle()),
-                ros_occupancy_grid_get_data_len(handle())};
+        return {nav_msgs_occupancy_grid_get_data(handle()),
+                nav_msgs_occupancy_grid_get_data_len(handle())};
     }
 };
+} // namespace nav_msgs
 
 // ---------------------------------------------------------------------------
 // nav_msgs - Path (view + forward iterator; construct via PathBuilder)
@@ -6357,6 +6693,8 @@ public:
 ///
 /// @warning Iterators (and the `std::string_view` `frame_id` they yield)
 ///          borrow the same CDR buffer as the view and must not outlive it.
+
+namespace nav_msgs {
 class PathView : public detail::ViewBase<PathView, detail::PathTraits> {
     using Base = detail::ViewBase<PathView, detail::PathTraits>;
     friend Base;
@@ -6376,15 +6714,15 @@ public:
     };
 
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_path_get_stamp_sec(handle()),
-                ros_path_get_stamp_nanosec(handle())};
+        return {nav_msgs_path_get_stamp_sec(handle()),
+                nav_msgs_path_get_stamp_nanosec(handle())};
     }
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_path_get_frame_id(handle());
+        return nav_msgs_path_get_frame_id(handle());
     }
     /// @brief Number of poses in the path.
     [[nodiscard]] std::size_t size() const noexcept {
-        return ros_path_get_len(handle());
+        return nav_msgs_path_get_len(handle());
     }
     /// @brief True when the path has no poses.
     [[nodiscard]] bool empty() const noexcept { return size() == 0; }
@@ -6397,18 +6735,18 @@ public:
     pose(std::size_t index) const noexcept {
         PoseStamped ps;
         const char* fid = nullptr;
-        if (ros_path_get_pose(handle(), index,
+        if (nav_msgs_path_get_pose(handle(), index,
                               &ps.stamp.sec, &ps.stamp.nanosec, &fid,
                               &ps.pose.px, &ps.pose.py, &ps.pose.pz,
                               &ps.pose.ox, &ps.pose.oy, &ps.pose.oz, &ps.pose.ow) != 0)
-            return unexpected<Error>(Error::from_errno("ros_path_get_pose"));
+            return unexpected<Error>(Error::from_errno("nav_msgs_path_get_pose"));
         ps.frame_id = fid ? std::string_view{fid} : std::string_view{};
         return ps;
     }
 
     /// @brief Single-pass forward input iterator over a Path's poses.
     ///
-    /// Wraps the C `ros_path_iter_*` cursor so that range-based iteration is
+    /// Wraps the C `nav_msgs_path_iter_*` cursor so that range-based iteration is
     /// a single O(n) pass. The iterator owns the underlying cursor uniquely
     /// (move-only, like the views it borrows from) and frees it on
     /// destruction.
@@ -6428,8 +6766,8 @@ public:
         iterator() noexcept = default;
 
         /// @brief Begin a fresh cursor over @p view and load the first pose.
-        explicit iterator(const ros_path_t* view) noexcept
-            : it_(ros_path_iter_new(view)) { advance(); }
+        explicit iterator(const nav_msgs_path_t* view) noexcept
+            : it_(nav_msgs_path_iter_new(view)) { advance(); }
 
         iterator(const iterator&)            = delete;
         iterator& operator=(const iterator&) = delete;
@@ -6440,13 +6778,13 @@ public:
         }
         iterator& operator=(iterator&& o) noexcept {
             if (this != &o) {
-                if (it_) ros_path_iter_free(it_);
+                if (it_) nav_msgs_path_iter_free(it_);
                 it_ = o.it_; cur_ = o.cur_; done_ = o.done_;
                 o.it_ = nullptr; o.done_ = true;
             }
             return *this;
         }
-        ~iterator() { if (it_) ros_path_iter_free(it_); }
+        ~iterator() { if (it_) nav_msgs_path_iter_free(it_); }
 
         [[nodiscard]] reference operator*() const noexcept { return cur_; }
         [[nodiscard]] pointer operator->() const noexcept { return &cur_; }
@@ -6465,7 +6803,7 @@ public:
     private:
         void advance() noexcept {
             const char* fid = nullptr;
-            int r = ros_path_iter_next(it_,
+            int r = nav_msgs_path_iter_next(it_,
                         &cur_.stamp.sec, &cur_.stamp.nanosec, &fid,
                         &cur_.pose.px, &cur_.pose.py, &cur_.pose.pz,
                         &cur_.pose.ox, &cur_.pose.oy, &cur_.pose.oz, &cur_.pose.ow);
@@ -6477,7 +6815,7 @@ public:
             }
         }
 
-        ros_path_iter_t* it_{nullptr};
+        nav_msgs_path_iter_t* it_{nullptr};
         PoseStamped      cur_{};
         bool             done_{true};
     };
@@ -6487,11 +6825,14 @@ public:
     /// @brief Past-the-end sentinel.
     [[nodiscard]] iterator end() const noexcept { return iterator{}; }
 };
+} // namespace nav_msgs
 
 // ---------------------------------------------------------------------------
 // edgefirst_msgs - Vibration (view-only)
 // ---------------------------------------------------------------------------
 
+
+namespace edgefirst_msgs {
 class VibrationView : public detail::ViewBase<VibrationView, detail::VibrationTraits> {
     using Base = detail::ViewBase<VibrationView, detail::VibrationTraits>;
     friend Base;
@@ -6516,37 +6857,38 @@ public:
     static constexpr std::uint8_t UNIT_DISPLACEMENT_MIL  = 6;
 
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_vibration_get_stamp_sec(handle()),
-                ros_vibration_get_stamp_nanosec(handle())};
+        return {edgefirst_msgs_vibration_get_stamp_sec(handle()),
+                edgefirst_msgs_vibration_get_stamp_nanosec(handle())};
     }
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_vibration_get_frame_id(handle());
+        return edgefirst_msgs_vibration_get_frame_id(handle());
     }
     [[nodiscard]] std::uint8_t measurement_type() const noexcept {
-        return ros_vibration_get_measurement_type(handle());
+        return edgefirst_msgs_vibration_get_measurement_type(handle());
     }
     [[nodiscard]] std::uint8_t unit() const noexcept {
-        return ros_vibration_get_unit(handle());
+        return edgefirst_msgs_vibration_get_unit(handle());
     }
     [[nodiscard]] float band_lower_hz() const noexcept {
-        return ros_vibration_get_band_lower_hz(handle());
+        return edgefirst_msgs_vibration_get_band_lower_hz(handle());
     }
     [[nodiscard]] float band_upper_hz() const noexcept {
-        return ros_vibration_get_band_upper_hz(handle());
+        return edgefirst_msgs_vibration_get_band_upper_hz(handle());
     }
     [[nodiscard]] Vector3 vibration() const noexcept {
         Vector3 v;
-        ros_vibration_get_vibration(handle(), &v.x, &v.y, &v.z);
+        edgefirst_msgs_vibration_get_vibration(handle(), &v.x, &v.y, &v.z);
         return v;
     }
     [[nodiscard]] std::uint32_t clipping_len() const noexcept {
-        return ros_vibration_get_clipping_len(handle());
+        return edgefirst_msgs_vibration_get_clipping_len(handle());
     }
     /// @brief Copy up to `out.size()` clipping counters; returns total count.
     std::uint32_t clipping(span<std::uint32_t> out) const noexcept {
-        return ros_vibration_get_clipping(handle(), out.data(), out.size());
+        return edgefirst_msgs_vibration_get_clipping(handle(), out.data(), out.size());
     }
 };
+} // namespace edgefirst_msgs
 
 // ============================================================================
 // Builder types — fluent RAII wrappers around the C builder API
@@ -6569,11 +6911,13 @@ public:
 /// @brief Fluent builder for `std_msgs::Header` messages.
 ///
 /// @code{.cpp}
-/// auto b = ef::HeaderBuilder::create();
+/// auto b = std_msgs::HeaderBuilder::create();
 /// if (!b) { /* handle error */ }
 /// b->stamp({10, 0}).frame_id("camera");
 /// auto r = b->build();
 /// @endcode
+
+namespace std_msgs {
 class HeaderBuilder
     : public detail::BuilderBase<HeaderBuilder, detail::HeaderBuilderTraits> {
     using Base = detail::BuilderBase<HeaderBuilder, detail::HeaderBuilderTraits>;
@@ -6586,22 +6930,25 @@ public:
 
     /// @brief Set the stamp field.
     HeaderBuilder& stamp(Time t) noexcept {
-        ros_header_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        std_msgs_header_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     /// @brief Set the frame_id field (string copied into builder).
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_header_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_header_builder_set_frame_id"));
+        if (std_msgs_header_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("std_msgs_header_builder_set_frame_id"));
         return {};
     }
 };
+} // namespace std_msgs
 
 // ---------------------------------------------------------------------------
 // sensor_msgs - ImageBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `sensor_msgs::Image` messages.
+
+namespace sensor_msgs {
 class ImageBuilder
     : public detail::BuilderBase<ImageBuilder, detail::ImageBuilderTraits> {
     using Base = detail::BuilderBase<ImageBuilder, detail::ImageBuilderTraits>;
@@ -6613,46 +6960,49 @@ public:
     using Base::encode_into;
 
     ImageBuilder& stamp(Time t) noexcept {
-        ros_image_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        sensor_msgs_image_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_image_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_image_builder_set_frame_id"));
+        if (sensor_msgs_image_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_image_builder_set_frame_id"));
         return {};
     }
     ImageBuilder& height(std::uint32_t v) noexcept {
-        ros_image_builder_set_height(ptr(), v); return *this;
+        sensor_msgs_image_builder_set_height(ptr(), v); return *this;
     }
     ImageBuilder& width(std::uint32_t v) noexcept {
-        ros_image_builder_set_width(ptr(), v); return *this;
+        sensor_msgs_image_builder_set_width(ptr(), v); return *this;
     }
     [[nodiscard]] expected<void, Error> encoding(const char* s) noexcept {
-        if (ros_image_builder_set_encoding(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_image_builder_set_encoding"));
+        if (sensor_msgs_image_builder_set_encoding(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_image_builder_set_encoding"));
         return {};
     }
     ImageBuilder& is_bigendian(std::uint8_t v) noexcept {
-        ros_image_builder_set_is_bigendian(ptr(), v); return *this;
+        sensor_msgs_image_builder_set_is_bigendian(ptr(), v); return *this;
     }
     ImageBuilder& step(std::uint32_t v) noexcept {
-        ros_image_builder_set_step(ptr(), v); return *this;
+        sensor_msgs_image_builder_set_step(ptr(), v); return *this;
     }
     /// @brief Set the pixel data (BORROWED — must remain valid until
     ///        next setter, build, encode_into, or destruction).
     [[nodiscard]] expected<void, Error>
     data(span<const std::uint8_t> d) noexcept {
-        if (ros_image_builder_set_data(ptr(), d.data(), d.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_image_builder_set_data"));
+        if (sensor_msgs_image_builder_set_data(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_image_builder_set_data"));
         return {};
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
 // sensor_msgs - CompressedImageBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `sensor_msgs::CompressedImage` messages.
+
+namespace sensor_msgs {
 class CompressedImageBuilder
     : public detail::BuilderBase<CompressedImageBuilder,
                                  detail::CompressedImageBuilderTraits> {
@@ -6666,32 +7016,35 @@ public:
     using Base::encode_into;
 
     CompressedImageBuilder& stamp(Time t) noexcept {
-        ros_compressed_image_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        sensor_msgs_compressed_image_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_compressed_image_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_compressed_image_builder_set_frame_id"));
+        if (sensor_msgs_compressed_image_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_compressed_image_builder_set_frame_id"));
         return {};
     }
     [[nodiscard]] expected<void, Error> format(const char* s) noexcept {
-        if (ros_compressed_image_builder_set_format(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_compressed_image_builder_set_format"));
+        if (sensor_msgs_compressed_image_builder_set_format(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_compressed_image_builder_set_format"));
         return {};
     }
     [[nodiscard]] expected<void, Error>
     data(span<const std::uint8_t> d) noexcept {
-        if (ros_compressed_image_builder_set_data(ptr(), d.data(), d.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_compressed_image_builder_set_data"));
+        if (sensor_msgs_compressed_image_builder_set_data(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_compressed_image_builder_set_data"));
         return {};
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
 // sensor_msgs - ImuBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `sensor_msgs::Imu` messages.
+
+namespace sensor_msgs {
 class ImuBuilder
     : public detail::BuilderBase<ImuBuilder, detail::ImuBuilderTraits> {
     using Base = detail::BuilderBase<ImuBuilder, detail::ImuBuilderTraits>;
@@ -6703,51 +7056,54 @@ public:
     using Base::encode_into;
 
     ImuBuilder& stamp(Time t) noexcept {
-        ros_imu_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        sensor_msgs_imu_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_imu_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_imu_builder_set_frame_id"));
+        if (sensor_msgs_imu_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_imu_builder_set_frame_id"));
         return {};
     }
     ImuBuilder& orientation(Quaternion q) noexcept {
-        ros_imu_builder_set_orientation(ptr(), q.x, q.y, q.z, q.w);
+        sensor_msgs_imu_builder_set_orientation(ptr(), q.x, q.y, q.z, q.w);
         return *this;
     }
     [[nodiscard]] expected<void, Error>
     orientation_covariance(const std::array<double, 9>& cov) noexcept {
-        if (ros_imu_builder_set_orientation_covariance(ptr(), cov.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_imu_builder_set_orientation_covariance"));
+        if (sensor_msgs_imu_builder_set_orientation_covariance(ptr(), cov.data()) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_imu_builder_set_orientation_covariance"));
         return {};
     }
     ImuBuilder& angular_velocity(Vector3 v) noexcept {
-        ros_imu_builder_set_angular_velocity(ptr(), v.x, v.y, v.z);
+        sensor_msgs_imu_builder_set_angular_velocity(ptr(), v.x, v.y, v.z);
         return *this;
     }
     [[nodiscard]] expected<void, Error>
     angular_velocity_covariance(const std::array<double, 9>& cov) noexcept {
-        if (ros_imu_builder_set_angular_velocity_covariance(ptr(), cov.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_imu_builder_set_angular_velocity_covariance"));
+        if (sensor_msgs_imu_builder_set_angular_velocity_covariance(ptr(), cov.data()) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_imu_builder_set_angular_velocity_covariance"));
         return {};
     }
     ImuBuilder& linear_acceleration(Vector3 v) noexcept {
-        ros_imu_builder_set_linear_acceleration(ptr(), v.x, v.y, v.z);
+        sensor_msgs_imu_builder_set_linear_acceleration(ptr(), v.x, v.y, v.z);
         return *this;
     }
     [[nodiscard]] expected<void, Error>
     linear_acceleration_covariance(const std::array<double, 9>& cov) noexcept {
-        if (ros_imu_builder_set_linear_acceleration_covariance(ptr(), cov.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_imu_builder_set_linear_acceleration_covariance"));
+        if (sensor_msgs_imu_builder_set_linear_acceleration_covariance(ptr(), cov.data()) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_imu_builder_set_linear_acceleration_covariance"));
         return {};
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
 // sensor_msgs - NavSatFixBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `sensor_msgs::NavSatFix` messages.
+
+namespace sensor_msgs {
 class NavSatFixBuilder
     : public detail::BuilderBase<NavSatFixBuilder,
                                  detail::NavSatFixBuilderTraits> {
@@ -6761,44 +7117,47 @@ public:
     using Base::encode_into;
 
     NavSatFixBuilder& stamp(Time t) noexcept {
-        ros_nav_sat_fix_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        sensor_msgs_nav_sat_fix_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_nav_sat_fix_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_nav_sat_fix_builder_set_frame_id"));
+        if (sensor_msgs_nav_sat_fix_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_nav_sat_fix_builder_set_frame_id"));
         return {};
     }
     NavSatFixBuilder& status(std::int8_t st, std::uint16_t svc) noexcept {
-        ros_nav_sat_fix_builder_set_status(ptr(), st, svc);
+        sensor_msgs_nav_sat_fix_builder_set_status(ptr(), st, svc);
         return *this;
     }
     NavSatFixBuilder& latitude(double v) noexcept {
-        ros_nav_sat_fix_builder_set_latitude(ptr(), v); return *this;
+        sensor_msgs_nav_sat_fix_builder_set_latitude(ptr(), v); return *this;
     }
     NavSatFixBuilder& longitude(double v) noexcept {
-        ros_nav_sat_fix_builder_set_longitude(ptr(), v); return *this;
+        sensor_msgs_nav_sat_fix_builder_set_longitude(ptr(), v); return *this;
     }
     NavSatFixBuilder& altitude(double v) noexcept {
-        ros_nav_sat_fix_builder_set_altitude(ptr(), v); return *this;
+        sensor_msgs_nav_sat_fix_builder_set_altitude(ptr(), v); return *this;
     }
     [[nodiscard]] expected<void, Error>
     position_covariance(const std::array<double, 9>& cov) noexcept {
-        if (ros_nav_sat_fix_builder_set_position_covariance(ptr(), cov.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_nav_sat_fix_builder_set_position_covariance"));
+        if (sensor_msgs_nav_sat_fix_builder_set_position_covariance(ptr(), cov.data()) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_nav_sat_fix_builder_set_position_covariance"));
         return {};
     }
     NavSatFixBuilder& position_covariance_type(std::uint8_t v) noexcept {
-        ros_nav_sat_fix_builder_set_position_covariance_type(ptr(), v);
+        sensor_msgs_nav_sat_fix_builder_set_position_covariance_type(ptr(), v);
         return *this;
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
 // sensor_msgs - PointFieldBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `sensor_msgs::PointField` messages.
+
+namespace sensor_msgs {
 class PointFieldBuilder
     : public detail::BuilderBase<PointFieldBuilder,
                                  detail::PointFieldBuilderTraits> {
@@ -6812,26 +7171,29 @@ public:
     using Base::encode_into;
 
     [[nodiscard]] expected<void, Error> name(const char* s) noexcept {
-        if (ros_point_field_builder_set_name(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_point_field_builder_set_name"));
+        if (sensor_msgs_point_field_builder_set_name(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_point_field_builder_set_name"));
         return {};
     }
     PointFieldBuilder& offset(std::uint32_t v) noexcept {
-        ros_point_field_builder_set_offset(ptr(), v); return *this;
+        sensor_msgs_point_field_builder_set_offset(ptr(), v); return *this;
     }
     PointFieldBuilder& datatype(std::uint8_t v) noexcept {
-        ros_point_field_builder_set_datatype(ptr(), v); return *this;
+        sensor_msgs_point_field_builder_set_datatype(ptr(), v); return *this;
     }
     PointFieldBuilder& count(std::uint32_t v) noexcept {
-        ros_point_field_builder_set_count(ptr(), v); return *this;
+        sensor_msgs_point_field_builder_set_count(ptr(), v); return *this;
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
 // sensor_msgs - PointCloud2Builder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `sensor_msgs::PointCloud2` messages.
+
+namespace sensor_msgs {
 class PointCloud2Builder
     : public detail::BuilderBase<PointCloud2Builder,
                                  detail::PointCloud2BuilderTraits> {
@@ -6845,54 +7207,57 @@ public:
     using Base::encode_into;
 
     PointCloud2Builder& stamp(Time t) noexcept {
-        ros_point_cloud2_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        sensor_msgs_point_cloud2_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_point_cloud2_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_point_cloud2_builder_set_frame_id"));
+        if (sensor_msgs_point_cloud2_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_point_cloud2_builder_set_frame_id"));
         return {};
     }
     PointCloud2Builder& height(std::uint32_t v) noexcept {
-        ros_point_cloud2_builder_set_height(ptr(), v); return *this;
+        sensor_msgs_point_cloud2_builder_set_height(ptr(), v); return *this;
     }
     PointCloud2Builder& width(std::uint32_t v) noexcept {
-        ros_point_cloud2_builder_set_width(ptr(), v); return *this;
+        sensor_msgs_point_cloud2_builder_set_width(ptr(), v); return *this;
     }
     /// @brief Set the field descriptors (BORROWED — array and each
     ///        element's `name` must remain valid until next setter/build/free).
     [[nodiscard]] expected<void, Error>
-    fields(span<const ros_point_field_elem_t> f) noexcept {
-        if (ros_point_cloud2_builder_set_fields(ptr(), f.data(), f.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_point_cloud2_builder_set_fields"));
+    fields(span<const sensor_msgs_point_field_elem_t> f) noexcept {
+        if (sensor_msgs_point_cloud2_builder_set_fields(ptr(), f.data(), f.size()) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_point_cloud2_builder_set_fields"));
         return {};
     }
     PointCloud2Builder& is_bigendian(bool v) noexcept {
-        ros_point_cloud2_builder_set_is_bigendian(ptr(), v); return *this;
+        sensor_msgs_point_cloud2_builder_set_is_bigendian(ptr(), v); return *this;
     }
     PointCloud2Builder& point_step(std::uint32_t v) noexcept {
-        ros_point_cloud2_builder_set_point_step(ptr(), v); return *this;
+        sensor_msgs_point_cloud2_builder_set_point_step(ptr(), v); return *this;
     }
     PointCloud2Builder& row_step(std::uint32_t v) noexcept {
-        ros_point_cloud2_builder_set_row_step(ptr(), v); return *this;
+        sensor_msgs_point_cloud2_builder_set_row_step(ptr(), v); return *this;
     }
     /// @brief Set the data bulk (BORROWED).
     [[nodiscard]] expected<void, Error>
     data(span<const std::uint8_t> d) noexcept {
-        if (ros_point_cloud2_builder_set_data(ptr(), d.data(), d.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_point_cloud2_builder_set_data"));
+        if (sensor_msgs_point_cloud2_builder_set_data(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_point_cloud2_builder_set_data"));
         return {};
     }
     PointCloud2Builder& is_dense(bool v) noexcept {
-        ros_point_cloud2_builder_set_is_dense(ptr(), v); return *this;
+        sensor_msgs_point_cloud2_builder_set_is_dense(ptr(), v); return *this;
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
 // sensor_msgs - CameraInfoBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `sensor_msgs::CameraInfo` messages.
+
+namespace sensor_msgs {
 class CameraInfoBuilder
     : public detail::BuilderBase<CameraInfoBuilder,
                                  detail::CameraInfoBuilderTraits> {
@@ -6906,71 +7271,74 @@ public:
     using Base::encode_into;
 
     CameraInfoBuilder& stamp(Time t) noexcept {
-        ros_camera_info_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        sensor_msgs_camera_info_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_camera_info_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_camera_info_builder_set_frame_id"));
+        if (sensor_msgs_camera_info_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_camera_info_builder_set_frame_id"));
         return {};
     }
     CameraInfoBuilder& height(std::uint32_t v) noexcept {
-        ros_camera_info_builder_set_height(ptr(), v); return *this;
+        sensor_msgs_camera_info_builder_set_height(ptr(), v); return *this;
     }
     CameraInfoBuilder& width(std::uint32_t v) noexcept {
-        ros_camera_info_builder_set_width(ptr(), v); return *this;
+        sensor_msgs_camera_info_builder_set_width(ptr(), v); return *this;
     }
     [[nodiscard]] expected<void, Error>
     distortion_model(const char* s) noexcept {
-        if (ros_camera_info_builder_set_distortion_model(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_camera_info_builder_set_distortion_model"));
+        if (sensor_msgs_camera_info_builder_set_distortion_model(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_camera_info_builder_set_distortion_model"));
         return {};
     }
     [[nodiscard]] expected<void, Error>
     d(span<const double> v) noexcept {
-        if (ros_camera_info_builder_set_d(ptr(), v.data(), v.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_camera_info_builder_set_d"));
+        if (sensor_msgs_camera_info_builder_set_d(ptr(), v.data(), v.size()) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_camera_info_builder_set_d"));
         return {};
     }
     [[nodiscard]] expected<void, Error>
     k(const std::array<double, 9>& v) noexcept {
-        if (ros_camera_info_builder_set_k(ptr(), v.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_camera_info_builder_set_k"));
+        if (sensor_msgs_camera_info_builder_set_k(ptr(), v.data()) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_camera_info_builder_set_k"));
         return {};
     }
     [[nodiscard]] expected<void, Error>
     r(const std::array<double, 9>& v) noexcept {
-        if (ros_camera_info_builder_set_r(ptr(), v.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_camera_info_builder_set_r"));
+        if (sensor_msgs_camera_info_builder_set_r(ptr(), v.data()) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_camera_info_builder_set_r"));
         return {};
     }
     [[nodiscard]] expected<void, Error>
     p(const std::array<double, 12>& v) noexcept {
-        if (ros_camera_info_builder_set_p(ptr(), v.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_camera_info_builder_set_p"));
+        if (sensor_msgs_camera_info_builder_set_p(ptr(), v.data()) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_camera_info_builder_set_p"));
         return {};
     }
     CameraInfoBuilder& binning_x(std::uint32_t v) noexcept {
-        ros_camera_info_builder_set_binning_x(ptr(), v); return *this;
+        sensor_msgs_camera_info_builder_set_binning_x(ptr(), v); return *this;
     }
     CameraInfoBuilder& binning_y(std::uint32_t v) noexcept {
-        ros_camera_info_builder_set_binning_y(ptr(), v); return *this;
+        sensor_msgs_camera_info_builder_set_binning_y(ptr(), v); return *this;
     }
     /// @brief Set the RegionOfInterest.
     CameraInfoBuilder& roi(std::uint32_t x_offset, std::uint32_t y_offset,
                            std::uint32_t h, std::uint32_t w,
                            bool do_rectify) noexcept {
-        ros_camera_info_builder_set_roi(ptr(), x_offset, y_offset, h, w,
+        sensor_msgs_camera_info_builder_set_roi(ptr(), x_offset, y_offset, h, w,
                                         static_cast<std::uint8_t>(do_rectify));
         return *this;
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
 // sensor_msgs - MagneticFieldBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `sensor_msgs::MagneticField` messages.
+
+namespace sensor_msgs {
 class MagneticFieldBuilder
     : public detail::BuilderBase<MagneticFieldBuilder,
                                  detail::MagneticFieldBuilderTraits> {
@@ -6984,31 +7352,34 @@ public:
     using Base::encode_into;
 
     MagneticFieldBuilder& stamp(Time t) noexcept {
-        ros_magnetic_field_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        sensor_msgs_magnetic_field_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_magnetic_field_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_magnetic_field_builder_set_frame_id"));
+        if (sensor_msgs_magnetic_field_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_magnetic_field_builder_set_frame_id"));
         return {};
     }
     MagneticFieldBuilder& magnetic_field(Vector3 v) noexcept {
-        ros_magnetic_field_builder_set_magnetic_field(ptr(), v.x, v.y, v.z);
+        sensor_msgs_magnetic_field_builder_set_magnetic_field(ptr(), v.x, v.y, v.z);
         return *this;
     }
     [[nodiscard]] expected<void, Error>
     magnetic_field_covariance(const std::array<double, 9>& cov) noexcept {
-        if (ros_magnetic_field_builder_set_magnetic_field_covariance(ptr(), cov.data()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_magnetic_field_builder_set_magnetic_field_covariance"));
+        if (sensor_msgs_magnetic_field_builder_set_magnetic_field_covariance(ptr(), cov.data()) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_magnetic_field_builder_set_magnetic_field_covariance"));
         return {};
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
 // sensor_msgs - FluidPressureBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `sensor_msgs::FluidPressure` messages.
+
+namespace sensor_msgs {
 class FluidPressureBuilder
     : public detail::BuilderBase<FluidPressureBuilder,
                                  detail::FluidPressureBuilderTraits> {
@@ -7022,27 +7393,30 @@ public:
     using Base::encode_into;
 
     FluidPressureBuilder& stamp(Time t) noexcept {
-        ros_fluid_pressure_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        sensor_msgs_fluid_pressure_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_fluid_pressure_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_fluid_pressure_builder_set_frame_id"));
+        if (sensor_msgs_fluid_pressure_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_fluid_pressure_builder_set_frame_id"));
         return {};
     }
     FluidPressureBuilder& fluid_pressure(double v) noexcept {
-        ros_fluid_pressure_builder_set_fluid_pressure(ptr(), v); return *this;
+        sensor_msgs_fluid_pressure_builder_set_fluid_pressure(ptr(), v); return *this;
     }
     FluidPressureBuilder& variance(double v) noexcept {
-        ros_fluid_pressure_builder_set_variance(ptr(), v); return *this;
+        sensor_msgs_fluid_pressure_builder_set_variance(ptr(), v); return *this;
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
 // sensor_msgs - TemperatureBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `sensor_msgs::Temperature` messages.
+
+namespace sensor_msgs {
 class TemperatureBuilder
     : public detail::BuilderBase<TemperatureBuilder,
                                  detail::TemperatureBuilderTraits> {
@@ -7056,27 +7430,30 @@ public:
     using Base::encode_into;
 
     TemperatureBuilder& stamp(Time t) noexcept {
-        ros_temperature_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        sensor_msgs_temperature_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_temperature_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_temperature_builder_set_frame_id"));
+        if (sensor_msgs_temperature_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_temperature_builder_set_frame_id"));
         return {};
     }
     TemperatureBuilder& temperature(double v) noexcept {
-        ros_temperature_builder_set_temperature(ptr(), v); return *this;
+        sensor_msgs_temperature_builder_set_temperature(ptr(), v); return *this;
     }
     TemperatureBuilder& variance(double v) noexcept {
-        ros_temperature_builder_set_variance(ptr(), v); return *this;
+        sensor_msgs_temperature_builder_set_variance(ptr(), v); return *this;
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
 // sensor_msgs - BatteryStateBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `sensor_msgs::BatteryState` messages.
+
+namespace sensor_msgs {
 class BatteryStateBuilder
     : public detail::BuilderBase<BatteryStateBuilder,
                                  detail::BatteryStateBuilderTraits> {
@@ -7090,76 +7467,79 @@ public:
     using Base::encode_into;
 
     BatteryStateBuilder& stamp(Time t) noexcept {
-        ros_battery_state_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        sensor_msgs_battery_state_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_battery_state_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_battery_state_builder_set_frame_id"));
+        if (sensor_msgs_battery_state_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_battery_state_builder_set_frame_id"));
         return {};
     }
     BatteryStateBuilder& voltage(float v) noexcept {
-        ros_battery_state_builder_set_voltage(ptr(), v); return *this;
+        sensor_msgs_battery_state_builder_set_voltage(ptr(), v); return *this;
     }
     BatteryStateBuilder& temperature(float v) noexcept {
-        ros_battery_state_builder_set_temperature(ptr(), v); return *this;
+        sensor_msgs_battery_state_builder_set_temperature(ptr(), v); return *this;
     }
     BatteryStateBuilder& current(float v) noexcept {
-        ros_battery_state_builder_set_current(ptr(), v); return *this;
+        sensor_msgs_battery_state_builder_set_current(ptr(), v); return *this;
     }
     BatteryStateBuilder& charge(float v) noexcept {
-        ros_battery_state_builder_set_charge(ptr(), v); return *this;
+        sensor_msgs_battery_state_builder_set_charge(ptr(), v); return *this;
     }
     BatteryStateBuilder& capacity(float v) noexcept {
-        ros_battery_state_builder_set_capacity(ptr(), v); return *this;
+        sensor_msgs_battery_state_builder_set_capacity(ptr(), v); return *this;
     }
     BatteryStateBuilder& design_capacity(float v) noexcept {
-        ros_battery_state_builder_set_design_capacity(ptr(), v); return *this;
+        sensor_msgs_battery_state_builder_set_design_capacity(ptr(), v); return *this;
     }
     BatteryStateBuilder& percentage(float v) noexcept {
-        ros_battery_state_builder_set_percentage(ptr(), v); return *this;
+        sensor_msgs_battery_state_builder_set_percentage(ptr(), v); return *this;
     }
     BatteryStateBuilder& power_supply_status(std::uint8_t v) noexcept {
-        ros_battery_state_builder_set_power_supply_status(ptr(), v); return *this;
+        sensor_msgs_battery_state_builder_set_power_supply_status(ptr(), v); return *this;
     }
     BatteryStateBuilder& power_supply_health(std::uint8_t v) noexcept {
-        ros_battery_state_builder_set_power_supply_health(ptr(), v); return *this;
+        sensor_msgs_battery_state_builder_set_power_supply_health(ptr(), v); return *this;
     }
     BatteryStateBuilder& power_supply_technology(std::uint8_t v) noexcept {
-        ros_battery_state_builder_set_power_supply_technology(ptr(), v); return *this;
+        sensor_msgs_battery_state_builder_set_power_supply_technology(ptr(), v); return *this;
     }
     BatteryStateBuilder& present(bool v) noexcept {
-        ros_battery_state_builder_set_present(ptr(), v); return *this;
+        sensor_msgs_battery_state_builder_set_present(ptr(), v); return *this;
     }
     [[nodiscard]] expected<void, Error>
     cell_voltage(span<const float> v) noexcept {
-        if (ros_battery_state_builder_set_cell_voltage(ptr(), v.data(), v.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_battery_state_builder_set_cell_voltage"));
+        if (sensor_msgs_battery_state_builder_set_cell_voltage(ptr(), v.data(), v.size()) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_battery_state_builder_set_cell_voltage"));
         return {};
     }
     [[nodiscard]] expected<void, Error>
     cell_temperature(span<const float> v) noexcept {
-        if (ros_battery_state_builder_set_cell_temperature(ptr(), v.data(), v.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_battery_state_builder_set_cell_temperature"));
+        if (sensor_msgs_battery_state_builder_set_cell_temperature(ptr(), v.data(), v.size()) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_battery_state_builder_set_cell_temperature"));
         return {};
     }
     [[nodiscard]] expected<void, Error> location(const char* s) noexcept {
-        if (ros_battery_state_builder_set_location(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_battery_state_builder_set_location"));
+        if (sensor_msgs_battery_state_builder_set_location(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_battery_state_builder_set_location"));
         return {};
     }
     [[nodiscard]] expected<void, Error> serial_number(const char* s) noexcept {
-        if (ros_battery_state_builder_set_serial_number(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_battery_state_builder_set_serial_number"));
+        if (sensor_msgs_battery_state_builder_set_serial_number(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_battery_state_builder_set_serial_number"));
         return {};
     }
 };
+} // namespace sensor_msgs
 
 // ---------------------------------------------------------------------------
 // edgefirst_msgs - MaskBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `edgefirst_msgs::Mask` messages.
+
+namespace edgefirst_msgs {
 class MaskBuilder
     : public detail::BuilderBase<MaskBuilder, detail::MaskBuilderTraits> {
     using Base = detail::BuilderBase<MaskBuilder, detail::MaskBuilderTraits>;
@@ -7171,36 +7551,39 @@ public:
     using Base::encode_into;
 
     MaskBuilder& height(std::uint32_t v) noexcept {
-        ros_mask_builder_set_height(ptr(), v); return *this;
+        edgefirst_msgs_mask_builder_set_height(ptr(), v); return *this;
     }
     MaskBuilder& width(std::uint32_t v) noexcept {
-        ros_mask_builder_set_width(ptr(), v); return *this;
+        edgefirst_msgs_mask_builder_set_width(ptr(), v); return *this;
     }
     MaskBuilder& length(std::uint32_t v) noexcept {
-        ros_mask_builder_set_length(ptr(), v); return *this;
+        edgefirst_msgs_mask_builder_set_length(ptr(), v); return *this;
     }
     [[nodiscard]] expected<void, Error> encoding(const char* s) noexcept {
-        if (ros_mask_builder_set_encoding(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_mask_builder_set_encoding"));
+        if (edgefirst_msgs_mask_builder_set_encoding(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_mask_builder_set_encoding"));
         return {};
     }
     /// @brief Set mask payload (BORROWED).
     [[nodiscard]] expected<void, Error>
     mask(span<const std::uint8_t> d) noexcept {
-        if (ros_mask_builder_set_mask(ptr(), d.data(), d.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_mask_builder_set_mask"));
+        if (edgefirst_msgs_mask_builder_set_mask(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_mask_builder_set_mask"));
         return {};
     }
     MaskBuilder& boxed(bool v) noexcept {
-        ros_mask_builder_set_boxed(ptr(), v); return *this;
+        edgefirst_msgs_mask_builder_set_boxed(ptr(), v); return *this;
     }
 };
+} // namespace edgefirst_msgs
 
 // ---------------------------------------------------------------------------
 // edgefirst_msgs - LocalTimeBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `edgefirst_msgs::LocalTime` messages.
+
+namespace edgefirst_msgs {
 class LocalTimeBuilder
     : public detail::BuilderBase<LocalTimeBuilder,
                                  detail::LocalTimeBuilderTraits> {
@@ -7214,33 +7597,36 @@ public:
     using Base::encode_into;
 
     LocalTimeBuilder& stamp(Time t) noexcept {
-        ros_local_time_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        edgefirst_msgs_local_time_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_local_time_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_local_time_builder_set_frame_id"));
+        if (edgefirst_msgs_local_time_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_local_time_builder_set_frame_id"));
         return {};
     }
     LocalTimeBuilder& date(std::uint16_t year, std::uint8_t month,
                            std::uint8_t day) noexcept {
-        ros_local_time_builder_set_date(ptr(), year, month, day);
+        edgefirst_msgs_local_time_builder_set_date(ptr(), year, month, day);
         return *this;
     }
     LocalTimeBuilder& time(std::int32_t sec, std::uint32_t nsec) noexcept {
-        ros_local_time_builder_set_time(ptr(), sec, nsec);
+        edgefirst_msgs_local_time_builder_set_time(ptr(), sec, nsec);
         return *this;
     }
     LocalTimeBuilder& timezone(std::int16_t v) noexcept {
-        ros_local_time_builder_set_timezone(ptr(), v); return *this;
+        edgefirst_msgs_local_time_builder_set_timezone(ptr(), v); return *this;
     }
 };
+} // namespace edgefirst_msgs
 
 // ---------------------------------------------------------------------------
 // edgefirst_msgs - RadarCubeBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `edgefirst_msgs::RadarCube` messages.
+
+namespace edgefirst_msgs {
 class RadarCubeBuilder
     : public detail::BuilderBase<RadarCubeBuilder,
                                  detail::RadarCubeBuilderTraits> {
@@ -7254,55 +7640,58 @@ public:
     using Base::encode_into;
 
     RadarCubeBuilder& stamp(Time t) noexcept {
-        ros_radar_cube_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        edgefirst_msgs_radar_cube_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_radar_cube_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_radar_cube_builder_set_frame_id"));
+        if (edgefirst_msgs_radar_cube_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_radar_cube_builder_set_frame_id"));
         return {};
     }
     RadarCubeBuilder& timestamp(std::uint64_t v) noexcept {
-        ros_radar_cube_builder_set_timestamp(ptr(), v); return *this;
+        edgefirst_msgs_radar_cube_builder_set_timestamp(ptr(), v); return *this;
     }
     /// @brief Set layout descriptor (BORROWED).
     [[nodiscard]] expected<void, Error>
     layout(span<const std::uint8_t> d) noexcept {
-        if (ros_radar_cube_builder_set_layout(ptr(), d.data(), d.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_radar_cube_builder_set_layout"));
+        if (edgefirst_msgs_radar_cube_builder_set_layout(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_radar_cube_builder_set_layout"));
         return {};
     }
     /// @brief Set shape array (BORROWED).
     [[nodiscard]] expected<void, Error>
     shape(span<const std::uint16_t> d) noexcept {
-        if (ros_radar_cube_builder_set_shape(ptr(), d.data(), d.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_radar_cube_builder_set_shape"));
+        if (edgefirst_msgs_radar_cube_builder_set_shape(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_radar_cube_builder_set_shape"));
         return {};
     }
     /// @brief Set scales array (BORROWED).
     [[nodiscard]] expected<void, Error>
     scales(span<const float> d) noexcept {
-        if (ros_radar_cube_builder_set_scales(ptr(), d.data(), d.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_radar_cube_builder_set_scales"));
+        if (edgefirst_msgs_radar_cube_builder_set_scales(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_radar_cube_builder_set_scales"));
         return {};
     }
     /// @brief Set cube samples (BORROWED).
     [[nodiscard]] expected<void, Error>
     cube(span<const std::int16_t> d) noexcept {
-        if (ros_radar_cube_builder_set_cube(ptr(), d.data(), d.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_radar_cube_builder_set_cube"));
+        if (edgefirst_msgs_radar_cube_builder_set_cube(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_radar_cube_builder_set_cube"));
         return {};
     }
     RadarCubeBuilder& is_complex(bool v) noexcept {
-        ros_radar_cube_builder_set_is_complex(ptr(), v); return *this;
+        edgefirst_msgs_radar_cube_builder_set_is_complex(ptr(), v); return *this;
     }
 };
+} // namespace edgefirst_msgs
 
 // ---------------------------------------------------------------------------
 // edgefirst_msgs - RadarInfoBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `edgefirst_msgs::RadarInfo` messages.
+
+namespace edgefirst_msgs {
 class RadarInfoBuilder
     : public detail::BuilderBase<RadarInfoBuilder,
                                  detail::RadarInfoBuilderTraits> {
@@ -7316,48 +7705,51 @@ public:
     using Base::encode_into;
 
     RadarInfoBuilder& stamp(Time t) noexcept {
-        ros_radar_info_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        edgefirst_msgs_radar_info_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_radar_info_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_radar_info_builder_set_frame_id"));
+        if (edgefirst_msgs_radar_info_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_radar_info_builder_set_frame_id"));
         return {};
     }
     [[nodiscard]] expected<void, Error>
     center_frequency(const char* s) noexcept {
-        if (ros_radar_info_builder_set_center_frequency(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_radar_info_builder_set_center_frequency"));
+        if (edgefirst_msgs_radar_info_builder_set_center_frequency(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_radar_info_builder_set_center_frequency"));
         return {};
     }
     [[nodiscard]] expected<void, Error>
     frequency_sweep(const char* s) noexcept {
-        if (ros_radar_info_builder_set_frequency_sweep(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_radar_info_builder_set_frequency_sweep"));
+        if (edgefirst_msgs_radar_info_builder_set_frequency_sweep(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_radar_info_builder_set_frequency_sweep"));
         return {};
     }
     [[nodiscard]] expected<void, Error>
     range_toggle(const char* s) noexcept {
-        if (ros_radar_info_builder_set_range_toggle(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_radar_info_builder_set_range_toggle"));
+        if (edgefirst_msgs_radar_info_builder_set_range_toggle(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_radar_info_builder_set_range_toggle"));
         return {};
     }
     [[nodiscard]] expected<void, Error>
     detection_sensitivity(const char* s) noexcept {
-        if (ros_radar_info_builder_set_detection_sensitivity(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_radar_info_builder_set_detection_sensitivity"));
+        if (edgefirst_msgs_radar_info_builder_set_detection_sensitivity(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_radar_info_builder_set_detection_sensitivity"));
         return {};
     }
     RadarInfoBuilder& cube(bool v) noexcept {
-        ros_radar_info_builder_set_cube(ptr(), v); return *this;
+        edgefirst_msgs_radar_info_builder_set_cube(ptr(), v); return *this;
     }
 };
+} // namespace edgefirst_msgs
 
 // ---------------------------------------------------------------------------
 // edgefirst_msgs - TrackBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `edgefirst_msgs::Track` messages.
+
+namespace edgefirst_msgs {
 class TrackBuilder
     : public detail::BuilderBase<TrackBuilder, detail::TrackBuilderTraits> {
     using Base = detail::BuilderBase<TrackBuilder, detail::TrackBuilderTraits>;
@@ -7369,24 +7761,27 @@ public:
     using Base::encode_into;
 
     [[nodiscard]] expected<void, Error> id(const char* s) noexcept {
-        if (ros_track_builder_set_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_track_builder_set_id"));
+        if (edgefirst_msgs_track_builder_set_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_track_builder_set_id"));
         return {};
     }
     TrackBuilder& lifetime(std::int32_t v) noexcept {
-        ros_track_builder_set_lifetime(ptr(), v); return *this;
+        edgefirst_msgs_track_builder_set_lifetime(ptr(), v); return *this;
     }
     TrackBuilder& created(Time t) noexcept {
-        ros_track_builder_set_created(ptr(), t.sec, t.nanosec);
+        edgefirst_msgs_track_builder_set_created(ptr(), t.sec, t.nanosec);
         return *this;
     }
 };
+} // namespace edgefirst_msgs
 
 // ---------------------------------------------------------------------------
 // edgefirst_msgs - DetectBoxBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for a standalone `edgefirst_msgs::DetectBox`.
+
+namespace edgefirst_msgs {
 class DetectBoxBuilder
     : public detail::BuilderBase<DetectBoxBuilder,
                                  detail::DetectBoxBuilderTraits> {
@@ -7400,50 +7795,53 @@ public:
     using Base::encode_into;
 
     DetectBoxBuilder& center_x(float v) noexcept {
-        ros_detect_box_builder_set_center_x(ptr(), v); return *this;
+        edgefirst_msgs_detect_box_builder_set_center_x(ptr(), v); return *this;
     }
     DetectBoxBuilder& center_y(float v) noexcept {
-        ros_detect_box_builder_set_center_y(ptr(), v); return *this;
+        edgefirst_msgs_detect_box_builder_set_center_y(ptr(), v); return *this;
     }
     DetectBoxBuilder& width(float v) noexcept {
-        ros_detect_box_builder_set_width(ptr(), v); return *this;
+        edgefirst_msgs_detect_box_builder_set_width(ptr(), v); return *this;
     }
     DetectBoxBuilder& height(float v) noexcept {
-        ros_detect_box_builder_set_height(ptr(), v); return *this;
+        edgefirst_msgs_detect_box_builder_set_height(ptr(), v); return *this;
     }
     [[nodiscard]] expected<void, Error> label(const char* s) noexcept {
-        if (ros_detect_box_builder_set_label(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_detect_box_builder_set_label"));
+        if (edgefirst_msgs_detect_box_builder_set_label(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_detect_box_builder_set_label"));
         return {};
     }
     DetectBoxBuilder& score(float v) noexcept {
-        ros_detect_box_builder_set_score(ptr(), v); return *this;
+        edgefirst_msgs_detect_box_builder_set_score(ptr(), v); return *this;
     }
     DetectBoxBuilder& distance(float v) noexcept {
-        ros_detect_box_builder_set_distance(ptr(), v); return *this;
+        edgefirst_msgs_detect_box_builder_set_distance(ptr(), v); return *this;
     }
     DetectBoxBuilder& speed(float v) noexcept {
-        ros_detect_box_builder_set_speed(ptr(), v); return *this;
+        edgefirst_msgs_detect_box_builder_set_speed(ptr(), v); return *this;
     }
     [[nodiscard]] expected<void, Error> track_id(const char* s) noexcept {
-        if (ros_detect_box_builder_set_track_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_detect_box_builder_set_track_id"));
+        if (edgefirst_msgs_detect_box_builder_set_track_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_detect_box_builder_set_track_id"));
         return {};
     }
     DetectBoxBuilder& track_lifetime(std::int32_t v) noexcept {
-        ros_detect_box_builder_set_track_lifetime(ptr(), v); return *this;
+        edgefirst_msgs_detect_box_builder_set_track_lifetime(ptr(), v); return *this;
     }
     DetectBoxBuilder& track_created(Time t) noexcept {
-        ros_detect_box_builder_set_track_created(ptr(), t.sec, t.nanosec);
+        edgefirst_msgs_detect_box_builder_set_track_created(ptr(), t.sec, t.nanosec);
         return *this;
     }
 };
+} // namespace edgefirst_msgs
 
 // ---------------------------------------------------------------------------
 // edgefirst_msgs - DetectBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `edgefirst_msgs::Detect` messages.
+
+namespace edgefirst_msgs {
 class DetectBuilder
     : public detail::BuilderBase<DetectBuilder, detail::DetectBuilderTraits> {
     using Base = detail::BuilderBase<DetectBuilder, detail::DetectBuilderTraits>;
@@ -7455,41 +7853,44 @@ public:
     using Base::encode_into;
 
     DetectBuilder& stamp(Time t) noexcept {
-        ros_detect_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        edgefirst_msgs_detect_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_detect_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_detect_builder_set_frame_id"));
+        if (edgefirst_msgs_detect_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_detect_builder_set_frame_id"));
         return {};
     }
     DetectBuilder& input_timestamp(Time t) noexcept {
-        ros_detect_builder_set_input_timestamp(ptr(), t.sec, t.nanosec);
+        edgefirst_msgs_detect_builder_set_input_timestamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     DetectBuilder& model_time(Time t) noexcept {
-        ros_detect_builder_set_model_time(ptr(), t.sec, t.nanosec);
+        edgefirst_msgs_detect_builder_set_model_time(ptr(), t.sec, t.nanosec);
         return *this;
     }
     DetectBuilder& output_time(Time t) noexcept {
-        ros_detect_builder_set_output_time(ptr(), t.sec, t.nanosec);
+        edgefirst_msgs_detect_builder_set_output_time(ptr(), t.sec, t.nanosec);
         return *this;
     }
     /// @brief Set the boxes array (BORROWED — each element's label and
     ///        track_id pointers must remain valid until next setter/build/free).
     [[nodiscard]] expected<void, Error>
-    boxes(span<const ros_detect_box_elem_t> b) noexcept {
-        if (ros_detect_builder_set_boxes(ptr(), b.data(), b.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_detect_builder_set_boxes"));
+    boxes(span<const edgefirst_msgs_detect_box_elem_t> b) noexcept {
+        if (edgefirst_msgs_detect_builder_set_boxes(ptr(), b.data(), b.size()) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_detect_builder_set_boxes"));
         return {};
     }
 };
+} // namespace edgefirst_msgs
 
 // ---------------------------------------------------------------------------
 // edgefirst_msgs - ModelBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `edgefirst_msgs::Model` messages.
+
+namespace edgefirst_msgs {
 class ModelBuilder
     : public detail::BuilderBase<ModelBuilder, detail::ModelBuilderTraits> {
     using Base = detail::BuilderBase<ModelBuilder, detail::ModelBuilderTraits>;
@@ -7501,52 +7902,55 @@ public:
     using Base::encode_into;
 
     ModelBuilder& stamp(Time t) noexcept {
-        ros_model_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        edgefirst_msgs_model_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_model_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_model_builder_set_frame_id"));
+        if (edgefirst_msgs_model_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_model_builder_set_frame_id"));
         return {};
     }
     ModelBuilder& input_time(Time t) noexcept {
-        ros_model_builder_set_input_time(ptr(), t.sec, t.nanosec);
+        edgefirst_msgs_model_builder_set_input_time(ptr(), t.sec, t.nanosec);
         return *this;
     }
     ModelBuilder& model_time(Time t) noexcept {
-        ros_model_builder_set_model_time(ptr(), t.sec, t.nanosec);
+        edgefirst_msgs_model_builder_set_model_time(ptr(), t.sec, t.nanosec);
         return *this;
     }
     ModelBuilder& output_time(Time t) noexcept {
-        ros_model_builder_set_output_time(ptr(), t.sec, t.nanosec);
+        edgefirst_msgs_model_builder_set_output_time(ptr(), t.sec, t.nanosec);
         return *this;
     }
     ModelBuilder& decode_time(Time t) noexcept {
-        ros_model_builder_set_decode_time(ptr(), t.sec, t.nanosec);
+        edgefirst_msgs_model_builder_set_decode_time(ptr(), t.sec, t.nanosec);
         return *this;
     }
     /// @brief Set boxes (BORROWED — see DetectBuilder::boxes).
     [[nodiscard]] expected<void, Error>
-    boxes(span<const ros_detect_box_elem_t> b) noexcept {
-        if (ros_model_builder_set_boxes(ptr(), b.data(), b.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_model_builder_set_boxes"));
+    boxes(span<const edgefirst_msgs_detect_box_elem_t> b) noexcept {
+        if (edgefirst_msgs_model_builder_set_boxes(ptr(), b.data(), b.size()) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_model_builder_set_boxes"));
         return {};
     }
     /// @brief Set masks (BORROWED — each element's encoding/mask must
     ///        remain valid until next setter/build/free).
     [[nodiscard]] expected<void, Error>
-    masks(span<const ros_mask_elem_t> m) noexcept {
-        if (ros_model_builder_set_masks(ptr(), m.data(), m.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_model_builder_set_masks"));
+    masks(span<const edgefirst_msgs_mask_elem_t> m) noexcept {
+        if (edgefirst_msgs_model_builder_set_masks(ptr(), m.data(), m.size()) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_model_builder_set_masks"));
         return {};
     }
 };
+} // namespace edgefirst_msgs
 
 // ---------------------------------------------------------------------------
 // edgefirst_msgs - ModelInfoBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `edgefirst_msgs::ModelInfo` messages.
+
+namespace edgefirst_msgs {
 class ModelInfoBuilder
     : public detail::BuilderBase<ModelInfoBuilder,
                                  detail::ModelInfoBuilderTraits> {
@@ -7560,66 +7964,69 @@ public:
     using Base::encode_into;
 
     ModelInfoBuilder& stamp(Time t) noexcept {
-        ros_model_info_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        edgefirst_msgs_model_info_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_model_info_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_model_info_builder_set_frame_id"));
+        if (edgefirst_msgs_model_info_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_model_info_builder_set_frame_id"));
         return {};
     }
     /// @brief Set input shape (BORROWED).
     [[nodiscard]] expected<void, Error>
     input_shape(span<const std::uint32_t> d) noexcept {
-        if (ros_model_info_builder_set_input_shape(ptr(), d.data(), d.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_model_info_builder_set_input_shape"));
+        if (edgefirst_msgs_model_info_builder_set_input_shape(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_model_info_builder_set_input_shape"));
         return {};
     }
     ModelInfoBuilder& input_type(std::uint8_t v) noexcept {
-        ros_model_info_builder_set_input_type(ptr(), v); return *this;
+        edgefirst_msgs_model_info_builder_set_input_type(ptr(), v); return *this;
     }
     /// @brief Set output shape (BORROWED).
     [[nodiscard]] expected<void, Error>
     output_shape(span<const std::uint32_t> d) noexcept {
-        if (ros_model_info_builder_set_output_shape(ptr(), d.data(), d.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_model_info_builder_set_output_shape"));
+        if (edgefirst_msgs_model_info_builder_set_output_shape(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_model_info_builder_set_output_shape"));
         return {};
     }
     ModelInfoBuilder& output_type(std::uint8_t v) noexcept {
-        ros_model_info_builder_set_output_type(ptr(), v); return *this;
+        edgefirst_msgs_model_info_builder_set_output_type(ptr(), v); return *this;
     }
     /// @brief Set labels (strings are copied into the builder).
     [[nodiscard]] expected<void, Error>
     labels(const char* const* lbl, std::size_t count) noexcept {
-        if (ros_model_info_builder_set_labels(ptr(), lbl, count) != 0)
-            return unexpected<Error>(Error::from_errno("ros_model_info_builder_set_labels"));
+        if (edgefirst_msgs_model_info_builder_set_labels(ptr(), lbl, count) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_model_info_builder_set_labels"));
         return {};
     }
     [[nodiscard]] expected<void, Error>
     model_type(const char* s) noexcept {
-        if (ros_model_info_builder_set_model_type(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_model_info_builder_set_model_type"));
+        if (edgefirst_msgs_model_info_builder_set_model_type(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_model_info_builder_set_model_type"));
         return {};
     }
     [[nodiscard]] expected<void, Error>
     model_format(const char* s) noexcept {
-        if (ros_model_info_builder_set_model_format(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_model_info_builder_set_model_format"));
+        if (edgefirst_msgs_model_info_builder_set_model_format(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_model_info_builder_set_model_format"));
         return {};
     }
     [[nodiscard]] expected<void, Error>
     model_name(const char* s) noexcept {
-        if (ros_model_info_builder_set_model_name(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_model_info_builder_set_model_name"));
+        if (edgefirst_msgs_model_info_builder_set_model_name(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_model_info_builder_set_model_name"));
         return {};
     }
 };
+} // namespace edgefirst_msgs
 
 // ---------------------------------------------------------------------------
 // edgefirst_msgs - VibrationBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `edgefirst_msgs::Vibration` messages.
+
+namespace edgefirst_msgs {
 class VibrationBuilder
     : public detail::BuilderBase<VibrationBuilder,
                                  detail::VibrationBuilderTraits> {
@@ -7633,47 +8040,50 @@ public:
     using Base::encode_into;
 
     VibrationBuilder& stamp(Time t) noexcept {
-        ros_vibration_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        edgefirst_msgs_vibration_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_vibration_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_vibration_builder_set_frame_id"));
+        if (edgefirst_msgs_vibration_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_vibration_builder_set_frame_id"));
         return {};
     }
     VibrationBuilder& vibration(Vector3 v) noexcept {
-        ros_vibration_builder_set_vibration(ptr(), v.x, v.y, v.z);
+        edgefirst_msgs_vibration_builder_set_vibration(ptr(), v.x, v.y, v.z);
         return *this;
     }
     VibrationBuilder& band_lower_hz(float v) noexcept {
-        ros_vibration_builder_set_band_lower_hz(ptr(), v); return *this;
+        edgefirst_msgs_vibration_builder_set_band_lower_hz(ptr(), v); return *this;
     }
     VibrationBuilder& band_upper_hz(float v) noexcept {
-        ros_vibration_builder_set_band_upper_hz(ptr(), v); return *this;
+        edgefirst_msgs_vibration_builder_set_band_upper_hz(ptr(), v); return *this;
     }
     VibrationBuilder& measurement_type(std::uint8_t v) noexcept {
-        ros_vibration_builder_set_measurement_type(ptr(), v); return *this;
+        edgefirst_msgs_vibration_builder_set_measurement_type(ptr(), v); return *this;
     }
     VibrationBuilder& unit(std::uint8_t v) noexcept {
-        ros_vibration_builder_set_unit(ptr(), v); return *this;
+        edgefirst_msgs_vibration_builder_set_unit(ptr(), v); return *this;
     }
     [[nodiscard]] expected<void, Error>
     clipping(span<const std::uint32_t> d) noexcept {
-        if (ros_vibration_builder_set_clipping(ptr(), d.data(), d.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_vibration_builder_set_clipping"));
+        if (edgefirst_msgs_vibration_builder_set_clipping(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_vibration_builder_set_clipping"));
         return {};
     }
 };
+} // namespace edgefirst_msgs
 
 // ---------------------------------------------------------------------------
 // foxglove_msgs - FoxgloveCompressedVideoBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `foxglove_msgs::CompressedVideo` messages.
-class FoxgloveCompressedVideoBuilder
-    : public detail::BuilderBase<FoxgloveCompressedVideoBuilder,
+
+namespace foxglove_msgs {
+class CompressedVideoBuilder
+    : public detail::BuilderBase<CompressedVideoBuilder,
                                  detail::FoxgloveCompressedVideoBuilderTraits> {
-    using Base = detail::BuilderBase<FoxgloveCompressedVideoBuilder,
+    using Base = detail::BuilderBase<CompressedVideoBuilder,
                                      detail::FoxgloveCompressedVideoBuilderTraits>;
     friend Base;
     using Base::Base;
@@ -7682,39 +8092,42 @@ public:
     using Base::build;
     using Base::encode_into;
 
-    FoxgloveCompressedVideoBuilder& stamp(Time t) noexcept {
-        ros_foxglove_compressed_video_builder_set_stamp(ptr(), t.sec, t.nanosec);
+    CompressedVideoBuilder& stamp(Time t) noexcept {
+        foxglove_msgs_compressed_video_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     /// Alias for stamp(); matches the Foxglove schema field name.
-    FoxgloveCompressedVideoBuilder& timestamp(Time t) noexcept { return stamp(t); }
+    CompressedVideoBuilder& timestamp(Time t) noexcept { return stamp(t); }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_foxglove_compressed_video_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_video_builder_set_frame_id"));
+        if (foxglove_msgs_compressed_video_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("foxglove_msgs_compressed_video_builder_set_frame_id"));
         return {};
     }
     [[nodiscard]] expected<void, Error>
     data(span<const std::uint8_t> d) noexcept {
-        if (ros_foxglove_compressed_video_builder_set_data(ptr(), d.data(), d.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_video_builder_set_data"));
+        if (foxglove_msgs_compressed_video_builder_set_data(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("foxglove_msgs_compressed_video_builder_set_data"));
         return {};
     }
     [[nodiscard]] expected<void, Error> format(const char* s) noexcept {
-        if (ros_foxglove_compressed_video_builder_set_format(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_video_builder_set_format"));
+        if (foxglove_msgs_compressed_video_builder_set_format(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("foxglove_msgs_compressed_video_builder_set_format"));
         return {};
     }
 };
+} // namespace foxglove_msgs
 
 // ---------------------------------------------------------------------------
 // foxglove_msgs - FoxgloveCompressedImageBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `foxglove_msgs::CompressedImage` messages.
-class FoxgloveCompressedImageBuilder
-    : public detail::BuilderBase<FoxgloveCompressedImageBuilder,
+
+namespace foxglove_msgs {
+class CompressedImageBuilder
+    : public detail::BuilderBase<CompressedImageBuilder,
                                  detail::FoxgloveCompressedImageBuilderTraits> {
-    using Base = detail::BuilderBase<FoxgloveCompressedImageBuilder,
+    using Base = detail::BuilderBase<CompressedImageBuilder,
                                      detail::FoxgloveCompressedImageBuilderTraits>;
     friend Base;
     using Base::Base;
@@ -7723,39 +8136,42 @@ public:
     using Base::build;
     using Base::encode_into;
 
-    FoxgloveCompressedImageBuilder& stamp(Time t) noexcept {
-        ros_foxglove_compressed_image_builder_set_stamp(ptr(), t.sec, t.nanosec);
+    CompressedImageBuilder& stamp(Time t) noexcept {
+        foxglove_msgs_compressed_image_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     /// Alias for stamp(); matches the Foxglove schema field name.
-    FoxgloveCompressedImageBuilder& timestamp(Time t) noexcept { return stamp(t); }
+    CompressedImageBuilder& timestamp(Time t) noexcept { return stamp(t); }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_foxglove_compressed_image_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_image_builder_set_frame_id"));
+        if (foxglove_msgs_compressed_image_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("foxglove_msgs_compressed_image_builder_set_frame_id"));
         return {};
     }
     [[nodiscard]] expected<void, Error>
     data(span<const std::uint8_t> d) noexcept {
-        if (ros_foxglove_compressed_image_builder_set_data(ptr(), d.data(), d.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_image_builder_set_data"));
+        if (foxglove_msgs_compressed_image_builder_set_data(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("foxglove_msgs_compressed_image_builder_set_data"));
         return {};
     }
     [[nodiscard]] expected<void, Error> format(const char* s) noexcept {
-        if (ros_foxglove_compressed_image_builder_set_format(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_foxglove_compressed_image_builder_set_format"));
+        if (foxglove_msgs_compressed_image_builder_set_format(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("foxglove_msgs_compressed_image_builder_set_format"));
         return {};
     }
 };
+} // namespace foxglove_msgs
 
 // ---------------------------------------------------------------------------
 // foxglove_msgs - FoxgloveTextAnnotationBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `foxglove_msgs::TextAnnotation` messages.
-class FoxgloveTextAnnotationBuilder
-    : public detail::BuilderBase<FoxgloveTextAnnotationBuilder,
+
+namespace foxglove_msgs {
+class TextAnnotationBuilder
+    : public detail::BuilderBase<TextAnnotationBuilder,
                                  detail::FoxgloveTextAnnotationBuilderTraits> {
-    using Base = detail::BuilderBase<FoxgloveTextAnnotationBuilder,
+    using Base = detail::BuilderBase<TextAnnotationBuilder,
                                      detail::FoxgloveTextAnnotationBuilderTraits>;
     friend Base;
     using Base::Base;
@@ -7764,44 +8180,47 @@ public:
     using Base::build;
     using Base::encode_into;
 
-    FoxgloveTextAnnotationBuilder& timestamp(Time t) noexcept {
-        ros_foxglove_text_annotation_builder_set_timestamp(ptr(), t.sec, t.nanosec);
+    TextAnnotationBuilder& timestamp(Time t) noexcept {
+        foxglove_msgs_text_annotation_builder_set_timestamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
-    FoxgloveTextAnnotationBuilder& position(double x, double y) noexcept {
-        ros_foxglove_text_annotation_builder_set_position(ptr(), x, y);
+    TextAnnotationBuilder& position(double x, double y) noexcept {
+        foxglove_msgs_text_annotation_builder_set_position(ptr(), x, y);
         return *this;
     }
     [[nodiscard]] expected<void, Error> text(const char* s) noexcept {
-        if (ros_foxglove_text_annotation_builder_set_text(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_foxglove_text_annotation_builder_set_text"));
+        if (foxglove_msgs_text_annotation_builder_set_text(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("foxglove_msgs_text_annotation_builder_set_text"));
         return {};
     }
-    FoxgloveTextAnnotationBuilder& font_size(double v) noexcept {
-        ros_foxglove_text_annotation_builder_set_font_size(ptr(), v);
+    TextAnnotationBuilder& font_size(double v) noexcept {
+        foxglove_msgs_text_annotation_builder_set_font_size(ptr(), v);
         return *this;
     }
-    FoxgloveTextAnnotationBuilder& text_color(double r, double g,
+    TextAnnotationBuilder& text_color(double r, double g,
                                               double b, double a) noexcept {
-        ros_foxglove_text_annotation_builder_set_text_color(ptr(), r, g, b, a);
+        foxglove_msgs_text_annotation_builder_set_text_color(ptr(), r, g, b, a);
         return *this;
     }
-    FoxgloveTextAnnotationBuilder& background_color(double r, double g,
+    TextAnnotationBuilder& background_color(double r, double g,
                                                     double b, double a) noexcept {
-        ros_foxglove_text_annotation_builder_set_background_color(ptr(), r, g, b, a);
+        foxglove_msgs_text_annotation_builder_set_background_color(ptr(), r, g, b, a);
         return *this;
     }
 };
+} // namespace foxglove_msgs
 
 // ---------------------------------------------------------------------------
 // foxglove_msgs - FoxglovePointAnnotationBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `foxglove_msgs::PointsAnnotation` messages.
-class FoxglovePointAnnotationBuilder
-    : public detail::BuilderBase<FoxglovePointAnnotationBuilder,
+
+namespace foxglove_msgs {
+class PointAnnotationBuilder
+    : public detail::BuilderBase<PointAnnotationBuilder,
                                  detail::FoxglovePointAnnotationBuilderTraits> {
-    using Base = detail::BuilderBase<FoxglovePointAnnotationBuilder,
+    using Base = detail::BuilderBase<PointAnnotationBuilder,
                                      detail::FoxglovePointAnnotationBuilderTraits>;
     friend Base;
     using Base::Base;
@@ -7810,53 +8229,56 @@ public:
     using Base::build;
     using Base::encode_into;
 
-    FoxglovePointAnnotationBuilder& timestamp(Time t) noexcept {
-        ros_foxglove_point_annotation_builder_set_timestamp(ptr(), t.sec, t.nanosec);
+    PointAnnotationBuilder& timestamp(Time t) noexcept {
+        foxglove_msgs_point_annotation_builder_set_timestamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
-    FoxglovePointAnnotationBuilder& type(std::uint8_t v) noexcept {
-        ros_foxglove_point_annotation_builder_set_type(ptr(), v);
+    PointAnnotationBuilder& type(std::uint8_t v) noexcept {
+        foxglove_msgs_point_annotation_builder_set_type(ptr(), v);
         return *this;
     }
     /// @brief Set points array (BORROWED).
     [[nodiscard]] expected<void, Error>
-    points(span<const ros_foxglove_point2_elem_t> pts) noexcept {
-        if (ros_foxglove_point_annotation_builder_set_points(ptr(), pts.data(), pts.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_foxglove_point_annotation_builder_set_points"));
+    points(span<const foxglove_msgs_point2_elem_t> pts) noexcept {
+        if (foxglove_msgs_point_annotation_builder_set_points(ptr(), pts.data(), pts.size()) != 0)
+            return unexpected<Error>(Error::from_errno("foxglove_msgs_point_annotation_builder_set_points"));
         return {};
     }
-    FoxglovePointAnnotationBuilder& outline_color(double r, double g,
+    PointAnnotationBuilder& outline_color(double r, double g,
                                                   double b, double a) noexcept {
-        ros_foxglove_point_annotation_builder_set_outline_color(ptr(), r, g, b, a);
+        foxglove_msgs_point_annotation_builder_set_outline_color(ptr(), r, g, b, a);
         return *this;
     }
     /// @brief Set per-point outline colors (BORROWED).
     [[nodiscard]] expected<void, Error>
-    outline_colors(span<const ros_foxglove_color_elem_t> colors) noexcept {
-        if (ros_foxglove_point_annotation_builder_set_outline_colors(ptr(), colors.data(), colors.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_foxglove_point_annotation_builder_set_outline_colors"));
+    outline_colors(span<const foxglove_msgs_color_elem_t> colors) noexcept {
+        if (foxglove_msgs_point_annotation_builder_set_outline_colors(ptr(), colors.data(), colors.size()) != 0)
+            return unexpected<Error>(Error::from_errno("foxglove_msgs_point_annotation_builder_set_outline_colors"));
         return {};
     }
-    FoxglovePointAnnotationBuilder& fill_color(double r, double g,
+    PointAnnotationBuilder& fill_color(double r, double g,
                                                double b, double a) noexcept {
-        ros_foxglove_point_annotation_builder_set_fill_color(ptr(), r, g, b, a);
+        foxglove_msgs_point_annotation_builder_set_fill_color(ptr(), r, g, b, a);
         return *this;
     }
-    FoxglovePointAnnotationBuilder& thickness(double v) noexcept {
-        ros_foxglove_point_annotation_builder_set_thickness(ptr(), v);
+    PointAnnotationBuilder& thickness(double v) noexcept {
+        foxglove_msgs_point_annotation_builder_set_thickness(ptr(), v);
         return *this;
     }
 };
+} // namespace foxglove_msgs
 
 // ---------------------------------------------------------------------------
 // foxglove_msgs - FoxgloveImageAnnotationBuilder
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `foxglove_msgs::ImageAnnotations` messages.
-class FoxgloveImageAnnotationBuilder
-    : public detail::BuilderBase<FoxgloveImageAnnotationBuilder,
+
+namespace foxglove_msgs {
+class ImageAnnotationBuilder
+    : public detail::BuilderBase<ImageAnnotationBuilder,
                                  detail::FoxgloveImageAnnotationBuilderTraits> {
-    using Base = detail::BuilderBase<FoxgloveImageAnnotationBuilder,
+    using Base = detail::BuilderBase<ImageAnnotationBuilder,
                                      detail::FoxgloveImageAnnotationBuilderTraits>;
     friend Base;
     using Base::Base;
@@ -7867,33 +8289,36 @@ public:
 
     /// @brief Set circle annotations (BORROWED).
     [[nodiscard]] expected<void, Error>
-    circles(span<const ros_foxglove_circle_annotation_elem_t> c) noexcept {
-        if (ros_foxglove_image_annotation_builder_set_circles(ptr(), c.data(), c.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_foxglove_image_annotation_builder_set_circles"));
+    circles(span<const foxglove_msgs_circle_annotation_elem_t> c) noexcept {
+        if (foxglove_msgs_image_annotation_builder_set_circles(ptr(), c.data(), c.size()) != 0)
+            return unexpected<Error>(Error::from_errno("foxglove_msgs_image_annotation_builder_set_circles"));
         return {};
     }
     /// @brief Set point annotations (BORROWED — inner arrays also borrowed).
     [[nodiscard]] expected<void, Error>
-    points(span<const ros_foxglove_point_annotation_elem_t> p) noexcept {
-        if (ros_foxglove_image_annotation_builder_set_points(ptr(), p.data(), p.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_foxglove_image_annotation_builder_set_points"));
+    points(span<const foxglove_msgs_point_annotation_elem_t> p) noexcept {
+        if (foxglove_msgs_image_annotation_builder_set_points(ptr(), p.data(), p.size()) != 0)
+            return unexpected<Error>(Error::from_errno("foxglove_msgs_image_annotation_builder_set_points"));
         return {};
     }
     /// @brief Set text annotations (BORROWED — each element's text must
     ///        remain valid).
     [[nodiscard]] expected<void, Error>
-    texts(span<const ros_foxglove_text_annotation_elem_t> t) noexcept {
-        if (ros_foxglove_image_annotation_builder_set_texts(ptr(), t.data(), t.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_foxglove_image_annotation_builder_set_texts"));
+    texts(span<const foxglove_msgs_text_annotation_elem_t> t) noexcept {
+        if (foxglove_msgs_image_annotation_builder_set_texts(ptr(), t.data(), t.size()) != 0)
+            return unexpected<Error>(Error::from_errno("foxglove_msgs_image_annotation_builder_set_texts"));
         return {};
     }
 };
+} // namespace foxglove_msgs
 
 // ---------------------------------------------------------------------------
 // DE-2781 nav_msgs / sensor_msgs builders
 // ---------------------------------------------------------------------------
 
 /// @brief Fluent builder for `sensor_msgs::RelativeHumidity` messages.
+
+namespace sensor_msgs {
 class RelativeHumidityBuilder
     : public detail::BuilderBase<RelativeHumidityBuilder,
                                  detail::RelativeHumidityBuilderTraits> {
@@ -7907,24 +8332,27 @@ public:
     using Base::encode_into;
 
     RelativeHumidityBuilder& stamp(Time t) noexcept {
-        ros_relative_humidity_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        sensor_msgs_relative_humidity_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_relative_humidity_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_relative_humidity_builder_set_frame_id"));
+        if (sensor_msgs_relative_humidity_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_relative_humidity_builder_set_frame_id"));
         return {};
     }
     /// @brief Set the relative humidity (dimensionless ratio in [0, 1]).
     RelativeHumidityBuilder& relative_humidity(double v) noexcept {
-        ros_relative_humidity_builder_set_relative_humidity(ptr(), v); return *this;
+        sensor_msgs_relative_humidity_builder_set_relative_humidity(ptr(), v); return *this;
     }
     RelativeHumidityBuilder& variance(double v) noexcept {
-        ros_relative_humidity_builder_set_variance(ptr(), v); return *this;
+        sensor_msgs_relative_humidity_builder_set_variance(ptr(), v); return *this;
     }
 };
+} // namespace sensor_msgs
 
 /// @brief Fluent builder for `sensor_msgs::TimeReference` messages.
+
+namespace sensor_msgs {
 class TimeReferenceBuilder
     : public detail::BuilderBase<TimeReferenceBuilder,
                                  detail::TimeReferenceBuilderTraits> {
@@ -7938,28 +8366,31 @@ public:
     using Base::encode_into;
 
     TimeReferenceBuilder& stamp(Time t) noexcept {
-        ros_time_reference_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        sensor_msgs_time_reference_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_time_reference_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_time_reference_builder_set_frame_id"));
+        if (sensor_msgs_time_reference_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_time_reference_builder_set_frame_id"));
         return {};
     }
     /// @brief Set the referenced time (the time being reported).
     TimeReferenceBuilder& time_ref(Time t) noexcept {
-        ros_time_reference_builder_set_time_ref(ptr(), t.sec, t.nanosec);
+        sensor_msgs_time_reference_builder_set_time_ref(ptr(), t.sec, t.nanosec);
         return *this;
     }
     /// @brief Set the time source description (string copied into builder).
     [[nodiscard]] expected<void, Error> source(const char* s) noexcept {
-        if (ros_time_reference_builder_set_source(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_time_reference_builder_set_source"));
+        if (sensor_msgs_time_reference_builder_set_source(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("sensor_msgs_time_reference_builder_set_source"));
         return {};
     }
 };
+} // namespace sensor_msgs
 
 /// @brief Fluent builder for `nav_msgs::GridCells` messages.
+
+namespace nav_msgs {
 class GridCellsBuilder
     : public detail::BuilderBase<GridCellsBuilder, detail::GridCellsBuilderTraits> {
     using Base = detail::BuilderBase<GridCellsBuilder, detail::GridCellsBuilderTraits>;
@@ -7971,19 +8402,19 @@ public:
     using Base::encode_into;
 
     GridCellsBuilder& stamp(Time t) noexcept {
-        ros_grid_cells_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        nav_msgs_grid_cells_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_grid_cells_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_grid_cells_builder_set_frame_id"));
+        if (nav_msgs_grid_cells_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("nav_msgs_grid_cells_builder_set_frame_id"));
         return {};
     }
     GridCellsBuilder& cell_width(float v) noexcept {
-        ros_grid_cells_builder_set_cell_width(ptr(), v); return *this;
+        nav_msgs_grid_cells_builder_set_cell_width(ptr(), v); return *this;
     }
     GridCellsBuilder& cell_height(float v) noexcept {
-        ros_grid_cells_builder_set_cell_height(ptr(), v); return *this;
+        nav_msgs_grid_cells_builder_set_cell_height(ptr(), v); return *this;
     }
     /// @brief Set the cell centre points from a flat (x, y, z) sequence.
     /// @param xyz `3 * cell_count` contiguous doubles. BORROWED — must
@@ -7991,13 +8422,16 @@ public:
     ///        multiple of 3; otherwise the trailing remainder is ignored.
     [[nodiscard]] expected<void, Error>
     cells(span<const double> xyz) noexcept {
-        if (ros_grid_cells_builder_set_cells(ptr(), xyz.data(), xyz.size() / 3) != 0)
-            return unexpected<Error>(Error::from_errno("ros_grid_cells_builder_set_cells"));
+        if (nav_msgs_grid_cells_builder_set_cells(ptr(), xyz.data(), xyz.size() / 3) != 0)
+            return unexpected<Error>(Error::from_errno("nav_msgs_grid_cells_builder_set_cells"));
         return {};
     }
 };
+} // namespace nav_msgs
 
 /// @brief Fluent builder for `nav_msgs::OccupancyGrid` messages.
+
+namespace nav_msgs {
 class OccupancyGridBuilder
     : public detail::BuilderBase<OccupancyGridBuilder,
                                  detail::OccupancyGridBuilderTraits> {
@@ -8011,18 +8445,18 @@ public:
     using Base::encode_into;
 
     OccupancyGridBuilder& stamp(Time t) noexcept {
-        ros_occupancy_grid_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        nav_msgs_occupancy_grid_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_occupancy_grid_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_occupancy_grid_builder_set_frame_id"));
+        if (nav_msgs_occupancy_grid_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("nav_msgs_occupancy_grid_builder_set_frame_id"));
         return {};
     }
     /// @brief Set the MapMetaData info block (load time, resolution,
     ///        dimensions, origin pose).
     OccupancyGridBuilder& info(const MapMetaData& m) noexcept {
-        ros_occupancy_grid_builder_set_info(ptr(),
+        nav_msgs_occupancy_grid_builder_set_info(ptr(),
             m.map_load_time.sec, m.map_load_time.nanosec,
             m.resolution, m.width, m.height,
             m.origin.px, m.origin.py, m.origin.pz,
@@ -8033,16 +8467,19 @@ public:
     ///        must remain valid until build/encode_into.
     [[nodiscard]] expected<void, Error>
     data(span<const std::int8_t> d) noexcept {
-        if (ros_occupancy_grid_builder_set_data(ptr(), d.data(), d.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_occupancy_grid_builder_set_data"));
+        if (nav_msgs_occupancy_grid_builder_set_data(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("nav_msgs_occupancy_grid_builder_set_data"));
         return {};
     }
 };
+} // namespace nav_msgs
 
 /// @brief Fluent builder for `nav_msgs::Path` messages.
 ///
 /// Poses are appended one at a time with `add_pose()`, each carrying its own
 /// per-element `PoseStamped` header (stamp + frame_id).
+
+namespace nav_msgs {
 class PathBuilder
     : public detail::BuilderBase<PathBuilder, detail::PathBuilderTraits> {
     using Base = detail::BuilderBase<PathBuilder, detail::PathBuilderTraits>;
@@ -8054,12 +8491,12 @@ public:
     using Base::encode_into;
 
     PathBuilder& stamp(Time t) noexcept {
-        ros_path_builder_set_stamp(ptr(), t.sec, t.nanosec);
+        nav_msgs_path_builder_set_stamp(ptr(), t.sec, t.nanosec);
         return *this;
     }
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_path_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_path_builder_set_frame_id"));
+        if (nav_msgs_path_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("nav_msgs_path_builder_set_frame_id"));
         return {};
     }
     /// @brief Append one `PoseStamped` to the path.
@@ -8070,21 +8507,24 @@ public:
     ///         NULL or not valid UTF-8.
     [[nodiscard]] expected<void, Error>
     add_pose(Time stamp, const char* frame_id, Pose pose) noexcept {
-        if (ros_path_builder_add_pose(ptr(), stamp.sec, stamp.nanosec, frame_id,
+        if (nav_msgs_path_builder_add_pose(ptr(), stamp.sec, stamp.nanosec, frame_id,
                                       pose.px, pose.py, pose.pz,
                                       pose.ox, pose.oy, pose.oz, pose.ow) != 0)
-            return unexpected<Error>(Error::from_errno("ros_path_builder_add_pose"));
+            return unexpected<Error>(Error::from_errno("nav_msgs_path_builder_add_pose"));
         return {};
     }
 };
+} // namespace nav_msgs
 
 // =============================================================================
 // mavros_msgs View classes
 // =============================================================================
 
 /// @brief Zero-copy view of a mavros_msgs/Altitude CDR buffer.
-class MavrosAltitudeView : public detail::ViewBase<MavrosAltitudeView, detail::MavrosAltitudeTraits> {
-    using Base = detail::ViewBase<MavrosAltitudeView, detail::MavrosAltitudeTraits>;
+
+namespace mavros_msgs {
+class AltitudeView : public detail::ViewBase<AltitudeView, detail::MavrosAltitudeTraits> {
+    using Base = detail::ViewBase<AltitudeView, detail::MavrosAltitudeTraits>;
     friend Base;
     using Base::Base;
 public:
@@ -8092,35 +8532,38 @@ public:
     using Base::as_cdr;
 
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_mavros_altitude_get_stamp_sec(handle()),
-                ros_mavros_altitude_get_stamp_nanosec(handle())};
+        return {mavros_msgs_altitude_get_stamp_sec(handle()),
+                mavros_msgs_altitude_get_stamp_nanosec(handle())};
     }
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_mavros_altitude_get_frame_id(handle());
+        return mavros_msgs_altitude_get_frame_id(handle());
     }
     [[nodiscard]] float monotonic() const noexcept {
-        return ros_mavros_altitude_get_monotonic(handle());
+        return mavros_msgs_altitude_get_monotonic(handle());
     }
     [[nodiscard]] float amsl() const noexcept {
-        return ros_mavros_altitude_get_amsl(handle());
+        return mavros_msgs_altitude_get_amsl(handle());
     }
     [[nodiscard]] float local() const noexcept {
-        return ros_mavros_altitude_get_local(handle());
+        return mavros_msgs_altitude_get_local(handle());
     }
     [[nodiscard]] float relative() const noexcept {
-        return ros_mavros_altitude_get_relative(handle());
+        return mavros_msgs_altitude_get_relative(handle());
     }
     [[nodiscard]] float terrain() const noexcept {
-        return ros_mavros_altitude_get_terrain(handle());
+        return mavros_msgs_altitude_get_terrain(handle());
     }
     [[nodiscard]] float bottom_clearance() const noexcept {
-        return ros_mavros_altitude_get_bottom_clearance(handle());
+        return mavros_msgs_altitude_get_bottom_clearance(handle());
     }
 };
+} // namespace mavros_msgs
 
 /// @brief Zero-copy view of a mavros_msgs/VfrHud CDR buffer.
-class MavrosVfrHudView : public detail::ViewBase<MavrosVfrHudView, detail::MavrosVfrHudTraits> {
-    using Base = detail::ViewBase<MavrosVfrHudView, detail::MavrosVfrHudTraits>;
+
+namespace mavros_msgs {
+class VfrHudView : public detail::ViewBase<VfrHudView, detail::MavrosVfrHudTraits> {
+    using Base = detail::ViewBase<VfrHudView, detail::MavrosVfrHudTraits>;
     friend Base;
     using Base::Base;
 public:
@@ -8128,35 +8571,38 @@ public:
     using Base::as_cdr;
 
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_mavros_vfrhud_get_stamp_sec(handle()),
-                ros_mavros_vfrhud_get_stamp_nanosec(handle())};
+        return {mavros_msgs_vfrhud_get_stamp_sec(handle()),
+                mavros_msgs_vfrhud_get_stamp_nanosec(handle())};
     }
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_mavros_vfrhud_get_frame_id(handle());
+        return mavros_msgs_vfrhud_get_frame_id(handle());
     }
     [[nodiscard]] float airspeed() const noexcept {
-        return ros_mavros_vfrhud_get_airspeed(handle());
+        return mavros_msgs_vfrhud_get_airspeed(handle());
     }
     [[nodiscard]] float groundspeed() const noexcept {
-        return ros_mavros_vfrhud_get_groundspeed(handle());
+        return mavros_msgs_vfrhud_get_groundspeed(handle());
     }
     [[nodiscard]] std::int16_t heading() const noexcept {
-        return ros_mavros_vfrhud_get_heading(handle());
+        return mavros_msgs_vfrhud_get_heading(handle());
     }
     [[nodiscard]] float throttle() const noexcept {
-        return ros_mavros_vfrhud_get_throttle(handle());
+        return mavros_msgs_vfrhud_get_throttle(handle());
     }
     [[nodiscard]] float altitude() const noexcept {
-        return ros_mavros_vfrhud_get_altitude(handle());
+        return mavros_msgs_vfrhud_get_altitude(handle());
     }
     [[nodiscard]] float climb() const noexcept {
-        return ros_mavros_vfrhud_get_climb(handle());
+        return mavros_msgs_vfrhud_get_climb(handle());
     }
 };
+} // namespace mavros_msgs
 
 /// @brief Zero-copy view of a mavros_msgs/EstimatorStatus CDR buffer.
-class MavrosEstimatorStatusView : public detail::ViewBase<MavrosEstimatorStatusView, detail::MavrosEstimatorStatusTraits> {
-    using Base = detail::ViewBase<MavrosEstimatorStatusView, detail::MavrosEstimatorStatusTraits>;
+
+namespace mavros_msgs {
+class EstimatorStatusView : public detail::ViewBase<EstimatorStatusView, detail::MavrosEstimatorStatusTraits> {
+    using Base = detail::ViewBase<EstimatorStatusView, detail::MavrosEstimatorStatusTraits>;
     friend Base;
     using Base::Base;
 public:
@@ -8164,53 +8610,56 @@ public:
     using Base::as_cdr;
 
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_mavros_estimator_status_get_stamp_sec(handle()),
-                ros_mavros_estimator_status_get_stamp_nanosec(handle())};
+        return {mavros_msgs_estimator_status_get_stamp_sec(handle()),
+                mavros_msgs_estimator_status_get_stamp_nanosec(handle())};
     }
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_mavros_estimator_status_get_frame_id(handle());
+        return mavros_msgs_estimator_status_get_frame_id(handle());
     }
     [[nodiscard]] bool attitude_status_flag() const noexcept {
-        return ros_mavros_estimator_status_get_attitude_status_flag(handle());
+        return mavros_msgs_estimator_status_get_attitude_status_flag(handle());
     }
     [[nodiscard]] bool velocity_horiz_status_flag() const noexcept {
-        return ros_mavros_estimator_status_get_velocity_horiz_status_flag(handle());
+        return mavros_msgs_estimator_status_get_velocity_horiz_status_flag(handle());
     }
     [[nodiscard]] bool velocity_vert_status_flag() const noexcept {
-        return ros_mavros_estimator_status_get_velocity_vert_status_flag(handle());
+        return mavros_msgs_estimator_status_get_velocity_vert_status_flag(handle());
     }
     [[nodiscard]] bool pos_horiz_rel_status_flag() const noexcept {
-        return ros_mavros_estimator_status_get_pos_horiz_rel_status_flag(handle());
+        return mavros_msgs_estimator_status_get_pos_horiz_rel_status_flag(handle());
     }
     [[nodiscard]] bool pos_horiz_abs_status_flag() const noexcept {
-        return ros_mavros_estimator_status_get_pos_horiz_abs_status_flag(handle());
+        return mavros_msgs_estimator_status_get_pos_horiz_abs_status_flag(handle());
     }
     [[nodiscard]] bool pos_vert_abs_status_flag() const noexcept {
-        return ros_mavros_estimator_status_get_pos_vert_abs_status_flag(handle());
+        return mavros_msgs_estimator_status_get_pos_vert_abs_status_flag(handle());
     }
     [[nodiscard]] bool pos_vert_agl_status_flag() const noexcept {
-        return ros_mavros_estimator_status_get_pos_vert_agl_status_flag(handle());
+        return mavros_msgs_estimator_status_get_pos_vert_agl_status_flag(handle());
     }
     [[nodiscard]] bool const_pos_mode_status_flag() const noexcept {
-        return ros_mavros_estimator_status_get_const_pos_mode_status_flag(handle());
+        return mavros_msgs_estimator_status_get_const_pos_mode_status_flag(handle());
     }
     [[nodiscard]] bool pred_pos_horiz_rel_status_flag() const noexcept {
-        return ros_mavros_estimator_status_get_pred_pos_horiz_rel_status_flag(handle());
+        return mavros_msgs_estimator_status_get_pred_pos_horiz_rel_status_flag(handle());
     }
     [[nodiscard]] bool pred_pos_horiz_abs_status_flag() const noexcept {
-        return ros_mavros_estimator_status_get_pred_pos_horiz_abs_status_flag(handle());
+        return mavros_msgs_estimator_status_get_pred_pos_horiz_abs_status_flag(handle());
     }
     [[nodiscard]] bool gps_glitch_status_flag() const noexcept {
-        return ros_mavros_estimator_status_get_gps_glitch_status_flag(handle());
+        return mavros_msgs_estimator_status_get_gps_glitch_status_flag(handle());
     }
     [[nodiscard]] bool accel_error_status_flag() const noexcept {
-        return ros_mavros_estimator_status_get_accel_error_status_flag(handle());
+        return mavros_msgs_estimator_status_get_accel_error_status_flag(handle());
     }
 };
+} // namespace mavros_msgs
 
 /// @brief Zero-copy view of a mavros_msgs/ExtendedState CDR buffer.
-class MavrosExtendedStateView : public detail::ViewBase<MavrosExtendedStateView, detail::MavrosExtendedStateTraits> {
-    using Base = detail::ViewBase<MavrosExtendedStateView, detail::MavrosExtendedStateTraits>;
+
+namespace mavros_msgs {
+class ExtendedStateView : public detail::ViewBase<ExtendedStateView, detail::MavrosExtendedStateTraits> {
+    using Base = detail::ViewBase<ExtendedStateView, detail::MavrosExtendedStateTraits>;
     friend Base;
     using Base::Base;
 public:
@@ -8230,27 +8679,30 @@ public:
     static constexpr std::uint8_t LANDED_STATE_LANDING    = 4;
 
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_mavros_extended_state_get_stamp_sec(handle()),
-                ros_mavros_extended_state_get_stamp_nanosec(handle())};
+        return {mavros_msgs_extended_state_get_stamp_sec(handle()),
+                mavros_msgs_extended_state_get_stamp_nanosec(handle())};
     }
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_mavros_extended_state_get_frame_id(handle());
+        return mavros_msgs_extended_state_get_frame_id(handle());
     }
     [[nodiscard]] std::uint8_t vtol_state() const noexcept {
-        return ros_mavros_extended_state_get_vtol_state(handle());
+        return mavros_msgs_extended_state_get_vtol_state(handle());
     }
     [[nodiscard]] std::uint8_t landed_state() const noexcept {
-        return ros_mavros_extended_state_get_landed_state(handle());
+        return mavros_msgs_extended_state_get_landed_state(handle());
     }
 };
+} // namespace mavros_msgs
 
 /// @brief Zero-copy view of a mavros_msgs/SysStatus CDR buffer.
 ///
 /// Field units follow the raw MAVLink SYS_STATUS message definition —
 /// no conversions are applied.
 /// @see https://mavlink.io/en/messages/common.html#SYS_STATUS
-class MavrosSysStatusView : public detail::ViewBase<MavrosSysStatusView, detail::MavrosSysStatusTraits> {
-    using Base = detail::ViewBase<MavrosSysStatusView, detail::MavrosSysStatusTraits>;
+
+namespace mavros_msgs {
+class SysStatusView : public detail::ViewBase<SysStatusView, detail::MavrosSysStatusTraits> {
+    using Base = detail::ViewBase<SysStatusView, detail::MavrosSysStatusTraits>;
     friend Base;
     using Base::Base;
 public:
@@ -8258,69 +8710,72 @@ public:
     using Base::as_cdr;
 
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_mavros_sys_status_get_stamp_sec(handle()),
-                ros_mavros_sys_status_get_stamp_nanosec(handle())};
+        return {mavros_msgs_sys_status_get_stamp_sec(handle()),
+                mavros_msgs_sys_status_get_stamp_nanosec(handle())};
     }
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_mavros_sys_status_get_frame_id(handle());
+        return mavros_msgs_sys_status_get_frame_id(handle());
     }
     /// Bitmask of onboard sensors present.
     [[nodiscard]] std::uint32_t sensors_present() const noexcept {
-        return ros_mavros_sys_status_get_sensors_present(handle());
+        return mavros_msgs_sys_status_get_sensors_present(handle());
     }
     /// Bitmask of onboard sensors enabled.
     [[nodiscard]] std::uint32_t sensors_enabled() const noexcept {
-        return ros_mavros_sys_status_get_sensors_enabled(handle());
+        return mavros_msgs_sys_status_get_sensors_enabled(handle());
     }
     /// Bitmask of onboard sensors reporting healthy.
     [[nodiscard]] std::uint32_t sensors_health() const noexcept {
-        return ros_mavros_sys_status_get_sensors_health(handle());
+        return mavros_msgs_sys_status_get_sensors_health(handle());
     }
     /// Maximum CPU/MCU usage in per-mille (0–1000).
     [[nodiscard]] std::uint16_t load() const noexcept {
-        return ros_mavros_sys_status_get_load(handle());
+        return mavros_msgs_sys_status_get_load(handle());
     }
     /// Battery voltage in millivolts (mV). UINT16_MAX if unknown.
     [[nodiscard]] std::uint16_t voltage_battery() const noexcept {
-        return ros_mavros_sys_status_get_voltage_battery(handle());
+        return mavros_msgs_sys_status_get_voltage_battery(handle());
     }
     /// Battery current in centi-amperes (cA, 10 mA steps). -1 if unknown.
     [[nodiscard]] std::int16_t current_battery() const noexcept {
-        return ros_mavros_sys_status_get_current_battery(handle());
+        return mavros_msgs_sys_status_get_current_battery(handle());
     }
     /// Battery remaining, 0–100 (%). -1 if not estimated.
     [[nodiscard]] std::int8_t battery_remaining() const noexcept {
-        return ros_mavros_sys_status_get_battery_remaining(handle());
+        return mavros_msgs_sys_status_get_battery_remaining(handle());
     }
     /// Communication drop rate in per-mille.
     [[nodiscard]] std::uint16_t drop_rate_comm() const noexcept {
-        return ros_mavros_sys_status_get_drop_rate_comm(handle());
+        return mavros_msgs_sys_status_get_drop_rate_comm(handle());
     }
     /// Communication error count.
     [[nodiscard]] std::uint16_t errors_comm() const noexcept {
-        return ros_mavros_sys_status_get_errors_comm(handle());
+        return mavros_msgs_sys_status_get_errors_comm(handle());
     }
     /// Autopilot-specific error count 1.
     [[nodiscard]] std::uint16_t errors_count1() const noexcept {
-        return ros_mavros_sys_status_get_errors_count1(handle());
+        return mavros_msgs_sys_status_get_errors_count1(handle());
     }
     /// Autopilot-specific error count 2.
     [[nodiscard]] std::uint16_t errors_count2() const noexcept {
-        return ros_mavros_sys_status_get_errors_count2(handle());
+        return mavros_msgs_sys_status_get_errors_count2(handle());
     }
     /// Autopilot-specific error count 3.
     [[nodiscard]] std::uint16_t errors_count3() const noexcept {
-        return ros_mavros_sys_status_get_errors_count3(handle());
+        return mavros_msgs_sys_status_get_errors_count3(handle());
     }
     /// Autopilot-specific error count 4.
     [[nodiscard]] std::uint16_t errors_count4() const noexcept {
-        return ros_mavros_sys_status_get_errors_count4(handle());
+        return mavros_msgs_sys_status_get_errors_count4(handle());
     }
 };
+} // namespace mavros_msgs
 
 /// @brief Zero-copy view of a mavros_msgs/State CDR buffer.
-class MavrosStateView : public detail::ViewBase<MavrosStateView, detail::MavrosStateTraits> {
-    using Base = detail::ViewBase<MavrosStateView, detail::MavrosStateTraits>;
+
+namespace mavros_msgs {
+class StateView : public detail::ViewBase<StateView, detail::MavrosStateTraits> {
+    using Base = detail::ViewBase<StateView, detail::MavrosStateTraits>;
     friend Base;
     using Base::Base;
 public:
@@ -8338,35 +8793,38 @@ public:
     static constexpr std::uint8_t MAV_STATE_FLIGHT_TERMINATION = 8;
 
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_mavros_state_get_stamp_sec(handle()),
-                ros_mavros_state_get_stamp_nanosec(handle())};
+        return {mavros_msgs_state_get_stamp_sec(handle()),
+                mavros_msgs_state_get_stamp_nanosec(handle())};
     }
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_mavros_state_get_frame_id(handle());
+        return mavros_msgs_state_get_frame_id(handle());
     }
     [[nodiscard]] bool connected() const noexcept {
-        return ros_mavros_state_get_connected(handle());
+        return mavros_msgs_state_get_connected(handle());
     }
     [[nodiscard]] bool armed() const noexcept {
-        return ros_mavros_state_get_armed(handle());
+        return mavros_msgs_state_get_armed(handle());
     }
     [[nodiscard]] bool guided() const noexcept {
-        return ros_mavros_state_get_guided(handle());
+        return mavros_msgs_state_get_guided(handle());
     }
     [[nodiscard]] bool manual_input() const noexcept {
-        return ros_mavros_state_get_manual_input(handle());
+        return mavros_msgs_state_get_manual_input(handle());
     }
     [[nodiscard]] std::string_view mode() const noexcept {
-        return ros_mavros_state_get_mode(handle());
+        return mavros_msgs_state_get_mode(handle());
     }
     [[nodiscard]] std::uint8_t system_status() const noexcept {
-        return ros_mavros_state_get_system_status(handle());
+        return mavros_msgs_state_get_system_status(handle());
     }
 };
+} // namespace mavros_msgs
 
 /// @brief Zero-copy view of a mavros_msgs/StatusText CDR buffer.
-class MavrosStatusTextView : public detail::ViewBase<MavrosStatusTextView, detail::MavrosStatusTextTraits> {
-    using Base = detail::ViewBase<MavrosStatusTextView, detail::MavrosStatusTextTraits>;
+
+namespace mavros_msgs {
+class StatusTextView : public detail::ViewBase<StatusTextView, detail::MavrosStatusTextTraits> {
+    using Base = detail::ViewBase<StatusTextView, detail::MavrosStatusTextTraits>;
     friend Base;
     using Base::Base;
 public:
@@ -8383,27 +8841,30 @@ public:
     static constexpr std::uint8_t SEVERITY_DEBUG     = 7;
 
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_mavros_status_text_get_stamp_sec(handle()),
-                ros_mavros_status_text_get_stamp_nanosec(handle())};
+        return {mavros_msgs_status_text_get_stamp_sec(handle()),
+                mavros_msgs_status_text_get_stamp_nanosec(handle())};
     }
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_mavros_status_text_get_frame_id(handle());
+        return mavros_msgs_status_text_get_frame_id(handle());
     }
     [[nodiscard]] std::uint8_t severity() const noexcept {
-        return ros_mavros_status_text_get_severity(handle());
+        return mavros_msgs_status_text_get_severity(handle());
     }
     [[nodiscard]] std::string_view text() const noexcept {
-        return ros_mavros_status_text_get_text(handle());
+        return mavros_msgs_status_text_get_text(handle());
     }
 };
+} // namespace mavros_msgs
 
 /// @brief Zero-copy view of a mavros_msgs/GPSRAW CDR buffer.
 ///
 /// Field units follow the raw MAVLink GPS_RAW_INT message definition —
 /// no conversions are applied.
 /// @see https://mavlink.io/en/messages/common.html#GPS_RAW_INT
-class MavrosGpsRawView : public detail::ViewBase<MavrosGpsRawView, detail::MavrosGpsRawTraits> {
-    using Base = detail::ViewBase<MavrosGpsRawView, detail::MavrosGpsRawTraits>;
+
+namespace mavros_msgs {
+class GpsRawView : public detail::ViewBase<GpsRawView, detail::MavrosGpsRawTraits> {
+    using Base = detail::ViewBase<GpsRawView, detail::MavrosGpsRawTraits>;
     friend Base;
     using Base::Base;
 public:
@@ -8421,85 +8882,88 @@ public:
     static constexpr std::uint8_t GPS_FIX_TYPE_PPP       = 8;
 
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_mavros_gps_raw_get_stamp_sec(handle()),
-                ros_mavros_gps_raw_get_stamp_nanosec(handle())};
+        return {mavros_msgs_gps_raw_get_stamp_sec(handle()),
+                mavros_msgs_gps_raw_get_stamp_nanosec(handle())};
     }
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_mavros_gps_raw_get_frame_id(handle());
+        return mavros_msgs_gps_raw_get_frame_id(handle());
     }
     /// GPS fix type (see GPS_FIX_TYPE_* constants).
     [[nodiscard]] std::uint8_t fix_type() const noexcept {
-        return ros_mavros_gps_raw_get_fix_type(handle());
+        return mavros_msgs_gps_raw_get_fix_type(handle());
     }
     /// Latitude in degrees * 1e7 (degE7).
     [[nodiscard]] std::int32_t lat() const noexcept {
-        return ros_mavros_gps_raw_get_lat(handle());
+        return mavros_msgs_gps_raw_get_lat(handle());
     }
     /// Longitude in degrees * 1e7 (degE7).
     [[nodiscard]] std::int32_t lon() const noexcept {
-        return ros_mavros_gps_raw_get_lon(handle());
+        return mavros_msgs_gps_raw_get_lon(handle());
     }
     /// Altitude above MSL in millimetres (mm).
     [[nodiscard]] std::int32_t alt() const noexcept {
-        return ros_mavros_gps_raw_get_alt(handle());
+        return mavros_msgs_gps_raw_get_alt(handle());
     }
     /// GPS HDOP in cm. UINT16_MAX if unknown.
     [[nodiscard]] std::uint16_t eph() const noexcept {
-        return ros_mavros_gps_raw_get_eph(handle());
+        return mavros_msgs_gps_raw_get_eph(handle());
     }
     /// GPS VDOP in cm. UINT16_MAX if unknown.
     [[nodiscard]] std::uint16_t epv() const noexcept {
-        return ros_mavros_gps_raw_get_epv(handle());
+        return mavros_msgs_gps_raw_get_epv(handle());
     }
     /// GPS ground speed in cm/s. UINT16_MAX if unknown.
     [[nodiscard]] std::uint16_t vel() const noexcept {
-        return ros_mavros_gps_raw_get_vel(handle());
+        return mavros_msgs_gps_raw_get_vel(handle());
     }
     /// Course over ground in centidegrees (0-35999). UINT16_MAX if unknown.
     [[nodiscard]] std::uint16_t cog() const noexcept {
-        return ros_mavros_gps_raw_get_cog(handle());
+        return mavros_msgs_gps_raw_get_cog(handle());
     }
     /// Number of satellites visible. UINT8_MAX if unknown.
     [[nodiscard]] std::uint8_t satellites_visible() const noexcept {
-        return ros_mavros_gps_raw_get_satellites_visible(handle());
+        return mavros_msgs_gps_raw_get_satellites_visible(handle());
     }
     /// Altitude above WGS84 ellipsoid in millimetres (mm).
     [[nodiscard]] std::int32_t alt_ellipsoid() const noexcept {
-        return ros_mavros_gps_raw_get_alt_ellipsoid(handle());
+        return mavros_msgs_gps_raw_get_alt_ellipsoid(handle());
     }
     /// Horizontal position uncertainty in millimetres (mm).
     [[nodiscard]] std::uint32_t h_acc() const noexcept {
-        return ros_mavros_gps_raw_get_h_acc(handle());
+        return mavros_msgs_gps_raw_get_h_acc(handle());
     }
     /// Vertical position uncertainty in millimetres (mm).
     [[nodiscard]] std::uint32_t v_acc() const noexcept {
-        return ros_mavros_gps_raw_get_v_acc(handle());
+        return mavros_msgs_gps_raw_get_v_acc(handle());
     }
     /// Speed uncertainty in mm/s.
     [[nodiscard]] std::uint32_t vel_acc() const noexcept {
-        return ros_mavros_gps_raw_get_vel_acc(handle());
+        return mavros_msgs_gps_raw_get_vel_acc(handle());
     }
     /// Heading uncertainty in centidegrees.
     [[nodiscard]] std::int32_t hdg_acc() const noexcept {
-        return ros_mavros_gps_raw_get_hdg_acc(handle());
+        return mavros_msgs_gps_raw_get_hdg_acc(handle());
     }
     /// Yaw in centidegrees. 0 if unknown.
     [[nodiscard]] std::uint16_t yaw() const noexcept {
-        return ros_mavros_gps_raw_get_yaw(handle());
+        return mavros_msgs_gps_raw_get_yaw(handle());
     }
     /// Number of DGPS satellites.
     [[nodiscard]] std::uint8_t dgps_numch() const noexcept {
-        return ros_mavros_gps_raw_get_dgps_numch(handle());
+        return mavros_msgs_gps_raw_get_dgps_numch(handle());
     }
     /// Age of DGPS correction in milliseconds (ms).
     [[nodiscard]] std::uint32_t dgps_age() const noexcept {
-        return ros_mavros_gps_raw_get_dgps_age(handle());
+        return mavros_msgs_gps_raw_get_dgps_age(handle());
     }
 };
+} // namespace mavros_msgs
 
 /// @brief Zero-copy view of a mavros_msgs/TimesyncStatus CDR buffer.
-class MavrosTimesyncStatusView : public detail::ViewBase<MavrosTimesyncStatusView, detail::MavrosTimesyncStatusTraits> {
-    using Base = detail::ViewBase<MavrosTimesyncStatusView, detail::MavrosTimesyncStatusTraits>;
+
+namespace mavros_msgs {
+class TimesyncStatusView : public detail::ViewBase<TimesyncStatusView, detail::MavrosTimesyncStatusTraits> {
+    using Base = detail::ViewBase<TimesyncStatusView, detail::MavrosTimesyncStatusTraits>;
     friend Base;
     using Base::Base;
 public:
@@ -8507,25 +8971,26 @@ public:
     using Base::as_cdr;
 
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_mavros_timesync_status_get_stamp_sec(handle()),
-                ros_mavros_timesync_status_get_stamp_nanosec(handle())};
+        return {mavros_msgs_timesync_status_get_stamp_sec(handle()),
+                mavros_msgs_timesync_status_get_stamp_nanosec(handle())};
     }
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_mavros_timesync_status_get_frame_id(handle());
+        return mavros_msgs_timesync_status_get_frame_id(handle());
     }
     [[nodiscard]] std::uint64_t remote_timestamp_ns() const noexcept {
-        return ros_mavros_timesync_status_get_remote_timestamp_ns(handle());
+        return mavros_msgs_timesync_status_get_remote_timestamp_ns(handle());
     }
     [[nodiscard]] std::int64_t observed_offset_ns() const noexcept {
-        return ros_mavros_timesync_status_get_observed_offset_ns(handle());
+        return mavros_msgs_timesync_status_get_observed_offset_ns(handle());
     }
     [[nodiscard]] std::int64_t estimated_offset_ns() const noexcept {
-        return ros_mavros_timesync_status_get_estimated_offset_ns(handle());
+        return mavros_msgs_timesync_status_get_estimated_offset_ns(handle());
     }
     [[nodiscard]] float round_trip_time_ms() const noexcept {
-        return ros_mavros_timesync_status_get_round_trip_time_ms(handle());
+        return mavros_msgs_timesync_status_get_round_trip_time_ms(handle());
     }
 };
+} // namespace mavros_msgs
 
 // ===========================================================================
 // edgefirst_msgs :: Tensor family
@@ -8570,41 +9035,41 @@ public:
     BorrowedTensorPlaneView& operator=(BorrowedTensorPlaneView&&) = delete;    ///< @brief Deleted: prevents reassignment.
 
     /// @brief Wrap a borrowed child handle.
-    /// @param h Non-null borrowed `ros_tensor_plane_t*` owned by the parent.
-    explicit BorrowedTensorPlaneView(const ros_tensor_plane_t* h) noexcept : handle_(h) {}
+    /// @param h Non-null borrowed `edgefirst_msgs_tensor_plane_t*` owned by the parent.
+    explicit BorrowedTensorPlaneView(const edgefirst_msgs_tensor_plane_t* h) noexcept : handle_(h) {}
 
     /// @brief Platform handle; -1 means the bytes are inline in `data()`.
-    [[nodiscard]] std::int64_t  handle()   const noexcept { return ros_tensor_plane_get_handle(handle_); }
+    [[nodiscard]] std::int64_t  handle()   const noexcept { return edgefirst_msgs_tensor_plane_get_handle(handle_); }
     /// @brief Byte offset of this plane within its allocation.
-    [[nodiscard]] std::uint64_t offset()   const noexcept { return ros_tensor_plane_get_offset(handle_); }
+    [[nodiscard]] std::uint64_t offset()   const noexcept { return edgefirst_msgs_tensor_plane_get_offset(handle_); }
     /// @brief Row stride, in bytes.
-    [[nodiscard]] std::uint64_t stride()   const noexcept { return ros_tensor_plane_get_stride(handle_); }
+    [[nodiscard]] std::uint64_t stride()   const noexcept { return edgefirst_msgs_tensor_plane_get_stride(handle_); }
     /// @brief Allocated size of the plane, in bytes.
-    [[nodiscard]] std::uint64_t size()     const noexcept { return ros_tensor_plane_get_size(handle_); }
+    [[nodiscard]] std::uint64_t size()     const noexcept { return edgefirst_msgs_tensor_plane_get_size(handle_); }
     /// @brief Bytes actually populated; always <= `size()`.
-    [[nodiscard]] std::uint64_t used()     const noexcept { return ros_tensor_plane_get_used(handle_); }
+    [[nodiscard]] std::uint64_t used()     const noexcept { return edgefirst_msgs_tensor_plane_get_used(handle_); }
     /// @brief Format modifier (tiling/compression); 0 for linear.
-    [[nodiscard]] std::uint64_t modifier() const noexcept { return ros_tensor_plane_get_modifier(handle_); }
+    [[nodiscard]] std::uint64_t modifier() const noexcept { return edgefirst_msgs_tensor_plane_get_modifier(handle_); }
     /// @brief True when this plane's bytes travel inline rather than by handle.
-    [[nodiscard]] bool          is_inline() const noexcept { return ros_tensor_plane_is_inline(handle_); }
+    [[nodiscard]] bool          is_inline() const noexcept { return edgefirst_msgs_tensor_plane_is_inline(handle_); }
 
     /// @brief Opaque platform handle bytes (empty for an inline plane).
     /// @warning Borrows the parent's CDR buffer.
     [[nodiscard]] span<const std::uint8_t> handle_bytes() const noexcept {
         std::size_t n = 0;
-        const auto* p = ros_tensor_plane_get_handle_bytes(handle_, &n);
+        const auto* p = edgefirst_msgs_tensor_plane_get_handle_bytes(handle_, &n);
         return {p, n};
     }
     /// @brief Inlined plane bytes (populated only when `handle() == -1`).
     /// @warning Borrows the parent's CDR buffer.
     [[nodiscard]] span<const std::uint8_t> data() const noexcept {
         std::size_t n = 0;
-        const auto* p = ros_tensor_plane_get_data(handle_, &n);
+        const auto* p = edgefirst_msgs_tensor_plane_get_data(handle_, &n);
         return {p, n};
     }
 
 private:
-    const ros_tensor_plane_t* handle_;
+    const edgefirst_msgs_tensor_plane_t* handle_;
 };
 
 namespace detail {
@@ -8615,43 +9080,43 @@ namespace detail {
  *
  * Shared by the owning `TensorView` and the parent-borrowed
  * `BorrowedTensorView` so the ~20 accessors exist once. `Derived` supplies
- * `tensor_handle()` returning `const ros_tensor_t*`.
+ * `tensor_handle()` returning `const edgefirst_msgs_tensor_t*`.
  */
 template <typename Derived>
 class TensorAccessors {
-    [[nodiscard]] const ros_tensor_t* h() const noexcept {
+    [[nodiscard]] const edgefirst_msgs_tensor_t* h() const noexcept {
         return static_cast<const Derived*>(this)->tensor_handle();
     }
 
 public:
     /// @brief Storage class shared by every plane (HAL storage_kind codes).
-    [[nodiscard]] std::uint32_t storage_kind() const noexcept { return ros_tensor_get_storage_kind(h()); }
+    [[nodiscard]] std::uint32_t storage_kind() const noexcept { return edgefirst_msgs_tensor_get_storage_kind(h()); }
     /// @brief Producer PID, for handle resolution; 0 when not applicable.
-    [[nodiscard]] std::uint32_t pid()          const noexcept { return ros_tensor_get_pid(h()); }
+    [[nodiscard]] std::uint32_t pid()          const noexcept { return edgefirst_msgs_tensor_get_pid(h()); }
     /// @brief ACQUIRE fence fd; -1 when there is no fence.
-    [[nodiscard]] std::int32_t  fence_fd()     const noexcept { return ros_tensor_get_fence_fd(h()); }
+    [[nodiscard]] std::int32_t  fence_fd()     const noexcept { return edgefirst_msgs_tensor_get_fence_fd(h()); }
     /// @brief Element type (HAL dtype codes).
-    [[nodiscard]] std::uint32_t dtype()        const noexcept { return ros_tensor_get_dtype(h()); }
+    [[nodiscard]] std::uint32_t dtype()        const noexcept { return edgefirst_msgs_tensor_get_dtype(h()); }
     /// @brief Quantization axis; -2 when unquantized, -1 when per-tensor.
-    [[nodiscard]] std::int32_t  quant_axis()   const noexcept { return ros_tensor_get_quant_axis(h()); }
+    [[nodiscard]] std::int32_t  quant_axis()   const noexcept { return edgefirst_msgs_tensor_get_quant_axis(h()); }
     /// @brief Number of planes.
-    [[nodiscard]] std::uint32_t num_planes()   const noexcept { return ros_tensor_get_num_planes(h()); }
+    [[nodiscard]] std::uint32_t num_planes()   const noexcept { return edgefirst_msgs_tensor_get_num_planes(h()); }
 
     /// @brief Pixel/element format string. @warning Borrows the CDR buffer.
-    [[nodiscard]] std::string_view format()         const noexcept { return ros_tensor_get_format(h()); }
+    [[nodiscard]] std::string_view format()         const noexcept { return edgefirst_msgs_tensor_get_format(h()); }
     /// @brief Colour primaries; empty when unset. @warning Borrows the CDR buffer.
-    [[nodiscard]] std::string_view color_space()    const noexcept { return ros_tensor_get_color_space(h()); }
+    [[nodiscard]] std::string_view color_space()    const noexcept { return edgefirst_msgs_tensor_get_color_space(h()); }
     /// @brief Transfer characteristics; empty when unset.
-    [[nodiscard]] std::string_view color_transfer() const noexcept { return ros_tensor_get_color_transfer(h()); }
+    [[nodiscard]] std::string_view color_transfer() const noexcept { return edgefirst_msgs_tensor_get_color_transfer(h()); }
     /// @brief Matrix coefficients; empty when unset.
-    [[nodiscard]] std::string_view color_encoding() const noexcept { return ros_tensor_get_color_encoding(h()); }
+    [[nodiscard]] std::string_view color_encoding() const noexcept { return edgefirst_msgs_tensor_get_color_encoding(h()); }
     /// @brief Full/limited range; empty when unset.
-    [[nodiscard]] std::string_view color_range()    const noexcept { return ros_tensor_get_color_range(h()); }
+    [[nodiscard]] std::string_view color_range()    const noexcept { return edgefirst_msgs_tensor_get_color_range(h()); }
 
     /// @brief Number of dimensions in `shape`.
-    [[nodiscard]] std::uint32_t shape_len()   const noexcept { return ros_tensor_get_shape_len(h()); }
+    [[nodiscard]] std::uint32_t shape_len()   const noexcept { return edgefirst_msgs_tensor_get_shape_len(h()); }
     /// @brief Number of entries in `strides` (0, or equal to `shape_len()`).
-    [[nodiscard]] std::uint32_t strides_len() const noexcept { return ros_tensor_get_strides_len(h()); }
+    [[nodiscard]] std::uint32_t strides_len() const noexcept { return edgefirst_msgs_tensor_get_strides_len(h()); }
 
     /// @brief One `shape` element.
     /// @return The dimension, or an Error if `index` is out of range.
@@ -8661,16 +9126,16 @@ public:
     ///       allocation.
     [[nodiscard]] expected<std::uint64_t, Error> shape_at(std::uint32_t index) const noexcept {
         std::uint64_t v = 0;
-        if (ros_tensor_get_shape_at(h(), index, &v) != 0)
-            return unexpected<Error>(Error::from_errno("ros_tensor_get_shape_at"));
+        if (edgefirst_msgs_tensor_get_shape_at(h(), index, &v) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_tensor_get_shape_at"));
         return v;
     }
     /// @brief One `strides` element, in BYTES.
     /// @return The stride, or an Error if `index` is out of range.
     [[nodiscard]] expected<std::int64_t, Error> strides_at(std::uint32_t index) const noexcept {
         std::int64_t v = 0;
-        if (ros_tensor_get_strides_at(h(), index, &v) != 0)
-            return unexpected<Error>(Error::from_errno("ros_tensor_get_strides_at"));
+        if (edgefirst_msgs_tensor_get_strides_at(h(), index, &v) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_tensor_get_strides_at"));
         return v;
     }
 
@@ -8683,14 +9148,14 @@ public:
     /// would be misaligned. The copy is O(n) for the whole sequence.
     [[nodiscard]] std::vector<std::uint64_t> shape() const noexcept {
         std::vector<std::uint64_t> out(shape_len());
-        if (!out.empty()) ros_tensor_copy_shape(h(), out.data(), out.size());
+        if (!out.empty()) edgefirst_msgs_tensor_copy_shape(h(), out.data(), out.size());
         return out;
     }
     /// @brief The whole `strides` sequence (in bytes), materialized.
     /// @see shape() for why this copies rather than borrows.
     [[nodiscard]] std::vector<std::int64_t> strides() const noexcept {
         std::vector<std::int64_t> out(strides_len());
-        if (!out.empty()) ros_tensor_copy_strides(h(), out.data(), out.size());
+        if (!out.empty()) edgefirst_msgs_tensor_copy_strides(h(), out.data(), out.size());
         return out;
     }
 
@@ -8700,13 +9165,13 @@ public:
     /// coincides with their natural alignment, so they can be borrowed.
     [[nodiscard]] span<const float> quant_scales() const noexcept {
         std::size_t n = 0;
-        const auto* p = ros_tensor_get_quant_scales(h(), &n);
+        const auto* p = edgefirst_msgs_tensor_get_quant_scales(h(), &n);
         return {p, n};
     }
     /// @brief Quantization zero points, borrowed from the CDR buffer.
     [[nodiscard]] span<const std::int32_t> quant_zero_points() const noexcept {
         std::size_t n = 0;
-        const auto* p = ros_tensor_get_quant_zero_points(h(), &n);
+        const auto* p = edgefirst_msgs_tensor_get_quant_zero_points(h(), &n);
         return {p, n};
     }
 
@@ -8715,10 +9180,10 @@ public:
     ///         elements, each borrowing into this tensor's CDR buffer and
     ///         valid only while the owning view is alive.
     [[nodiscard]] auto planes() const noexcept {
-        return detail::ChildRange<ros_tensor_t,
+        return detail::ChildRange<edgefirst_msgs_tensor_t,
                                   BorrowedTensorPlaneView,
-                                  decltype(&ros_tensor_get_plane)>{
-            h(), ros_tensor_get_num_planes(h()), ros_tensor_get_plane
+                                  decltype(&edgefirst_msgs_tensor_get_plane)>{
+            h(), edgefirst_msgs_tensor_get_num_planes(h()), edgefirst_msgs_tensor_get_plane
         };
     }
 
@@ -8726,7 +9191,7 @@ public:
     /// @warning Borrows the CDR buffer.
     [[nodiscard]] span<const std::uint8_t> tensor_bytes() const noexcept {
         std::size_t n = 0;
-        const auto* p = ros_tensor_get_tensor_bytes(h(), &n);
+        const auto* p = edgefirst_msgs_tensor_get_tensor_bytes(h(), &n);
         return {p, n};
     }
 
@@ -8736,12 +9201,12 @@ public:
     /// topic. Copies metadata only; plane payloads stay behind their handles.
     /// Because the layout is position-independent the result is
     /// byte-identical to encoding the same tensor standalone from scratch.
-    /// @return A `Released` POD the caller frees via `ros_bytes_free`.
+    /// @return A `Released` POD the caller frees via `edgefirst_schemas_bytes_free`.
     [[nodiscard]] expected<Released, Error> to_standalone_cdr() const noexcept {
         std::uint8_t* out = nullptr;
         std::size_t len = 0;
-        if (ros_tensor_to_standalone_cdr(h(), &out, &len) != 0)
-            return unexpected<Error>(Error::from_errno("ros_tensor_to_standalone_cdr"));
+        if (edgefirst_msgs_tensor_to_standalone_cdr(h(), &out, &len) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_tensor_to_standalone_cdr"));
         return Released{out, len};
     }
 };
@@ -8757,7 +9222,7 @@ public:
  */
 class BorrowedTensorView : public detail::TensorAccessors<BorrowedTensorView> {
     friend class detail::TensorAccessors<BorrowedTensorView>;
-    [[nodiscard]] const ros_tensor_t* tensor_handle() const noexcept { return handle_; }
+    [[nodiscard]] const edgefirst_msgs_tensor_t* tensor_handle() const noexcept { return handle_; }
 
 public:
     BorrowedTensorView() = delete;                                    ///< @brief Deleted: requires a valid handle.
@@ -8767,13 +9232,15 @@ public:
     BorrowedTensorView& operator=(BorrowedTensorView&&) = delete;     ///< @brief Deleted: prevents reassignment.
 
     /// @brief Wrap a borrowed tensor handle.
-    /// @param h Non-null borrowed `ros_tensor_t*` owned by the wrapper.
-    explicit BorrowedTensorView(const ros_tensor_t* h) noexcept : handle_(h) {}
+    /// @param h Non-null borrowed `edgefirst_msgs_tensor_t*` owned by the wrapper.
+    explicit BorrowedTensorView(const edgefirst_msgs_tensor_t* h) noexcept : handle_(h) {}
 
 private:
-    const ros_tensor_t* handle_;
+    const edgefirst_msgs_tensor_t* handle_;
 };
 
+
+namespace edgefirst_msgs {
 /**
  * @brief Owning view over a standalone `edgefirst_msgs/Tensor` message.
  */
@@ -8784,12 +9251,15 @@ class TensorView : public detail::ViewBaseNoCdr<TensorView, detail::TensorTraits
     friend class detail::TensorAccessors<TensorView>;
     using Base::Base;
 
-    [[nodiscard]] const ros_tensor_t* tensor_handle() const noexcept { return handle(); }
+    [[nodiscard]] const edgefirst_msgs_tensor_t* tensor_handle() const noexcept { return handle(); }
 
 public:
     using Base::from_cdr;
 };
+} // namespace edgefirst_msgs
 
+
+namespace edgefirst_msgs {
 /**
  * @brief Builder for `edgefirst_msgs/Tensor`.
  *
@@ -8811,53 +9281,53 @@ public:
 
     /// @brief Set the storage class shared by every plane.
     TensorBuilder& storage_kind(std::uint32_t v) noexcept {
-        ros_tensor_builder_set_storage_kind(ptr(), v); return *this;
+        edgefirst_msgs_tensor_builder_set_storage_kind(ptr(), v); return *this;
     }
     /// @brief Set the producer PID.
     TensorBuilder& pid(std::uint32_t v) noexcept {
-        ros_tensor_builder_set_pid(ptr(), v); return *this;
+        edgefirst_msgs_tensor_builder_set_pid(ptr(), v); return *this;
     }
     /// @brief Set the ACQUIRE fence fd (-1 for none).
     TensorBuilder& fence_fd(std::int32_t v) noexcept {
-        ros_tensor_builder_set_fence_fd(ptr(), v); return *this;
+        edgefirst_msgs_tensor_builder_set_fence_fd(ptr(), v); return *this;
     }
     /// @brief Set the element dtype.
     TensorBuilder& dtype(std::uint32_t v) noexcept {
-        ros_tensor_builder_set_dtype(ptr(), v); return *this;
+        edgefirst_msgs_tensor_builder_set_dtype(ptr(), v); return *this;
     }
     /// @brief Set the quantization axis (-2 unquantized, -1 per-tensor, >=0 per-axis).
     TensorBuilder& quant_axis(std::int32_t v) noexcept {
-        ros_tensor_builder_set_quant_axis(ptr(), v); return *this;
+        edgefirst_msgs_tensor_builder_set_quant_axis(ptr(), v); return *this;
     }
 
     /// @brief Set the format string (copied).
     [[nodiscard]] expected<void, Error> format(const char* s) noexcept {
-        if (ros_tensor_builder_set_format(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_tensor_builder_set_format"));
+        if (edgefirst_msgs_tensor_builder_set_format(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_tensor_builder_set_format"));
         return {};
     }
     /// @brief Set colour primaries (copied).
     [[nodiscard]] expected<void, Error> color_space(const char* s) noexcept {
-        if (ros_tensor_builder_set_color_space(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_tensor_builder_set_color_space"));
+        if (edgefirst_msgs_tensor_builder_set_color_space(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_tensor_builder_set_color_space"));
         return {};
     }
     /// @brief Set transfer characteristics (copied).
     [[nodiscard]] expected<void, Error> color_transfer(const char* s) noexcept {
-        if (ros_tensor_builder_set_color_transfer(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_tensor_builder_set_color_transfer"));
+        if (edgefirst_msgs_tensor_builder_set_color_transfer(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_tensor_builder_set_color_transfer"));
         return {};
     }
     /// @brief Set matrix coefficients (copied).
     [[nodiscard]] expected<void, Error> color_encoding(const char* s) noexcept {
-        if (ros_tensor_builder_set_color_encoding(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_tensor_builder_set_color_encoding"));
+        if (edgefirst_msgs_tensor_builder_set_color_encoding(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_tensor_builder_set_color_encoding"));
         return {};
     }
     /// @brief Set full/limited range (copied).
     [[nodiscard]] expected<void, Error> color_range(const char* s) noexcept {
-        if (ros_tensor_builder_set_color_range(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_tensor_builder_set_color_range"));
+        if (edgefirst_msgs_tensor_builder_set_color_range(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_tensor_builder_set_color_range"));
         return {};
     }
 
@@ -8865,32 +9335,32 @@ public:
     /// @note `shape` is the addressing grid, NOT the byte layout, and is
     ///       deliberately never validated against any buffer size.
     [[nodiscard]] expected<void, Error> shape(span<const std::uint64_t> d) noexcept {
-        if (ros_tensor_builder_set_shape(ptr(), d.data(), d.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_tensor_builder_set_shape"));
+        if (edgefirst_msgs_tensor_builder_set_shape(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_tensor_builder_set_shape"));
         return {};
     }
     /// @brief Set strides in BYTES (BORROWED); empty, or as long as `shape`.
     [[nodiscard]] expected<void, Error> strides(span<const std::int64_t> d) noexcept {
-        if (ros_tensor_builder_set_strides(ptr(), d.data(), d.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_tensor_builder_set_strides"));
+        if (edgefirst_msgs_tensor_builder_set_strides(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_tensor_builder_set_strides"));
         return {};
     }
     /// @brief Set quantization scales (BORROWED).
     [[nodiscard]] expected<void, Error> quant_scales(span<const float> d) noexcept {
-        if (ros_tensor_builder_set_quant_scales(ptr(), d.data(), d.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_tensor_builder_set_quant_scales"));
+        if (edgefirst_msgs_tensor_builder_set_quant_scales(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_tensor_builder_set_quant_scales"));
         return {};
     }
     /// @brief Set quantization zero points (BORROWED).
     [[nodiscard]] expected<void, Error> quant_zero_points(span<const std::int32_t> d) noexcept {
-        if (ros_tensor_builder_set_quant_zero_points(ptr(), d.data(), d.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_tensor_builder_set_quant_zero_points"));
+        if (edgefirst_msgs_tensor_builder_set_quant_zero_points(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_tensor_builder_set_quant_zero_points"));
         return {};
     }
     /// @brief Set the plane array (BORROWED).
-    [[nodiscard]] expected<void, Error> planes(span<const ros_tensor_plane_elem_t> d) noexcept {
-        if (ros_tensor_builder_set_planes(ptr(), d.data(), d.size()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_tensor_builder_set_planes"));
+    [[nodiscard]] expected<void, Error> planes(span<const edgefirst_msgs_tensor_plane_elem_t> d) noexcept {
+        if (edgefirst_msgs_tensor_builder_set_planes(ptr(), d.data(), d.size()) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_tensor_builder_set_planes"));
         return {};
     }
 
@@ -8902,9 +9372,12 @@ private:
     friend class TensorStampedBuilder;
     friend class CameraFrameBuilder;
 
-    [[nodiscard]] const ros_tensor_builder_t* raw() const noexcept { return ptr(); }
+    [[nodiscard]] const edgefirst_msgs_tensor_builder_t* raw() const noexcept { return ptr(); }
 };
+} // namespace edgefirst_msgs
 
+
+namespace edgefirst_msgs {
 /**
  * @brief Owning view over an `edgefirst_msgs/TensorStamped` message.
  *
@@ -8921,13 +9394,13 @@ public:
 
     /// @brief Message timestamp.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_tensor_stamped_get_stamp_sec(handle()),
-                ros_tensor_stamped_get_stamp_nanosec(handle())};
+        return {edgefirst_msgs_tensor_stamped_get_stamp_sec(handle()),
+                edgefirst_msgs_tensor_stamped_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     /// @warning Borrows the CDR buffer.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_tensor_stamped_get_frame_id(handle());
+        return edgefirst_msgs_tensor_stamped_get_frame_id(handle());
     }
     /// @brief Monotonic sequence number, for drop detection.
     ///
@@ -8936,17 +9409,20 @@ public:
     /// length, which is what makes the nested layout byte-identical across
     /// wrappers.
     [[nodiscard]] std::uint64_t seq() const noexcept {
-        return ros_tensor_stamped_get_seq(handle());
+        return edgefirst_msgs_tensor_stamped_get_seq(handle());
     }
 
     /// @brief The embedded tensor, borrowed.
     /// @warning The returned view is owned by this one: it must not outlive
     ///          this TensorStampedView, and must never be freed.
     [[nodiscard]] BorrowedTensorView tensor() const noexcept {
-        return BorrowedTensorView{ros_tensor_stamped_get_tensor(handle())};
+        return BorrowedTensorView{edgefirst_msgs_tensor_stamped_get_tensor(handle())};
     }
 };
+} // namespace edgefirst_msgs
 
+
+namespace edgefirst_msgs {
 /**
  * @brief Owning view over an `edgefirst_msgs/CameraFrame` message.
  *
@@ -8963,13 +9439,13 @@ public:
 
     /// @brief Message timestamp.
     [[nodiscard]] Time stamp() const noexcept {
-        return {ros_camera_frame_get_stamp_sec(handle()),
-                ros_camera_frame_get_stamp_nanosec(handle())};
+        return {edgefirst_msgs_camera_frame_get_stamp_sec(handle()),
+                edgefirst_msgs_camera_frame_get_stamp_nanosec(handle())};
     }
     /// @brief Coordinate frame identifier.
     /// @warning Borrows the CDR buffer.
     [[nodiscard]] std::string_view frame_id() const noexcept {
-        return ros_camera_frame_get_frame_id(handle());
+        return edgefirst_msgs_camera_frame_get_frame_id(handle());
     }
     /// @brief Monotonic sequence number, for drop detection.
     ///
@@ -8978,17 +9454,20 @@ public:
     /// length, which is what makes the nested layout byte-identical across
     /// wrappers.
     [[nodiscard]] std::uint64_t seq() const noexcept {
-        return ros_camera_frame_get_seq(handle());
+        return edgefirst_msgs_camera_frame_get_seq(handle());
     }
 
     /// @brief The embedded tensor, borrowed.
     /// @warning The returned view is owned by this one: it must not outlive
     ///          this CameraFrameView, and must never be freed.
     [[nodiscard]] BorrowedTensorView tensor() const noexcept {
-        return BorrowedTensorView{ros_camera_frame_get_tensor(handle())};
+        return BorrowedTensorView{edgefirst_msgs_camera_frame_get_tensor(handle())};
     }
 };
+} // namespace edgefirst_msgs
 
+
+namespace edgefirst_msgs {
 /**
  * @brief Builder for `edgefirst_msgs/TensorStamped`.
  *
@@ -9014,28 +9493,31 @@ public:
 
     /// @brief Set the timestamp.
     TensorStampedBuilder& stamp(Time t) noexcept {
-        ros_tensor_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec); return *this;
+        edgefirst_msgs_tensor_stamped_builder_set_stamp(ptr(), t.sec, t.nanosec); return *this;
     }
     /// @brief Set the coordinate frame id (copied).
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_tensor_stamped_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_tensor_stamped_builder_set_frame_id"));
+        if (edgefirst_msgs_tensor_stamped_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_tensor_stamped_builder_set_frame_id"));
         return {};
     }
     /// @brief Set the sequence number.
     TensorStampedBuilder& seq(std::uint64_t v) noexcept {
-        ros_tensor_stamped_builder_set_seq(ptr(), v); return *this;
+        edgefirst_msgs_tensor_stamped_builder_set_seq(ptr(), v); return *this;
     }
     /// @brief Attach the tensor payload (BORROWED).
     /// @warning The TensorBuilder must outlive this builder's `build()` /
     ///          `encode_into()` call.
     [[nodiscard]] expected<void, Error> tensor(const TensorBuilder& t) noexcept {
-        if (ros_tensor_stamped_builder_set_tensor(ptr(), t.raw()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_tensor_stamped_builder_set_tensor"));
+        if (edgefirst_msgs_tensor_stamped_builder_set_tensor(ptr(), t.raw()) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_tensor_stamped_builder_set_tensor"));
         return {};
     }
 };
+} // namespace edgefirst_msgs
 
+
+namespace edgefirst_msgs {
 /**
  * @brief Builder for `edgefirst_msgs/CameraFrame`.
  *
@@ -9061,27 +9543,28 @@ public:
 
     /// @brief Set the timestamp.
     CameraFrameBuilder& stamp(Time t) noexcept {
-        ros_camera_frame_builder_set_stamp(ptr(), t.sec, t.nanosec); return *this;
+        edgefirst_msgs_camera_frame_builder_set_stamp(ptr(), t.sec, t.nanosec); return *this;
     }
     /// @brief Set the coordinate frame id (copied).
     [[nodiscard]] expected<void, Error> frame_id(const char* s) noexcept {
-        if (ros_camera_frame_builder_set_frame_id(ptr(), s) != 0)
-            return unexpected<Error>(Error::from_errno("ros_camera_frame_builder_set_frame_id"));
+        if (edgefirst_msgs_camera_frame_builder_set_frame_id(ptr(), s) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_camera_frame_builder_set_frame_id"));
         return {};
     }
     /// @brief Set the sequence number.
     CameraFrameBuilder& seq(std::uint64_t v) noexcept {
-        ros_camera_frame_builder_set_seq(ptr(), v); return *this;
+        edgefirst_msgs_camera_frame_builder_set_seq(ptr(), v); return *this;
     }
     /// @brief Attach the tensor payload (BORROWED).
     /// @warning The TensorBuilder must outlive this builder's `build()` /
     ///          `encode_into()` call.
     [[nodiscard]] expected<void, Error> tensor(const TensorBuilder& t) noexcept {
-        if (ros_camera_frame_builder_set_tensor(ptr(), t.raw()) != 0)
-            return unexpected<Error>(Error::from_errno("ros_camera_frame_builder_set_tensor"));
+        if (edgefirst_msgs_camera_frame_builder_set_tensor(ptr(), t.raw()) != 0)
+            return unexpected<Error>(Error::from_errno("edgefirst_msgs_camera_frame_builder_set_tensor"));
         return {};
     }
 };
+} // namespace edgefirst_msgs
 
 } // namespace edgefirst::schemas
 

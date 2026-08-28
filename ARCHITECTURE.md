@@ -162,7 +162,7 @@ crates/schemas/src/
 **C library crate** (`crates/capi/`):
 ```
 crates/capi/
-├── src/lib.rs              # #[no_mangle] ros_* / cdr_* FFI surface (was src/ffi.rs)
+├── src/lib.rs              # #[no_mangle] package-prefixed C FFI surface (was src/ffi.rs)
 ├── src/tensor.rs           # Tensor-family C bindings (was src/ffi/tensor.rs)
 ├── build.rs                # stamps SONAME (Linux) / install_name (macOS)
 ├── include/edgefirst/
@@ -239,8 +239,12 @@ let decoded: Time = cdr::decode_fixed(&bytes).unwrap();
 use edgefirst_schemas::std_msgs::Header;
 use edgefirst_schemas::builtin_interfaces::Time;
 
-// Construction writes directly into an internal buffer
-let header = Header::new(Time::new(1, 0), "camera").unwrap();
+// Construction via builder writes directly into an internal buffer
+let header = Header::builder()
+    .stamp(Time::new(1, 0))
+    .frame_id("camera")
+    .build()
+    .unwrap();
 let cdr_bytes = header.to_cdr();
 
 // Deserialization builds an offset table — no data copied
@@ -314,7 +318,7 @@ loop {
 As of 3.2.0 the builder pattern is applied to **every** buffer-backed
 message type in the crate. Geometry, Odometry, and mavros types that
 previously used `Foo::new(...)` now construct exclusively through
-`Foo::builder()`. The C FFI exposes a parallel `ros_<type>_builder_*`
+`Foo::builder()`. The C FFI exposes a parallel `<package>_<type>_builder_*`
 handle-based API with the same semantics.
 
 **Scalar fast path (in-place setters).** The builder re-serialises the
@@ -366,26 +370,33 @@ Two-tier zero-copy access over PointCloud2 data buffers — see [PointCloud Acce
 
 ### C API Prefix Convention
 
-All 3.x C-API symbols share the `ros_*` prefix regardless of which message
-namespace the type originates from — e.g. `ros_camera_info_t` (sensor_msgs),
-`ros_compressed_video_t` (foxglove_msgs), `ros_detect_t` (edgefirst_msgs).
-This is a historical artifact: early development treated every ROS-ecosystem
-type as belonging to a single `ros_` namespace.
+As of the 4.0 line, every C symbol uses the **ROS package name** as its
+prefix — e.g. `sensor_msgs_camera_info_t`, `foxglove_msgs_compressed_video_t`,
+`edgefirst_msgs_detect_t`, `builtin_interfaces_time_encode`. Library helpers
+that are not message types use `edgefirst_schemas_*` (e.g.
+`edgefirst_schemas_bytes_free`). There are no `ros_*` aliases.
 
-The correct convention is a per-namespace prefix matching the `.msg` source:
-`sensor_*`, `foxglove_*`, `edgefirst_*`, `geometry_*`, `std_*`. New C symbols
-added during the 3.x line continue to use `ros_*` for within-release
-consistency — mixing conventions inside 3.x would be worse than retaining the
-wart. The tensor family (`ros_tensor_*`, `ros_camera_frame_*`) follows the
-same `ros_*` convention for the same reason.
+| Package | C prefix | C++ namespace |
+|---------|----------|----------------|
+| builtin_interfaces | `builtin_interfaces_` | `edgefirst::schemas::builtin_interfaces` |
+| std_msgs | `std_msgs_` | `edgefirst::schemas::std_msgs` |
+| sensor_msgs | `sensor_msgs_` | `edgefirst::schemas::sensor_msgs` |
+| geometry_msgs | `geometry_msgs_` | `edgefirst::schemas::geometry_msgs` |
+| nav_msgs | `nav_msgs_` | `edgefirst::schemas::nav_msgs` |
+| foxglove_msgs | `foxglove_msgs_` | `edgefirst::schemas::foxglove_msgs` |
+| edgefirst_msgs | `edgefirst_msgs_` | `edgefirst::schemas::edgefirst_msgs` |
+| mavros_msgs | `mavros_msgs_` | `edgefirst::schemas::mavros_msgs` |
 
-A full rename of all C symbols to their namespace-correct prefixes is tracked
-as a **pre-4.0 follow-up** and must land before the 4.0.0 tag. The 4.0 line is
-already a breaking boundary (DmaBuffer and CameraPlane removal, CameraFrame
-redefinition, SOVERSION bump).
-Rust, C++, and Python surfaces already use per-namespace module paths
-(`edgefirst_schemas::foxglove_msgs::...`) and are unaffected by the C API
-rename.
+Stem cleanup avoids doubling the package token: `ros_foxglove_compressed_image_*`
+became `foxglove_msgs_compressed_image_*`, and `ros_mavros_altitude_*` became
+`mavros_msgs_altitude_*`. C++ drops the old `Foxglove*` / `Mavros*` class-name
+prefixes for the same reason (`foxglove_msgs::CompressedImage`,
+`mavros_msgs::AltitudeView`).
+
+Rust and Python module paths were already package-scoped
+(`edgefirst_schemas::foxglove_msgs::...`, `edgefirst.schemas.foxglove_msgs`) and
+are unaffected by the C rename. The Linux SOVERSION becomes `.so.4` when the
+crate version is cut to 4.0.0.
 
 ### Python Implementation
 
@@ -689,8 +700,8 @@ let standalone: Vec<u8> = cf.tensor().to_standalone_cdr();
 This copies metadata only — plane payloads stay behind their handles.
 
 **Producer language.** Unlike the 3.x `CameraFrame`, the tensor family is
-encodable from all four languages: `ros_tensor_builder_*` and
-`ros_camera_frame_builder_*` in C, `TensorBuilder`/`CameraFrameBuilder` in
+encodable from all four languages: `edgefirst_msgs_tensor_builder_*` and
+`edgefirst_msgs_camera_frame_builder_*` in C, `TensorBuilder`/`CameraFrameBuilder` in
 C++, the `Tensor`/`CameraFrame` constructors in Python, and the Rust builders.
 Composing the tensor builder into the wrapper builder keeps the argument
 surface manageable in C, which was the original reason the 3.x multi-plane
