@@ -77,7 +77,7 @@ def generate_notice(sbom_path: str) -> str:
     # Generate NOTICE content
     notice = []
     notice.append("EdgeFirst Perception Schemas")
-    notice.append("Copyright © 2025 Au-Zone Technologies. All Rights Reserved.")
+    notice.append("Copyright © 2026 Au-Zone Technologies. All Rights Reserved.")
     notice.append("")
     notice.append("This product includes software developed at Au-Zone Technologies")
     notice.append("(https://au-zone.com/).")

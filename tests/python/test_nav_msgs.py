@@ -218,7 +218,7 @@ class TestOccupancyGrid:
         assert restored.info.width == 4
         assert restored.info.height == 2
         assert restored.data_len == 8
-        raw = bytes(restored.data)
+        raw = restored.data.tobytes()
         import struct
         vals = list(struct.unpack_from("8b", raw))
         assert vals[1] == 50
@@ -234,7 +234,7 @@ class TestOccupancyGrid:
         assert info.width == 4
         assert info.height == 2
         assert og.data_len == 8
-        vals = list(struct.unpack_from("8b", bytes(og.data)))
+        vals = list(struct.unpack_from("8b", og.data.tobytes()))
         assert vals == [0, 50, 100, -1, 25, 75, 0, 0]
         assert OccupancyGrid.from_cdr(golden).to_bytes() == golden
 

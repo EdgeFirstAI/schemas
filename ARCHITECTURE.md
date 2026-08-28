@@ -1,7 +1,7 @@
 # EdgeFirst Perception Schemas - Architecture
 
 **Version:** 3.5.0
-**Last Updated:** June 2026
+**Last Updated:** August 2026
 **Target Audience:** Developers implementing or integrating EdgeFirst Perception
 
 ---
@@ -173,17 +173,22 @@ crates/capi/
 └── tests/{c,cpp}/          # Criterion-based C and C++ tests
 ```
 
-**Python** (`edgefirst/schemas/`):
+**Python** (`crates/python/`):
 ```
-edgefirst/schemas/
-├── __init__.py              # Public API, decode_pcd utility
-├── std_msgs.py
-├── geometry_msgs.py
-├── sensor_msgs.py
-├── nav_msgs.py
-├── builtin_interfaces.py
-├── foxglove_msgs.py
-└── edgefirst_msgs.py
+crates/python/
+├── src/lib.rs                      # PyO3 module (compiled to edgefirst.schemas)
+├── python/edgefirst/schemas/
+│   ├── __init__.pyi                # PEP 561 stubs + BorrowedBuf
+│   ├── py.typed
+│   ├── builtin_interfaces.pyi
+│   ├── std_msgs.pyi
+│   ├── geometry_msgs.pyi
+│   ├── sensor_msgs.pyi
+│   ├── nav_msgs.pyi
+│   ├── foxglove_msgs.pyi
+│   ├── mavros_msgs.pyi
+│   └── edgefirst_msgs.pyi
+└── pyproject.toml                  # requires-python >=3.8; dual abi3 wheels
 ```
 
 **Message Definitions** (`edgefirst_msgs/msg/`):
@@ -402,37 +407,17 @@ crate version is cut to 4.0.0.
 
 **Key Features**:
 - PyO3 compiled Rust extension — Rust CDR logic is exposed directly as a native Python module via `maturin`; no `pycdr2` runtime dependency
-- Type hints for IDE support
-- Named tuples for decoded point clouds
+- Type hints (`.pyi` stubs) for IDE support
+- Two published abi3 wheels: `cp38-abi3` (Python 3.8+) and `cp311-abi3` (Python 3.11+, zero-copy `Py_buffer`)
 
 **Example (PointCloud2 decode):**
 
 ```python
-# edgefirst/schemas/__init__.py
-def decode_pcd(pcd: PointCloud2) -> list[NamedTuple]:
-    """Decodes PointCloud2 to list of named tuples."""
-    # Parse field layout
-    fields.sort(key=lambda f: f.offset)
+from edgefirst.schemas.sensor_msgs import PointCloud2
 
-    # Build struct format for decoding
-    struct_format = endian_format + field_types...
-
-    # Decode points
-    Point_ = namedtuple("Point_", field_names)
-    for i in range(pcd.height * pcd.width):
-        p = Point_._make(struct.unpack_from(struct_format, data, offset))
-        points.append(p)
-
-    return points
-```
-
-**Accessing decoded points:**
-
-```python
-points = decode_pcd(point_cloud_msg)
-for point in points:
-    x, y, z = point.x, point.y, point.z
-    rgb = point.rgb  # If RGB field exists
+pcd = PointCloud2.from_cdr(cdr_bytes)
+print(pcd.width, pcd.height, pcd.point_step)
+payload = pcd.data  # BorrowedBuf over the packed points
 ```
 
 ---
@@ -809,7 +794,7 @@ resolves this.
 | **Detect message** | `crates/schemas/src/edgefirst_msgs.rs` | Object detection results |
 | **C API (FFI)** | `crates/capi/src/lib.rs` | C bindings, header hand-maintained at `crates/capi/include/edgefirst/schemas.h` |
 | **Schema registry** | `crates/schemas/src/schema_registry.rs` | Runtime type lookup by ROS2 schema name |
-| **Python decode_pcd** | `edgefirst/schemas/__init__.py` | Python point cloud decode |
+| **Python bindings** | `crates/python/src/lib.rs` | PyO3 module `edgefirst.schemas` |
 | **Message definitions** | `edgefirst_msgs/msg/*.msg` | Source IDL definitions |
 
 ---

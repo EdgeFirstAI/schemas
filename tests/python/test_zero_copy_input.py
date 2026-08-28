@@ -19,6 +19,8 @@ import ctypes
 import gc
 import struct
 
+import pytest
+
 from edgefirst.schemas.builtin_interfaces import Time
 from edgefirst.schemas.nav_msgs import GridCells, OccupancyGrid, Path
 from edgefirst.schemas.sensor_msgs import Image, CompressedImage, Imu, RelativeHumidity, TimeReference
@@ -332,11 +334,15 @@ class TestZeroCopyNewTypes:
         """
         cdr = _make_occupancy_grid_cdr()
         og = OccupancyGrid.from_cdr(cdr)
+        assert og.data.tobytes() == bytes([0, 50, 75, 100])
+        try:
+            memoryview(og.data)
+        except TypeError:
+            pytest.skip("buffer protocol unavailable (abi3-py38 build)")
         base = _bytes_base(cdr)
         data_ptr, data_len = _buffer_base_and_len(og.data)
         assert base <= data_ptr, "data view starts before the input buffer"
         assert data_ptr + data_len <= base + len(cdr), "data view overruns input"
-        assert bytes(og.data) == bytes([0, 50, 75, 100])
 
     def test_grid_cells_cell_width_aliases_input(self):
         """GridCells cell_width f32 is read directly from the CDR bytes."""

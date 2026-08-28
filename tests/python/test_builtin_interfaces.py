@@ -88,8 +88,11 @@ class TestDuration:
         assert restored.nanosec == 500_000_000
 
     def test_equality(self):
-        assert Duration(10, 200) == Duration(10, 200)
-        assert Duration(10, 200) != Duration(10, 300)
+        left = Duration(10, 200)
+        right = Duration(10, 200)
+        other = Duration(10, 300)
+        assert left == right
+        assert left != other
 
     def test_round_trip(self, sample_duration):
         restored = Duration.from_cdr(sample_duration.to_bytes())

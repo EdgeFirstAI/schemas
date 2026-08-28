@@ -40,7 +40,7 @@ EdgeFirst Perception Schemas provides message schema definitions and language bi
 ### Prerequisites
 
 - **Rust**: 1.70 or later ([install instructions](https://www.rust-lang.org/tools/install))
-- **Python**: 3.8 or later
+- **Python**: 3.8 or later (3.11+ uses the zero-copy `cp311-abi3` wheel; 3.8–3.10 uses `cp38-abi3`)
 - **Git**: For version control
 
 ### Clone and Build
@@ -464,18 +464,19 @@ EdgeFirst Perception Schemas is a **multi-language project** (Rust + Python + RO
 
 1. **Cargo.toml** (Rust ecosystem):
    ```toml
-   [package]
-   version = "0.2.0"
+   [workspace.package]
+   version = "4.0.0"
    ```
 
-2. **edgefirst/schemas/__init__.py** (Python ecosystem):
-   ```python
-   __version__ = "0.2.0"
+2. **crates/python/pyproject.toml** (Python / PyPI):
+   ```toml
+   [project]
+   version = "4.0.0"
    ```
 
 3. **edgefirst_msgs/package.xml** (ROS2 ecosystem):
    ```xml
-   <version>0.2.0</version>
+   <version>4.0.0</version>
    ```
 
 **Why three sources?**
@@ -614,7 +615,7 @@ cargo install cargo-release
    ```
 
    This runs pre-release-replacements to update:
-   - `edgefirst/schemas/__init__.py` __version__
+   - `crates/python/pyproject.toml` version
    - `edgefirst_msgs/package.xml` <version>
    - `CHANGELOG.md` (adds new version section)
 
@@ -691,8 +692,8 @@ cargo install cargo-release
    - Runs tests and formatting checks
    - Publishes to crates.io using version from Cargo.toml
    
-   **c) Python Publishing** (`.github/workflows/pypi.yml`)
-   - Builds Python wheel using version from `__init__.py`
+   **c) Python Publishing** (`.github/workflows/wheels.yml` + `release.yml`)
+   - Builds `cp38-abi3` and `cp311-abi3` wheels using version from `crates/python/pyproject.toml`
    - Publishes to PyPI
    
    **d) Debian Package Build** (`.github/workflows/debian.yml`)
@@ -722,7 +723,7 @@ cargo release 1.4.0 --execute
 
 This runs all steps in sequence:
 1. `version` - Updates Cargo.toml
-2. `replace` - Updates __init__.py, package.xml, CHANGELOG.md
+2. `replace` - Updates crates/python/pyproject.toml, package.xml, CHANGELOG.md
 3. `commit` - Commits all changes
 4. `tag` - Creates git tag
 5. `push` - Pushes to remote
@@ -736,23 +737,24 @@ Before creating a release, verify:
 - [ ] All tests pass (`cargo test`, `pytest`, `make test-c`, `make test-cpp`)
 - [ ] Documentation is up-to-date
 - [ ] CHANGELOG.md updated with all changes since last release (following [Keep a Changelog](https://keepachangelog.com/) format)
-- [ ] Versions synchronized via `cargo release version <level>` (validates all three: Cargo.toml, __init__.py, package.xml)
+- [ ] Versions synchronized via `cargo release version <level>` (validates all three: Cargo.toml, crates/python/pyproject.toml, package.xml)
 - [ ] NOTICE file regenerated if dependencies changed
 - [ ] No uncommitted changes (`git status` clean)
 - [ ] On `main` branch with latest changes pulled
 - [ ] Version sync check passes: `.github/scripts/check_version_sync.sh`
 
-### Pre-4.0 Checklist
+### 4.0 Breaking-Change Contract
 
-Before tagging **4.0.0**, verify the breaking-change contract is complete:
+Completed on `main` before the 4.0.0 tag:
 
-- [ ] `CHANGELOG.md` `[Unreleased]` Migration section reflects all removed APIs
+- [x] `CHANGELOG.md` Migration section reflects all removed APIs
 - [x] Deprecated Rust `Foo::new()` constructors removed (builders only, including `mavros_msgs`)
 - [x] Legacy buffer-backed C one-shot encoders removed (`ros_header_encode`, `ros_image_encode`, …)
-- [ ] Tensor/CameraFrame golden fixtures cover I420, split-fd, H264, and empty metadata-only frames
-- [ ] Tensor/CameraFrame criterion benches present in `crates/schemas/benches/serialization.rs`
+- [x] Tensor/CameraFrame golden fixtures cover I420, split-fd, H264, and empty metadata-only frames
+- [x] Tensor/CameraFrame criterion benches present in `crates/schemas/benches/serialization.rs`
 - [x] **C API prefix rename** completed (~1,200 `ros_*` → ROS package-name prefixes; no aliases)
-- [ ] macOS smoke tests pass (`make test-c`, `make test-cpp` on `macos-latest`)
+- [x] macOS smoke tests pass (`make test-c`, `make test-cpp` on `macos-latest`)
+- [x] Dual abi3 wheels (`cp38-abi3` and `cp311-abi3`) published per OS/arch
 
 ### GitHub Actions Release Workflow
 
@@ -803,13 +805,13 @@ All source files must include the SPDX license header:
 **Rust/Python:**
 ```
 // SPDX-License-Identifier: Apache-2.0
-// Copyright © 2025 Au-Zone Technologies. All Rights Reserved.
+// Copyright © 2026 Au-Zone Technologies. All Rights Reserved.
 ```
 
 **Message files:**
 ```
 # SPDX-License-Identifier: Apache-2.0
-# Copyright © 2025 Au-Zone Technologies. All Rights Reserved.
+# Copyright © 2026 Au-Zone Technologies. All Rights Reserved.
 ```
 
 ## Questions?

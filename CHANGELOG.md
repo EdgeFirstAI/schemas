@@ -46,6 +46,12 @@ gone. See the Migration section below.
   all nine mavros types.
 - **macOS CI smoke job** (`make lib && make test-c && make test-cpp` on
   `macos-latest`).
+- **Dual abi3 Python wheels** (`cp38-abi3` and `cp311-abi3`) published
+  per OS/architecture so `pip install edgefirst-schemas` works on
+  Python 3.8–3.10 (embedded Yocto images, older distros) as well as
+  3.11+. Pip on 3.11+ prefers `cp311-abi3` and keeps the zero-copy
+  `Py_buffer` path. The 3.8 wheel copies on construct and
+  `BorrowedBuf.view()` returns `bytes`.
 
 ### Changed
 
@@ -62,6 +68,8 @@ gone. See the Migration section below.
 - **PyO3 upgraded 0.26 → 0.29**, closing two advisories: an out-of-bounds read
   in `PyList`/`PyTuple` `nth`/`nth_back` (high) and a missing `Sync` bound on
   `PyCFunction::new_closure` (moderate). `numpy` (rust-numpy) moves in lockstep.
+  Install floor is Python 3.8; wheels are published as both `cp38-abi3` and
+  `cp311-abi3`.
 - **Build layout: split workspace into `crates/{schemas,capi,python}`.** The
   pure-Rust API now lives in `crates/schemas/` (package `edgefirst-schemas`);
   the C/C++ library in `crates/capi/` (package `edgefirst-schemas-capi`); the

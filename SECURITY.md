@@ -6,9 +6,11 @@ EdgeFirst Perception Schemas follows semantic versioning. Security updates are p
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.0.x   | :white_check_mark: |
+| 4.x     | :white_check_mark: |
+| 3.5.x   | :white_check_mark: (security and critical bug fixes until downstream adoption of 4.x) |
+| < 3.5   | :x:                |
 
-**Note:** As this is a pre-1.0 release, the API may change. Once 1.0 is released, we will maintain backwards compatibility and provide security updates for the current major version.
+The 4.x series is the current major. It is wire-incompatible with 3.x (`CameraFrame` layout, removed `DmaBuffer`/`CameraPlane`, C symbol prefixes). Security updates for 3.5.x are limited to issues that do not require a 4.x-only redesign.
 
 ## Reporting a Vulnerability
 
