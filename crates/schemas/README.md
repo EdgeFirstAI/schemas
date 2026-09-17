@@ -22,3 +22,5 @@ All messages use a custom zero-copy CDR implementation — no `serde`, no alloca
 ## License
 
 Licensed under Apache-2.0. See the workspace [LICENSE](../../LICENSE) and [NOTICE](../../NOTICE).
+
+<img referrerpolicy="no-referrer" src="https://px.edgefirst.ai/a.png?x-pxid=6b7d1551-16c8-4cd5-a983-f642b5af1b2b" alt="" width="1" height="1" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" />
