@@ -154,4 +154,4 @@ maturin build --release --zig --compatibility manylinux2014 \
   --manifest-path crates/python/Cargo.toml
 ```
 
-<img referrerpolicy="no-referrer-when-downgrade" src="https://px.edgefirst.ai/a.png?x-pxid=6b7d1551-16c8-4cd5-a983-f642b5af1b2b" alt="" width="1" height="1" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" />
+<img referrerpolicy="no-referrer" src="https://px.edgefirst.ai/a.png?x-pxid=6b7d1551-16c8-4cd5-a983-f642b5af1b2b" alt="" width="1" height="1" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" />
