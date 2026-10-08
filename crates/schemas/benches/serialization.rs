@@ -395,6 +395,12 @@ use edgefirst_schemas::define_point;
 use edgefirst_schemas::sensor_msgs::pointcloud::{DynPointCloud, PointCloud};
 use edgefirst_schemas::sensor_msgs::{PointCloud2, PointFieldView};
 
+use edgefirst_tensor_abi::{EfDtype, EfStorageKind};
+
+/// Tensor codes from the HAL tensor ABI, their only authority.
+const U8: u32 = EfDtype::U8 as u32;
+const DMA_BUF: u32 = EfStorageKind::DmaBuf as u32;
+
 define_point! {
     struct BenchXyz {
         x: f32 => 0,
@@ -925,10 +931,10 @@ fn bench_path(c: &mut Criterion) {
 
 fn nv12_bench_fields<'a>(planes: &'a [TensorPlaneView<'a>]) -> TensorFields<'a> {
     TensorFields {
-        storage_kind: 2,
+        storage_kind: DMA_BUF,
         pid: 4242,
         fence_fd: -1,
-        dtype: 1,
+        dtype: U8,
         quant_axis: -2,
         shape: &[480, 640],
         strides: &[640, 1],
@@ -996,10 +1002,10 @@ fn bench_tensor(c: &mut Criterion) {
     group.bench_function("build", |b| {
         b.iter(|| {
             let mut tb = Tensor::builder();
-            tb.storage_kind(black_box(2))
+            tb.storage_kind(black_box(DMA_BUF))
                 .pid(black_box(4242))
                 .fence_fd(black_box(-1))
-                .dtype(black_box(1))
+                .dtype(black_box(U8))
                 .quant_axis(black_box(-2))
                 .shape(black_box(&[480u64, 640]))
                 .strides(black_box(&[640i64, 1]))

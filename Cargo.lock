@@ -365,6 +365,7 @@ name = "edgefirst-schemas"
 version = "4.0.0"
 dependencies = [
  "criterion",
+ "edgefirst-tensor-abi",
  "errno",
  "libc",
  "mcap",
@@ -392,6 +393,12 @@ dependencies = [
  "pyo3-build-config",
  "rustc_version",
 ]
+
+[[package]]
+name = "edgefirst-tensor-abi"
+version = "0.34.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "49b3ee0f7b7eff1a0b8f1a9d76d8ae18ed3865f5eb66e50b631a673d6cf76f72"
 
 [[package]]
 name = "either"

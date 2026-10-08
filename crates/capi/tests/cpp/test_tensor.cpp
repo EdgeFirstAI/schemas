@@ -19,6 +19,8 @@
 #include "catch.hpp"
 #include <edgefirst/schemas.hpp>
 
+#include "../tensor_abi.h"
+
 #include <array>
 #include <cstdint>
 #include <cstring>
@@ -215,7 +217,7 @@ static std::array<edgefirst_msgs_tensor_plane_elem_t, 2> nv12_planes() {
 /// Configure a TensorBuilder as an unquantized NV12 camera frame.
 static void configure_nv12(TensorBuilder& tb,
                            const std::array<edgefirst_msgs_tensor_plane_elem_t, 2>& planes) {
-    tb.storage_kind(2).pid(4242).fence_fd(-1).dtype(1).quant_axis(-2);
+    tb.storage_kind(EF_STORAGE_KIND_DMA_BUF).pid(4242).fence_fd(-1).dtype(EF_DTYPE_U8).quant_axis(-2);
     REQUIRE(tb.shape({SHAPE_NV12.data(), SHAPE_NV12.size()}).has_value());
     REQUIRE(tb.strides({STRIDES_NV12.data(), STRIDES_NV12.size()}).has_value());
     REQUIRE(tb.format("NV12").has_value());
@@ -243,10 +245,10 @@ TEST_CASE("TensorBuilder round-trips every field", "[tensor]") {
     auto t = TensorView::from_cdr(bytes.span());
     REQUIRE(t.has_value());
 
-    CHECK(t->storage_kind() == 2);
+    CHECK(t->storage_kind() == EF_STORAGE_KIND_DMA_BUF);
     CHECK(t->pid() == 4242);
     CHECK(t->fence_fd() == -1);
-    CHECK(t->dtype() == 1);
+    CHECK(t->dtype() == EF_DTYPE_U8);
     CHECK(t->quant_axis() == -2);
     CHECK(t->format() == "NV12");
     CHECK(t->color_space() == "bt709");
@@ -318,7 +320,7 @@ TEST_CASE("Inline plane round-trips its payload", "[tensor][planes]") {
 
     auto tb = TensorBuilder::create();
     REQUIRE(tb.has_value());
-    tb->dtype(1);
+    tb->dtype(EF_DTYPE_U8);
     REQUIRE(tb->planes({&plane, 1}).has_value());
 
     auto built = tb->build();
@@ -391,7 +393,7 @@ TEST_CASE("quant_axis selects the required scale shape", "[tensor][validation]")
 
         auto tb = TensorBuilder::create();
         REQUIRE(tb.has_value());
-        tb->dtype(3).quant_axis(-1);
+        tb->dtype(EF_DTYPE_I16).quant_axis(-1);
         REQUIRE(tb->shape({shape.data(), shape.size()}).has_value());
         REQUIRE(tb->quant_scales({scale.data(), scale.size()}).has_value());
         REQUIRE(tb->quant_zero_points({zero.data(), zero.size()}).has_value());
@@ -682,9 +684,9 @@ TEST_CASE("Golden Tensor decodes", "[tensor][golden]") {
 
     auto t = TensorView::from_cdr({g.data(), g.size()});
     REQUIRE(t.has_value());
-    CHECK(t->storage_kind() == 2);
+    CHECK(t->storage_kind() == EF_STORAGE_KIND_DMA_BUF);
     CHECK(t->pid() == 4242);
-    CHECK(t->dtype() == 1);
+    CHECK(t->dtype() == EF_DTYPE_U8);
     CHECK(t->quant_axis() == -2);
     CHECK(t->format() == "NV12");
     CHECK(t->color_range() == "limited");

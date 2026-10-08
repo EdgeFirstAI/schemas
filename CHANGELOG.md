@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The `edgefirst_msgs` tensor golden fixtures carried `dtype = 1` for 8-bit image samples, which is `I8` under the HAL tensor ABI; they now carry `U8` (0). Only the `dtype` field of each fixture changes. The `Tensor` Python example now shows `dtype=0` (U8) as well (EDGEAI-2191).
+
+### Changed
+
+- Tensor `dtype` and `storage_kind` codes are no longer written as bare numbers anywhere in the repository. Rust tests use `edgefirst-tensor-abi` (`EfDtype`, `EfStorageKind`, a test-only dependency), the C and C++ tests use `crates/capi/tests/tensor_abi.h` with HAL's `EF_DTYPE_*` / `EF_STORAGE_KIND_*` names, and the fixture generator and Python tests use `tests/python/tensor_abi.py`. A new golden test checks every tensor fixture's codes against the ABI enums by name (EDGEAI-2191).
+
 ## [4.0.0] - 2026-08-28
 
 This release replaces the `DmaBuffer` and `CameraFrame`/`CameraPlane` messages

@@ -36,6 +36,13 @@ use edgefirst_schemas::sensor_msgs::{self, NavSatStatus, PointFieldView, RegionO
 use edgefirst_schemas::std_msgs::{self, ColorRGBA};
 use edgefirst_schemas::tensor::{TensorFields, TensorPlaneView};
 
+use edgefirst_tensor_abi::{EfDtype, EfStorageKind};
+
+/// Tensor codes from the HAL tensor ABI, their only authority.
+const U8: u32 = EfDtype::U8 as u32;
+const I16: u32 = EfDtype::I16 as u32;
+const DMA_BUF: u32 = EfStorageKind::DmaBuf as u32;
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 fn read_golden(namespace: &str, type_name: &str) -> Vec<u8> {
@@ -3051,10 +3058,10 @@ fn nv12_planes() -> Vec<TensorPlaneView<'static>> {
 
 fn nv12_fields<'a>(planes: &'a [TensorPlaneView<'a>]) -> TensorFields<'a> {
     TensorFields {
-        storage_kind: 2,
+        storage_kind: DMA_BUF,
         pid: 4242,
         fence_fd: -1,
-        dtype: 1,
+        dtype: U8,
         quant_axis: -2,
         shape: &[480, 640],
         strides: &[640, 1],
@@ -3075,10 +3082,10 @@ fn golden_edgefirst_msgs_tensor() {
 
     // Phase 1 — decode and verify every field.
     let t = edgefirst_schemas::tensor::Tensor::from_cdr(golden.as_slice()).unwrap();
-    assert_eq!(t.storage_kind(), 2);
+    assert_eq!(t.storage_kind(), DMA_BUF);
     assert_eq!(t.pid(), 4242);
     assert_eq!(t.fence_fd(), -1);
-    assert_eq!(t.dtype(), 1);
+    assert_eq!(t.dtype(), U8);
     assert_eq!(t.quant_axis(), -2);
     assert_eq!(t.shape().collect::<Vec<u64>>(), vec![480, 640]);
     assert_eq!(t.strides().collect::<Vec<i64>>(), vec![640, 1]);
@@ -3132,7 +3139,7 @@ fn golden_edgefirst_msgs_tensor_inline() {
     let golden = read_golden("edgefirst_msgs", "Tensor_inline");
 
     let t = edgefirst_schemas::tensor::Tensor::from_cdr(golden.as_slice()).unwrap();
-    assert_eq!(t.dtype(), 1);
+    assert_eq!(t.dtype(), U8);
     assert_eq!(t.format(), "mono8");
     assert_eq!(t.shape().collect::<Vec<u64>>(), vec![2, 4]);
     assert_eq!(t.num_planes(), 1);
@@ -3157,7 +3164,7 @@ fn golden_edgefirst_msgs_tensor_inline() {
         data: &data,
     }];
     let mut b = edgefirst_schemas::tensor::Tensor::builder();
-    b.dtype(1)
+    b.dtype(U8)
         .shape(&[2, 4])
         .strides(&[4, 1])
         .format("mono8")
@@ -3170,7 +3177,7 @@ fn golden_edgefirst_msgs_tensor_quantized() {
     let golden = read_golden("edgefirst_msgs", "Tensor_quantized");
 
     let t = edgefirst_schemas::tensor::Tensor::from_cdr(golden.as_slice()).unwrap();
-    assert_eq!(t.dtype(), 3);
+    assert_eq!(t.dtype(), I16);
     assert_eq!(t.quant_axis(), 0);
     assert_eq!(t.shape().collect::<Vec<u64>>(), vec![3, 8]);
     // Per-axis: exactly shape[0] scales.
@@ -3180,7 +3187,7 @@ fn golden_edgefirst_msgs_tensor_quantized() {
     assert_eq!(t.strides().count(), 0);
 
     let mut b = edgefirst_schemas::tensor::Tensor::builder();
-    b.dtype(3)
+    b.dtype(I16)
         .quant_axis(0)
         .shape(&[3, 8])
         .quant_scales(&[0.5, 0.25, 0.125])
@@ -3381,10 +3388,10 @@ fn golden_edgefirst_msgs_tensor_i420() {
 
     let p = i420_planes();
     let f = TensorFields {
-        storage_kind: 2,
+        storage_kind: DMA_BUF,
         pid: 1234,
         fence_fd: -1,
-        dtype: 1,
+        dtype: U8,
         quant_axis: -2,
         shape: &[1080, 1920],
         strides: &[1920, 1],
@@ -3433,10 +3440,10 @@ fn golden_edgefirst_msgs_camera_frame_split_fd() {
         },
     ];
     let f = TensorFields {
-        storage_kind: 2,
+        storage_kind: DMA_BUF,
         pid: 1234,
         fence_fd: 77,
-        dtype: 1,
+        dtype: U8,
         quant_axis: -2,
         shape: &[1080, 1920],
         strides: &[1920, 1],
@@ -3482,10 +3489,10 @@ fn golden_edgefirst_msgs_tensor_h264() {
         data: &[],
     }];
     let f = TensorFields {
-        storage_kind: 2,
+        storage_kind: DMA_BUF,
         pid: 1234,
         fence_fd: -1,
-        dtype: 1,
+        dtype: U8,
         quant_axis: -2,
         shape: &[1080, 1920],
         strides: &[1920, 1],
@@ -3510,10 +3517,10 @@ fn golden_edgefirst_msgs_camera_frame_empty() {
     assert_eq!(frame.tensor().format(), "");
 
     let f = TensorFields {
-        storage_kind: 2,
+        storage_kind: DMA_BUF,
         pid: 0,
         fence_fd: -1,
-        dtype: 1,
+        dtype: U8,
         quant_axis: -2,
         shape: &[1, 1],
         strides: &[1, 1],
@@ -3738,4 +3745,58 @@ fn golden_mavros_msgs_timesync_status() {
         .build()
         .unwrap();
     assert_eq!(built.to_cdr(), golden);
+}
+
+/// Every tensor golden carries the codes the HAL tensor ABI assigns to what
+/// it describes. The generator writes these codes from
+/// `tests/python/tensor_abi.py`; this is the check that table is right.
+#[test]
+fn golden_tensor_codes_match_the_hal_tensor_abi() {
+    use edgefirst_msgs::{CameraFrame, Tensor, TensorStamped};
+    use EfDtype as D;
+    use EfStorageKind as K;
+
+    enum Wrap {
+        Bare,
+        Stamped,
+        Frame,
+    }
+    let cases = [
+        ("Tensor", Wrap::Bare, D::U8, K::DmaBuf),
+        ("Tensor_inline", Wrap::Bare, D::U8, K::Mem),
+        ("Tensor_quantized", Wrap::Bare, D::I16, K::Mem),
+        ("Tensor_i420", Wrap::Bare, D::U8, K::DmaBuf),
+        ("Tensor_split_fd", Wrap::Bare, D::U8, K::DmaBuf),
+        ("Tensor_h264", Wrap::Bare, D::U8, K::DmaBuf),
+        ("Tensor_empty", Wrap::Bare, D::U8, K::DmaBuf),
+        ("TensorStamped", Wrap::Stamped, D::U8, K::DmaBuf),
+        ("CameraFrame", Wrap::Frame, D::U8, K::DmaBuf),
+        ("CameraFrame_long_frame_id", Wrap::Frame, D::U8, K::DmaBuf),
+        ("CameraFrame_i420", Wrap::Frame, D::U8, K::DmaBuf),
+        ("CameraFrame_split_fd", Wrap::Frame, D::U8, K::DmaBuf),
+        ("CameraFrame_h264", Wrap::Frame, D::U8, K::DmaBuf),
+        ("CameraFrame_empty", Wrap::Frame, D::U8, K::DmaBuf),
+    ];
+    for (name, wrap, dtype, kind) in cases {
+        let g = read_golden("edgefirst_msgs", name);
+        let (got_dtype, got_kind) = match wrap {
+            Wrap::Bare => {
+                let t = Tensor::from_cdr(g.as_slice()).unwrap();
+                (t.dtype(), t.storage_kind())
+            }
+            Wrap::Stamped => {
+                let m = TensorStamped::from_cdr(g.as_slice()).unwrap();
+                (m.tensor().dtype(), m.tensor().storage_kind())
+            }
+            Wrap::Frame => {
+                let m = CameraFrame::from_cdr(g.as_slice()).unwrap();
+                (m.tensor().dtype(), m.tensor().storage_kind())
+            }
+        };
+        assert_eq!(got_dtype, dtype as u32, "{name}: dtype is not {dtype:?}");
+        assert_eq!(
+            got_kind, kind as u32,
+            "{name}: storage_kind is not {kind:?}"
+        );
+    }
 }

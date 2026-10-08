@@ -29,6 +29,15 @@ from typing import List
 # edgefirst-schemas Python extension (nav_msgs: GridCells, MapMetaData,
 # OccupancyGrid, Path; sensor_msgs: RelativeHumidity, TimeReference).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "benches" / "python"))
+# Tensor dtype and storage_kind codes: the repository's one table of them,
+# checked against the HAL tensor ABI by crates/schemas/tests/cdr_golden.rs.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests" / "python"))
+from tensor_abi import (  # noqa: E402
+    DTYPE_I16,
+    DTYPE_U8,
+    STORAGE_DMABUF,
+    STORAGE_MEM,
+)
 from legacy import builtin_interfaces as _legacy_builtin_interfaces  # noqa: E402
 from legacy import nav_msgs as _legacy_nav_msgs  # noqa: E402
 from legacy import sensor_msgs as _legacy_sensor_msgs  # noqa: E402
@@ -752,7 +761,7 @@ def gen_edgefirst_msgs():
                         handle_bytes=[], data=[]),
     ]
     nv12 = _le.Tensor(
-        storage_kind=2, pid=4242, fence_fd=-1, dtype=1, quant_axis=-2,
+        storage_kind=STORAGE_DMABUF, pid=4242, fence_fd=-1, dtype=DTYPE_U8, quant_axis=-2,
         shape=[480, 640], strides=[640, 1],
         quant_scales=[], quant_zero_points=[],
         format="NV12", color_space="bt709", color_transfer="bt709",
@@ -764,7 +773,7 @@ def gen_edgefirst_msgs():
     # in the message instead of behind a handle.
     write_cdr("edgefirst_msgs", "Tensor_inline",
               _le.Tensor(
-                  storage_kind=0, pid=0, fence_fd=-1, dtype=1, quant_axis=-2,
+                  storage_kind=STORAGE_MEM, pid=0, fence_fd=-1, dtype=DTYPE_U8, quant_axis=-2,
                   shape=[2, 4], strides=[4, 1],
                   quant_scales=[], quant_zero_points=[],
                   format="mono8", color_space="", color_transfer="",
@@ -776,7 +785,7 @@ def gen_edgefirst_msgs():
     # Per-axis quantization: exactly shape[quant_axis] scales.
     write_cdr("edgefirst_msgs", "Tensor_quantized",
               _le.Tensor(
-                  storage_kind=0, pid=0, fence_fd=-1, dtype=3, quant_axis=0,
+                  storage_kind=STORAGE_MEM, pid=0, fence_fd=-1, dtype=DTYPE_I16, quant_axis=0,
                   shape=[3, 8], strides=[],
                   quant_scales=[0.5, 0.25, 0.125],
                   quant_zero_points=[128, 0, -128],
@@ -816,7 +825,7 @@ def gen_edgefirst_msgs():
                         handle_bytes=[], data=[]),
     ]
     i420 = _le.Tensor(
-        storage_kind=2, pid=1234, fence_fd=-1, dtype=1, quant_axis=-2,
+        storage_kind=STORAGE_DMABUF, pid=1234, fence_fd=-1, dtype=DTYPE_U8, quant_axis=-2,
         shape=[h, w], strides=[w, 1],
         quant_scales=[], quant_zero_points=[],
         format="I420", color_space="bt709", color_transfer="bt709",
@@ -836,7 +845,7 @@ def gen_edgefirst_msgs():
                         handle_bytes=[], data=[]),
     ]
     split_nv12 = _le.Tensor(
-        storage_kind=2, pid=1234, fence_fd=77, dtype=1, quant_axis=-2,
+        storage_kind=STORAGE_DMABUF, pid=1234, fence_fd=77, dtype=DTYPE_U8, quant_axis=-2,
         shape=[1080, 1920], strides=[1920, 1],
         quant_scales=[], quant_zero_points=[],
         format="NV12", color_space="bt709", color_transfer="bt709",
@@ -853,7 +862,7 @@ def gen_edgefirst_msgs():
                         handle_bytes=[], data=[]),
     ]
     h264 = _le.Tensor(
-        storage_kind=2, pid=1234, fence_fd=-1, dtype=1, quant_axis=-2,
+        storage_kind=STORAGE_DMABUF, pid=1234, fence_fd=-1, dtype=DTYPE_U8, quant_axis=-2,
         shape=[1080, 1920], strides=[1920, 1],
         quant_scales=[], quant_zero_points=[],
         format="h264", color_space="bt709", color_transfer="bt709",
@@ -865,7 +874,7 @@ def gen_edgefirst_msgs():
 
     # Metadata-only frame — zero planes exercises the empty planes path.
     empty_tensor = _le.Tensor(
-        storage_kind=2, pid=0, fence_fd=-1, dtype=1, quant_axis=-2,
+        storage_kind=STORAGE_DMABUF, pid=0, fence_fd=-1, dtype=DTYPE_U8, quant_axis=-2,
         shape=[1, 1], strides=[1, 1],
         quant_scales=[], quant_zero_points=[],
         format="", color_space="", color_transfer="",
