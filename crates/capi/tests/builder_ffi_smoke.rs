@@ -967,12 +967,20 @@ extern "C" {
         b: *mut edgefirst_msgs_model_info_builder_t,
         v: u8,
     );
+    fn edgefirst_msgs_model_info_builder_set_input_dtype(
+        b: *mut edgefirst_msgs_model_info_builder_t,
+        v: u8,
+    );
     fn edgefirst_msgs_model_info_builder_set_output_shape(
         b: *mut edgefirst_msgs_model_info_builder_t,
         data: *const u32,
         len: usize,
     ) -> i32;
     fn edgefirst_msgs_model_info_builder_set_output_type(
+        b: *mut edgefirst_msgs_model_info_builder_t,
+        v: u8,
+    );
+    fn edgefirst_msgs_model_info_builder_set_output_dtype(
         b: *mut edgefirst_msgs_model_info_builder_t,
         v: u8,
     );
@@ -2322,6 +2330,19 @@ fn edgefirst_msgs_model_builder_encode_into_matches_rust_builder() {
 
 #[test]
 fn edgefirst_msgs_model_info_builder_encode_into_matches_rust_builder() {
+    model_info_encode_into_matches_rust_builder(false);
+}
+
+#[test]
+fn edgefirst_msgs_model_info_builder_legacy_type_matches_rust_dtype() {
+    model_info_encode_into_matches_rust_builder(true);
+}
+
+/// Encode the same ModelInfo through the C builder (with the dtype setters,
+/// or with the deprecated legacy-type setters when `legacy`) and through the
+/// Rust builder with HAL dtype codes; the bytes must match.
+fn model_info_encode_into_matches_rust_builder(legacy: bool) {
+    use edgefirst_msgs::model_info;
     unsafe {
         let b = edgefirst_msgs_model_info_builder_new();
         assert!(!b.is_null());
@@ -2333,10 +2354,20 @@ fn edgefirst_msgs_model_info_builder_encode_into_matches_rust_builder() {
         );
         let ishape: [u32; 4] = [1, 3, 224, 224];
         edgefirst_msgs_model_info_builder_set_input_shape(b, ishape.as_ptr(), ishape.len());
-        edgefirst_msgs_model_info_builder_set_input_type(b, 8); // FLOAT32
+        if legacy {
+            #[allow(deprecated)]
+            edgefirst_msgs_model_info_builder_set_input_type(b, model_info::FLOAT32);
+        } else {
+            edgefirst_msgs_model_info_builder_set_input_dtype(b, model_info::DTYPE_F32);
+        }
         let oshape: [u32; 2] = [1, 1000];
         edgefirst_msgs_model_info_builder_set_output_shape(b, oshape.as_ptr(), oshape.len());
-        edgefirst_msgs_model_info_builder_set_output_type(b, 8);
+        if legacy {
+            #[allow(deprecated)]
+            edgefirst_msgs_model_info_builder_set_output_type(b, model_info::FLOAT32);
+        } else {
+            edgefirst_msgs_model_info_builder_set_output_dtype(b, model_info::DTYPE_F32);
+        }
 
         let l0 = CString::new("car").unwrap();
         let l1 = CString::new("bike").unwrap();
@@ -2377,9 +2408,9 @@ fn edgefirst_msgs_model_info_builder_encode_into_matches_rust_builder() {
             .stamp(Time::new(10, 20))
             .frame_id("model")
             .input_shape(&ishape)
-            .input_type(8)
+            .input_dtype(model_info::DTYPE_F32)
             .output_shape(&oshape)
-            .output_type(8)
+            .output_dtype(model_info::DTYPE_F32)
             .labels(&labels)
             .model_type("classifier")
             .model_format("tflite")

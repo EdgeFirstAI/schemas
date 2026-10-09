@@ -37,7 +37,7 @@ from legacy import edgefirst_msgs as _legacy_edgefirst_msgs  # noqa: E402
 from legacy import default_field  # noqa: E402  (removed from edgefirst.schemas in 3.2.0)
 
 from pycdr2 import IdlStruct
-from pycdr2.types import float64, int16, int32, uint32
+from pycdr2.types import float64, int16, int32, sequence, uint8, uint32
 
 from edgefirst.schemas import (
     builtin_interfaces,
@@ -102,6 +102,27 @@ def write_cdr(namespace: str, type_name: str, msg) -> None:
 @dataclass
 class Clock(IdlStruct, typename="rosgraph_msgs/Clock"):
     clock: _legacy_builtin_interfaces.Time = default_field(_legacy_builtin_interfaces.Time)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# edgefirst_msgs/ModelInfo — the current layout, with input_dtype /
+# output_dtype after model_name. The legacy pycdr2 module keeps the older
+# layout, which the ModelInfo_legacy fixture records.
+# ═══════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class _ModelInfo(IdlStruct, typename="edgefirst_msgs/ModelInfo"):
+    header: _legacy_edgefirst_msgs.Header
+    input_shape: sequence[uint32]
+    input_type: uint8
+    output_shape: sequence[uint32]
+    output_type: uint8
+    labels: sequence[str]
+    model_type: str
+    model_format: str
+    model_name: str
+    input_dtype: uint8
+    output_dtype: uint8
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -679,44 +700,74 @@ def gen_edgefirst_msgs():
                       height=2, width=4, length=0, encoding="",
                       mask=bytes(range(8)), boxed=True)]))
 
-    # ModelInfo
+    # ModelInfo — encoded with pycdr2 so the goldens do not come from the
+    # encoder they validate. input_dtype / output_dtype take their codes from
+    # the ModelInfo.DTYPE_* constants (HAL dtype codes, checked against
+    # edgefirst-tensor-abi in cdr_golden.rs); the legacy input_type /
+    # output_type take the matching code from the legacy model_info enum.
+    _mi_hdr = _legacy_edgefirst_msgs.Header(
+        stamp=_legacy_builtin_interfaces.Time(sec=STAMP.sec, nanosec=STAMP.nanosec),
+        frame_id=FRAME_ID)
+    _dt = edgefirst_msgs.ModelInfo
+    _lt = _legacy_edgefirst_msgs.model_info
+
     write_cdr("edgefirst_msgs", "ModelInfo",
-              edgefirst_msgs.ModelInfo(
-                  header=header,
+              _ModelInfo(
+                  header=_mi_hdr,
                   input_shape=[1, 3, 640, 640],
-                  input_type=8,   # FLOAT32
+                  input_type=_lt.FLOAT32.value,
                   output_shape=[1, 84, 8400],
-                  output_type=8,  # FLOAT32
+                  output_type=_lt.FLOAT32.value,
                   labels=["person", "car", "bicycle"],
                   model_type="object_detection",
                   model_format="DeepViewRT",
-                  model_name="yolov8n"))
+                  model_name="yolov8n",
+                  input_dtype=_dt.DTYPE_F32,
+                  output_dtype=_dt.DTYPE_F32))
 
-    # ModelInfo with alignment-stressing labels
+    # ModelInfo with alignment-stressing labels and distinct I/O dtypes
     write_cdr("edgefirst_msgs", "ModelInfo_labels",
-              edgefirst_msgs.ModelInfo(
-                  header=header,
+              _ModelInfo(
+                  header=_mi_hdr,
                   input_shape=[1, 3, 320, 320],
-                  input_type=8,
+                  input_type=_lt.UINT8.value,
                   output_shape=[1, 100, 6],
-                  output_type=8,
+                  output_type=_lt.FLOAT16.value,
                   labels=["a", "ab", "abc", "abcd", "abcde"],
                   model_type="object_detection",
                   model_format="DeepViewRT",
-                  model_name="yolov8n"))
+                  model_name="yolov8n",
+                  input_dtype=_dt.DTYPE_U8,
+                  output_dtype=_dt.DTYPE_F16))
 
-    # ModelInfo with empty labels array
+    # ModelInfo with empty labels array and no known dtype
     write_cdr("edgefirst_msgs", "ModelInfo_empty",
-              edgefirst_msgs.ModelInfo(
-                  header=header,
+              _ModelInfo(
+                  header=_mi_hdr,
                   input_shape=[1, 3, 224, 224],
-                  input_type=8,
+                  input_type=_lt.RAW.value,
                   output_shape=[1, 10],
-                  output_type=8,
+                  output_type=_lt.RAW.value,
                   labels=[],
                   model_type="classifier",
                   model_format="onnx",
-                  model_name="mobilenet"))
+                  model_name="mobilenet",
+                  input_dtype=_dt.DTYPE_UNKNOWN,
+                  output_dtype=_dt.DTYPE_UNKNOWN))
+
+    # ModelInfo as recorded before input_dtype / output_dtype existed: the
+    # message ends after model_name and only the legacy codes are present.
+    write_cdr("edgefirst_msgs", "ModelInfo_legacy",
+              _legacy_edgefirst_msgs.ModelInfo(
+                  header=_mi_hdr,
+                  input_shape=[1, 640, 640, 3],
+                  input_type=_lt.UINT8.value,
+                  output_shape=[1, 84, 8400],
+                  output_type=_lt.FLOAT32.value,
+                  labels=["person", "car"],
+                  model_type="object_detection",
+                  model_format="TFLite",
+                  model_name="yolov8n"))
 
     # Vibration — MAVLink-style RMS in m/s^2 with 3 clipping counters
     write_cdr("edgefirst_msgs", "Vibration",

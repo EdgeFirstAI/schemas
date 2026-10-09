@@ -159,6 +159,7 @@ extern "C" {
 
     // edgefirst_msgs::ModelInfo
     fn edgefirst_msgs_model_info_set_input_type(buf: *mut u8, len: usize, v: u8) -> i32;
+    fn edgefirst_msgs_model_info_set_output_dtype(buf: *mut u8, len: usize, v: u8) -> i32;
 
     // edgefirst_msgs::Vibration
     fn edgefirst_msgs_vibration_set_band_lower_hz(buf: *mut u8, len: usize, v: f32) -> i32;
@@ -793,12 +794,40 @@ fn edgefirst_msgs_model_info_in_place_set_input_type() {
         .unwrap();
     let mut buf = msg.into_cdr();
     let len = buf.len();
+    #[allow(deprecated)]
+    let int16 = edgefirst_msgs::model_info::INT16;
     assert_eq!(
-        unsafe { edgefirst_msgs_model_info_set_input_type(buf.as_mut_ptr(), len, 3) },
+        unsafe { edgefirst_msgs_model_info_set_input_type(buf.as_mut_ptr(), len, int16) },
         0
     );
     let decoded = edgefirst_msgs::ModelInfo::from_cdr(&buf[..]).unwrap();
-    assert_eq!(decoded.input_type(), 3);
+    #[allow(deprecated)]
+    let legacy = decoded.input_type();
+    assert_eq!(legacy, int16);
+    assert_eq!(decoded.input_dtype(), edgefirst_msgs::model_info::DTYPE_I16);
+}
+
+#[test]
+fn edgefirst_msgs_model_info_in_place_set_output_dtype() {
+    use edgefirst_msgs::model_info;
+    let msg = edgefirst_msgs::ModelInfo::builder()
+        .frame_id("mi")
+        .build()
+        .unwrap();
+    let mut buf = msg.into_cdr();
+    let len = buf.len();
+    assert_eq!(
+        unsafe {
+            edgefirst_msgs_model_info_set_output_dtype(buf.as_mut_ptr(), len, model_info::DTYPE_U8)
+        },
+        0
+    );
+    let decoded = edgefirst_msgs::ModelInfo::from_cdr(&buf[..]).unwrap();
+    assert_eq!(decoded.output_dtype(), model_info::DTYPE_U8);
+    #[allow(deprecated)]
+    let legacy = (decoded.output_type(), model_info::UINT8);
+    assert_eq!(legacy.0, legacy.1);
+    assert_eq!(decoded.input_dtype(), model_info::DTYPE_UNKNOWN);
 }
 
 // ----- edgefirst_msgs::Vibration -----

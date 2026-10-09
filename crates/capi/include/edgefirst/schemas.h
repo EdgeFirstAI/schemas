@@ -2049,6 +2049,31 @@ const uint8_t* edgefirst_msgs_model_as_cdr(const edgefirst_msgs_model_t* view, s
  * ========================================================================= */
 
 /**
+ * @name ModelInfo dtype codes
+ *
+ * Values of `input_dtype` / `output_dtype`. They are the EdgeFirst HAL tensor
+ * dtype codes and share their names with `EF_DTYPE_*` in HAL's
+ * `<edgefirst/tensor.h>` (`edgefirst_tensor_abi::EfDtype`); the schemas test
+ * suite fails if any value here differs from HAL. HAL has no code for an
+ * unknown or opaque element type, so `..._DTYPE_UNKNOWN` sits outside the HAL
+ * range.
+ * @{
+ */
+#define EDGEFIRST_MSGS_MODEL_INFO_DTYPE_U8       0
+#define EDGEFIRST_MSGS_MODEL_INFO_DTYPE_I8       1
+#define EDGEFIRST_MSGS_MODEL_INFO_DTYPE_U16      2
+#define EDGEFIRST_MSGS_MODEL_INFO_DTYPE_I16      3
+#define EDGEFIRST_MSGS_MODEL_INFO_DTYPE_U32      4
+#define EDGEFIRST_MSGS_MODEL_INFO_DTYPE_I32      5
+#define EDGEFIRST_MSGS_MODEL_INFO_DTYPE_U64      6
+#define EDGEFIRST_MSGS_MODEL_INFO_DTYPE_I64      7
+#define EDGEFIRST_MSGS_MODEL_INFO_DTYPE_F16      8
+#define EDGEFIRST_MSGS_MODEL_INFO_DTYPE_F32      9
+#define EDGEFIRST_MSGS_MODEL_INFO_DTYPE_F64      10
+#define EDGEFIRST_MSGS_MODEL_INFO_DTYPE_UNKNOWN  255
+/** @} */
+
+/**
  * @brief Create a ModelInfo view from CDR bytes.
  * @param data CDR encoded bytes (borrowed; must outlive the returned handle)
  * @param len Length of data
@@ -2077,11 +2102,42 @@ const char* edgefirst_msgs_model_info_get_model_format(const edgefirst_msgs_mode
 /** @brief Get model name string (borrowed). */
 const char* edgefirst_msgs_model_info_get_model_name(const edgefirst_msgs_model_info_t* view);
 
-/** @brief Get input type. */
+/**
+ * @brief Get the legacy input_type (ModelInfo-private numbering, RAW=0 ... STRING=12).
+ * @deprecated Use edgefirst_msgs_model_info_get_input_dtype().
+ */
 uint8_t edgefirst_msgs_model_info_get_input_type(const edgefirst_msgs_model_info_t* view);
 
-/** @brief Get output type. */
+/**
+ * @brief Get the legacy output_type (ModelInfo-private numbering, RAW=0 ... STRING=12).
+ * @deprecated Use edgefirst_msgs_model_info_get_output_dtype().
+ */
 uint8_t edgefirst_msgs_model_info_get_output_type(const edgefirst_msgs_model_info_t* view);
+
+/**
+ * @brief Get the input HAL dtype code (EDGEFIRST_MSGS_MODEL_INFO_DTYPE_*).
+ *
+ * Messages encoded before the dtype fields existed are translated from the
+ * legacy input_type. Returns EDGEFIRST_MSGS_MODEL_INFO_DTYPE_UNKNOWN when no
+ * HAL dtype applies, or for a NULL view (errno EINVAL).
+ */
+uint8_t edgefirst_msgs_model_info_get_input_dtype(const edgefirst_msgs_model_info_t* view);
+
+/**
+ * @brief Get the output HAL dtype code (EDGEFIRST_MSGS_MODEL_INFO_DTYPE_*).
+ *
+ * Messages encoded before the dtype fields existed are translated from the
+ * legacy output_type. Returns EDGEFIRST_MSGS_MODEL_INFO_DTYPE_UNKNOWN when no
+ * HAL dtype applies, or for a NULL view (errno EINVAL).
+ */
+uint8_t edgefirst_msgs_model_info_get_output_dtype(const edgefirst_msgs_model_info_t* view);
+
+/**
+ * @brief Whether the message carries input_dtype / output_dtype on the wire.
+ * @return false for messages encoded before those fields existed, or for a
+ *         NULL view (errno EINVAL).
+ */
+bool edgefirst_msgs_model_info_has_dtype_fields(const edgefirst_msgs_model_info_t* view);
 
 /** @brief Get input shape array (zero-copy pointer into CDR buffer). */
 const uint32_t* edgefirst_msgs_model_info_get_input_shape(const edgefirst_msgs_model_info_t* view, size_t* out_len);
@@ -3886,14 +3942,28 @@ int  edgefirst_msgs_model_info_builder_set_frame_id(edgefirst_msgs_model_info_bu
  */
 int  edgefirst_msgs_model_info_builder_set_input_shape(edgefirst_msgs_model_info_builder_t* b,
                                             const uint32_t* data, size_t len);
+/** @deprecated Legacy ModelInfo numbering; use edgefirst_msgs_model_info_builder_set_input_dtype(). */
 void edgefirst_msgs_model_info_builder_set_input_type(edgefirst_msgs_model_info_builder_t* b, uint8_t v);
+/**
+ * Set the input HAL dtype code (EDGEFIRST_MSGS_MODEL_INFO_DTYPE_*). The
+ * builder also writes the matching legacy input_type. Takes precedence over
+ * edgefirst_msgs_model_info_builder_set_input_type().
+ */
+void edgefirst_msgs_model_info_builder_set_input_dtype(edgefirst_msgs_model_info_builder_t* b, uint8_t v);
 /** BORROWED until next setter / build / free.
  * @return 0 on success, -1 on error (errno: EINVAL for NULL handle
  *         or NULL pointer with non-zero count/len).
  */
 int  edgefirst_msgs_model_info_builder_set_output_shape(edgefirst_msgs_model_info_builder_t* b,
                                              const uint32_t* data, size_t len);
+/** @deprecated Legacy ModelInfo numbering; use edgefirst_msgs_model_info_builder_set_output_dtype(). */
 void edgefirst_msgs_model_info_builder_set_output_type(edgefirst_msgs_model_info_builder_t* b, uint8_t v);
+/**
+ * Set the output HAL dtype code (EDGEFIRST_MSGS_MODEL_INFO_DTYPE_*). The
+ * builder also writes the matching legacy output_type. Takes precedence over
+ * edgefirst_msgs_model_info_builder_set_output_type().
+ */
+void edgefirst_msgs_model_info_builder_set_output_dtype(edgefirst_msgs_model_info_builder_t* b, uint8_t v);
 /**
  * Set the labels sequence. Each C string is copied into builder-owned
  * storage, so the caller's array and strings need only remain valid for the
@@ -5591,7 +5661,10 @@ int32_t edgefirst_msgs_model_set_decode_time(uint8_t* buf, size_t len, int32_t s
 int32_t edgefirst_msgs_model_info_set_stamp(uint8_t* buf, size_t len, int32_t sec, uint32_t nsec);
 
 /**
- * @brief Set the input_type field in place on a ModelInfo buffer.
+ * @brief Set the legacy input_type field in place on a ModelInfo buffer.
+ *
+ * Also updates input_dtype when the buffer carries it.
+ * @deprecated Use edgefirst_msgs_model_info_set_input_dtype().
  *
  * Re-parses the buffer to locate the field offset, then writes the value
  * directly. Fixed-size fields only — use the builder API for variable-length
@@ -5605,7 +5678,10 @@ int32_t edgefirst_msgs_model_info_set_stamp(uint8_t* buf, size_t len, int32_t se
 int32_t edgefirst_msgs_model_info_set_input_type(uint8_t* buf, size_t len, uint8_t v);
 
 /**
- * @brief Set the output_type field in place on a ModelInfo buffer.
+ * @brief Set the legacy output_type field in place on a ModelInfo buffer.
+ *
+ * Also updates output_dtype when the buffer carries it.
+ * @deprecated Use edgefirst_msgs_model_info_set_output_dtype().
  *
  * Re-parses the buffer to locate the field offset, then writes the value
  * directly. Fixed-size fields only — use the builder API for variable-length
@@ -5617,6 +5693,34 @@ int32_t edgefirst_msgs_model_info_set_input_type(uint8_t* buf, size_t len, uint8
  *         if buf is not a valid encoded message of this type).
  */
 int32_t edgefirst_msgs_model_info_set_output_type(uint8_t* buf, size_t len, uint8_t v);
+
+/**
+ * @brief Set the input HAL dtype code (EDGEFIRST_MSGS_MODEL_INFO_DTYPE_*) in
+ *        place on a ModelInfo buffer.
+ *
+ * Also rewrites the legacy input_type, so a buffer encoded before the dtype
+ * fields existed still carries the value.
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t edgefirst_msgs_model_info_set_input_dtype(uint8_t* buf, size_t len, uint8_t v);
+
+/**
+ * @brief Set the output HAL dtype code (EDGEFIRST_MSGS_MODEL_INFO_DTYPE_*) in
+ *        place on a ModelInfo buffer.
+ *
+ * Also rewrites the legacy output_type, so a buffer encoded before the dtype
+ * fields existed still carries the value.
+ *
+ * @param buf CDR buffer to mutate.
+ * @param len Length of buf in bytes (must match the encoded CDR length).
+ * @return 0 on success, -1 on error (errno: EINVAL for NULL buf, EBADMSG
+ *         if buf is not a valid encoded message of this type).
+ */
+int32_t edgefirst_msgs_model_info_set_output_dtype(uint8_t* buf, size_t len, uint8_t v);
 
 /* ---- edgefirst_msgs - Vibration ---- */
 

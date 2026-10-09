@@ -6198,15 +6198,32 @@ public:
     [[nodiscard]] std::string_view model_name() const noexcept {
         return edgefirst_msgs_model_info_get_model_name(handle());
     }
-    /// @brief Numeric input tensor dtype identifier (model-specific).
-    /// @return The input type code from the handle.
+    /// @brief Legacy input element type (ModelInfo-private numbering).
+    /// @deprecated Use input_dtype(), which returns a HAL dtype code.
     [[nodiscard]] std::uint8_t input_type() const noexcept {
         return edgefirst_msgs_model_info_get_input_type(handle());
     }
-    /// @brief Numeric output tensor dtype identifier (model-specific).
-    /// @return The output type code from the handle.
+    /// @brief Legacy output element type (ModelInfo-private numbering).
+    /// @deprecated Use output_dtype(), which returns a HAL dtype code.
     [[nodiscard]] std::uint8_t output_type() const noexcept {
         return edgefirst_msgs_model_info_get_output_type(handle());
+    }
+    /// @brief Input HAL dtype code (`EDGEFIRST_MSGS_MODEL_INFO_DTYPE_*`).
+    /// @return `EDGEFIRST_MSGS_MODEL_INFO_DTYPE_UNKNOWN` when no HAL dtype
+    ///         applies. Older messages are translated from input_type.
+    [[nodiscard]] std::uint8_t input_dtype() const noexcept {
+        return edgefirst_msgs_model_info_get_input_dtype(handle());
+    }
+    /// @brief Output HAL dtype code (`EDGEFIRST_MSGS_MODEL_INFO_DTYPE_*`).
+    /// @return `EDGEFIRST_MSGS_MODEL_INFO_DTYPE_UNKNOWN` when no HAL dtype
+    ///         applies. Older messages are translated from output_type.
+    [[nodiscard]] std::uint8_t output_dtype() const noexcept {
+        return edgefirst_msgs_model_info_get_output_dtype(handle());
+    }
+    /// @brief Whether the message carries input_dtype / output_dtype on the
+    ///        wire (false for messages encoded before those fields existed).
+    [[nodiscard]] bool has_dtype_fields() const noexcept {
+        return edgefirst_msgs_model_info_has_dtype_fields(handle());
     }
     /// @brief Input tensor shape as an array of dimensions.
     /// @return A `span<const std::uint32_t>` borrowed from the CDR
@@ -7979,8 +7996,13 @@ public:
             return unexpected<Error>(Error::from_errno("edgefirst_msgs_model_info_builder_set_input_shape"));
         return {};
     }
+    /// @deprecated Legacy ModelInfo numbering; use input_dtype().
     ModelInfoBuilder& input_type(std::uint8_t v) noexcept {
         edgefirst_msgs_model_info_builder_set_input_type(ptr(), v); return *this;
+    }
+    /// @brief Set the input HAL dtype code (`EDGEFIRST_MSGS_MODEL_INFO_DTYPE_*`).
+    ModelInfoBuilder& input_dtype(std::uint8_t v) noexcept {
+        edgefirst_msgs_model_info_builder_set_input_dtype(ptr(), v); return *this;
     }
     /// @brief Set output shape (BORROWED).
     [[nodiscard]] expected<void, Error>
@@ -7989,8 +8011,13 @@ public:
             return unexpected<Error>(Error::from_errno("edgefirst_msgs_model_info_builder_set_output_shape"));
         return {};
     }
+    /// @deprecated Legacy ModelInfo numbering; use output_dtype().
     ModelInfoBuilder& output_type(std::uint8_t v) noexcept {
         edgefirst_msgs_model_info_builder_set_output_type(ptr(), v); return *this;
+    }
+    /// @brief Set the output HAL dtype code (`EDGEFIRST_MSGS_MODEL_INFO_DTYPE_*`).
+    ModelInfoBuilder& output_dtype(std::uint8_t v) noexcept {
+        edgefirst_msgs_model_info_builder_set_output_dtype(ptr(), v); return *this;
     }
     /// @brief Set labels (strings are copied into the builder).
     [[nodiscard]] expected<void, Error>

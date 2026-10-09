@@ -4204,6 +4204,7 @@ pub extern "C" fn edgefirst_msgs_model_info_get_model_name(
 }
 
 #[no_mangle]
+#[allow(deprecated)]
 pub extern "C" fn edgefirst_msgs_model_info_get_input_type(
     view: *const edgefirst_msgs_model_info_t,
 ) -> u8 {
@@ -4214,6 +4215,7 @@ pub extern "C" fn edgefirst_msgs_model_info_get_input_type(
 }
 
 #[no_mangle]
+#[allow(deprecated)]
 pub extern "C" fn edgefirst_msgs_model_info_get_output_type(
     view: *const edgefirst_msgs_model_info_t,
 ) -> u8 {
@@ -4221,6 +4223,45 @@ pub extern "C" fn edgefirst_msgs_model_info_get_output_type(
         return 0;
     }
     unsafe { (*view).0.output_type() }
+}
+
+/// HAL dtype code of the input tensor(s). Returns
+/// `EDGEFIRST_MSGS_MODEL_INFO_DTYPE_UNKNOWN` for a NULL view (errno EINVAL).
+#[no_mangle]
+pub extern "C" fn edgefirst_msgs_model_info_get_input_dtype(
+    view: *const edgefirst_msgs_model_info_t,
+) -> u8 {
+    if view.is_null() {
+        set_errno(EINVAL);
+        return edgefirst_msgs::model_info::DTYPE_UNKNOWN;
+    }
+    unsafe { (*view).0.input_dtype() }
+}
+
+/// HAL dtype code of the output tensor(s). Returns
+/// `EDGEFIRST_MSGS_MODEL_INFO_DTYPE_UNKNOWN` for a NULL view (errno EINVAL).
+#[no_mangle]
+pub extern "C" fn edgefirst_msgs_model_info_get_output_dtype(
+    view: *const edgefirst_msgs_model_info_t,
+) -> u8 {
+    if view.is_null() {
+        set_errno(EINVAL);
+        return edgefirst_msgs::model_info::DTYPE_UNKNOWN;
+    }
+    unsafe { (*view).0.output_dtype() }
+}
+
+/// Whether the message carries `input_dtype` / `output_dtype` on the wire.
+/// Returns false for a NULL view (errno EINVAL).
+#[no_mangle]
+pub extern "C" fn edgefirst_msgs_model_info_has_dtype_fields(
+    view: *const edgefirst_msgs_model_info_t,
+) -> bool {
+    if view.is_null() {
+        set_errno(EINVAL);
+        return false;
+    }
+    unsafe { (*view).0.has_dtype_fields() }
 }
 
 #[no_mangle]
@@ -12490,10 +12531,12 @@ struct ModelInfoBuilderOwned {
     frame_id: String,
     input_shape: *const u32,
     input_shape_len: usize,
-    input_type: u8,
+    input_type: Option<u8>,
+    input_dtype: Option<u8>,
     output_shape: *const u32,
     output_shape_len: usize,
-    output_type: u8,
+    output_type: Option<u8>,
+    output_dtype: Option<u8>,
     // Labels are owned: each call to set_labels copies the C strings into a
     // Vec<String> so the borrow contract is "labels valid for the duration
     // of one set_labels call". Not borrowed across the FFI boundary.
@@ -12515,10 +12558,12 @@ pub extern "C" fn edgefirst_msgs_model_info_builder_new() -> *mut edgefirst_msgs
             frame_id: String::new(),
             input_shape: ptr::null(),
             input_shape_len: 0,
-            input_type: 0,
+            input_type: None,
+            input_dtype: None,
             output_shape: ptr::null(),
             output_shape_len: 0,
-            output_type: 0,
+            output_type: None,
+            output_dtype: None,
             labels: Vec::new(),
             model_type: String::new(),
             model_format: String::new(),
@@ -12602,7 +12647,22 @@ pub extern "C" fn edgefirst_msgs_model_info_builder_set_input_type(
         return;
     }
     unsafe {
-        (*b).0.input_type = v;
+        (*b).0.input_type = Some(v);
+    }
+}
+
+/// Set the input HAL dtype code (`EDGEFIRST_MSGS_MODEL_INFO_DTYPE_*`). Takes
+/// precedence over the deprecated `input_type`.
+#[no_mangle]
+pub extern "C" fn edgefirst_msgs_model_info_builder_set_input_dtype(
+    b: *mut edgefirst_msgs_model_info_builder_t,
+    v: u8,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.input_dtype = Some(v);
     }
 }
 
@@ -12636,7 +12696,22 @@ pub extern "C" fn edgefirst_msgs_model_info_builder_set_output_type(
         return;
     }
     unsafe {
-        (*b).0.output_type = v;
+        (*b).0.output_type = Some(v);
+    }
+}
+
+/// Set the output HAL dtype code (`EDGEFIRST_MSGS_MODEL_INFO_DTYPE_*`). Takes
+/// precedence over the deprecated `output_type`.
+#[no_mangle]
+pub extern "C" fn edgefirst_msgs_model_info_builder_set_output_dtype(
+    b: *mut edgefirst_msgs_model_info_builder_t,
+    v: u8,
+) {
+    if b.is_null() {
+        return;
+    }
+    unsafe {
+        (*b).0.output_dtype = Some(v);
     }
 }
 
@@ -12731,6 +12806,27 @@ pub extern "C" fn edgefirst_msgs_model_info_builder_set_model_name(
     0
 }
 
+/// Forward whichever of the dtype / legacy type fields the caller set; the
+/// Rust builder resolves precedence and fills the other field.
+#[allow(deprecated)]
+fn model_info_apply_dtypes(
+    bld: &mut edgefirst_msgs::ModelInfoBuilder<'_>,
+    inner: &ModelInfoBuilderOwned,
+) {
+    if let Some(v) = inner.input_type {
+        bld.input_type(v);
+    }
+    if let Some(v) = inner.input_dtype {
+        bld.input_dtype(v);
+    }
+    if let Some(v) = inner.output_type {
+        bld.output_type(v);
+    }
+    if let Some(v) = inner.output_dtype {
+        bld.output_dtype(v);
+    }
+}
+
 fn model_info_input_shape(inner: &ModelInfoBuilderOwned) -> &[u32] {
     if inner.input_shape.is_null() || inner.input_shape_len == 0 {
         &[][..]
@@ -12758,18 +12854,17 @@ pub extern "C" fn edgefirst_msgs_model_info_builder_build(
     }
     let inner = unsafe { &(*b).0 };
     let label_refs: Vec<&str> = inner.labels.iter().map(String::as_str).collect();
-    let r = edgefirst_msgs::ModelInfo::builder()
-        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+    let mut bld = edgefirst_msgs::ModelInfo::builder();
+    bld.stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
         .frame_id(inner.frame_id.as_str())
         .input_shape(model_info_input_shape(inner))
-        .input_type(inner.input_type)
         .output_shape(model_info_output_shape(inner))
-        .output_type(inner.output_type)
         .labels(&label_refs)
         .model_type(inner.model_type.as_str())
         .model_format(inner.model_format.as_str())
-        .model_name(inner.model_name.as_str())
-        .build();
+        .model_name(inner.model_name.as_str());
+    model_info_apply_dtypes(&mut bld, inner);
+    let r = bld.build();
     match r {
         Ok(v) => return_cdr_bytes(v.into_cdr(), out_bytes, out_len),
         Err(_) => {
@@ -12793,18 +12888,17 @@ pub extern "C" fn edgefirst_msgs_model_info_builder_encode_into(
     let inner = unsafe { &(*b).0 };
     let label_refs: Vec<&str> = inner.labels.iter().map(String::as_str).collect();
     let dst = unsafe { slice::from_raw_parts_mut(buf, cap) };
-    let r = edgefirst_msgs::ModelInfo::builder()
-        .stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
+    let mut bld = edgefirst_msgs::ModelInfo::builder();
+    bld.stamp(Time::new(inner.stamp_sec, inner.stamp_nanosec))
         .frame_id(inner.frame_id.as_str())
         .input_shape(model_info_input_shape(inner))
-        .input_type(inner.input_type)
         .output_shape(model_info_output_shape(inner))
-        .output_type(inner.output_type)
         .labels(&label_refs)
         .model_type(inner.model_type.as_str())
         .model_format(inner.model_format.as_str())
-        .model_name(inner.model_name.as_str())
-        .encode_into_slice(dst);
+        .model_name(inner.model_name.as_str());
+    model_info_apply_dtypes(&mut bld, inner);
+    let r = bld.encode_into_slice(dst);
     match r {
         Ok(n) => {
             unsafe {
@@ -17348,7 +17442,9 @@ pub extern "C" fn edgefirst_msgs_model_info_set_input_type(buf: *mut u8, len: us
                 return -1;
             }
         };
-    match m.set_input_type(v) {
+    #[allow(deprecated)]
+    let r = m.set_input_type(v);
+    match r {
         Ok(()) => 0,
         Err(_) => {
             set_errno(EBADMSG);
@@ -17380,7 +17476,77 @@ pub extern "C" fn edgefirst_msgs_model_info_set_output_type(
                 return -1;
             }
         };
-    match m.set_output_type(v) {
+    #[allow(deprecated)]
+    let r = m.set_output_type(v);
+    match r {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the input HAL dtype code (`EDGEFIRST_MSGS_MODEL_INFO_DTYPE_*`) in
+/// place on a ModelInfo buffer. Also rewrites the deprecated `input_type`, so
+/// buffers encoded without the dtype fields still carry the value.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn edgefirst_msgs_model_info_set_input_dtype(
+    buf: *mut u8,
+    len: usize,
+    v: u8,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::ModelInfo<&mut [u8]> =
+        match edgefirst_msgs::ModelInfo::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_input_dtype(v) {
+        Ok(()) => 0,
+        Err(_) => {
+            set_errno(EBADMSG);
+            -1
+        }
+    }
+}
+
+/// Set the output HAL dtype code (`EDGEFIRST_MSGS_MODEL_INFO_DTYPE_*`) in
+/// place on a ModelInfo buffer. Also rewrites the deprecated `output_type`, so
+/// buffers encoded without the dtype fields still carry the value.
+///
+/// Returns 0 on success, -1 on error (errno: EINVAL for NULL buf,
+/// EBADMSG if buf is not a valid encoded message of this type).
+#[no_mangle]
+pub extern "C" fn edgefirst_msgs_model_info_set_output_dtype(
+    buf: *mut u8,
+    len: usize,
+    v: u8,
+) -> i32 {
+    if buf.is_null() {
+        set_errno(EINVAL);
+        return -1;
+    }
+    let slice = unsafe { slice::from_raw_parts_mut(buf, len) };
+    let mut m: edgefirst_msgs::ModelInfo<&mut [u8]> =
+        match edgefirst_msgs::ModelInfo::from_cdr(slice) {
+            Ok(v) => v,
+            Err(_) => {
+                set_errno(EBADMSG);
+                return -1;
+            }
+        };
+    match m.set_output_dtype(v) {
         Ok(()) => 0,
         Err(_) => {
             set_errno(EBADMSG);

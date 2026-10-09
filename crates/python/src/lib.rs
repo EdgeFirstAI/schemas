@@ -35,8 +35,8 @@ use std::os::raw::c_char;
 use edgefirst_schemas::builtin_interfaces::{Duration, Time};
 use edgefirst_schemas::cdr::{decode_fixed, encode_fixed};
 use edgefirst_schemas::edgefirst_msgs::{
-    CameraFrame, Date, Detect, DetectBoxView, LocalTime, Mask, MaskView, Model, ModelInfo,
-    RadarCube, RadarInfo, TensorStamped, Track, Vibration,
+    model_info, CameraFrame, Date, Detect, DetectBoxView, LocalTime, Mask, MaskView, Model,
+    ModelInfo, RadarCube, RadarInfo, TensorStamped, Track, Vibration,
 };
 use edgefirst_schemas::foxglove_msgs::{
     FoxgloveCircleAnnotations, FoxgloveColor, FoxgloveCompressedImage, FoxgloveCompressedVideo,
@@ -5038,28 +5038,60 @@ pub struct PyModelInfo {
 
 #[pymethods]
 impl PyModelInfo {
+    // HAL tensor dtype codes for input_dtype / output_dtype.
+    #[classattr]
+    const DTYPE_U8: u8 = model_info::DTYPE_U8;
+    #[classattr]
+    const DTYPE_I8: u8 = model_info::DTYPE_I8;
+    #[classattr]
+    const DTYPE_U16: u8 = model_info::DTYPE_U16;
+    #[classattr]
+    const DTYPE_I16: u8 = model_info::DTYPE_I16;
+    #[classattr]
+    const DTYPE_U32: u8 = model_info::DTYPE_U32;
+    #[classattr]
+    const DTYPE_I32: u8 = model_info::DTYPE_I32;
+    #[classattr]
+    const DTYPE_U64: u8 = model_info::DTYPE_U64;
+    #[classattr]
+    const DTYPE_I64: u8 = model_info::DTYPE_I64;
+    #[classattr]
+    const DTYPE_F16: u8 = model_info::DTYPE_F16;
+    #[classattr]
+    const DTYPE_F32: u8 = model_info::DTYPE_F32;
+    #[classattr]
+    const DTYPE_F64: u8 = model_info::DTYPE_F64;
+    #[classattr]
+    const DTYPE_UNKNOWN: u8 = model_info::DTYPE_UNKNOWN;
+
     #[new]
     #[pyo3(signature = (
         header,
         input_shape=None,
-        input_type=0,
+        input_type=None,
         output_shape=None,
-        output_type=0,
+        output_type=None,
         labels=None,
         model_type="",
         model_format="",
         model_name="",
+        input_dtype=None,
+        output_dtype=None,
     ))]
+    #[allow(clippy::too_many_arguments)]
+    #[allow(deprecated)]
     fn new(
         header: &PyHeader,
         input_shape: Option<Vec<u32>>,
-        input_type: u8,
+        input_type: Option<u8>,
         output_shape: Option<Vec<u32>>,
-        output_type: u8,
+        output_type: Option<u8>,
         labels: Option<Vec<String>>,
         model_type: &str,
         model_format: &str,
         model_name: &str,
+        input_dtype: Option<u8>,
+        output_dtype: Option<u8>,
     ) -> PyResult<Self> {
         let stamp = header.inner.stamp();
         let frame_id = header.inner.frame_id().to_string();
@@ -5067,19 +5099,28 @@ impl PyModelInfo {
         let os = output_shape.unwrap_or_default();
         let labels_owned = labels.unwrap_or_default();
         let labels_refs: Vec<&str> = labels_owned.iter().map(String::as_str).collect();
-        let inner = ModelInfo::builder()
-            .stamp(stamp)
+        let mut b = ModelInfo::builder();
+        b.stamp(stamp)
             .frame_id(frame_id.as_str())
             .input_shape(&is)
-            .input_type(input_type)
             .output_shape(&os)
-            .output_type(output_type)
             .labels(&labels_refs)
             .model_type(model_type)
             .model_format(model_format)
-            .model_name(model_name)
-            .build()
-            .map_err(map_cdr_err)?;
+            .model_name(model_name);
+        if let Some(v) = input_type {
+            b.input_type(v);
+        }
+        if let Some(v) = output_type {
+            b.output_type(v);
+        }
+        if let Some(v) = input_dtype {
+            b.input_dtype(v);
+        }
+        if let Some(v) = output_dtype {
+            b.output_dtype(v);
+        }
+        let inner = b.build().map_err(map_cdr_err)?;
         Ok(Self {
             inner: inner.map_buffer(PyBuf::Owned),
         })
@@ -5109,14 +5150,28 @@ impl PyModelInfo {
         self.inner.input_shape().to_vec()
     }
     #[getter]
+    #[allow(deprecated)]
     fn input_type(&self) -> u8 {
         self.inner.input_type()
+    }
+    #[getter]
+    fn input_dtype(&self) -> u8 {
+        self.inner.input_dtype()
+    }
+    #[getter]
+    fn output_dtype(&self) -> u8 {
+        self.inner.output_dtype()
+    }
+    #[getter]
+    fn has_dtype_fields(&self) -> bool {
+        self.inner.has_dtype_fields()
     }
     #[getter]
     fn output_shape(&self) -> Vec<u32> {
         self.inner.output_shape().to_vec()
     }
     #[getter]
+    #[allow(deprecated)]
     fn output_type(&self) -> u8 {
         self.inner.output_type()
     }

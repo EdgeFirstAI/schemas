@@ -296,20 +296,102 @@ pub mod radar_cube_dimension {
     pub const SEQUENCE: u8 = 6;
 }
 
+/// Constants for `edgefirst_msgs/msg/ModelInfo`.
+///
+/// `input_dtype` / `output_dtype` carry the HAL tensor dtype codes
+/// (`edgefirst_tensor_abi::EfDtype`, `EF_DTYPE_*` in `edgefirst/tensor.h`).
+/// The `DTYPE_*` constants mirror that enum name for name; a test in this
+/// crate fails if any value drifts from the HAL declaration.
+///
+/// The un-prefixed constants (`RAW`, `INT8`, …, `STRING`) are the older
+/// ModelInfo-private numbering still carried by `input_type` /
+/// `output_type`. They are deprecated and kept only so messages recorded
+/// before `input_dtype` / `output_dtype` existed stay decodable.
 pub mod model_info {
+    pub const DTYPE_U8: u8 = 0;
+    pub const DTYPE_I8: u8 = 1;
+    pub const DTYPE_U16: u8 = 2;
+    pub const DTYPE_I16: u8 = 3;
+    pub const DTYPE_U32: u8 = 4;
+    pub const DTYPE_I32: u8 = 5;
+    pub const DTYPE_U64: u8 = 6;
+    pub const DTYPE_I64: u8 = 7;
+    pub const DTYPE_F16: u8 = 8;
+    pub const DTYPE_F32: u8 = 9;
+    pub const DTYPE_F64: u8 = 10;
+    /// No HAL dtype applies: the dtype was not reported, or the legacy
+    /// field said `RAW` or `STRING`. HAL `DType` has no such code, so this
+    /// value sits outside the HAL range and is never a valid `EfDtype`.
+    pub const DTYPE_UNKNOWN: u8 = 255;
+
+    #[deprecated(note = "use DTYPE_UNKNOWN with input_dtype/output_dtype")]
     pub const RAW: u8 = 0;
+    #[deprecated(note = "use DTYPE_I8 with input_dtype/output_dtype")]
     pub const INT8: u8 = 1;
+    #[deprecated(note = "use DTYPE_U8 with input_dtype/output_dtype")]
     pub const UINT8: u8 = 2;
+    #[deprecated(note = "use DTYPE_I16 with input_dtype/output_dtype")]
     pub const INT16: u8 = 3;
+    #[deprecated(note = "use DTYPE_U16 with input_dtype/output_dtype")]
     pub const UINT16: u8 = 4;
+    #[deprecated(note = "use DTYPE_F16 with input_dtype/output_dtype")]
     pub const FLOAT16: u8 = 5;
+    #[deprecated(note = "use DTYPE_I32 with input_dtype/output_dtype")]
     pub const INT32: u8 = 6;
+    #[deprecated(note = "use DTYPE_U32 with input_dtype/output_dtype")]
     pub const UINT32: u8 = 7;
+    #[deprecated(note = "use DTYPE_F32 with input_dtype/output_dtype")]
     pub const FLOAT32: u8 = 8;
+    #[deprecated(note = "use DTYPE_I64 with input_dtype/output_dtype")]
     pub const INT64: u8 = 9;
+    #[deprecated(note = "use DTYPE_U64 with input_dtype/output_dtype")]
     pub const UINT64: u8 = 10;
+    #[deprecated(note = "use DTYPE_F64 with input_dtype/output_dtype")]
     pub const FLOAT64: u8 = 11;
+    #[deprecated(note = "use DTYPE_UNKNOWN with input_dtype/output_dtype")]
     pub const STRING: u8 = 12;
+
+    /// Translate a legacy `input_type` / `output_type` value to its HAL
+    /// dtype code. `RAW`, `STRING` and unrecognised values map to
+    /// [`DTYPE_UNKNOWN`].
+    #[allow(deprecated)]
+    pub const fn dtype_from_legacy(legacy: u8) -> u8 {
+        match legacy {
+            INT8 => DTYPE_I8,
+            UINT8 => DTYPE_U8,
+            INT16 => DTYPE_I16,
+            UINT16 => DTYPE_U16,
+            FLOAT16 => DTYPE_F16,
+            INT32 => DTYPE_I32,
+            UINT32 => DTYPE_U32,
+            FLOAT32 => DTYPE_F32,
+            INT64 => DTYPE_I64,
+            UINT64 => DTYPE_U64,
+            FLOAT64 => DTYPE_F64,
+            _ => DTYPE_UNKNOWN,
+        }
+    }
+
+    /// Translate a HAL dtype code to the legacy `input_type` /
+    /// `output_type` value written alongside it for older readers.
+    /// [`DTYPE_UNKNOWN`] and unrecognised codes map to `RAW`.
+    #[allow(deprecated)]
+    pub const fn legacy_from_dtype(dtype: u8) -> u8 {
+        match dtype {
+            DTYPE_I8 => INT8,
+            DTYPE_U8 => UINT8,
+            DTYPE_I16 => INT16,
+            DTYPE_U16 => UINT16,
+            DTYPE_F16 => FLOAT16,
+            DTYPE_I32 => INT32,
+            DTYPE_U32 => UINT32,
+            DTYPE_F32 => FLOAT32,
+            DTYPE_I64 => INT64,
+            DTYPE_U64 => UINT64,
+            DTYPE_F64 => FLOAT64,
+            _ => RAW,
+        }
+    }
 }
 
 // ── Buffer-backed types ─────────────────────────────────────────────
@@ -2483,11 +2565,22 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Model<B> {
 //   output_shape(Vec<u32>) → offsets[2], output_type(u8),
 //   labels(Vec<String>) → offsets[3],
 //   model_type(string) → offsets[4], model_format(string) → offsets[5],
-//   model_name(string) → offsets[6]
+//   model_name(string) → dtype_at,
+//   input_dtype(u8), output_dtype(u8)   [absent in older recordings]
 
+/// `edgefirst_msgs/msg/ModelInfo` — model metadata.
+///
+/// The I/O element types travel twice: `input_dtype` / `output_dtype` carry
+/// HAL dtype codes ([`model_info`]`::DTYPE_*`), and the deprecated
+/// `input_type` / `output_type` carry the older ModelInfo-private numbering.
+/// Messages recorded before the dtype fields existed end after
+/// `model_name`; for those, [`ModelInfo::input_dtype`] and
+/// [`ModelInfo::output_dtype`] translate the legacy fields.
 pub struct ModelInfo<B> {
     buf: B,
     offsets: [usize; 6],
+    /// Offset of `input_dtype`, or `None` when the message predates it.
+    dtype_at: Option<usize>,
 }
 
 impl<B> ModelInfo<B> {
@@ -2497,6 +2590,7 @@ impl<B> ModelInfo<B> {
         ModelInfo {
             buf: f(self.buf),
             offsets: self.offsets,
+            dtype_at: self.dtype_at,
         }
     }
 }
@@ -2525,8 +2619,14 @@ impl<B: AsRef<[u8]>> ModelInfo<B> {
         let _ = c.read_string()?;
         let o5 = c.offset();
         let _ = c.read_string()?;
+        let o6 = c.offset();
+        // Messages encoded before input_dtype / output_dtype existed end
+        // here. The encapsulation header has no options bits set (anything
+        // else is rejected above), so bytes past model_name are message data.
+        let dtype_at = (buf.as_ref().len() >= o6 + 2).then_some(o6);
         Ok(ModelInfo {
             offsets: [o0, o1, o2, o3, o4, o5],
+            dtype_at,
             buf,
         })
     }
@@ -2553,6 +2653,9 @@ impl<B: AsRef<[u8]>> ModelInfo<B> {
         rd_slice_u32(b, p + 4, count)
     }
 
+    /// Legacy element type of the input tensor(s), in the deprecated
+    /// ModelInfo numbering (`model_info::RAW` … `model_info::STRING`).
+    #[deprecated(note = "use input_dtype, which returns a HAL dtype code")]
     pub fn input_type(&self) -> u8 {
         rd_u8(self.buf.as_ref(), self.offsets[1])
     }
@@ -2564,8 +2667,42 @@ impl<B: AsRef<[u8]>> ModelInfo<B> {
         rd_slice_u32(b, p + 4, count)
     }
 
+    /// Legacy element type of the output tensor(s), in the deprecated
+    /// ModelInfo numbering (`model_info::RAW` … `model_info::STRING`).
+    #[deprecated(note = "use output_dtype, which returns a HAL dtype code")]
     pub fn output_type(&self) -> u8 {
         rd_u8(self.buf.as_ref(), self.offsets[2])
+    }
+
+    /// HAL dtype code of the input tensor(s) (`model_info::DTYPE_*`).
+    ///
+    /// Read from `input_dtype` when the message carries it, otherwise
+    /// translated from the legacy `input_type`. Returns
+    /// `model_info::DTYPE_UNKNOWN` when no HAL dtype applies.
+    pub fn input_dtype(&self) -> u8 {
+        match self.dtype_at {
+            Some(p) => rd_u8(self.buf.as_ref(), p),
+            None => model_info::dtype_from_legacy(rd_u8(self.buf.as_ref(), self.offsets[1])),
+        }
+    }
+
+    /// HAL dtype code of the output tensor(s) (`model_info::DTYPE_*`).
+    ///
+    /// Read from `output_dtype` when the message carries it, otherwise
+    /// translated from the legacy `output_type`. Returns
+    /// `model_info::DTYPE_UNKNOWN` when no HAL dtype applies.
+    pub fn output_dtype(&self) -> u8 {
+        match self.dtype_at {
+            Some(p) => rd_u8(self.buf.as_ref(), p + 1),
+            None => model_info::dtype_from_legacy(rd_u8(self.buf.as_ref(), self.offsets[2])),
+        }
+    }
+
+    /// Whether the message carries `input_dtype` / `output_dtype` on the
+    /// wire. `false` for messages encoded before those fields existed.
+    #[inline]
+    pub fn has_dtype_fields(&self) -> bool {
+        self.dtype_at.is_some()
     }
 
     pub fn labels(&self) -> Vec<&str> {
@@ -2623,13 +2760,22 @@ impl ModelInfo<Vec<u8>> {
 ///
 /// `labels` is borrowed as `&'a [&'a str]` so string literals or caller-
 /// owned string slices flow through without copy.
+///
+/// The builder always writes both the HAL-coded `input_dtype` /
+/// `output_dtype` and the legacy `input_type` / `output_type`. A dtype set
+/// with [`input_dtype`](Self::input_dtype) determines both fields; a value
+/// set only through the deprecated [`input_type`](Self::input_type) is
+/// translated to fill the dtype field. Neither set yields
+/// `model_info::DTYPE_UNKNOWN` and legacy `RAW`.
 pub struct ModelInfoBuilder<'a> {
     stamp: Time,
     frame_id: std::borrow::Cow<'a, str>,
     input_shape: &'a [u32],
-    input_type: u8,
+    input_type: Option<u8>,
+    input_dtype: Option<u8>,
     output_shape: &'a [u32],
-    output_type: u8,
+    output_type: Option<u8>,
+    output_dtype: Option<u8>,
     labels: &'a [&'a str],
     model_type: std::borrow::Cow<'a, str>,
     model_format: std::borrow::Cow<'a, str>,
@@ -2642,14 +2788,26 @@ impl<'a> Default for ModelInfoBuilder<'a> {
             stamp: Time { sec: 0, nanosec: 0 },
             frame_id: std::borrow::Cow::Borrowed(""),
             input_shape: &[],
-            input_type: 0,
+            input_type: None,
+            input_dtype: None,
             output_shape: &[],
-            output_type: 0,
+            output_type: None,
+            output_dtype: None,
             labels: &[],
             model_type: std::borrow::Cow::Borrowed(""),
             model_format: std::borrow::Cow::Borrowed(""),
             model_name: std::borrow::Cow::Borrowed(""),
         }
+    }
+}
+
+/// Resolve the (dtype, legacy) pair written for one tensor direction.
+#[allow(deprecated)]
+fn model_info_resolve_dtype(dtype: Option<u8>, legacy: Option<u8>) -> (u8, u8) {
+    match (dtype, legacy) {
+        (Some(d), _) => (d, model_info::legacy_from_dtype(d)),
+        (None, Some(l)) => (model_info::dtype_from_legacy(l), l),
+        (None, None) => (model_info::DTYPE_UNKNOWN, model_info::RAW),
     }
 }
 
@@ -2670,16 +2828,32 @@ impl<'a> ModelInfoBuilder<'a> {
         self.input_shape = v;
         self
     }
+    /// Set the legacy `input_type` (deprecated ModelInfo numbering).
+    /// Ignored when [`input_dtype`](Self::input_dtype) is also set.
+    #[deprecated(note = "use input_dtype with a model_info::DTYPE_* code")]
     pub fn input_type(&mut self, v: u8) -> &mut Self {
-        self.input_type = v;
+        self.input_type = Some(v);
+        self
+    }
+    /// Set the input HAL dtype code (`model_info::DTYPE_*`).
+    pub fn input_dtype(&mut self, v: u8) -> &mut Self {
+        self.input_dtype = Some(v);
         self
     }
     pub fn output_shape(&mut self, v: &'a [u32]) -> &mut Self {
         self.output_shape = v;
         self
     }
+    /// Set the legacy `output_type` (deprecated ModelInfo numbering).
+    /// Ignored when [`output_dtype`](Self::output_dtype) is also set.
+    #[deprecated(note = "use output_dtype with a model_info::DTYPE_* code")]
     pub fn output_type(&mut self, v: u8) -> &mut Self {
-        self.output_type = v;
+        self.output_type = Some(v);
+        self
+    }
+    /// Set the output HAL dtype code (`model_info::DTYPE_*`).
+    pub fn output_dtype(&mut self, v: u8) -> &mut Self {
+        self.output_dtype = Some(v);
         self
     }
     pub fn labels(&mut self, v: &'a [&'a str]) -> &mut Self {
@@ -2716,19 +2890,23 @@ impl<'a> ModelInfoBuilder<'a> {
         s.size_string(&self.model_type);
         s.size_string(&self.model_format);
         s.size_string(&self.model_name);
+        s.size_u8(); // input_dtype
+        s.size_u8(); // output_dtype
         s.size()
     }
 
     fn write_into(&self, buf: &mut [u8]) -> Result<(), CdrError> {
+        let (in_dtype, in_legacy) = model_info_resolve_dtype(self.input_dtype, self.input_type);
+        let (out_dtype, out_legacy) = model_info_resolve_dtype(self.output_dtype, self.output_type);
         let mut w = CdrWriter::new(buf)?;
         self.stamp.write_cdr(&mut w);
         w.write_string(&self.frame_id);
         w.write_u32(self.input_shape.len() as u32);
         w.write_slice_u32(self.input_shape);
-        w.write_u8(self.input_type);
+        w.write_u8(in_legacy);
         w.write_u32(self.output_shape.len() as u32);
         w.write_slice_u32(self.output_shape);
-        w.write_u8(self.output_type);
+        w.write_u8(out_legacy);
         w.write_u32(self.labels.len() as u32);
         for l in self.labels {
             w.write_string(l);
@@ -2736,6 +2914,8 @@ impl<'a> ModelInfoBuilder<'a> {
         w.write_string(&self.model_type);
         w.write_string(&self.model_format);
         w.write_string(&self.model_name);
+        w.write_u8(in_dtype);
+        w.write_u8(out_dtype);
         w.finish()
     }
 
@@ -2770,12 +2950,56 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> ModelInfo<B> {
         wr_u32(b, CDR_HEADER_SIZE + 4, t.nanosec)
     }
 
+    /// Set the legacy `input_type` in place, also updating `input_dtype`
+    /// when the message carries it.
+    #[deprecated(note = "use set_input_dtype with a model_info::DTYPE_* code")]
     pub fn set_input_type(&mut self, v: u8) -> Result<(), CdrError> {
-        wr_u8(self.buf.as_mut(), self.offsets[1], v)
+        wr_u8(self.buf.as_mut(), self.offsets[1], v)?;
+        match self.dtype_at {
+            Some(p) => wr_u8(self.buf.as_mut(), p, model_info::dtype_from_legacy(v)),
+            None => Ok(()),
+        }
     }
 
+    /// Set the legacy `output_type` in place, also updating `output_dtype`
+    /// when the message carries it.
+    #[deprecated(note = "use set_output_dtype with a model_info::DTYPE_* code")]
     pub fn set_output_type(&mut self, v: u8) -> Result<(), CdrError> {
-        wr_u8(self.buf.as_mut(), self.offsets[2], v)
+        wr_u8(self.buf.as_mut(), self.offsets[2], v)?;
+        match self.dtype_at {
+            Some(p) => wr_u8(self.buf.as_mut(), p + 1, model_info::dtype_from_legacy(v)),
+            None => Ok(()),
+        }
+    }
+
+    /// Set the input HAL dtype code in place. Writes `input_dtype` when the
+    /// message carries it and always rewrites the legacy `input_type`, so
+    /// messages without the dtype fields still round-trip the value.
+    pub fn set_input_dtype(&mut self, v: u8) -> Result<(), CdrError> {
+        wr_u8(
+            self.buf.as_mut(),
+            self.offsets[1],
+            model_info::legacy_from_dtype(v),
+        )?;
+        match self.dtype_at {
+            Some(p) => wr_u8(self.buf.as_mut(), p, v),
+            None => Ok(()),
+        }
+    }
+
+    /// Set the output HAL dtype code in place. Writes `output_dtype` when
+    /// the message carries it and always rewrites the legacy `output_type`,
+    /// so messages without the dtype fields still round-trip the value.
+    pub fn set_output_dtype(&mut self, v: u8) -> Result<(), CdrError> {
+        wr_u8(
+            self.buf.as_mut(),
+            self.offsets[2],
+            model_info::legacy_from_dtype(v),
+        )?;
+        match self.dtype_at {
+            Some(p) => wr_u8(self.buf.as_mut(), p + 1, v),
+            None => Ok(()),
+        }
     }
 }
 
@@ -3477,9 +3701,9 @@ mod tests {
             .stamp(Time::new(0, 0))
             .frame_id("")
             .input_shape(&[1, 3, 640, 640])
-            .input_type(8)
+            .input_dtype(model_info::DTYPE_F32)
             .output_shape(&[1, 25200, 85])
-            .output_type(8)
+            .output_dtype(model_info::DTYPE_F32)
             .labels(&["person", "car"])
             .model_type("yolov8")
             .model_format("onnx")
@@ -3487,9 +3711,9 @@ mod tests {
             .build()
             .unwrap();
         assert_eq!(info.input_shape(), vec![1, 3, 640, 640]);
-        assert_eq!(info.input_type(), 8);
+        assert_eq!(info.input_dtype(), model_info::DTYPE_F32);
         assert_eq!(info.output_shape(), vec![1, 25200, 85]);
-        assert_eq!(info.output_type(), 8);
+        assert_eq!(info.output_dtype(), model_info::DTYPE_F32);
         assert_eq!(info.labels(), vec!["person", "car"]);
         assert_eq!(info.model_type(), "yolov8");
         assert_eq!(info.model_format(), "onnx");
@@ -3503,14 +3727,33 @@ mod tests {
     }
 
     #[test]
+    fn model_info_dtype_precedence_and_legacy_mirror() {
+        #[allow(deprecated)]
+        let info = ModelInfo::builder()
+            .input_type(model_info::INT16)
+            .input_dtype(model_info::DTYPE_U8)
+            .output_type(model_info::FLOAT64)
+            .build()
+            .unwrap();
+        assert!(info.has_dtype_fields());
+        assert_eq!(info.input_dtype(), model_info::DTYPE_U8);
+        assert_eq!(info.output_dtype(), model_info::DTYPE_F64);
+        #[allow(deprecated)]
+        {
+            assert_eq!(info.input_type(), model_info::UINT8);
+            assert_eq!(info.output_type(), model_info::FLOAT64);
+        }
+    }
+
+    #[test]
     fn model_info_empty_labels() {
         let info = ModelInfo::builder()
             .stamp(Time::new(1, 0))
             .frame_id("cam")
             .input_shape(&[1, 3, 224, 224])
-            .input_type(8)
+            .input_dtype(model_info::DTYPE_F32)
             .output_shape(&[1, 10])
-            .output_type(8)
+            .output_dtype(model_info::DTYPE_F32)
             .labels(&[])
             .model_type("classifier")
             .model_format("onnx")
@@ -3537,9 +3780,9 @@ mod tests {
             .stamp(Time::new(0, 0))
             .frame_id("")
             .input_shape(&[1])
-            .input_type(0)
+            .input_dtype(model_info::DTYPE_U8)
             .output_shape(&[1])
-            .output_type(0)
+            .output_dtype(model_info::DTYPE_U8)
             .labels(&[""])
             .model_type("det")
             .model_format("tflite")
@@ -3560,9 +3803,9 @@ mod tests {
             .stamp(Time::new(0, 0))
             .frame_id("f")
             .input_shape(&[1, 3, 320, 320])
-            .input_type(8)
+            .input_dtype(model_info::DTYPE_F32)
             .output_shape(&[1, 100, 6])
-            .output_type(8)
+            .output_dtype(model_info::DTYPE_F32)
             .labels(&["a", "ab", "abc", "abcd", "abcde"])
             .model_type("object_detection")
             .model_format("DeepViewRT")
@@ -3589,9 +3832,9 @@ mod tests {
             .stamp(Time::new(0, 0))
             .frame_id("cam0")
             .input_shape(&[1, 3, 640, 640])
-            .input_type(8)
+            .input_dtype(model_info::DTYPE_F32)
             .output_shape(&[1, 84, 8400])
-            .output_type(8)
+            .output_dtype(model_info::DTYPE_F32)
             .labels(&labels)
             .model_type("object_detection")
             .model_format("DeepViewRT")
@@ -3616,9 +3859,9 @@ mod tests {
             .stamp(Time::new(0, 0))
             .frame_id("")
             .input_shape(&[])
-            .input_type(0)
+            .input_dtype(model_info::DTYPE_U8)
             .output_shape(&[])
-            .output_type(0)
+            .output_dtype(model_info::DTYPE_U8)
             .labels(&["label"])
             .model_type("type")
             .model_format("format")
