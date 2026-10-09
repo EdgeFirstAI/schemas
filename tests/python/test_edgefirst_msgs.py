@@ -363,6 +363,18 @@ class TestModelInfo:
         assert mi.output_dtype == ModelInfo.DTYPE_F32
         assert mi.model_name == "yolov8n"
 
+    def test_layout_by_length_after_model_name(self):
+        legacy = _read_golden("ModelInfo_legacy")
+        with pytest.raises(ValueError, match="too short"):
+            ModelInfo.from_cdr(legacy + bytes([ModelInfo.DTYPE_I8]))
+        for tail in (b"", b"\xee"):
+            mi = ModelInfo.from_cdr(
+                legacy + bytes([ModelInfo.DTYPE_I8, ModelInfo.DTYPE_F16]) + tail
+            )
+            assert mi.has_dtype_fields is True
+            assert mi.input_dtype == ModelInfo.DTYPE_I8
+            assert mi.output_dtype == ModelInfo.DTYPE_F16
+
 
 # ── RadarInfo ─────────────────────────────────────────────────────
 

@@ -2622,8 +2622,15 @@ impl<B: AsRef<[u8]>> ModelInfo<B> {
         let o6 = c.offset();
         // Messages encoded before input_dtype / output_dtype existed end
         // here. The encapsulation header has no options bits set (anything
-        // else is rejected above), so bytes past model_name are message data.
-        let dtype_at = (buf.as_ref().len() >= o6 + 2).then_some(o6);
+        // else is rejected above), so bytes past model_name are message data:
+        // any byte there means both dtype fields are present. Bytes after
+        // them are later fields and are ignored.
+        let have = buf.as_ref().len();
+        let dtype_at = match have - o6 {
+            0 => None,
+            1 => return Err(CdrError::BufferTooShort { need: o6 + 2, have }),
+            _ => Some(o6),
+        };
         Ok(ModelInfo {
             offsets: [o0, o1, o2, o3, o4, o5],
             dtype_at,

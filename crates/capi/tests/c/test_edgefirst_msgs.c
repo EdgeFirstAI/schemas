@@ -859,6 +859,20 @@ Test(edgefirst_msgs, model_info_dtype_from_legacy_fixture) {
     free(b);
 }
 
+/* One byte after model_name is a truncated current-layout message. */
+Test(edgefirst_msgs, model_info_truncated_dtype_fields_rejected) {
+    size_t len = 0;
+    uint8_t *b = load_fixture("testdata/cdr/edgefirst_msgs/ModelInfo_legacy.cdr", &len);
+    cr_assert_not_null(b, "failed to load ModelInfo_legacy fixture");
+    uint8_t *t = realloc(b, len + 1);
+    cr_assert_not_null(t);
+    t[len] = EDGEFIRST_MSGS_MODEL_INFO_DTYPE_I8;
+    errno = 0;
+    cr_assert_null(edgefirst_msgs_model_info_from_cdr(t, len + 1));
+    cr_assert_eq(errno, EBADMSG);
+    free(t);
+}
+
 Test(edgefirst_msgs, model_info_builder_dtype_round_trip) {
     edgefirst_msgs_model_info_builder_t *b = edgefirst_msgs_model_info_builder_new();
     cr_assert_not_null(b);

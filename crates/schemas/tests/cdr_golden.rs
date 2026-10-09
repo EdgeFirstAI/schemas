@@ -1983,6 +1983,39 @@ fn golden_edgefirst_msgs_model_info_legacy() {
     );
 }
 
+/// The length after `model_name` selects the layout: nothing is the legacy
+/// layout, one byte is a truncated current-layout message, two bytes are
+/// `input_dtype` / `output_dtype`, and anything beyond them is ignored.
+#[test]
+fn golden_edgefirst_msgs_model_info_layout_by_length() {
+    use edgefirst_schemas::cdr::CdrError;
+
+    let legacy = read_golden("edgefirst_msgs", "ModelInfo_legacy");
+    let end = legacy.len();
+    let with = |tail: &[u8]| [&legacy[..], tail].concat();
+
+    let view = edgefirst_msgs::ModelInfo::from_cdr(&legacy[..]).unwrap();
+    assert!(!view.has_dtype_fields());
+    assert_eq!(view.input_dtype(), model_info::DTYPE_U8);
+    assert_eq!(view.output_dtype(), model_info::DTYPE_F32);
+
+    let truncated = with(&[model_info::DTYPE_I8]);
+    assert!(matches!(
+        edgefirst_msgs::ModelInfo::from_cdr(&truncated[..]),
+        Err(CdrError::BufferTooShort { need, have }) if need == end + 2 && have == end + 1
+    ));
+
+    let dtypes = [model_info::DTYPE_I8, model_info::DTYPE_F16];
+    for tail in [&dtypes[..], &[dtypes[0], dtypes[1], 0xEE][..]] {
+        let buf = with(tail);
+        let view = edgefirst_msgs::ModelInfo::from_cdr(&buf[..]).unwrap();
+        assert!(view.has_dtype_fields(), "tail {tail:?}");
+        assert_eq!(view.input_dtype(), model_info::DTYPE_I8, "tail {tail:?}");
+        assert_eq!(view.output_dtype(), model_info::DTYPE_F16, "tail {tail:?}");
+        assert_eq!(view.model_name(), "yolov8n");
+    }
+}
+
 // ── foxglove_msgs (CdrFixed) ──────────────────────────────────────────────
 
 #[test]
