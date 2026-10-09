@@ -2214,6 +2214,23 @@ const uint8_t* sensor_msgs_point_cloud2_as_cdr(const sensor_msgs_point_cloud2_t*
  * sensor_msgs - PointField (builder, 3.2.0+)
  * --------------------------------------------------------------------------*/
 
+/**
+ * @name PointField datatype codes
+ *
+ * ROS 2 sensor_msgs/PointField.msg datatype constants. The schemas test
+ * suite fails if any value here differs from the Rust `point_field` module.
+ * @{
+ */
+#define SENSOR_MSGS_POINT_FIELD_INT8     1
+#define SENSOR_MSGS_POINT_FIELD_UINT8    2
+#define SENSOR_MSGS_POINT_FIELD_INT16    3
+#define SENSOR_MSGS_POINT_FIELD_UINT16   4
+#define SENSOR_MSGS_POINT_FIELD_INT32    5
+#define SENSOR_MSGS_POINT_FIELD_UINT32   6
+#define SENSOR_MSGS_POINT_FIELD_FLOAT32  7
+#define SENSOR_MSGS_POINT_FIELD_FLOAT64  8
+/** @} */
+
 /** @brief Opaque builder handle for standalone PointField messages. */
 typedef struct sensor_msgs_point_field_builder_s sensor_msgs_point_field_builder_t;
 
@@ -2239,7 +2256,7 @@ int  sensor_msgs_point_field_builder_set_name(sensor_msgs_point_field_builder_t*
 void sensor_msgs_point_field_builder_set_offset(sensor_msgs_point_field_builder_t* b,
                                         uint32_t v);
 
-/** @brief Set the datatype code (INT8=1, UINT8=2, INT16=3, ..., FLOAT32=7, FLOAT64=8). */
+/** @brief Set the datatype code (SENSOR_MSGS_POINT_FIELD_*). */
 void sensor_msgs_point_field_builder_set_datatype(sensor_msgs_point_field_builder_t* b,
                                           uint8_t v);
 

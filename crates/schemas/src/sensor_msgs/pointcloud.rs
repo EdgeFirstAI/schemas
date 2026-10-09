@@ -16,7 +16,7 @@
 //! convert any stored [`PointFieldType`] to a common float target.
 //! This is useful when the field's storage type varies across services.
 
-use super::PointFieldView;
+use super::{point_field, PointFieldView};
 
 /// Maximum number of fields supported by [`DynPointCloud`].
 ///
@@ -27,30 +27,34 @@ pub const MAX_FIELDS: usize = 16;
 // ── PointFieldType ──────────────────────────────────────────────────
 
 /// Typed representation of PointField datatype constants.
+///
+/// Each discriminant is the matching [`point_field`] constant, so
+/// `PointFieldType::Float32 as u8 == point_field::FLOAT32`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
 pub enum PointFieldType {
-    Int8 = 1,
-    Uint8 = 2,
-    Int16 = 3,
-    Uint16 = 4,
-    Int32 = 5,
-    Uint32 = 6,
-    Float32 = 7,
-    Float64 = 8,
+    Int8 = point_field::INT8,
+    Uint8 = point_field::UINT8,
+    Int16 = point_field::INT16,
+    Uint16 = point_field::UINT16,
+    Int32 = point_field::INT32,
+    Uint32 = point_field::UINT32,
+    Float32 = point_field::FLOAT32,
+    Float64 = point_field::FLOAT64,
 }
 
 impl PointFieldType {
     /// Convert from the ROS2 PointField datatype constant.
     pub fn from_datatype(dt: u8) -> Option<Self> {
         match dt {
-            1 => Some(Self::Int8),
-            2 => Some(Self::Uint8),
-            3 => Some(Self::Int16),
-            4 => Some(Self::Uint16),
-            5 => Some(Self::Int32),
-            6 => Some(Self::Uint32),
-            7 => Some(Self::Float32),
-            8 => Some(Self::Float64),
+            point_field::INT8 => Some(Self::Int8),
+            point_field::UINT8 => Some(Self::Uint8),
+            point_field::INT16 => Some(Self::Int16),
+            point_field::UINT16 => Some(Self::Uint16),
+            point_field::INT32 => Some(Self::Int32),
+            point_field::UINT32 => Some(Self::Uint32),
+            point_field::FLOAT32 => Some(Self::Float32),
+            point_field::FLOAT64 => Some(Self::Float64),
             _ => None,
         }
     }
@@ -1409,6 +1413,41 @@ mod tests {
     use super::*;
     use crate::builtin_interfaces::Time;
     use crate::sensor_msgs::{PointCloud2, PointFieldView};
+
+    #[test]
+    fn point_field_type_matches_point_field_constants_by_name() {
+        use PointFieldType as T;
+        let cases = [
+            (T::Int8, point_field::INT8),
+            (T::Uint8, point_field::UINT8),
+            (T::Int16, point_field::INT16),
+            (T::Uint16, point_field::UINT16),
+            (T::Int32, point_field::INT32),
+            (T::Uint32, point_field::UINT32),
+            (T::Float32, point_field::FLOAT32),
+            (T::Float64, point_field::FLOAT64),
+        ];
+        for (t, code) in cases {
+            assert_eq!(
+                format!("{t:?}").to_uppercase(),
+                match code {
+                    point_field::INT8 => "INT8",
+                    point_field::UINT8 => "UINT8",
+                    point_field::INT16 => "INT16",
+                    point_field::UINT16 => "UINT16",
+                    point_field::INT32 => "INT32",
+                    point_field::UINT32 => "UINT32",
+                    point_field::FLOAT32 => "FLOAT32",
+                    point_field::FLOAT64 => "FLOAT64",
+                    _ => unreachable!(),
+                }
+            );
+            assert_eq!(t as u8, code, "{t:?}");
+            assert_eq!(PointFieldType::from_datatype(code), Some(t));
+        }
+        assert_eq!(PointFieldType::from_datatype(0), None);
+        assert_eq!(PointFieldType::from_datatype(9), None);
+    }
 
     /// Build a PointCloud2 with known xyz + intensity data.
     fn make_test_cloud() -> PointCloud2<Vec<u8>> {

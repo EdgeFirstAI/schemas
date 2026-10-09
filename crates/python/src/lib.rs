@@ -57,9 +57,9 @@ use edgefirst_schemas::mavros_msgs::{
 use edgefirst_schemas::nav_msgs::{GridCells, MapMetaData, OccupancyGrid, Odometry, Path};
 use edgefirst_schemas::rosgraph_msgs::Clock;
 use edgefirst_schemas::sensor_msgs::{
-    BatteryState, CameraInfo, CompressedImage, FluidPressure, Image, Imu, MagneticField, NavSatFix,
-    NavSatStatus, PointCloud2, PointFieldView, RegionOfInterest, RelativeHumidity, Temperature,
-    TimeReference,
+    point_field, BatteryState, CameraInfo, CompressedImage, FluidPressure, Image, Imu,
+    MagneticField, NavSatFix, NavSatStatus, PointCloud2, PointFieldView, RegionOfInterest,
+    RelativeHumidity, Temperature, TimeReference,
 };
 use edgefirst_schemas::std_msgs::{ColorRGBA, Header};
 use edgefirst_schemas::tensor::{Tensor, TensorFields, TensorPlaneView};
@@ -1923,6 +1923,24 @@ pub struct PyPointField {
 
 #[pymethods]
 impl PyPointField {
+    // ROS 2 PointField datatype codes.
+    #[classattr]
+    const INT8: u8 = point_field::INT8;
+    #[classattr]
+    const UINT8: u8 = point_field::UINT8;
+    #[classattr]
+    const INT16: u8 = point_field::INT16;
+    #[classattr]
+    const UINT16: u8 = point_field::UINT16;
+    #[classattr]
+    const INT32: u8 = point_field::INT32;
+    #[classattr]
+    const UINT32: u8 = point_field::UINT32;
+    #[classattr]
+    const FLOAT32: u8 = point_field::FLOAT32;
+    #[classattr]
+    const FLOAT64: u8 = point_field::FLOAT64;
+
     #[new]
     #[pyo3(signature = (name="", offset=0, datatype=0, count=1))]
     fn new(name: &str, offset: u32, datatype: u8, count: u32) -> Self {
