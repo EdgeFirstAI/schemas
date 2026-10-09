@@ -492,9 +492,9 @@ def gen_sensor_msgs():
 
     # PointCloud2 — 4 points with xyz float32 fields
     fields = [
-        sensor_msgs.PointField(name="x", offset=0, datatype=7, count=1),
-        sensor_msgs.PointField(name="y", offset=4, datatype=7, count=1),
-        sensor_msgs.PointField(name="z", offset=8, datatype=7, count=1),
+        sensor_msgs.PointField(name="x", offset=0, datatype=sensor_msgs.PointField.FLOAT32, count=1),
+        sensor_msgs.PointField(name="y", offset=4, datatype=sensor_msgs.PointField.FLOAT32, count=1),
+        sensor_msgs.PointField(name="z", offset=8, datatype=sensor_msgs.PointField.FLOAT32, count=1),
     ]
     import struct
     pc_data = b""

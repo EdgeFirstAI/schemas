@@ -23,7 +23,9 @@ use edgefirst_schemas::foxglove_msgs::{
 };
 use edgefirst_schemas::geometry_msgs::{Point, Pose, Quaternion, Vector3};
 use edgefirst_schemas::nav_msgs::{self, MapMetaData};
-use edgefirst_schemas::sensor_msgs::{self, NavSatStatus, PointFieldView, RegionOfInterest};
+use edgefirst_schemas::sensor_msgs::{
+    self, point_field, NavSatStatus, PointFieldView, RegionOfInterest,
+};
 use edgefirst_schemas::std_msgs;
 use std::ffi::CString;
 use std::os::raw::c_char;
@@ -1550,7 +1552,7 @@ fn sensor_msgs_point_field_builder_encode_into_matches_rust_builder() {
             0
         );
         sensor_msgs_point_field_builder_set_offset(b, 12);
-        sensor_msgs_point_field_builder_set_datatype(b, 7); // FLOAT32
+        sensor_msgs_point_field_builder_set_datatype(b, point_field::FLOAT32);
         sensor_msgs_point_field_builder_set_count(b, 1);
 
         let mut buf = [0u8; 128];
@@ -1566,7 +1568,7 @@ fn sensor_msgs_point_field_builder_encode_into_matches_rust_builder() {
         let via_rust = sensor_msgs::PointField::builder()
             .name("intensity")
             .offset(12)
-            .datatype(7)
+            .datatype(point_field::FLOAT32)
             .count(1)
             .build()
             .expect("rust builder.build()");
@@ -1598,19 +1600,19 @@ fn sensor_msgs_point_cloud2_builder_encode_into_matches_rust_builder() {
             sensor_msgs_point_field_elem_t {
                 name: n_x.as_ptr(),
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             sensor_msgs_point_field_elem_t {
                 name: n_y.as_ptr(),
                 offset: 4,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             sensor_msgs_point_field_elem_t {
                 name: n_z.as_ptr(),
                 offset: 8,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
         ];
@@ -1637,19 +1639,19 @@ fn sensor_msgs_point_cloud2_builder_encode_into_matches_rust_builder() {
             PointFieldView {
                 name: "x",
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "y",
                 offset: 4,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "z",
                 offset: 8,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
         ];
@@ -2905,7 +2907,7 @@ fn sensor_msgs_point_cloud2_builder_fields_null_name_fails_at_build() {
         let descs = [sensor_msgs_point_field_elem_t {
             name: std::ptr::null(),
             offset: 0,
-            datatype: 7,
+            datatype: point_field::FLOAT32,
             count: 1,
         }];
         assert_eq!(

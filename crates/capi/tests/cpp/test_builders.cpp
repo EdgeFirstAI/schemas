@@ -703,9 +703,9 @@ TEST_CASE("PointCloud2Builder round-trip", "[builder][pointcloud2]") {
 
     // Point fields
     sensor_msgs_point_field_elem_t fields[] = {
-        {"x", 0, 7, 1},
-        {"y", 4, 7, 1},
-        {"z", 8, 7, 1},
+        {"x", 0, SENSOR_MSGS_POINT_FIELD_FLOAT32, 1},
+        {"y", 4, SENSOR_MSGS_POINT_FIELD_FLOAT32, 1},
+        {"z", 8, SENSOR_MSGS_POINT_FIELD_FLOAT32, 1},
     };
     REQUIRE(b->fields({fields, 3}).has_value());
 

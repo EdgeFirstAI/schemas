@@ -158,7 +158,7 @@ std::vector<std::uint8_t> encode_pointcloud2(const bench::fixtures::PointCloud2V
 
     auto make_field = [](const char* name, uint32_t offset) {
         sensor_msgs::msg::PointField f;
-        f.name(name); f.offset(offset); f.datatype(7); f.count(1);
+        f.name(name); f.offset(offset); f.datatype(sensor_msgs::msg::POINT_FIELD_FLOAT32); f.count(1);
         return f;
     };
     msg.fields({make_field("x", 0), make_field("y", 4),

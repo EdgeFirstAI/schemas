@@ -975,12 +975,11 @@ static void register_compressedvideo_benchmarks() {
 
 static void register_pointcloud2_benchmarks() {
     // 4 fields: x, y, z, intensity (each float32 = 4 bytes, offset 0/4/8/12)
-    // datatype 7 = FLOAT32 per sensor_msgs_point_field_builder_set_datatype doc
     static const sensor_msgs_point_field_elem_t kFields[] = {
-        {"x",         0,  7, 1},
-        {"y",         4,  7, 1},
-        {"z",         8,  7, 1},
-        {"intensity", 12, 7, 1},
+        {"x",         0,  SENSOR_MSGS_POINT_FIELD_FLOAT32, 1},
+        {"y",         4,  SENSOR_MSGS_POINT_FIELD_FLOAT32, 1},
+        {"z",         8,  SENSOR_MSGS_POINT_FIELD_FLOAT32, 1},
+        {"intensity", 12, SENSOR_MSGS_POINT_FIELD_FLOAT32, 1},
     };
     constexpr std::size_t kFieldCount = 4;
 
@@ -1641,10 +1640,10 @@ static void register_workflow_benchmarks() {
         const auto& pcv = *pcp;
 
         static const sensor_msgs_point_field_elem_t kFields[] = {
-            {"x",         0,  7, 1},
-            {"y",         4,  7, 1},
-            {"z",         8,  7, 1},
-            {"intensity", 12, 7, 1},
+            {"x",         0,  SENSOR_MSGS_POINT_FIELD_FLOAT32, 1},
+            {"y",         4,  SENSOR_MSGS_POINT_FIELD_FLOAT32, 1},
+            {"z",         8,  SENSOR_MSGS_POINT_FIELD_FLOAT32, 1},
+            {"intensity", 12, SENSOR_MSGS_POINT_FIELD_FLOAT32, 1},
         };
         constexpr std::size_t kFieldCount = 4;
 

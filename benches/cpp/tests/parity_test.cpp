@@ -515,12 +515,11 @@ static const bench::fixtures::PointCloud2Variant& find_pc2_variant(std::string_v
 static std::vector<std::uint8_t> encode_pc2_with_edgefirst(
         const bench::fixtures::PointCloud2Variant& v,
         const std::vector<std::uint8_t>& payload) {
-    // datatype 7 = FLOAT32
     static const sensor_msgs_point_field_elem_t kFields[] = {
-        {"x",         0,  7, 1},
-        {"y",         4,  7, 1},
-        {"z",         8,  7, 1},
-        {"intensity", 12, 7, 1},
+        {"x",         0,  SENSOR_MSGS_POINT_FIELD_FLOAT32, 1},
+        {"y",         4,  SENSOR_MSGS_POINT_FIELD_FLOAT32, 1},
+        {"z",         8,  SENSOR_MSGS_POINT_FIELD_FLOAT32, 1},
+        {"intensity", 12, SENSOR_MSGS_POINT_FIELD_FLOAT32, 1},
     };
     auto b = PointCloud2Builder::create();
     if (!b) { std::fprintf(stderr, "PointCloud2Builder::create failed\n"); std::abort(); }
@@ -553,7 +552,7 @@ static std::vector<std::uint8_t> encode_pc2_with_fastcdr(
 
     auto make_field = [](const char* name, uint32_t offset) {
         sensor_msgs::msg::PointField f;
-        f.name(name); f.offset(offset); f.datatype(7); f.count(1);
+        f.name(name); f.offset(offset); f.datatype(sensor_msgs::msg::POINT_FIELD_FLOAT32); f.count(1);
         return f;
     };
     msg.fields({make_field("x", 0), make_field("y", 4),

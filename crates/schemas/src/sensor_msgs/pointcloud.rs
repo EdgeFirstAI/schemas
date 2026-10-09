@@ -1455,25 +1455,25 @@ mod tests {
             PointFieldView {
                 name: "x",
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "y",
                 offset: 4,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "z",
                 offset: 8,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "intensity",
                 offset: 12,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
         ];
@@ -1602,19 +1602,19 @@ mod tests {
             PointFieldView {
                 name: "x",
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "y",
                 offset: 4,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "z",
                 offset: 8,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
         ];
@@ -1656,7 +1656,7 @@ mod tests {
         let fields = [PointFieldView {
             name: "x",
             offset: 0,
-            datatype: 7,
+            datatype: point_field::FLOAT32,
             count: 1,
         }];
         let data = vec![0u8; 4];
@@ -1686,31 +1686,31 @@ mod tests {
             PointFieldView {
                 name: "x",
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "y",
                 offset: 4,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "z",
                 offset: 8,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "class",
                 offset: 12,
-                datatype: 4,
+                datatype: point_field::UINT16,
                 count: 1,
             },
             PointFieldView {
                 name: "flags",
                 offset: 14,
-                datatype: 2,
+                datatype: point_field::UINT8,
                 count: 1,
             },
         ];
@@ -1757,7 +1757,7 @@ mod tests {
         let fields = [PointFieldView {
             name: "x",
             offset: 0,
-            datatype: 7,
+            datatype: point_field::FLOAT32,
             count: 1,
         }];
         let pc = PointCloud2::builder()
@@ -1809,19 +1809,19 @@ mod tests {
             PointFieldView {
                 name: "x",
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "y",
                 offset: 4,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "z",
                 offset: 8,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
         ];
@@ -1869,31 +1869,31 @@ mod tests {
             PointFieldView {
                 name: "x",
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "y",
                 offset: 4,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "z",
                 offset: 8,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "class_id",
                 offset: 12,
-                datatype: 4,
+                datatype: point_field::UINT16,
                 count: 1,
             },
             PointFieldView {
                 name: "instance_id",
                 offset: 14,
-                datatype: 4,
+                datatype: point_field::UINT16,
                 count: 1,
             },
         ];
@@ -1936,13 +1936,13 @@ mod tests {
             PointFieldView {
                 name: "x",
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "y",
                 offset: 4,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
         ];
@@ -1972,19 +1972,19 @@ mod tests {
             PointFieldView {
                 name: "x",
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "y",
                 offset: 4,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "z",
                 offset: 8,
-                datatype: 6, // u32 not f32
+                datatype: point_field::UINT32, // u32 not f32
                 count: 1,
             },
         ];
@@ -2019,25 +2019,25 @@ mod tests {
             PointFieldView {
                 name: "x",
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "y",
                 offset: 4,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "z",
                 offset: 8,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "intensity",
                 offset: 12,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
         ];
@@ -2067,19 +2067,19 @@ mod tests {
             PointFieldView {
                 name: "x",
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "y",
                 offset: 4,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "z",
                 offset: 8,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
         ];
@@ -2152,33 +2152,36 @@ mod tests {
 
     #[test]
     fn point_field_type_from_datatype() {
-        assert_eq!(PointFieldType::from_datatype(1), Some(PointFieldType::Int8));
         assert_eq!(
-            PointFieldType::from_datatype(2),
+            PointFieldType::from_datatype(point_field::INT8),
+            Some(PointFieldType::Int8)
+        );
+        assert_eq!(
+            PointFieldType::from_datatype(point_field::UINT8),
             Some(PointFieldType::Uint8)
         );
         assert_eq!(
-            PointFieldType::from_datatype(3),
+            PointFieldType::from_datatype(point_field::INT16),
             Some(PointFieldType::Int16)
         );
         assert_eq!(
-            PointFieldType::from_datatype(4),
+            PointFieldType::from_datatype(point_field::UINT16),
             Some(PointFieldType::Uint16)
         );
         assert_eq!(
-            PointFieldType::from_datatype(5),
+            PointFieldType::from_datatype(point_field::INT32),
             Some(PointFieldType::Int32)
         );
         assert_eq!(
-            PointFieldType::from_datatype(6),
+            PointFieldType::from_datatype(point_field::UINT32),
             Some(PointFieldType::Uint32)
         );
         assert_eq!(
-            PointFieldType::from_datatype(7),
+            PointFieldType::from_datatype(point_field::FLOAT32),
             Some(PointFieldType::Float32)
         );
         assert_eq!(
-            PointFieldType::from_datatype(8),
+            PointFieldType::from_datatype(point_field::FLOAT64),
             Some(PointFieldType::Float64)
         );
         // Invalid
@@ -2218,49 +2221,49 @@ mod tests {
             PointFieldView {
                 name: "i8_field",
                 offset: 0,
-                datatype: 1,
+                datatype: point_field::INT8,
                 count: 1,
             }, // Int8
             PointFieldView {
                 name: "u8_field",
                 offset: 1,
-                datatype: 2,
+                datatype: point_field::UINT8,
                 count: 1,
             }, // Uint8
             PointFieldView {
                 name: "i16_field",
                 offset: 2,
-                datatype: 3,
+                datatype: point_field::INT16,
                 count: 1,
             }, // Int16
             PointFieldView {
                 name: "u16_field",
                 offset: 4,
-                datatype: 4,
+                datatype: point_field::UINT16,
                 count: 1,
             }, // Uint16
             PointFieldView {
                 name: "i32_field",
                 offset: 6,
-                datatype: 5,
+                datatype: point_field::INT32,
                 count: 1,
             }, // Int32
             PointFieldView {
                 name: "u32_field",
                 offset: 10,
-                datatype: 6,
+                datatype: point_field::UINT32,
                 count: 1,
             }, // Uint32
             PointFieldView {
                 name: "f32_field",
                 offset: 14,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             }, // Float32
             PointFieldView {
                 name: "f64_field",
                 offset: 18,
-                datatype: 8,
+                datatype: point_field::FLOAT64,
                 count: 1,
             }, // Float64
         ];
@@ -2371,19 +2374,19 @@ mod tests {
             PointFieldView {
                 name: "x",
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "y",
                 offset: 8, // wrong — TestXyzPoint expects 4
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "z",
                 offset: 12,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
         ];
@@ -2419,19 +2422,19 @@ mod tests {
             PointFieldView {
                 name: "x",
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "y",
                 offset: 4,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "z",
                 offset: 8,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
         ];
@@ -2474,37 +2477,37 @@ mod tests {
             PointFieldView {
                 name: "x",
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "y",
                 offset: 4,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "z",
                 offset: 8,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "intensity",
                 offset: 12,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "ring",
                 offset: 16,
-                datatype: 4,
+                datatype: point_field::UINT16,
                 count: 1,
             },
             PointFieldView {
                 name: "timestamp",
                 offset: 24,
-                datatype: 8,
+                datatype: point_field::FLOAT64,
                 count: 1,
             },
         ];
@@ -2648,19 +2651,19 @@ mod tests {
             PointFieldView {
                 name: "x",
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "y",
                 offset: 4,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "z",
                 offset: 8,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
         ];
@@ -2713,19 +2716,19 @@ mod tests {
             PointFieldView {
                 name: "x",
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "y",
                 offset: 4,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "z",
                 offset: 8,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
         ];
@@ -2839,49 +2842,49 @@ mod tests {
             PointFieldView {
                 name: "i8_field",
                 offset: 0,
-                datatype: 1,
+                datatype: point_field::INT8,
                 count: 1,
             },
             PointFieldView {
                 name: "u8_field",
                 offset: 1,
-                datatype: 2,
+                datatype: point_field::UINT8,
                 count: 1,
             },
             PointFieldView {
                 name: "i16_field",
                 offset: 2,
-                datatype: 3,
+                datatype: point_field::INT16,
                 count: 1,
             },
             PointFieldView {
                 name: "u16_field",
                 offset: 4,
-                datatype: 4,
+                datatype: point_field::UINT16,
                 count: 1,
             },
             PointFieldView {
                 name: "i32_field",
                 offset: 6,
-                datatype: 5,
+                datatype: point_field::INT32,
                 count: 1,
             },
             PointFieldView {
                 name: "u32_field",
                 offset: 10,
-                datatype: 6,
+                datatype: point_field::UINT32,
                 count: 1,
             },
             PointFieldView {
                 name: "f32_field",
                 offset: 14,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "f64_field",
                 offset: 18,
-                datatype: 8,
+                datatype: point_field::FLOAT64,
                 count: 1,
             },
         ];
@@ -3011,19 +3014,19 @@ mod tests {
             PointFieldView {
                 name: "x",
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "y",
                 offset: 4,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "z",
                 offset: 8,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
         ];
@@ -3072,7 +3075,7 @@ mod tests {
             .map(|i| PointFieldView {
                 name: &names[i],
                 offset: i as u32,
-                datatype: 2, // Uint8
+                datatype: point_field::UINT8, // Uint8
                 count: 1,
             })
             .collect();
@@ -3099,7 +3102,7 @@ mod tests {
             .map(|i| PointFieldView {
                 name: &names[i],
                 offset: i as u32,
-                datatype: 2,
+                datatype: point_field::UINT8,
                 count: 1,
             })
             .collect();
@@ -3130,7 +3133,7 @@ mod tests {
         let fields = [PointFieldView {
             name: "x",
             offset: 0,
-            datatype: 7,
+            datatype: point_field::FLOAT32,
             count: 1,
         }];
         let data = vec![0u8; 48];
@@ -3162,19 +3165,19 @@ mod tests {
             PointFieldView {
                 name: "x",
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "y",
                 offset: 4,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "z",
                 offset: 8,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
         ];
@@ -3206,19 +3209,19 @@ mod tests {
             PointFieldView {
                 name: "x",
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "y",
                 offset: 4,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "z",
                 offset: 8,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
         ];
@@ -3271,49 +3274,49 @@ mod tests {
             PointFieldView {
                 name: "fi8",
                 offset: 0,
-                datatype: 1,
+                datatype: point_field::INT8,
                 count: 1,
             },
             PointFieldView {
                 name: "fu8",
                 offset: 1,
-                datatype: 2,
+                datatype: point_field::UINT8,
                 count: 1,
             },
             PointFieldView {
                 name: "fi16",
                 offset: 2,
-                datatype: 3,
+                datatype: point_field::INT16,
                 count: 1,
             },
             PointFieldView {
                 name: "fu16",
                 offset: 4,
-                datatype: 4,
+                datatype: point_field::UINT16,
                 count: 1,
             },
             PointFieldView {
                 name: "fi32",
                 offset: 6,
-                datatype: 5,
+                datatype: point_field::INT32,
                 count: 1,
             },
             PointFieldView {
                 name: "fu32",
                 offset: 10,
-                datatype: 6,
+                datatype: point_field::UINT32,
                 count: 1,
             },
             PointFieldView {
                 name: "ff32",
                 offset: 14,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "ff64",
                 offset: 18,
-                datatype: 8,
+                datatype: point_field::FLOAT64,
                 count: 1,
             },
         ];
@@ -3554,7 +3557,7 @@ mod tests {
             PointFieldView {
                 name: "val",
                 offset: 0,
-                datatype: 4,
+                datatype: point_field::UINT16,
                 count: 1,
             }, // Uint16
         ];

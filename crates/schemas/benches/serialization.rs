@@ -393,7 +393,7 @@ fn bench_mask(c: &mut Criterion) {
 
 use edgefirst_schemas::define_point;
 use edgefirst_schemas::sensor_msgs::pointcloud::{DynPointCloud, PointCloud};
-use edgefirst_schemas::sensor_msgs::{PointCloud2, PointFieldView};
+use edgefirst_schemas::sensor_msgs::{point_field, PointCloud2, PointFieldView};
 
 define_point! {
     struct BenchXyz {
@@ -409,19 +409,19 @@ fn make_bench_cloud() -> Vec<u8> {
         PointFieldView {
             name: "x",
             offset: 0,
-            datatype: 7,
+            datatype: point_field::FLOAT32,
             count: 1,
         },
         PointFieldView {
             name: "y",
             offset: 4,
-            datatype: 7,
+            datatype: point_field::FLOAT32,
             count: 1,
         },
         PointFieldView {
             name: "z",
             offset: 8,
-            datatype: 7,
+            datatype: point_field::FLOAT32,
             count: 1,
         },
     ];

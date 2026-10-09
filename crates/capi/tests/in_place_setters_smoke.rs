@@ -20,7 +20,7 @@ use edgefirst_schemas::builtin_interfaces::{Duration, Time};
 use edgefirst_schemas::edgefirst_msgs;
 use edgefirst_schemas::foxglove_msgs;
 use edgefirst_schemas::geometry_msgs::Quaternion;
-use edgefirst_schemas::sensor_msgs;
+use edgefirst_schemas::sensor_msgs::{self, point_field};
 use edgefirst_schemas::std_msgs;
 
 extern "C" {
@@ -387,12 +387,14 @@ fn sensor_msgs_point_field_in_place_setters() {
         0
     );
     assert_eq!(
-        unsafe { sensor_msgs_point_field_set_datatype(buf.as_mut_ptr(), len, 8) },
+        unsafe {
+            sensor_msgs_point_field_set_datatype(buf.as_mut_ptr(), len, point_field::FLOAT64)
+        },
         0
     );
     let decoded = sensor_msgs::PointField::from_cdr(&buf[..]).unwrap();
     assert_eq!(decoded.offset(), 12);
-    assert_eq!(decoded.datatype(), 8);
+    assert_eq!(decoded.datatype(), point_field::FLOAT64);
     assert_eq!(decoded.name(), "x");
 }
 

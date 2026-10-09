@@ -32,7 +32,9 @@ use edgefirst_schemas::geometry_msgs::{
 };
 use edgefirst_schemas::nav_msgs::{self, MapMetaData};
 use edgefirst_schemas::rosgraph_msgs::Clock;
-use edgefirst_schemas::sensor_msgs::{self, NavSatStatus, PointFieldView, RegionOfInterest};
+use edgefirst_schemas::sensor_msgs::{
+    self, point_field, NavSatStatus, PointFieldView, RegionOfInterest,
+};
 use edgefirst_schemas::std_msgs::{self, ColorRGBA};
 use edgefirst_schemas::tensor::{TensorFields, TensorPlaneView};
 
@@ -640,7 +642,7 @@ fn golden_sensor_msgs_pointcloud2() {
     let fields = view.fields();
     assert_eq!(fields[0].name, "x");
     assert_eq!(fields[0].offset, 0);
-    assert_eq!(fields[0].datatype, 7); // FLOAT32
+    assert_eq!(fields[0].datatype, point_field::FLOAT32);
     assert_eq!(fields[1].name, "y");
     assert_eq!(fields[2].name, "z");
     assert!(!view.is_bigendian());
@@ -653,19 +655,19 @@ fn golden_sensor_msgs_pointcloud2() {
         PointFieldView {
             name: "x",
             offset: 0,
-            datatype: 7,
+            datatype: point_field::FLOAT32,
             count: 1,
         },
         PointFieldView {
             name: "y",
             offset: 4,
-            datatype: 7,
+            datatype: point_field::FLOAT32,
             count: 1,
         },
         PointFieldView {
             name: "z",
             offset: 8,
-            datatype: 7,
+            datatype: point_field::FLOAT32,
             count: 1,
         },
     ];
