@@ -28,6 +28,8 @@ from edgefirst.schemas.edgefirst_msgs import (
     TensorStamped,
 )
 
+from .tensor_abi import DTYPE_I16, DTYPE_U8, STORAGE_DMABUF, STORAGE_MEM
+
 WIDTH, HEIGHT = 640, 480
 Y_SIZE = WIDTH * HEIGHT
 UV_SIZE = Y_SIZE // 2
@@ -58,10 +60,10 @@ def nv12_planes() -> list[TensorPlane]:
 def nv12_tensor() -> Tensor:
     """An unquantized NV12 camera-frame tensor."""
     return Tensor(
-        storage_kind=2,
+        storage_kind=STORAGE_DMABUF,
         pid=4242,
         fence_fd=-1,
-        dtype=1,
+        dtype=DTYPE_U8,
         quant_axis=-2,
         shape=[HEIGHT, WIDTH],
         strides=[WIDTH, 1],
@@ -109,10 +111,10 @@ class TestTensorPlane:
 class TestTensor:
     def test_round_trips_every_field(self):
         t = Tensor.from_cdr(nv12_tensor().to_bytes())
-        assert t.storage_kind == 2
+        assert t.storage_kind == STORAGE_DMABUF
         assert t.pid == 4242
         assert t.fence_fd == -1
-        assert t.dtype == 1
+        assert t.dtype == DTYPE_U8
         assert t.quant_axis == -2
         assert t.shape == [HEIGHT, WIDTH]
         assert t.strides == [WIDTH, 1]
@@ -128,7 +130,7 @@ class TestTensor:
         t = Tensor()
         assert t.fence_fd == -1
         assert t.quant_axis == -2
-        assert t.storage_kind == 0
+        assert t.storage_kind == STORAGE_MEM
         assert t.num_planes == 0
 
     def test_planes_round_trip(self):
@@ -146,7 +148,7 @@ class TestTensor:
     def test_inline_plane_round_trip(self):
         payload = bytes(range(8))
         t = Tensor(
-            dtype=1,
+            dtype=DTYPE_U8,
             planes=[TensorPlane(handle=-1, size=len(payload), used=len(payload),
                                 data=payload)],
         )
@@ -161,7 +163,7 @@ class TestTensor:
         """``plane_data`` returns a view over the message buffer, not a copy."""
         payload = bytes(range(32))
         t = Tensor(
-            dtype=1,
+            dtype=DTYPE_U8,
             planes=[TensorPlane(handle=-1, size=len(payload), used=len(payload),
                                 data=payload)],
         )
@@ -189,11 +191,11 @@ class TestTensor:
         """
         t = Tensor.from_cdr(nv12_tensor().to_bytes())
         assert t.shape == [HEIGHT, WIDTH]
-        assert t.dtype == 1
+        assert t.dtype == DTYPE_U8
         assert sum(p.size for p in t.planes) == HEIGHT * WIDTH * 3 // 2
 
     def test_repr(self):
-        assert "Tensor(dtype=1" in repr(nv12_tensor())
+        assert f"Tensor(dtype={DTYPE_U8}" in repr(nv12_tensor())
 
     def test_cdr_size_matches_bytes(self):
         t = nv12_tensor()
@@ -204,7 +206,7 @@ class TestTensorValidation:
     """`quant_axis` selects which shape the quantization params must take."""
 
     def test_per_tensor_quantization(self):
-        t = Tensor(dtype=3, shape=[4], quant_axis=-1,
+        t = Tensor(dtype=DTYPE_I16, shape=[4], quant_axis=-1,
                    quant_scales=[0.125], quant_zero_points=[7])
         got = Tensor.from_cdr(t.to_bytes())
         assert got.quant_axis == -1
@@ -407,9 +409,9 @@ class TestGoldenFixtures:
 
     def test_tensor(self):
         t = Tensor.from_cdr(self.golden("Tensor"))
-        assert t.storage_kind == 2
+        assert t.storage_kind == STORAGE_DMABUF
         assert t.pid == 4242
-        assert t.dtype == 1
+        assert t.dtype == DTYPE_U8
         assert t.quant_axis == -2
         assert t.shape == [HEIGHT, WIDTH]
         assert t.strides == [WIDTH, 1]
@@ -421,6 +423,8 @@ class TestGoldenFixtures:
 
     def test_tensor_inline(self):
         t = Tensor.from_cdr(self.golden("Tensor_inline"))
+        assert t.storage_kind == STORAGE_MEM
+        assert t.dtype == DTYPE_U8
         assert t.format == "mono8"
         assert t.num_planes == 1
         p = t.planes[0]
@@ -430,6 +434,8 @@ class TestGoldenFixtures:
 
     def test_tensor_quantized(self):
         t = Tensor.from_cdr(self.golden("Tensor_quantized"))
+        assert t.storage_kind == STORAGE_MEM
+        assert t.dtype == DTYPE_I16
         assert t.quant_axis == 0
         assert t.quant_scales == [0.5, 0.25, 0.125]
         assert t.quant_zero_points == [128, 0, -128]

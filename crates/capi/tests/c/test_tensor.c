@@ -20,6 +20,8 @@
 #include <string.h>
 #include "edgefirst/schemas.h"
 
+#include "../tensor_abi.h"
+
 /* ------------------------------------------------------------------ */
 /* Fixtures                                                            */
 /* ------------------------------------------------------------------ */
@@ -55,10 +57,10 @@ static void init_nv12_planes(void) {
 static edgefirst_msgs_tensor_builder_t *make_nv12_builder(void) {
     init_nv12_planes();
     edgefirst_msgs_tensor_builder_t *tb = edgefirst_msgs_tensor_builder_new();
-    edgefirst_msgs_tensor_builder_set_storage_kind(tb, 2);
+    edgefirst_msgs_tensor_builder_set_storage_kind(tb, EF_STORAGE_KIND_DMA_BUF);
     edgefirst_msgs_tensor_builder_set_pid(tb, 4242);
     edgefirst_msgs_tensor_builder_set_fence_fd(tb, -1);
-    edgefirst_msgs_tensor_builder_set_dtype(tb, 1);
+    edgefirst_msgs_tensor_builder_set_dtype(tb, EF_DTYPE_U8);
     edgefirst_msgs_tensor_builder_set_quant_axis(tb, -2);
     edgefirst_msgs_tensor_builder_set_shape(tb, SHAPE_NV12, 2);
     edgefirst_msgs_tensor_builder_set_strides(tb, STRIDES_NV12, 2);
@@ -87,10 +89,10 @@ Test(tensor, builder_round_trip_all_fields) {
     edgefirst_msgs_tensor_t *t = edgefirst_msgs_tensor_from_cdr(bytes, len);
     cr_assert_not_null(t);
 
-    cr_assert_eq(edgefirst_msgs_tensor_get_storage_kind(t), 2);
+    cr_assert_eq(edgefirst_msgs_tensor_get_storage_kind(t), EF_STORAGE_KIND_DMA_BUF);
     cr_assert_eq(edgefirst_msgs_tensor_get_pid(t), 4242);
     cr_assert_eq(edgefirst_msgs_tensor_get_fence_fd(t), -1);
-    cr_assert_eq(edgefirst_msgs_tensor_get_dtype(t), 1);
+    cr_assert_eq(edgefirst_msgs_tensor_get_dtype(t), EF_DTYPE_U8);
     cr_assert_eq(edgefirst_msgs_tensor_get_quant_axis(t), -2);
     cr_assert_str_eq(edgefirst_msgs_tensor_get_format(t), "NV12");
     cr_assert_str_eq(edgefirst_msgs_tensor_get_color_space(t), "bt709");
@@ -178,7 +180,7 @@ Test(tensor, inline_plane_round_trip) {
     plane.data_len = sizeof(payload);
 
     edgefirst_msgs_tensor_builder_t *tb = edgefirst_msgs_tensor_builder_new();
-    edgefirst_msgs_tensor_builder_set_dtype(tb, 1);
+    edgefirst_msgs_tensor_builder_set_dtype(tb, EF_DTYPE_U8);
     edgefirst_msgs_tensor_builder_set_planes(tb, &plane, 1);
 
     uint8_t *bytes = NULL;
@@ -640,7 +642,7 @@ Test(tensor, per_tensor_quantization_round_trip) {
     static const int32_t zero[1] = {7};
 
     edgefirst_msgs_tensor_builder_t *tb = edgefirst_msgs_tensor_builder_new();
-    edgefirst_msgs_tensor_builder_set_dtype(tb, 3);
+    edgefirst_msgs_tensor_builder_set_dtype(tb, EF_DTYPE_I16);
     edgefirst_msgs_tensor_builder_set_shape(tb, shape, 1);
     edgefirst_msgs_tensor_builder_set_quant_axis(tb, -1);
     edgefirst_msgs_tensor_builder_set_quant_scales(tb, scale, 1);
@@ -672,7 +674,7 @@ Test(tensor, per_axis_quantization_round_trip) {
     static const float scales[3] = {0.5f, 0.25f, 0.125f};
 
     edgefirst_msgs_tensor_builder_t *tb = edgefirst_msgs_tensor_builder_new();
-    edgefirst_msgs_tensor_builder_set_dtype(tb, 3);
+    edgefirst_msgs_tensor_builder_set_dtype(tb, EF_DTYPE_I16);
     edgefirst_msgs_tensor_builder_set_shape(tb, shape, 2);
     edgefirst_msgs_tensor_builder_set_quant_axis(tb, 0);
     edgefirst_msgs_tensor_builder_set_quant_scales(tb, scales, 3); /* == shape[0] */
@@ -809,9 +811,9 @@ Test(tensor_golden, tensor_decodes) {
 
     edgefirst_msgs_tensor_t *t = edgefirst_msgs_tensor_from_cdr(buf, len);
     cr_assert_not_null(t);
-    cr_assert_eq(edgefirst_msgs_tensor_get_storage_kind(t), 2);
+    cr_assert_eq(edgefirst_msgs_tensor_get_storage_kind(t), EF_STORAGE_KIND_DMA_BUF);
     cr_assert_eq(edgefirst_msgs_tensor_get_pid(t), 4242);
-    cr_assert_eq(edgefirst_msgs_tensor_get_dtype(t), 1);
+    cr_assert_eq(edgefirst_msgs_tensor_get_dtype(t), EF_DTYPE_U8);
     cr_assert_eq(edgefirst_msgs_tensor_get_quant_axis(t), -2);
     cr_assert_str_eq(edgefirst_msgs_tensor_get_format(t), "NV12");
     cr_assert_str_eq(edgefirst_msgs_tensor_get_color_range(t), "limited");
@@ -837,6 +839,8 @@ Test(tensor_golden, inline_tensor_decodes) {
 
     edgefirst_msgs_tensor_t *t = edgefirst_msgs_tensor_from_cdr(buf, len);
     cr_assert_not_null(t);
+    cr_assert_eq(edgefirst_msgs_tensor_get_storage_kind(t), EF_STORAGE_KIND_MEM);
+    cr_assert_eq(edgefirst_msgs_tensor_get_dtype(t), EF_DTYPE_U8);
     cr_assert_str_eq(edgefirst_msgs_tensor_get_format(t), "mono8");
     const edgefirst_msgs_tensor_plane_t *p = edgefirst_msgs_tensor_get_plane(t, 0);
     cr_assert(edgefirst_msgs_tensor_plane_is_inline(p));
@@ -857,6 +861,8 @@ Test(tensor_golden, quantized_tensor_decodes) {
 
     edgefirst_msgs_tensor_t *t = edgefirst_msgs_tensor_from_cdr(buf, len);
     cr_assert_not_null(t);
+    cr_assert_eq(edgefirst_msgs_tensor_get_storage_kind(t), EF_STORAGE_KIND_MEM);
+    cr_assert_eq(edgefirst_msgs_tensor_get_dtype(t), EF_DTYPE_I16);
     cr_assert_eq(edgefirst_msgs_tensor_get_quant_axis(t), 0);
 
     size_t n = 0;

@@ -608,9 +608,9 @@ class Tensor:
     ::
 
         t = Tensor(
-            storage_kind=2,
+            storage_kind=2,  # EF_STORAGE_KIND_DMA_BUF (HAL tensor ABI)
             pid=os.getpid(),
-            dtype=1,
+            dtype=0,  # EF_DTYPE_U8 (HAL tensor ABI)
             shape=[480, 640],
             strides=[640, 1],
             format="NV12",

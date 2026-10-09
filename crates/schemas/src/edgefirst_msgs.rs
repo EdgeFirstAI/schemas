@@ -3161,6 +3161,13 @@ impl SchemaType for Date {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use edgefirst_tensor_abi::{EfDtype, EfStorageKind};
+
+    /// Tensor codes from the HAL tensor ABI, their only authority.
+    const U8: u32 = EfDtype::U8 as u32;
+    const I16: u32 = EfDtype::I16 as u32;
+    const DMA_BUF: u32 = EfStorageKind::DmaBuf as u32;
     use crate::builtin_interfaces::Time;
     use crate::cdr::{decode_fixed, encode_fixed};
 
@@ -3861,9 +3868,9 @@ mod tests {
         planes: &'a [crate::tensor::TensorPlaneView<'a>],
     ) -> crate::tensor::TensorFields<'a> {
         crate::tensor::TensorFields {
-            storage_kind: 2,
+            storage_kind: DMA_BUF,
             pid: 4242,
-            dtype: 1,
+            dtype: U8,
             shape,
             planes,
             format: std::borrow::Cow::Borrowed("NV12"),
@@ -3901,7 +3908,7 @@ mod tests {
         assert_eq!(v.seq(), 42);
 
         let t = v.tensor();
-        assert_eq!(t.storage_kind(), 2);
+        assert_eq!(t.storage_kind(), DMA_BUF);
         assert_eq!(t.pid(), 4242);
         assert_eq!(t.shape().collect::<Vec<_>>(), vec![1080u64, 1920]);
         assert_eq!(t.format(), "NV12");
@@ -3913,7 +3920,7 @@ mod tests {
     fn tensor_stamped_roundtrips() {
         let shape: [u64; 1] = [128];
         let fields = crate::tensor::TensorFields {
-            dtype: 3,
+            dtype: I16,
             shape: &shape,
             ..Default::default()
         };
@@ -3928,7 +3935,7 @@ mod tests {
         let v = TensorStamped::<&[u8]>::from_cdr(ts.as_cdr()).unwrap();
         assert_eq!(v.frame_id(), "npu0");
         assert_eq!(v.seq(), 5);
-        assert_eq!(v.tensor().dtype(), 3);
+        assert_eq!(v.tensor().dtype(), I16);
         assert_eq!(v.tensor().shape().collect::<Vec<_>>(), vec![128u64]);
     }
 
@@ -3938,7 +3945,7 @@ mod tests {
         // name differs. This is what makes reinterpreting one as the other free.
         let shape: [u64; 1] = [4];
         let fields = crate::tensor::TensorFields {
-            dtype: 1,
+            dtype: U8,
             shape: &shape,
             ..Default::default()
         };
@@ -3963,7 +3970,7 @@ mod tests {
     fn in_place_scalar_setters_do_not_resize() {
         let shape: [u64; 1] = [4];
         let fields = crate::tensor::TensorFields {
-            dtype: 1,
+            dtype: U8,
             shape: &shape,
             ..Default::default()
         };
@@ -3992,7 +3999,7 @@ mod tests {
         // encode_into_vec_reuses_the_buffer in src/tensor.rs.
         let shape: [u64; 1] = [4];
         let fields = crate::tensor::TensorFields {
-            dtype: 1,
+            dtype: U8,
             shape: &shape,
             ..Default::default()
         };
@@ -4024,7 +4031,7 @@ mod tests {
     fn camera_frame_builder_encode_into_slice_rejects_too_small_buffer() {
         let shape: [u64; 1] = [4];
         let fields = crate::tensor::TensorFields {
-            dtype: 1,
+            dtype: U8,
             shape: &shape,
             ..Default::default()
         };
