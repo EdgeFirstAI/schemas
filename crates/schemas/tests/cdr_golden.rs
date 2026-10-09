@@ -21,7 +21,7 @@ use std::path::PathBuf;
 
 use edgefirst_schemas::builtin_interfaces::{Duration, Time};
 use edgefirst_schemas::cdr::{decode_fixed, encode_fixed};
-use edgefirst_schemas::edgefirst_msgs::{self, Date, DetectBoxView, MaskView};
+use edgefirst_schemas::edgefirst_msgs::{self, model_info, Date, DetectBoxView, MaskView};
 use edgefirst_schemas::foxglove_msgs::{
     self, FoxgloveCircleAnnotations, FoxgloveColor, FoxglovePoint2, FoxglovePointAnnotationView,
     FoxgloveTextAnnotationView,
@@ -32,7 +32,9 @@ use edgefirst_schemas::geometry_msgs::{
 };
 use edgefirst_schemas::nav_msgs::{self, MapMetaData};
 use edgefirst_schemas::rosgraph_msgs::Clock;
-use edgefirst_schemas::sensor_msgs::{self, NavSatStatus, PointFieldView, RegionOfInterest};
+use edgefirst_schemas::sensor_msgs::{
+    self, point_field, NavSatStatus, PointFieldView, RegionOfInterest,
+};
 use edgefirst_schemas::std_msgs::{self, ColorRGBA};
 use edgefirst_schemas::tensor::{TensorFields, TensorPlaneView};
 
@@ -640,7 +642,7 @@ fn golden_sensor_msgs_pointcloud2() {
     let fields = view.fields();
     assert_eq!(fields[0].name, "x");
     assert_eq!(fields[0].offset, 0);
-    assert_eq!(fields[0].datatype, 7); // FLOAT32
+    assert_eq!(fields[0].datatype, point_field::FLOAT32);
     assert_eq!(fields[1].name, "y");
     assert_eq!(fields[2].name, "z");
     assert!(!view.is_bigendian());
@@ -653,19 +655,19 @@ fn golden_sensor_msgs_pointcloud2() {
         PointFieldView {
             name: "x",
             offset: 0,
-            datatype: 7,
+            datatype: point_field::FLOAT32,
             count: 1,
         },
         PointFieldView {
             name: "y",
             offset: 4,
-            datatype: 7,
+            datatype: point_field::FLOAT32,
             count: 1,
         },
         PointFieldView {
             name: "z",
             offset: 8,
-            datatype: 7,
+            datatype: point_field::FLOAT32,
             count: 1,
         },
     ];
@@ -1834,9 +1836,10 @@ fn golden_edgefirst_msgs_model_info() {
     assert_eq!(view.stamp(), STAMP);
     assert_eq!(view.frame_id(), FRAME_ID);
     assert_eq!(view.input_shape(), &[1, 3, 640, 640]);
-    assert_eq!(view.input_type(), 8);
+    assert!(view.has_dtype_fields());
+    assert_eq!(view.input_dtype(), model_info::DTYPE_F32);
     assert_eq!(view.output_shape(), &[1, 84, 8400]);
-    assert_eq!(view.output_type(), 8);
+    assert_eq!(view.output_dtype(), model_info::DTYPE_F32);
     assert_eq!(view.labels(), vec!["person", "car", "bicycle"]);
     assert_eq!(view.model_type(), "object_detection");
     assert_eq!(view.model_format(), "DeepViewRT");
@@ -1846,9 +1849,9 @@ fn golden_edgefirst_msgs_model_info() {
         .stamp(STAMP)
         .frame_id(FRAME_ID)
         .input_shape(&[1, 3, 640, 640])
-        .input_type(8)
+        .input_dtype(model_info::DTYPE_F32)
         .output_shape(&[1, 84, 8400])
-        .output_type(8)
+        .output_dtype(model_info::DTYPE_F32)
         .labels(&["person", "car", "bicycle"])
         .model_type("object_detection")
         .model_format("DeepViewRT")
@@ -1861,9 +1864,9 @@ fn golden_edgefirst_msgs_model_info() {
         .stamp(STAMP)
         .frame_id(FRAME_ID)
         .input_shape(&[1, 3, 640, 640])
-        .input_type(8)
+        .input_dtype(model_info::DTYPE_F32)
         .output_shape(&[1, 84, 8400])
-        .output_type(8)
+        .output_dtype(model_info::DTYPE_F32)
         .labels(&["person", "car", "bicycle"])
         .model_type("object_detection")
         .model_format("DeepViewRT")
@@ -1881,6 +1884,8 @@ fn golden_edgefirst_msgs_model_info_labels() {
     assert_eq!(view.frame_id(), FRAME_ID);
     assert_eq!(view.input_shape(), &[1, 3, 320, 320]);
     assert_eq!(view.output_shape(), &[1, 100, 6]);
+    assert_eq!(view.input_dtype(), model_info::DTYPE_U8);
+    assert_eq!(view.output_dtype(), model_info::DTYPE_F16);
     assert_eq!(view.labels(), vec!["a", "ab", "abc", "abcd", "abcde"]);
     assert_eq!(view.model_type(), "object_detection");
     assert_eq!(view.model_format(), "DeepViewRT");
@@ -1890,9 +1895,9 @@ fn golden_edgefirst_msgs_model_info_labels() {
         .stamp(STAMP)
         .frame_id(FRAME_ID)
         .input_shape(&[1, 3, 320, 320])
-        .input_type(8)
+        .input_dtype(model_info::DTYPE_U8)
         .output_shape(&[1, 100, 6])
-        .output_type(8)
+        .output_dtype(model_info::DTYPE_F16)
         .labels(&["a", "ab", "abc", "abcd", "abcde"])
         .model_type("object_detection")
         .model_format("DeepViewRT")
@@ -1910,6 +1915,8 @@ fn golden_edgefirst_msgs_model_info_empty() {
     assert_eq!(view.frame_id(), FRAME_ID);
     assert_eq!(view.input_shape(), &[1, 3, 224, 224]);
     assert_eq!(view.output_shape(), &[1, 10]);
+    assert_eq!(view.input_dtype(), model_info::DTYPE_UNKNOWN);
+    assert_eq!(view.output_dtype(), model_info::DTYPE_UNKNOWN);
     assert_eq!(view.labels(), Vec::<&str>::new());
     assert_eq!(view.model_type(), "classifier");
     assert_eq!(view.model_format(), "onnx");
@@ -1919,9 +1926,7 @@ fn golden_edgefirst_msgs_model_info_empty() {
         .stamp(STAMP)
         .frame_id(FRAME_ID)
         .input_shape(&[1, 3, 224, 224])
-        .input_type(8)
         .output_shape(&[1, 10])
-        .output_type(8)
         .labels(&[])
         .model_type("classifier")
         .model_format("onnx")
@@ -1929,6 +1934,88 @@ fn golden_edgefirst_msgs_model_info_empty() {
         .build()
         .unwrap();
     assert_eq!(built.to_cdr(), golden);
+}
+
+#[test]
+#[allow(deprecated)]
+fn golden_edgefirst_msgs_model_info_legacy() {
+    // Recorded before input_dtype / output_dtype existed: the dtypes come
+    // from the legacy fields.
+    let golden = read_golden("edgefirst_msgs", "ModelInfo_legacy");
+    let view = edgefirst_msgs::ModelInfo::from_cdr(&golden[..]).unwrap();
+    assert!(!view.has_dtype_fields());
+    assert_eq!(view.input_type(), model_info::UINT8);
+    assert_eq!(view.output_type(), model_info::FLOAT32);
+    assert_eq!(view.input_dtype(), model_info::DTYPE_U8);
+    assert_eq!(view.output_dtype(), model_info::DTYPE_F32);
+    assert_eq!(view.input_shape(), &[1, 640, 640, 3]);
+    assert_eq!(view.output_shape(), &[1, 84, 8400]);
+    assert_eq!(view.labels(), vec!["person", "car"]);
+    assert_eq!(view.model_type(), "object_detection");
+    assert_eq!(view.model_format(), "TFLite");
+    assert_eq!(view.model_name(), "yolov8n");
+
+    // In-place dtype writes on a legacy buffer land in the legacy field.
+    let mut buf = golden.clone();
+    let mut m = edgefirst_msgs::ModelInfo::from_cdr(&mut buf[..]).unwrap();
+    m.set_output_dtype(model_info::DTYPE_I8).unwrap();
+    assert_eq!(m.output_type(), model_info::INT8);
+    assert_eq!(m.output_dtype(), model_info::DTYPE_I8);
+
+    // The current builder, given only the legacy codes, writes the same
+    // message followed by the translated dtypes.
+    let built = edgefirst_msgs::ModelInfo::builder()
+        .stamp(STAMP)
+        .frame_id(FRAME_ID)
+        .input_shape(&[1, 640, 640, 3])
+        .input_type(model_info::UINT8)
+        .output_shape(&[1, 84, 8400])
+        .output_type(model_info::FLOAT32)
+        .labels(&["person", "car"])
+        .model_type("object_detection")
+        .model_format("TFLite")
+        .model_name("yolov8n")
+        .build()
+        .unwrap();
+    let cdr = built.to_cdr();
+    assert_eq!(&cdr[..golden.len()], &golden[..]);
+    assert_eq!(
+        &cdr[golden.len()..],
+        &[model_info::DTYPE_U8, model_info::DTYPE_F32]
+    );
+}
+
+/// The length after `model_name` selects the layout: nothing is the legacy
+/// layout, one byte is a truncated current-layout message, two bytes are
+/// `input_dtype` / `output_dtype`, and anything beyond them is ignored.
+#[test]
+fn golden_edgefirst_msgs_model_info_layout_by_length() {
+    use edgefirst_schemas::cdr::CdrError;
+
+    let legacy = read_golden("edgefirst_msgs", "ModelInfo_legacy");
+    let end = legacy.len();
+    let with = |tail: &[u8]| [&legacy[..], tail].concat();
+
+    let view = edgefirst_msgs::ModelInfo::from_cdr(&legacy[..]).unwrap();
+    assert!(!view.has_dtype_fields());
+    assert_eq!(view.input_dtype(), model_info::DTYPE_U8);
+    assert_eq!(view.output_dtype(), model_info::DTYPE_F32);
+
+    let truncated = with(&[model_info::DTYPE_I8]);
+    assert!(matches!(
+        edgefirst_msgs::ModelInfo::from_cdr(&truncated[..]),
+        Err(CdrError::BufferTooShort { need, have }) if need == end + 2 && have == end + 1
+    ));
+
+    let dtypes = [model_info::DTYPE_I8, model_info::DTYPE_F16];
+    for tail in [&dtypes[..], &[dtypes[0], dtypes[1], 0xEE][..]] {
+        let buf = with(tail);
+        let view = edgefirst_msgs::ModelInfo::from_cdr(&buf[..]).unwrap();
+        assert!(view.has_dtype_fields(), "tail {tail:?}");
+        assert_eq!(view.input_dtype(), model_info::DTYPE_I8, "tail {tail:?}");
+        assert_eq!(view.output_dtype(), model_info::DTYPE_F16, "tail {tail:?}");
+        assert_eq!(view.model_name(), "yolov8n");
+    }
 }
 
 // ── foxglove_msgs (CdrFixed) ──────────────────────────────────────────────

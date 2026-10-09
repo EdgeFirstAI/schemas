@@ -23,7 +23,9 @@ use edgefirst_schemas::foxglove_msgs::{
 };
 use edgefirst_schemas::geometry_msgs::{Point, Pose, Quaternion, Vector3};
 use edgefirst_schemas::nav_msgs::{self, MapMetaData};
-use edgefirst_schemas::sensor_msgs::{self, NavSatStatus, PointFieldView, RegionOfInterest};
+use edgefirst_schemas::sensor_msgs::{
+    self, point_field, NavSatStatus, PointFieldView, RegionOfInterest,
+};
 use edgefirst_schemas::std_msgs;
 use std::ffi::CString;
 use std::os::raw::c_char;
@@ -967,12 +969,20 @@ extern "C" {
         b: *mut edgefirst_msgs_model_info_builder_t,
         v: u8,
     );
+    fn edgefirst_msgs_model_info_builder_set_input_dtype(
+        b: *mut edgefirst_msgs_model_info_builder_t,
+        v: u8,
+    );
     fn edgefirst_msgs_model_info_builder_set_output_shape(
         b: *mut edgefirst_msgs_model_info_builder_t,
         data: *const u32,
         len: usize,
     ) -> i32;
     fn edgefirst_msgs_model_info_builder_set_output_type(
+        b: *mut edgefirst_msgs_model_info_builder_t,
+        v: u8,
+    );
+    fn edgefirst_msgs_model_info_builder_set_output_dtype(
         b: *mut edgefirst_msgs_model_info_builder_t,
         v: u8,
     );
@@ -1542,7 +1552,7 @@ fn sensor_msgs_point_field_builder_encode_into_matches_rust_builder() {
             0
         );
         sensor_msgs_point_field_builder_set_offset(b, 12);
-        sensor_msgs_point_field_builder_set_datatype(b, 7); // FLOAT32
+        sensor_msgs_point_field_builder_set_datatype(b, point_field::FLOAT32);
         sensor_msgs_point_field_builder_set_count(b, 1);
 
         let mut buf = [0u8; 128];
@@ -1558,7 +1568,7 @@ fn sensor_msgs_point_field_builder_encode_into_matches_rust_builder() {
         let via_rust = sensor_msgs::PointField::builder()
             .name("intensity")
             .offset(12)
-            .datatype(7)
+            .datatype(point_field::FLOAT32)
             .count(1)
             .build()
             .expect("rust builder.build()");
@@ -1590,19 +1600,19 @@ fn sensor_msgs_point_cloud2_builder_encode_into_matches_rust_builder() {
             sensor_msgs_point_field_elem_t {
                 name: n_x.as_ptr(),
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             sensor_msgs_point_field_elem_t {
                 name: n_y.as_ptr(),
                 offset: 4,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             sensor_msgs_point_field_elem_t {
                 name: n_z.as_ptr(),
                 offset: 8,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
         ];
@@ -1629,19 +1639,19 @@ fn sensor_msgs_point_cloud2_builder_encode_into_matches_rust_builder() {
             PointFieldView {
                 name: "x",
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "y",
                 offset: 4,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "z",
                 offset: 8,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
         ];
@@ -2322,6 +2332,19 @@ fn edgefirst_msgs_model_builder_encode_into_matches_rust_builder() {
 
 #[test]
 fn edgefirst_msgs_model_info_builder_encode_into_matches_rust_builder() {
+    model_info_encode_into_matches_rust_builder(false);
+}
+
+#[test]
+fn edgefirst_msgs_model_info_builder_legacy_type_matches_rust_dtype() {
+    model_info_encode_into_matches_rust_builder(true);
+}
+
+/// Encode the same ModelInfo through the C builder (with the dtype setters,
+/// or with the deprecated legacy-type setters when `legacy`) and through the
+/// Rust builder with HAL dtype codes; the bytes must match.
+fn model_info_encode_into_matches_rust_builder(legacy: bool) {
+    use edgefirst_msgs::model_info;
     unsafe {
         let b = edgefirst_msgs_model_info_builder_new();
         assert!(!b.is_null());
@@ -2333,10 +2356,20 @@ fn edgefirst_msgs_model_info_builder_encode_into_matches_rust_builder() {
         );
         let ishape: [u32; 4] = [1, 3, 224, 224];
         edgefirst_msgs_model_info_builder_set_input_shape(b, ishape.as_ptr(), ishape.len());
-        edgefirst_msgs_model_info_builder_set_input_type(b, 8); // FLOAT32
+        if legacy {
+            #[allow(deprecated)]
+            edgefirst_msgs_model_info_builder_set_input_type(b, model_info::FLOAT32);
+        } else {
+            edgefirst_msgs_model_info_builder_set_input_dtype(b, model_info::DTYPE_F32);
+        }
         let oshape: [u32; 2] = [1, 1000];
         edgefirst_msgs_model_info_builder_set_output_shape(b, oshape.as_ptr(), oshape.len());
-        edgefirst_msgs_model_info_builder_set_output_type(b, 8);
+        if legacy {
+            #[allow(deprecated)]
+            edgefirst_msgs_model_info_builder_set_output_type(b, model_info::FLOAT32);
+        } else {
+            edgefirst_msgs_model_info_builder_set_output_dtype(b, model_info::DTYPE_F32);
+        }
 
         let l0 = CString::new("car").unwrap();
         let l1 = CString::new("bike").unwrap();
@@ -2377,9 +2410,9 @@ fn edgefirst_msgs_model_info_builder_encode_into_matches_rust_builder() {
             .stamp(Time::new(10, 20))
             .frame_id("model")
             .input_shape(&ishape)
-            .input_type(8)
+            .input_dtype(model_info::DTYPE_F32)
             .output_shape(&oshape)
-            .output_type(8)
+            .output_dtype(model_info::DTYPE_F32)
             .labels(&labels)
             .model_type("classifier")
             .model_format("tflite")
@@ -2874,7 +2907,7 @@ fn sensor_msgs_point_cloud2_builder_fields_null_name_fails_at_build() {
         let descs = [sensor_msgs_point_field_elem_t {
             name: std::ptr::null(),
             offset: 0,
-            datatype: 7,
+            datatype: point_field::FLOAT32,
             count: 1,
         }];
         assert_eq!(

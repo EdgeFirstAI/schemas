@@ -3679,19 +3679,19 @@ mod tests {
             PointFieldView {
                 name: "x",
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "y",
                 offset: 4,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "z",
                 offset: 8,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
         ];
@@ -3723,19 +3723,19 @@ mod tests {
             PointFieldView {
                 name: "x",
                 offset: 0,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "y",
                 offset: 4,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
             PointFieldView {
                 name: "z",
                 offset: 8,
-                datatype: 7,
+                datatype: point_field::FLOAT32,
                 count: 1,
             },
         ];
@@ -3986,13 +3986,13 @@ mod tests {
         let pf_a = PointField::builder()
             .name("x")
             .offset(16)
-            .datatype(7)
+            .datatype(point_field::FLOAT32)
             .count(3)
             .build()
             .unwrap();
         let mut pf_b = PointField::builder().name("x").build().unwrap();
         pf_b.set_offset(16).unwrap();
-        pf_b.set_datatype(7).unwrap();
+        pf_b.set_datatype(point_field::FLOAT32).unwrap();
         pf_b.set_count(3).unwrap();
         assert_eq!(pf_a.as_cdr(), pf_b.as_cdr(), "PointField byte mismatch");
 

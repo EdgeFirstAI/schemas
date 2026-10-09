@@ -373,6 +373,13 @@ Test(edgefirst_msgs, model_info_getters_null) {
     cr_assert_null(edgefirst_msgs_model_info_get_model_format(NULL));
     cr_assert_eq(edgefirst_msgs_model_info_get_input_type(NULL), 0);
     cr_assert_eq(edgefirst_msgs_model_info_get_output_type(NULL), 0);
+    errno = 0;
+    cr_assert_eq(edgefirst_msgs_model_info_get_input_dtype(NULL),
+                 EDGEFIRST_MSGS_MODEL_INFO_DTYPE_UNKNOWN);
+    cr_assert_eq(errno, EINVAL);
+    cr_assert_eq(edgefirst_msgs_model_info_get_output_dtype(NULL),
+                 EDGEFIRST_MSGS_MODEL_INFO_DTYPE_UNKNOWN);
+    cr_assert_not(edgefirst_msgs_model_info_has_dtype_fields(NULL));
     cr_assert_null(edgefirst_msgs_model_info_get_input_shape(NULL, NULL));
     cr_assert_null(edgefirst_msgs_model_info_get_output_shape(NULL, NULL));
     cr_assert_eq(edgefirst_msgs_model_info_get_labels_len(NULL), 0);
@@ -823,6 +830,68 @@ Test(memory_safety, blob_getters_null_view_initializes_out_len) {
     const uint8_t *layout_ptr = edgefirst_msgs_radar_cube_get_layout(NULL, &out_len);
     cr_assert_null(layout_ptr, "edgefirst_msgs_radar_cube_get_layout should return NULL for NULL view");
     cr_assert_eq(out_len, 0, "edgefirst_msgs_radar_cube_get_layout must initialize out_len to 0 on NULL view");
+}
+
+Test(edgefirst_msgs, model_info_dtype_from_golden_fixture) {
+    size_t len = 0;
+    uint8_t *b = load_fixture("testdata/cdr/edgefirst_msgs/ModelInfo_labels.cdr", &len);
+    cr_assert_not_null(b, "failed to load ModelInfo_labels fixture");
+    edgefirst_msgs_model_info_t *v = edgefirst_msgs_model_info_from_cdr(b, len);
+    cr_assert_not_null(v);
+    cr_assert(edgefirst_msgs_model_info_has_dtype_fields(v));
+    cr_assert_eq(edgefirst_msgs_model_info_get_input_dtype(v), EDGEFIRST_MSGS_MODEL_INFO_DTYPE_U8);
+    cr_assert_eq(edgefirst_msgs_model_info_get_output_dtype(v), EDGEFIRST_MSGS_MODEL_INFO_DTYPE_F16);
+    edgefirst_msgs_model_info_free(v);
+    free(b);
+}
+
+Test(edgefirst_msgs, model_info_dtype_from_legacy_fixture) {
+    size_t len = 0;
+    uint8_t *b = load_fixture("testdata/cdr/edgefirst_msgs/ModelInfo_legacy.cdr", &len);
+    cr_assert_not_null(b, "failed to load ModelInfo_legacy fixture");
+    edgefirst_msgs_model_info_t *v = edgefirst_msgs_model_info_from_cdr(b, len);
+    cr_assert_not_null(v);
+    cr_assert_not(edgefirst_msgs_model_info_has_dtype_fields(v));
+    cr_assert_eq(edgefirst_msgs_model_info_get_input_dtype(v), EDGEFIRST_MSGS_MODEL_INFO_DTYPE_U8);
+    cr_assert_eq(edgefirst_msgs_model_info_get_output_dtype(v), EDGEFIRST_MSGS_MODEL_INFO_DTYPE_F32);
+    cr_assert_str_eq(edgefirst_msgs_model_info_get_model_name(v), "yolov8n");
+    edgefirst_msgs_model_info_free(v);
+    free(b);
+}
+
+/* One byte after model_name is a truncated current-layout message. */
+Test(edgefirst_msgs, model_info_truncated_dtype_fields_rejected) {
+    size_t len = 0;
+    uint8_t *b = load_fixture("testdata/cdr/edgefirst_msgs/ModelInfo_legacy.cdr", &len);
+    cr_assert_not_null(b, "failed to load ModelInfo_legacy fixture");
+    uint8_t *t = realloc(b, len + 1);
+    cr_assert_not_null(t);
+    t[len] = EDGEFIRST_MSGS_MODEL_INFO_DTYPE_I8;
+    errno = 0;
+    cr_assert_null(edgefirst_msgs_model_info_from_cdr(t, len + 1));
+    cr_assert_eq(errno, EBADMSG);
+    free(t);
+}
+
+Test(edgefirst_msgs, model_info_builder_dtype_round_trip) {
+    edgefirst_msgs_model_info_builder_t *b = edgefirst_msgs_model_info_builder_new();
+    cr_assert_not_null(b);
+    edgefirst_msgs_model_info_builder_set_input_dtype(b, EDGEFIRST_MSGS_MODEL_INFO_DTYPE_I8);
+    edgefirst_msgs_model_info_builder_set_output_dtype(b, EDGEFIRST_MSGS_MODEL_INFO_DTYPE_F32);
+    uint8_t *bytes = NULL;
+    size_t len = 0;
+    cr_assert_eq(edgefirst_msgs_model_info_builder_build(b, &bytes, &len), 0);
+    edgefirst_msgs_model_info_builder_free(b);
+
+    cr_assert_eq(edgefirst_msgs_model_info_set_output_dtype(bytes, len,
+                                                            EDGEFIRST_MSGS_MODEL_INFO_DTYPE_U16), 0);
+    edgefirst_msgs_model_info_t *v = edgefirst_msgs_model_info_from_cdr(bytes, len);
+    cr_assert_not_null(v);
+    cr_assert(edgefirst_msgs_model_info_has_dtype_fields(v));
+    cr_assert_eq(edgefirst_msgs_model_info_get_input_dtype(v), EDGEFIRST_MSGS_MODEL_INFO_DTYPE_I8);
+    cr_assert_eq(edgefirst_msgs_model_info_get_output_dtype(v), EDGEFIRST_MSGS_MODEL_INFO_DTYPE_U16);
+    edgefirst_msgs_model_info_free(v);
+    edgefirst_schemas_bytes_free(bytes, len);
 }
 
 // ============================================================================

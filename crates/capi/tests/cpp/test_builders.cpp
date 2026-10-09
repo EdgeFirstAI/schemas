@@ -620,7 +620,9 @@ TEST_CASE("ModelInfoBuilder round-trip", "[builder][model_info]") {
     auto b = ModelInfoBuilder::create();
     REQUIRE(b.has_value());
 
-    b->stamp({1300, 0}).input_type(1).output_type(1);
+    b->stamp({1300, 0})
+        .input_dtype(EDGEFIRST_MSGS_MODEL_INFO_DTYPE_U8)
+        .output_dtype(EDGEFIRST_MSGS_MODEL_INFO_DTYPE_F32);
     REQUIRE(b->frame_id("model0").has_value());
     REQUIRE(b->model_type("detection").has_value());
     REQUIRE(b->model_format("tflite").has_value());
@@ -646,6 +648,9 @@ TEST_CASE("ModelInfoBuilder round-trip", "[builder][model_info]") {
     CHECK(view->model_format() == "tflite");
     CHECK(view->model_name() == "yolov8n");
     CHECK(view->labels_len() == 3);
+    CHECK(view->has_dtype_fields());
+    CHECK(view->input_dtype() == EDGEFIRST_MSGS_MODEL_INFO_DTYPE_U8);
+    CHECK(view->output_dtype() == EDGEFIRST_MSGS_MODEL_INFO_DTYPE_F32);
 
     free_released(rel);
 }
@@ -698,9 +703,9 @@ TEST_CASE("PointCloud2Builder round-trip", "[builder][pointcloud2]") {
 
     // Point fields
     sensor_msgs_point_field_elem_t fields[] = {
-        {"x", 0, 7, 1},
-        {"y", 4, 7, 1},
-        {"z", 8, 7, 1},
+        {"x", 0, SENSOR_MSGS_POINT_FIELD_FLOAT32, 1},
+        {"y", 4, SENSOR_MSGS_POINT_FIELD_FLOAT32, 1},
+        {"z", 8, SENSOR_MSGS_POINT_FIELD_FLOAT32, 1},
     };
     REQUIRE(b->fields({fields, 3}).has_value());
 

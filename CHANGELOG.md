@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `edgefirst_msgs/ModelInfo` gains `input_dtype` and `output_dtype`, appended after `model_name`, carrying EdgeFirst HAL tensor dtype codes (`edgefirst_tensor_abi::EfDtype`). Their codes are declared under HAL's names as `DTYPE_U8` … `DTYPE_F64` plus `DTYPE_UNKNOWN` (255, no HAL dtype applies) in `ModelInfo.msg`, in Rust as `model_info::DTYPE_*`, in C as `EDGEFIRST_MSGS_MODEL_INFO_DTYPE_*`, and in Python as `ModelInfo.DTYPE_*`. A test checks the Rust constants, the C macros and the `.msg` constants against `EfDtype` by name (EDGEAI-2195).
+- `ModelInfo` accessors `input_dtype()`, `output_dtype()` and `has_dtype_fields()`, builder setters `input_dtype()` / `output_dtype()`, and in-place setters `set_input_dtype()` / `set_output_dtype()` in Rust, C (`edgefirst_msgs_model_info_*`), C++ and Python. Messages recorded before the dtype fields existed still decode; their dtypes are translated from the legacy fields. A message with a single byte after `model_name` is rejected as truncated, and bytes after the two dtype fields are ignored (EDGEAI-2195).
+- `model_info::dtype_from_legacy()` and `model_info::legacy_from_dtype()` translate between the legacy and HAL codes (EDGEAI-2195).
+- PointField datatype codes are exposed to C as `SENSOR_MSGS_POINT_FIELD_INT8` … `SENSOR_MSGS_POINT_FIELD_FLOAT64` and to Python as `PointField.INT8` … `PointField.FLOAT64`. A test checks the C macros against the Rust `sensor_msgs::point_field` constants by name (EDGEAI-2195).
+
+### Changed
+
+- `ModelInfo` messages are two bytes longer and the `ModelInfo.msg` definition changes, so recorded MCAP schemas and ROS 2 type hashes for `edgefirst_msgs/ModelInfo` differ from earlier releases. Readers built from earlier releases ignore the two trailing bytes. The builders always write both the HAL dtype and the matching legacy code (EDGEAI-2195).
+- `PointFieldType` takes its discriminants and `from_datatype()` from the `sensor_msgs::point_field` constants instead of repeating the numbers, and is now `#[repr(u8)]` (EDGEAI-2195).
+- The `ModelInfo` goldens are now encoded with pycdr2 instead of the PyO3 bindings, carry the dtype fields, and use distinct input and output dtypes; a new `ModelInfo_legacy` golden records the earlier layout (EDGEAI-2195).
+
+### Deprecated
+
+- `ModelInfo` `input_type` / `output_type` and the `RAW` … `STRING` constants. They number the element types differently from HAL; use `input_dtype` / `output_dtype` and `DTYPE_*`. In Python, `input_type` / `output_type` default to unset rather than `0`, and a dtype argument takes precedence over the matching type argument (EDGEAI-2195).
+
 ## [4.0.0] - 2026-08-28
 
 This release replaces the `DmaBuffer` and `CameraFrame`/`CameraPlane` messages

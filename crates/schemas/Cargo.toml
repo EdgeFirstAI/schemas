@@ -24,6 +24,7 @@ libc = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
+edgefirst-tensor-abi = { workspace = true }
 mcap = { workspace = true }
 memmap2 = { workspace = true }
 rand = { workspace = true }
