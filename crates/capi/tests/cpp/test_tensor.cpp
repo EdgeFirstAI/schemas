@@ -707,6 +707,8 @@ TEST_CASE("Golden inline and quantized tensors decode", "[tensor][golden]") {
         REQUIRE_FALSE(g.empty());
         auto t = TensorView::from_cdr({g.data(), g.size()});
         REQUIRE(t.has_value());
+        CHECK(t->storage_kind() == EF_STORAGE_KIND_MEM);
+        CHECK(t->dtype() == EF_DTYPE_U8);
         CHECK(t->format() == "mono8");
         auto p = *t->planes().begin();
         CHECK(p.is_inline());
@@ -720,6 +722,8 @@ TEST_CASE("Golden inline and quantized tensors decode", "[tensor][golden]") {
         REQUIRE_FALSE(g.empty());
         auto t = TensorView::from_cdr({g.data(), g.size()});
         REQUIRE(t.has_value());
+        CHECK(t->storage_kind() == EF_STORAGE_KIND_MEM);
+        CHECK(t->dtype() == EF_DTYPE_I16);
         CHECK(t->quant_axis() == 0);
         auto sc = t->quant_scales();
         REQUIRE(sc.size() == 3);  // == shape[0]

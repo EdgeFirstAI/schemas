@@ -839,6 +839,8 @@ Test(tensor_golden, inline_tensor_decodes) {
 
     edgefirst_msgs_tensor_t *t = edgefirst_msgs_tensor_from_cdr(buf, len);
     cr_assert_not_null(t);
+    cr_assert_eq(edgefirst_msgs_tensor_get_storage_kind(t), EF_STORAGE_KIND_MEM);
+    cr_assert_eq(edgefirst_msgs_tensor_get_dtype(t), EF_DTYPE_U8);
     cr_assert_str_eq(edgefirst_msgs_tensor_get_format(t), "mono8");
     const edgefirst_msgs_tensor_plane_t *p = edgefirst_msgs_tensor_get_plane(t, 0);
     cr_assert(edgefirst_msgs_tensor_plane_is_inline(p));
@@ -859,6 +861,8 @@ Test(tensor_golden, quantized_tensor_decodes) {
 
     edgefirst_msgs_tensor_t *t = edgefirst_msgs_tensor_from_cdr(buf, len);
     cr_assert_not_null(t);
+    cr_assert_eq(edgefirst_msgs_tensor_get_storage_kind(t), EF_STORAGE_KIND_MEM);
+    cr_assert_eq(edgefirst_msgs_tensor_get_dtype(t), EF_DTYPE_I16);
     cr_assert_eq(edgefirst_msgs_tensor_get_quant_axis(t), 0);
 
     size_t n = 0;

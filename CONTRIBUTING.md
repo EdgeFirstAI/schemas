@@ -39,7 +39,7 @@ EdgeFirst Perception Schemas provides message schema definitions and language bi
 
 ### Prerequisites
 
-- **Rust**: 1.70 or later ([install instructions](https://www.rust-lang.org/tools/install))
+- **Rust**: stable 1.94 or later to build the workspace and run the tests and benchmarks ([install instructions](https://www.rust-lang.org/tools/install)). The 1.70 minimum in the README is for applications that depend on the `edgefirst-schemas` crate; the C library's build dependencies and the test and benchmark dev-dependencies need newer releases.
 - **Python**: 3.8 or later (3.11+ uses the zero-copy `cp311-abi3` wheel; 3.8–3.10 uses `cp38-abi3`)
 - **Git**: For version control
 

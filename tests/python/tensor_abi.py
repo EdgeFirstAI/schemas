@@ -15,8 +15,6 @@ against the ABI enums by name, so a wrong value here fails CI.
 
 # EfDtype
 DTYPE_U8 = 0
-DTYPE_I8 = 1
-DTYPE_U16 = 2
 DTYPE_I16 = 3
 
 # EfStorageKind

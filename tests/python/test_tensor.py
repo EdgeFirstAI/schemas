@@ -423,6 +423,8 @@ class TestGoldenFixtures:
 
     def test_tensor_inline(self):
         t = Tensor.from_cdr(self.golden("Tensor_inline"))
+        assert t.storage_kind == STORAGE_MEM
+        assert t.dtype == DTYPE_U8
         assert t.format == "mono8"
         assert t.num_planes == 1
         p = t.planes[0]
@@ -432,6 +434,8 @@ class TestGoldenFixtures:
 
     def test_tensor_quantized(self):
         t = Tensor.from_cdr(self.golden("Tensor_quantized"))
+        assert t.storage_kind == STORAGE_MEM
+        assert t.dtype == DTYPE_I16
         assert t.quant_axis == 0
         assert t.quant_scales == [0.5, 0.25, 0.125]
         assert t.quant_zero_points == [128, 0, -128]
