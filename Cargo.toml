@@ -22,6 +22,8 @@ mcap = "0.25"
 memmap2 = "0.9"
 rand = "0.9.2"
 cbindgen = "0.29.2"
+# The authority for Tensor dtype and storage_kind codes; tests only.
+edgefirst-tensor-abi = "0.34.1"
 
 # Release profile: optimized, stripped, no debug info
 [profile.release]

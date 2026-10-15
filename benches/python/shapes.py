@@ -13,6 +13,8 @@ Each tuple's first element is the variant name used in the pytest test ID.
 
 from typing import NamedTuple
 
+from edgefirst.schemas.sensor_msgs import PointField
+
 
 class ImageVariant(NamedTuple):
     name: str
@@ -104,24 +106,23 @@ class PointCloud2Variant(NamedTuple):
     def fields(self):
         """Return list of (name, offset, datatype, count) tuples for this variant.
 
-        datatype matches sensor_msgs/PointField constants:
-            2 = UINT8, 4 = UINT16, 7 = FLOAT32.
+        datatype is a ``PointField`` datatype code.
         """
         if self.point_step == 13:
             return [
-                ("x",       0, 7, 1),
-                ("y",       4, 7, 1),
-                ("z",       8, 7, 1),
-                ("reflect", 12, 2, 1),
+                ("x",       0, PointField.FLOAT32, 1),
+                ("y",       4, PointField.FLOAT32, 1),
+                ("z",       8, PointField.FLOAT32, 1),
+                ("reflect", 12, PointField.UINT8, 1),
             ]
         elif self.point_step == 16:
             return [
-                ("x",            0, 7, 1),
-                ("y",            4, 7, 1),
-                ("z",            8, 7, 1),
-                ("fusion_class", 12, 2, 1),
-                ("vision_class", 13, 2, 1),
-                ("instance_id",  14, 4, 1),
+                ("x",            0, PointField.FLOAT32, 1),
+                ("y",            4, PointField.FLOAT32, 1),
+                ("z",            8, PointField.FLOAT32, 1),
+                ("fusion_class", 12, PointField.UINT8, 1),
+                ("vision_class", 13, PointField.UINT8, 1),
+                ("instance_id",  14, PointField.UINT16, 1),
             ]
         else:
             raise ValueError(f"unknown point_step {self.point_step}")

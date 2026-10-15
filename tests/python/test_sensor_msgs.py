@@ -167,10 +167,10 @@ class TestCompressedImage:
 def xyz_intensity_fields():
     """Standard (x, y, z, intensity) layout — 16 bytes per point, all f32."""
     return [
-        PointField(name="x", offset=0, datatype=7, count=1),
-        PointField(name="y", offset=4, datatype=7, count=1),
-        PointField(name="z", offset=8, datatype=7, count=1),
-        PointField(name="intensity", offset=12, datatype=7, count=1),
+        PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
+        PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
+        PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
+        PointField(name="intensity", offset=12, datatype=PointField.FLOAT32, count=1),
     ]
 
 
@@ -219,11 +219,16 @@ class TestPointField:
         assert f.name == "" and f.offset == 0 and f.datatype == 0 and f.count == 1
 
     def test_explicit_values(self):
-        f = PointField(name="x", offset=4, datatype=7, count=1)
+        f = PointField(name="x", offset=4, datatype=PointField.FLOAT32, count=1)
         assert f.name == "x"
         assert f.offset == 4
-        assert f.datatype == 7
+        assert f.datatype == PointField.FLOAT32
         assert f.count == 1
+
+    def test_datatype_constants_are_distinct(self):
+        names = ["INT8", "UINT8", "INT16", "UINT16",
+                 "INT32", "UINT32", "FLOAT32", "FLOAT64"]
+        assert len({getattr(PointField, n) for n in names}) == len(names)
 
 
 # ── NavSatStatus ───────────────────────────────────────────────────

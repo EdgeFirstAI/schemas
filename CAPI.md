@@ -1593,11 +1593,18 @@ const char* edgefirst_msgs_model_info_get_frame_id(const edgefirst_msgs_model_in
 const char* edgefirst_msgs_model_info_get_model_type(const edgefirst_msgs_model_info_t* view);
 const char* edgefirst_msgs_model_info_get_model_format(const edgefirst_msgs_model_info_t* view);
 const char* edgefirst_msgs_model_info_get_model_name(const edgefirst_msgs_model_info_t* view);
+uint8_t     edgefirst_msgs_model_info_get_input_dtype(const edgefirst_msgs_model_info_t* view);
+uint8_t     edgefirst_msgs_model_info_get_output_dtype(const edgefirst_msgs_model_info_t* view);
+bool        edgefirst_msgs_model_info_has_dtype_fields(const edgefirst_msgs_model_info_t* view);
+
+/* Deprecated: legacy ModelInfo numbering (RAW=0 ... STRING=12). */
 uint8_t     edgefirst_msgs_model_info_get_input_type(const edgefirst_msgs_model_info_t* view);
 uint8_t     edgefirst_msgs_model_info_get_output_type(const edgefirst_msgs_model_info_t* view);
 
 const uint8_t* edgefirst_msgs_model_info_as_cdr(const edgefirst_msgs_model_info_t* view, size_t* out_len);
 ```
+
+`input_dtype` / `output_dtype` are EdgeFirst HAL tensor dtype codes. Use the `EDGEFIRST_MSGS_MODEL_INFO_DTYPE_*` macros (`U8`, `I8`, `U16`, `I16`, `U32`, `I32`, `U64`, `I64`, `F16`, `F32`, `F64`, plus `UNKNOWN`), which carry the same names and values as HAL's `EF_DTYPE_*`. Messages recorded before the dtype fields existed decode with `has_dtype_fields` false and dtypes translated from the legacy fields. The builder (`edgefirst_msgs_model_info_builder_set_input_dtype` / `_set_output_dtype`) and the in-place setters (`edgefirst_msgs_model_info_set_input_dtype` / `_set_output_dtype`) write both the dtype and the matching legacy field.
 
 #### Track
 

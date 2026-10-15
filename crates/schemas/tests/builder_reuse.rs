@@ -10,7 +10,7 @@
 
 use edgefirst_schemas::builtin_interfaces::Time;
 use edgefirst_schemas::cdr::CdrError;
-use edgefirst_schemas::sensor_msgs::Image;
+use edgefirst_schemas::sensor_msgs::{point_field, Image};
 
 #[test]
 fn image_encode_into_vec_reuses_allocation() {
@@ -146,19 +146,19 @@ fn pointcloud2_encode_into_vec_reuses_allocation() {
         PointFieldView {
             name: "x",
             offset: 0,
-            datatype: 7,
+            datatype: point_field::FLOAT32,
             count: 1,
         },
         PointFieldView {
             name: "y",
             offset: 4,
-            datatype: 7,
+            datatype: point_field::FLOAT32,
             count: 1,
         },
         PointFieldView {
             name: "z",
             offset: 8,
-            datatype: 7,
+            datatype: point_field::FLOAT32,
             count: 1,
         },
     ];
