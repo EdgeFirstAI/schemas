@@ -13,11 +13,17 @@ use edgefirst_schemas::cdr::{CdrError, CDR_HEADER_SIZE};
 use edgefirst_schemas::edgefirst_msgs::{CameraFrame, TensorStamped};
 use edgefirst_schemas::tensor::{Tensor, TensorFields, TensorPlaneView};
 
+use edgefirst_tensor_abi::{EfDtype, EfStorageKind};
+
+/// Tensor codes from the HAL tensor ABI, their only authority.
+const U8: u32 = EfDtype::U8 as u32;
+const DMA_BUF: u32 = EfStorageKind::DmaBuf as u32;
+
 fn fields<'a>(shape: &'a [u64], planes: &'a [TensorPlaneView<'a>]) -> TensorFields<'a> {
     TensorFields {
-        storage_kind: 2,
+        storage_kind: DMA_BUF,
         pid: 1234,
-        dtype: 1,
+        dtype: U8,
         shape,
         planes,
         format: std::borrow::Cow::Borrowed("NV12"),
@@ -136,10 +142,10 @@ fn embedded_tensor_reparses_standalone() {
     let quant_zero_points: [i32; 1] = [3];
     let planes = two_planes();
     let f = TensorFields {
-        storage_kind: 2,
+        storage_kind: DMA_BUF,
         pid: 4242,
         fence_fd: 7,
-        dtype: 1,
+        dtype: U8,
         quant_axis: -1,
         shape: &shape,
         strides: &strides,

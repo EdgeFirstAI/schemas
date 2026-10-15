@@ -31,6 +31,8 @@ EdgeFirst Perception Schemas provides the foundational message types used throug
 cargo add edgefirst-schemas
 ```
 
+As a dependency, the `edgefirst-schemas` crate needs Rust 1.70 or later (1.71 on Windows). Building this repository's workspace and running its tests and benchmarks needs a recent stable toolchain; see [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites).
+
 **Python** (via pip, when published):
 
 ```bash

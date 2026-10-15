@@ -933,6 +933,14 @@ impl Tensor<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use edgefirst_tensor_abi::{EfDtype, EfStorageKind};
+
+    /// Tensor codes from the HAL tensor ABI, their only authority.
+    const U8: u32 = EfDtype::U8 as u32;
+    const U16: u32 = EfDtype::U16 as u32;
+    const I64: u32 = EfDtype::I64 as u32;
+    const DMA_BUF: u32 = EfStorageKind::DmaBuf as u32;
     use crate::cdr::{CdrCursor, CdrSizer, CdrWriter};
 
     fn referenced_plane() -> TensorPlaneView<'static> {
@@ -1339,12 +1347,12 @@ mod tests {
 
     #[test]
     fn tensor_scalars_are_readable() {
-        let buf = encode_minimal_tensor(2, 4321, -1, 7, -2);
+        let buf = encode_minimal_tensor(DMA_BUF, 4321, -1, I64, -2);
         let t = Tensor::<&[u8]>::from_cdr(&buf[..]).unwrap();
-        assert_eq!(t.storage_kind(), 2);
+        assert_eq!(t.storage_kind(), DMA_BUF);
         assert_eq!(t.pid(), 4321);
         assert_eq!(t.fence_fd(), -1);
-        assert_eq!(t.dtype(), 7);
+        assert_eq!(t.dtype(), I64);
         assert_eq!(t.quant_axis(), -2);
     }
 
@@ -1418,10 +1426,10 @@ mod tests {
         let strides: [i64; 3] = [640 * 3, 3, 1];
 
         let t = Tensor::builder()
-            .storage_kind(2)
+            .storage_kind(DMA_BUF)
             .pid(1234)
             .fence_fd(-1)
-            .dtype(1)
+            .dtype(U8)
             .quant_axis(-2)
             .shape(&shape)
             .strides(&strides)
@@ -1431,9 +1439,9 @@ mod tests {
             .build()
             .unwrap();
 
-        assert_eq!(t.storage_kind(), 2);
+        assert_eq!(t.storage_kind(), DMA_BUF);
         assert_eq!(t.pid(), 1234);
-        assert_eq!(t.dtype(), 1);
+        assert_eq!(t.dtype(), U8);
         assert_eq!(t.quant_axis(), -2);
         assert_eq!(t.shape().collect::<Vec<_>>(), shape.to_vec());
         assert_eq!(t.strides().collect::<Vec<_>>(), strides.to_vec());
@@ -1563,18 +1571,18 @@ mod tests {
     fn encode_into_vec_reuses_the_buffer() {
         let mut buf = Vec::new();
         Tensor::builder()
-            .dtype(1)
+            .dtype(U8)
             .encode_into_vec(&mut buf)
             .unwrap();
         let first_len = buf.len();
         let cap = buf.capacity();
 
         Tensor::builder()
-            .dtype(2)
+            .dtype(U16)
             .encode_into_vec(&mut buf)
             .unwrap();
         assert_eq!(buf.len(), first_len);
         assert_eq!(buf.capacity(), cap, "re-encoding must not reallocate");
-        assert_eq!(Tensor::<&[u8]>::from_cdr(&buf[..]).unwrap().dtype(), 2);
+        assert_eq!(Tensor::<&[u8]>::from_cdr(&buf[..]).unwrap().dtype(), U16);
     }
 }

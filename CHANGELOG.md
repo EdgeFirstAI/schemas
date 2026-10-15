@@ -19,10 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ModelInfo` messages are two bytes longer and the `ModelInfo.msg` definition changes, so recorded MCAP schemas and ROS 2 type hashes for `edgefirst_msgs/ModelInfo` differ from earlier releases. Readers built from earlier releases ignore the two trailing bytes. The builders always write both the HAL dtype and the matching legacy code (EDGEAI-2195).
 - `PointFieldType` takes its discriminants and `from_datatype()` from the `sensor_msgs::point_field` constants instead of repeating the numbers, and is now `#[repr(u8)]` (EDGEAI-2195).
 - The `ModelInfo` goldens are now encoded with pycdr2 instead of the PyO3 bindings, carry the dtype fields, and use distinct input and output dtypes; a new `ModelInfo_legacy` golden records the earlier layout (EDGEAI-2195).
+- Tensor `dtype` and `storage_kind` codes are no longer written as bare numbers anywhere in the repository. Rust tests use `edgefirst-tensor-abi` (`EfDtype`, `EfStorageKind`, a test-only dependency), the C and C++ tests use `crates/capi/tests/tensor_abi.h` with HAL's `EF_DTYPE_*` / `EF_STORAGE_KIND_*` names, and the fixture generator and Python tests use `tests/python/tensor_abi.py`. A new golden test checks every tensor fixture's codes against the ABI enums by name (EDGEAI-2191).
 
 ### Deprecated
 
 - `ModelInfo` `input_type` / `output_type` and the `RAW` … `STRING` constants. They number the element types differently from HAL; use `input_dtype` / `output_dtype` and `DTYPE_*`. In Python, `input_type` / `output_type` default to unset rather than `0`, and a dtype argument takes precedence over the matching type argument (EDGEAI-2195).
+
+### Fixed
+
+- The `edgefirst_msgs` tensor golden fixtures carried `dtype = 1` for 8-bit image samples, which is `I8` under the HAL tensor ABI; they now carry `U8` (0). Only the `dtype` field of each fixture changes. The `Tensor` Python example now shows `dtype=0` (U8) as well (EDGEAI-2191).
 
 ## [4.0.0] - 2026-08-28
 
