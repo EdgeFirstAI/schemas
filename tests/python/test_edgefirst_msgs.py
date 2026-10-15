@@ -16,6 +16,8 @@ The Tensor family (``Tensor``, ``TensorPlane``, ``TensorStamped``,
 matters there is the composition contract rather than per-field coverage.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -306,6 +308,11 @@ class TestMaskBox:
 from edgefirst.schemas.edgefirst_msgs import ModelInfo
 
 
+def _read_golden(name):
+    root = Path(__file__).resolve().parents[2] / "testdata" / "cdr" / "edgefirst_msgs"
+    return (root / f"{name}.cdr").read_bytes()
+
+
 class TestModelInfo:
     def test_round_trip(self, sample_header):
         mi = ModelInfo(
@@ -322,6 +329,51 @@ class TestModelInfo:
         assert restored.model_format == "tflite"
         assert restored.input_shape == [1, 320, 320, 3]
         assert restored.labels == ["cat", "dog", "person"]
+        assert restored.has_dtype_fields is True
+        assert restored.input_dtype == ModelInfo.DTYPE_UNKNOWN
+        assert restored.output_dtype == ModelInfo.DTYPE_UNKNOWN
+
+    def test_dtype_round_trip(self, sample_header):
+        mi = ModelInfo(
+            header=sample_header,
+            input_dtype=ModelInfo.DTYPE_U8,
+            output_dtype=ModelInfo.DTYPE_F32,
+        )
+        restored = ModelInfo.from_cdr(mi.to_bytes())
+        assert restored.has_dtype_fields is True
+        assert restored.input_dtype == ModelInfo.DTYPE_U8
+        assert restored.output_dtype == ModelInfo.DTYPE_F32
+
+    def test_dtype_constants_are_distinct(self):
+        names = ["U8", "I8", "U16", "I16", "U32", "I32", "U64", "I64",
+                 "F16", "F32", "F64", "UNKNOWN"]
+        values = [getattr(ModelInfo, f"DTYPE_{n}") for n in names]
+        assert len(set(values)) == len(names)
+
+    def test_dtype_golden(self):
+        mi = ModelInfo.from_cdr(_read_golden("ModelInfo_labels"))
+        assert mi.has_dtype_fields is True
+        assert mi.input_dtype == ModelInfo.DTYPE_U8
+        assert mi.output_dtype == ModelInfo.DTYPE_F16
+
+    def test_legacy_golden_translates_to_dtype(self):
+        mi = ModelInfo.from_cdr(_read_golden("ModelInfo_legacy"))
+        assert mi.has_dtype_fields is False
+        assert mi.input_dtype == ModelInfo.DTYPE_U8
+        assert mi.output_dtype == ModelInfo.DTYPE_F32
+        assert mi.model_name == "yolov8n"
+
+    def test_layout_by_length_after_model_name(self):
+        legacy = _read_golden("ModelInfo_legacy")
+        with pytest.raises(ValueError, match="too short"):
+            ModelInfo.from_cdr(legacy + bytes([ModelInfo.DTYPE_I8]))
+        for tail in (b"", b"\xee"):
+            mi = ModelInfo.from_cdr(
+                legacy + bytes([ModelInfo.DTYPE_I8, ModelInfo.DTYPE_F16]) + tail
+            )
+            assert mi.has_dtype_fields is True
+            assert mi.input_dtype == ModelInfo.DTYPE_I8
+            assert mi.output_dtype == ModelInfo.DTYPE_F16
 
 
 # ── RadarInfo ─────────────────────────────────────────────────────

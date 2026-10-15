@@ -817,10 +817,10 @@ static void register_pointcloud2_benchmarks() {
         // Build PointField descriptors
         auto make_fields = []() {
             sensor_msgs::msg::PointField fx, fy, fz, fi;
-            fx.name("x");  fx.offset(0);  fx.datatype(7); fx.count(1);
-            fy.name("y");  fy.offset(4);  fy.datatype(7); fy.count(1);
-            fz.name("z");  fz.offset(8);  fz.datatype(7); fz.count(1);
-            fi.name("intensity"); fi.offset(12); fi.datatype(7); fi.count(1);
+            fx.name("x");  fx.offset(0);  fx.datatype(sensor_msgs::msg::POINT_FIELD_FLOAT32); fx.count(1);
+            fy.name("y");  fy.offset(4);  fy.datatype(sensor_msgs::msg::POINT_FIELD_FLOAT32); fy.count(1);
+            fz.name("z");  fz.offset(8);  fz.datatype(sensor_msgs::msg::POINT_FIELD_FLOAT32); fz.count(1);
+            fi.name("intensity"); fi.offset(12); fi.datatype(sensor_msgs::msg::POINT_FIELD_FLOAT32); fi.count(1);
             return std::vector<sensor_msgs::msg::PointField>{fx, fy, fz, fi};
         };
 
@@ -1413,10 +1413,10 @@ static void register_workflow_benchmarks() {
 
         auto make_fields = []() {
             sensor_msgs::msg::PointField fx, fy, fz, fi;
-            fx.name("x");  fx.offset(0);  fx.datatype(7); fx.count(1);
-            fy.name("y");  fy.offset(4);  fy.datatype(7); fy.count(1);
-            fz.name("z");  fz.offset(8);  fz.datatype(7); fz.count(1);
-            fi.name("intensity"); fi.offset(12); fi.datatype(7); fi.count(1);
+            fx.name("x");  fx.offset(0);  fx.datatype(sensor_msgs::msg::POINT_FIELD_FLOAT32); fx.count(1);
+            fy.name("y");  fy.offset(4);  fy.datatype(sensor_msgs::msg::POINT_FIELD_FLOAT32); fy.count(1);
+            fz.name("z");  fz.offset(8);  fz.datatype(sensor_msgs::msg::POINT_FIELD_FLOAT32); fz.count(1);
+            fi.name("intensity"); fi.offset(12); fi.datatype(sensor_msgs::msg::POINT_FIELD_FLOAT32); fi.count(1);
             return std::vector<sensor_msgs::msg::PointField>{fx, fy, fz, fi};
         };
 

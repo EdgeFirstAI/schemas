@@ -4,7 +4,7 @@
 """Type stubs for ``edgefirst.schemas.sensor_msgs``."""
 
 from __future__ import annotations
-from typing import List, Optional, Sequence
+from typing import ClassVar, List, Optional, Sequence
 
 from . import BorrowedBuf, BufferLike
 from .builtin_interfaces import Time
@@ -91,10 +91,19 @@ class PointField:
     """``sensor_msgs.PointField`` — descriptor of one field within a
     :class:`PointCloud2`'s packed point layout.
 
-    ``datatype`` follows the ROS 2 spec:
-        1 INT8, 2 UINT8, 3 INT16, 4 UINT16, 5 INT32, 6 UINT32,
-        7 FLOAT32, 8 FLOAT64.
+    ``datatype`` is a ROS 2 PointField datatype code, named by the class
+    attributes ``INT8``, ``UINT8``, ``INT16``, ``UINT16``, ``INT32``,
+    ``UINT32``, ``FLOAT32`` and ``FLOAT64``.
     """
+
+    INT8: ClassVar[int]
+    UINT8: ClassVar[int]
+    INT16: ClassVar[int]
+    UINT16: ClassVar[int]
+    INT32: ClassVar[int]
+    UINT32: ClassVar[int]
+    FLOAT32: ClassVar[int]
+    FLOAT64: ClassVar[int]
 
     def __init__(
         self,
@@ -235,10 +244,10 @@ class PointCloud2:
     ::
 
         fields = [
-            PointField(name="x", offset=0,  datatype=7, count=1),  # float32
-            PointField(name="y", offset=4,  datatype=7, count=1),
-            PointField(name="z", offset=8,  datatype=7, count=1),
-            PointField(name="i", offset=12, datatype=2, count=1),  # uint8
+            PointField(name="x", offset=0,  datatype=PointField.FLOAT32),
+            PointField(name="y", offset=4,  datatype=PointField.FLOAT32),
+            PointField(name="z", offset=8,  datatype=PointField.FLOAT32),
+            PointField(name="i", offset=12, datatype=PointField.UINT8),
         ]
         pc = PointCloud2(
             header=Header(stamp=Time(1, 0), frame_id="lidar"),

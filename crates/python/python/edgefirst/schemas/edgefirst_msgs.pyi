@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import List, Optional, Sequence
+from typing import ClassVar, List, Optional, Sequence
 
 from . import BorrowedBuf, BufferLike
 from .builtin_interfaces import Duration, Time
@@ -400,19 +400,57 @@ class Model:
 class ModelInfo:
     """``edgefirst_msgs.ModelInfo`` — model metadata (name, type, format,
     shape, labels).
+
+    ``input_dtype`` / ``output_dtype`` are EdgeFirst HAL tensor dtype codes,
+    named by the ``DTYPE_*`` class attributes (the same names as HAL's
+    ``EfDtype`` / ``EF_DTYPE_*``). ``DTYPE_UNKNOWN`` means no HAL dtype
+    applies. Pass these constants rather than numbers.
+
+    ``input_type`` / ``output_type`` are deprecated: they carry the older
+    ModelInfo-private numbering (RAW=0 ... STRING=12) and are written only
+    for older readers. A dtype argument takes precedence over the matching
+    type argument; a type argument alone is translated to its dtype.
+    Messages recorded before the dtype fields existed decode with
+    ``has_dtype_fields == False`` and dtypes translated from the legacy
+    fields.
+
+    Example
+    -------
+    ::
+
+        mi = ModelInfo(
+            header=hdr,
+            input_dtype=ModelInfo.DTYPE_U8,
+            output_dtype=ModelInfo.DTYPE_F32,
+        )
     """
+
+    DTYPE_U8: ClassVar[int]
+    DTYPE_I8: ClassVar[int]
+    DTYPE_U16: ClassVar[int]
+    DTYPE_I16: ClassVar[int]
+    DTYPE_U32: ClassVar[int]
+    DTYPE_I32: ClassVar[int]
+    DTYPE_U64: ClassVar[int]
+    DTYPE_I64: ClassVar[int]
+    DTYPE_F16: ClassVar[int]
+    DTYPE_F32: ClassVar[int]
+    DTYPE_F64: ClassVar[int]
+    DTYPE_UNKNOWN: ClassVar[int]
 
     def __init__(
         self,
         header: Header,
         input_shape: Optional[Sequence[int]] = None,
-        input_type: int = 0,
+        input_type: Optional[int] = None,
         output_shape: Optional[Sequence[int]] = None,
-        output_type: int = 0,
+        output_type: Optional[int] = None,
         labels: Optional[Sequence[str]] = None,
         model_type: str = "",
         model_format: str = "",
         model_name: str = "",
+        input_dtype: Optional[int] = None,
+        output_dtype: Optional[int] = None,
     ) -> None: ...
 
     @property
@@ -422,11 +460,27 @@ class ModelInfo:
     @property
     def input_shape(self) -> List[int]: ...
     @property
-    def input_type(self) -> int: ...
+    def input_type(self) -> int:
+        """Deprecated legacy input element type; use ``input_dtype``."""
+        ...
+    @property
+    def input_dtype(self) -> int:
+        """Input HAL dtype code (``ModelInfo.DTYPE_*``)."""
+        ...
     @property
     def output_shape(self) -> List[int]: ...
     @property
-    def output_type(self) -> int: ...
+    def output_type(self) -> int:
+        """Deprecated legacy output element type; use ``output_dtype``."""
+        ...
+    @property
+    def output_dtype(self) -> int:
+        """Output HAL dtype code (``ModelInfo.DTYPE_*``)."""
+        ...
+    @property
+    def has_dtype_fields(self) -> bool:
+        """``False`` for messages encoded before the dtype fields existed."""
+        ...
     @property
     def labels(self) -> List[str]: ...
     @property
