@@ -7895,6 +7895,8 @@ impl PyCameraFrame {
 fn schemas(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();
 
+    // PEP 440 spelling of the crate version, set by build.rs.
+    m.add("__version__", env!("EDGEFIRST_SCHEMAS_PYTHON_VERSION"))?;
     m.add_class::<BorrowedBuf>()?;
 
     // builtin_interfaces submodule

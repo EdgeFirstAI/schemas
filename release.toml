@@ -4,8 +4,8 @@
 # 1. cargo release version <patch|minor|major|<version>> --execute
 #    - Updates version in Cargo.toml only
 # 2. cargo release replace --execute
-#    - Runs pre-release-replacements to update crates/python/pyproject.toml,
-#      package.xml, and CHANGELOG.md
+#    - Runs pre-release-replacements to update package.xml and CHANGELOG.md.
+#      The Python wheel and `__version__` take the version from Cargo.toml.
 # 3. cargo release commit --execute
 #    - Commits all version changes
 # 4. cargo release tag --execute
@@ -35,14 +35,11 @@ push = false
 # Commit message for version bump
 pre-release-commit-message = "Release {{version}}"
 
-# Pre-release replacements - sync versions across all three languages
+# Pre-release replacements - sync the version into files Cargo does not own
 # These run during the 'replace' step (after 'version' step, before 'commit' step)
 pre-release-replacements = [
   # Update CHANGELOG.md
   { file = "CHANGELOG.md", search = "## \\[Unreleased\\]", replace = "## [Unreleased]\n\n## [{{version}}] - {{date}}", exactly = 1 },
-  
-  # Update Python pyproject.toml version
-  { file = "crates/python/pyproject.toml", search = 'version = ".*"', replace = 'version = "{{version}}"', exactly = 1 },
   
   # Update ROS2 package.xml version
   { file = "edgefirst_msgs/package.xml", search = '<version>.*</version>', replace = '<version>{{version}}</version>', exactly = 1 },

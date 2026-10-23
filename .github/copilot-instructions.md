@@ -561,19 +561,18 @@ fakeroot debian/rules build
 | `sbom.yml` | Scheduled | SBOM generation for license compliance |
 
 **CI scripts (`.github/scripts/`):**
-- `check_version_sync.sh` — Validates Cargo.toml, `crates/python/pyproject.toml`, and package.xml versions match
+- `check_version_sync.sh` — Validates that every crate inherits the workspace version, both `pyproject.toml` files take it from Cargo, and package.xml matches
 - `generate_sbom.sh` — Generates CycloneDX SBOM from dependency tree
 - `generate_notice.py` — Produces NOTICE file from SBOM
 - `check_license_policy.py` — Validates all dependencies against license allowlist
 
 ### Version Management
 
-**Three synchronized version sources (managed by `cargo-release`):**
-1. `Cargo.toml` — Rust crate version
-2. `crates/python/pyproject.toml` — Python package version
-3. `edgefirst_msgs/package.xml` — ROS2 package version
+**Version sources (managed by `cargo-release`):**
+1. `Cargo.toml` `[workspace.package]` — the single source; every crate inherits it, and the Python wheel and `edgefirst.schemas.__version__` use its PEP 440 form (`4.1.0-rc.1` → `4.1.0rc1`)
+2. `edgefirst_msgs/package.xml` — ROS2 package version (release part only)
 
-**Current version:** 4.0.0
+**Current version:** 4.1.0
 
 **Semantic Versioning (SemVer 2.0.0):**
 - **MAJOR**: Breaking CDR wire format changes, removed message types, incompatible API changes

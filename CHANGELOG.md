@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-10-23
+
 ### Added
 
 - `edgefirst_msgs/ModelInfo` gains `input_dtype` and `output_dtype`, appended after `model_name`, carrying EdgeFirst HAL tensor dtype codes (`edgefirst_tensor_abi::EfDtype`). Their codes are declared under HAL's names as `DTYPE_U8` … `DTYPE_F64` plus `DTYPE_UNKNOWN` (255, no HAL dtype applies) in `ModelInfo.msg`, in Rust as `model_info::DTYPE_*`, in C as `EDGEFIRST_MSGS_MODEL_INFO_DTYPE_*`, and in Python as `ModelInfo.DTYPE_*`. A test checks the Rust constants, the C macros and the `.msg` constants against `EfDtype` by name (EDGEAI-2195).
@@ -20,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `PointFieldType` takes its discriminants and `from_datatype()` from the `sensor_msgs::point_field` constants instead of repeating the numbers, and is now `#[repr(u8)]` (EDGEAI-2195).
 - The `ModelInfo` goldens are now encoded with pycdr2 instead of the PyO3 bindings, carry the dtype fields, and use distinct input and output dtypes; a new `ModelInfo_legacy` golden records the earlier layout (EDGEAI-2195).
 - Tensor `dtype` and `storage_kind` codes are no longer written as bare numbers anywhere in the repository. Rust tests use `edgefirst-tensor-abi` (`EfDtype`, `EfStorageKind`, a test-only dependency), the C and C++ tests use `crates/capi/tests/tensor_abi.h` with HAL's `EF_DTYPE_*` / `EF_STORAGE_KIND_*` names, and the fixture generator and Python tests use `tests/python/tensor_abi.py`. A new golden test checks every tensor fixture's codes against the ABI enums by name (EDGEAI-2191).
+- The Python package takes its version from the workspace `Cargo.toml` (`dynamic = ["version"]`) instead of a separate `pyproject.toml` entry, and the `edgefirst-schemas-python` crate inherits the workspace version instead of declaring `0.1.0`. Pre-release versions are published under their PEP 440 spelling (`4.1.0-rc.1` → `4.1.0rc1`).
 
 ### Deprecated
 
@@ -28,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - The `edgefirst_msgs` tensor golden fixtures carried `dtype = 1` for 8-bit image samples, which is `I8` under the HAL tensor ABI; they now carry `U8` (0). Only the `dtype` field of each fixture changes. The `Tensor` Python example now shows `dtype=0` (U8) as well (EDGEAI-2191).
+- `edgefirst.schemas.__version__` is defined again. The 4.0.0 bindings declared it in the type stubs but never set it, so reading it raised `AttributeError`. It is the PEP 440 spelling of the crate version and always equals `importlib.metadata.version("edgefirst-schemas")`.
 
 ## [4.0.0] - 2026-08-28
 
@@ -1312,7 +1316,8 @@ CDR serialization. No migration required.
 - Python build issues with wheel generation
 - Removed auxiliary files from ROS2 schemas not required for this project
 
-[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v4.0.0...HEAD
+[Unreleased]: https://github.com/EdgeFirstAI/schemas/compare/v4.1.0...HEAD
+[4.1.0]: https://github.com/EdgeFirstAI/schemas/compare/v4.0.0...v4.1.0
 [4.0.0]: https://github.com/EdgeFirstAI/schemas/compare/v3.5.0...v4.0.0
 [3.5.0]: https://github.com/EdgeFirstAI/schemas/compare/v3.4.3...v3.5.0
 [3.4.3]: https://github.com/EdgeFirstAI/schemas/compare/v3.4.2...v3.4.3
