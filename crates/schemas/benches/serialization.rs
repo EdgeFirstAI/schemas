@@ -12,7 +12,7 @@
 //! Fast mode for CI: `BENCH_FAST=1 cargo bench`
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use rand::Rng;
+use rand::RngExt;
 use std::hint::black_box;
 
 use edgefirst_schemas::builtin_interfaces::Time;
