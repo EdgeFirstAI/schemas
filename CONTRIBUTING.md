@@ -460,49 +460,39 @@ EdgeFirst Perception Schemas is a **multi-language project** (Rust + Python + RO
 
 #### Version Sources
 
-**Three sources are kept automatically synchronized using cargo-release:**
+The workspace `Cargo.toml` is the single source of the version:
 
-1. **Cargo.toml** (Rust ecosystem):
+1. **Cargo.toml** (Rust crates, C library, and the Python wheel):
    ```toml
    [workspace.package]
-   version = "4.0.0"
+   version = "4.1.0"
    ```
+   Every crate under `crates/` inherits it with `version.workspace = true`. The Python wheel declares `dynamic = ["version"]`, so maturin publishes the PEP 440 spelling of the Cargo version (`4.1.0-rc.1` becomes `4.1.0rc1` on PyPI).
 
-2. **crates/python/pyproject.toml** (Python / PyPI):
-   ```toml
-   [project]
-   version = "4.0.0"
-   ```
-
-3. **edgefirst_msgs/package.xml** (ROS2 ecosystem):
+2. **edgefirst_msgs/package.xml** (ROS2 / Debian packages):
    ```xml
-   <version>4.0.0</version>
+   <version>4.1.0</version>
    ```
-
-**Why three sources?**
-- Rust (crates.io), Python (PyPI), and ROS2 (Debian packages) are separate packaging ecosystems
-- Each requires its own version declaration
-- This is standard practice for multi-language projects
-- **cargo-release automatically synchronizes all three versions**
+   REP 149 allows no pre-release suffix, so it carries the release part only. `cargo release replace` updates it for final releases; for a release candidate, set it to the release the candidate previews.
 
 #### Version Access
 
 **Rust**: Version is embedded in crate metadata
 ```rust
 // Automatically available via Cargo.toml
-const VERSION: &str = env!("CARGO_PKG_VERSION");
+const VERSION: &str = env!("CARGO_PKG_VERSION");  // "4.1.0-rc.1"
 ```
 
-**Python**: Version accessible via `__version__` attribute
+**Python**: Version accessible via `__version__` attribute, in PEP 440 form
 ```python
 import edgefirst.schemas
-print(edgefirst.schemas.__version__)  # "0.2.0"
+print(edgefirst.schemas.__version__)  # "4.1.0rc1"
 ```
 
-**Installed package**: Use `importlib.metadata`
+**Installed package**: Use `importlib.metadata`, which reports the same string
 ```python
 from importlib.metadata import version
-print(version("edgefirst-schemas"))  # "0.2.0"
+print(version("edgefirst-schemas"))  # "4.1.0rc1"
 ```
 
 #### Semantic Versioning
@@ -526,7 +516,7 @@ Follow [SemVer 2.0.0](https://semver.org/):
 
 - **Tag format**: 'v' prefix (e.g., `v0.1.0`)
 - **Changelog**: Maintain [CHANGELOG.md](CHANGELOG.md) following [Keep a Changelog](https://keepachangelog.com/)
-- **Pre-releases**: Use `-rc1`, `-rc2` suffixes for release candidates (e.g., `v0.2.0-rc1`)
+- **Pre-releases**: Use SemVer `-rc.N` suffixes for release candidates (e.g., `v0.2.0-rc.1`); PyPI and `__version__` show the PEP 440 form (`0.2.0rc1`)
 
 ### Release Steps
 
@@ -609,22 +599,23 @@ cargo install cargo-release
 
    This command updates `Cargo.toml` version only.
 
-3. **Update Python and ROS2 versions**
+3. **Update ROS2 version and CHANGELOG**
    ```bash
    cargo release replace --execute
    ```
 
    This runs pre-release-replacements to update:
-   - `crates/python/pyproject.toml` version
    - `edgefirst_msgs/package.xml` <version>
    - `CHANGELOG.md` (adds new version section)
+
+   The Python package needs no edit: maturin and `__version__` take the version from `Cargo.toml`.
 
 4. **Review version changes**
    ```bash
    git diff
 
-   # Verify all three versions match
-   .github/scripts/check_version_sync.sh
+   # Verify all version declarations agree
+   make verify-version
    # Should output: ✅ All versions are synchronized!
    ```
 
@@ -693,7 +684,7 @@ cargo install cargo-release
    - Publishes to crates.io using version from Cargo.toml
    
    **c) Python Publishing** (`.github/workflows/wheels.yml` + `release.yml`)
-   - Builds `cp38-abi3` and `cp311-abi3` wheels using version from `crates/python/pyproject.toml`
+   - Builds `cp38-abi3` and `cp311-abi3` wheels using the PEP 440 form of the version from `Cargo.toml`
    - Publishes to PyPI
    
    **d) Debian Package Build** (`.github/workflows/debian.yml`)
@@ -723,7 +714,7 @@ cargo release 1.4.0 --execute
 
 This runs all steps in sequence:
 1. `version` - Updates Cargo.toml
-2. `replace` - Updates crates/python/pyproject.toml, package.xml, CHANGELOG.md
+2. `replace` - Updates package.xml, CHANGELOG.md
 3. `commit` - Commits all changes
 4. `tag` - Creates git tag
 5. `push` - Pushes to remote
@@ -737,11 +728,11 @@ Before creating a release, verify:
 - [ ] All tests pass (`cargo test`, `pytest`, `make test-c`, `make test-cpp`)
 - [ ] Documentation is up-to-date
 - [ ] CHANGELOG.md updated with all changes since last release (following [Keep a Changelog](https://keepachangelog.com/) format)
-- [ ] Versions synchronized via `cargo release version <level>` (validates all three: Cargo.toml, crates/python/pyproject.toml, package.xml)
+- [ ] Version bumped via `cargo release version <level>` and `cargo release replace` (Cargo.toml, package.xml, CHANGELOG.md)
 - [ ] NOTICE file regenerated if dependencies changed
 - [ ] No uncommitted changes (`git status` clean)
 - [ ] On `main` branch with latest changes pulled
-- [ ] Version sync check passes: `.github/scripts/check_version_sync.sh`
+- [ ] Version check passes: `make verify-version`
 
 ### 4.0 Breaking-Change Contract
 

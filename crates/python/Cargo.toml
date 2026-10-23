@@ -3,7 +3,7 @@
 
 [package]
 name = "edgefirst-schemas-python"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
 authors = ["Au-Zone Technologies <support@au-zone.com>"]
 license = "Apache-2.0"

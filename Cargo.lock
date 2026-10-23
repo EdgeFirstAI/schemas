@@ -376,7 +376,7 @@ dependencies = [
 
 [[package]]
 name = "edgefirst-schemas"
-version = "4.0.0"
+version = "4.1.0"
 dependencies = [
  "criterion",
  "edgefirst-tensor-abi",
@@ -389,7 +389,7 @@ dependencies = [
 
 [[package]]
 name = "edgefirst-schemas-capi"
-version = "4.0.0"
+version = "4.1.0"
 dependencies = [
  "cbindgen",
  "edgefirst-schemas",
@@ -399,7 +399,7 @@ dependencies = [
 
 [[package]]
 name = "edgefirst-schemas-python"
-version = "0.1.0"
+version = "4.1.0"
 dependencies = [
  "edgefirst-schemas",
  "numpy",

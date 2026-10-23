@@ -95,7 +95,7 @@ TEST_SOURCES = $(wildcard $(TEST_DIR)/test_*.c)
 TEST_BINARIES = $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/%,$(TEST_SOURCES))
 
 .PHONY: all lib test-c test-c-xml test-cpp test-cpp-asan test-cpp-xml test-cpp-asan-xml example-cpp install docs docs-clean clean help \
-        test-python test-python-coverage
+        test-python test-python-coverage verify-version
 
 all: lib $(TEST_BINARIES)
 
@@ -360,6 +360,14 @@ clean:
 	@rm -rf $(BUILD_DIR)
 	@cargo clean
 
+# Version declarations agree, and CHANGELOG.md has a section for the
+# workspace version (on a release branch the tag does not exist yet).
+verify-version:
+	@bash .github/scripts/check_version_sync.sh
+	@VERSION=$$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml); \
+	grep -q "^## \[$$VERSION\]" CHANGELOG.md || { echo "❌ CHANGELOG.md has no [$$VERSION] section"; exit 1; }; \
+	echo "✅ CHANGELOG.md has a [$$VERSION] section"
+
 help:
 	@echo "EdgeFirst Schemas Build System"
 	@echo ""
@@ -383,6 +391,7 @@ help:
 	@echo "  docs         - Generate API documentation (Doxygen) to build/docs/"
 	@echo "  docs-clean   - Remove generated documentation"
 	@echo "  clean        - Remove all build artifacts"
+	@echo "  verify-version - Check version declarations agree and CHANGELOG.md has a section for the version"
 	@echo ""
 	@echo "Variables:"
 	@echo "  RELEASE=1    - Build release library (default)"

@@ -3,7 +3,10 @@
 
 [project]
 name = "edgefirst-schemas"
-version = "4.0.0"
+# maturin takes the version from the workspace Cargo.toml and publishes
+# its PEP 440 spelling (4.1.0-rc.1 → 4.1.0rc1); build.rs gives the module
+# the same string as `__version__`.
+dynamic = ["version"]
 description = "Zero-copy CDR message types for EdgeFirst Perception (ROS 2 + Foxglove + custom)"
 readme = "README.md"
 # Install floor is Python 3.8. Two abi3 wheel families are published
